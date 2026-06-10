@@ -4,6 +4,7 @@ import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { sendCast, sendJump } from '../network/colyseus';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
+import { pushAnimationEvent } from '../render/animation/animationEvents';
 
 /**
  * MOBA ability input: Q/W/E/R cast the abilities bound to those slots for the
@@ -57,6 +58,9 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const rotation = local.active ? local.rotation : me.rotation;
       sendCast(ability, Math.sin(rotation), Math.cos(rotation));
       triggerCooldown(ability, config.cooldownMs);
+      // Predict our own cast/attack pose immediately (the server confirms it for
+      // everyone else via animState). `charge` reads as a melee lunge.
+      pushAnimationEvent(me.sessionId, ability === 'charge' ? 'attack' : 'cast');
     };
 
     window.addEventListener('keydown', onKeyDown);

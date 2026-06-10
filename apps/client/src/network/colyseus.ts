@@ -60,6 +60,7 @@ function snapshotState(state: RawState): {
       alive: player.alive,
       characterClass: player.characterClass,
       skinId: player.skinId,
+      animState: player.animState,
     });
   });
 
@@ -114,19 +115,21 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
       break;
     }
   }
-  // `charge` is an attack lunge; the rest are spellcasts. Drives the state machine.
-  pushAnimationEvent(msg.casterId, msg.ability === 'charge' ? 'attack' : 'cast');
+  // Cast/attack poses are server-authoritative (replicated via `animState`) for
+  // remote players; the local caster predicts its own in the ability hotkey.
 }
 
 /** Show a hit spark + damage number at the damaged player, and play a flinch.
  *  Death isn't an event — the state machine latches it from the replicated
  *  `alive` flag — so a lethal blow skips the flinch and goes to the death pose. */
 function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
-  const target = useGameStore.getState().players.get(msg.to);
+  const { players, sessionId } = useGameStore.getState();
+  const target = players.get(msg.to);
   if (!target) return;
   useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
   spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
-  if (!msg.lethal) pushAnimationEvent(msg.to, 'hit');
+  // Local flinch is predicted; remote players' hit pose comes from server animState.
+  if (!msg.lethal && msg.to === sessionId) pushAnimationEvent(msg.to, 'hit');
 }
 
 /** Show a healing number above the healed player. */

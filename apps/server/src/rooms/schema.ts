@@ -21,6 +21,11 @@ export class Player extends Schema {
   @type('string') characterClass = 'warrior';
   /** Optional skin asset id layered on top of the class appearance. */
   @type('string') skinId = '';
+  /**
+   * Authoritative animation state (idle/run/attack/cast/hit/die). Remote clients
+   * play this directly; the local client predicts its own for responsiveness.
+   */
+  @type('string') animState = 'idle';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

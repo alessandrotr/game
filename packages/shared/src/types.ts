@@ -4,7 +4,7 @@
  * depending on `@colyseus/schema` decorators at build time.
  */
 
-import type { CharacterClass } from './assets.js';
+import type { AnimationName, CharacterClass } from './assets.js';
 
 /** Replicated per-player state. Mirrors `Player` in the server schema. */
 export interface PlayerView {
@@ -25,6 +25,8 @@ export interface PlayerView {
   characterClass: CharacterClass;
   /** Optional skin asset id applied on top of the class's base appearance. */
   skinId: string;
+  /** Authoritative animation state; remote clients render this directly. */
+  animState: AnimationName;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */

@@ -96,8 +96,12 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
     if (!latest.alive) {
       // Hold position and play the death pose in place (no movement while down).
-      if (isLocal) clearDestination();
-      animName.current = fsm.current.step({ speed: 0, alive: false, event: null }, delta * 1000);
+      if (isLocal) {
+        clearDestination();
+        animName.current = fsm.current.step({ speed: 0, alive: false, event: null }, delta * 1000);
+      } else {
+        animName.current = latest.animState; // authoritative ('die')
+      }
       prevPos.current.x = node.position.x;
       prevPos.current.z = node.position.z;
       return;
@@ -171,18 +175,23 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       node.rotation.y = lerpAngle(node.rotation.y, latest.rotation, t);
     }
 
-    // Drive the animation state machine from the rendered horizontal speed
-    // (unified for local and remote) plus any queued one-shot event.
+    // Animation. The LOCAL player predicts its own (zero latency) from rendered
+    // speed + locally-queued one-shot events; REMOTE players render the server's
+    // authoritative `animState` directly (Phase 9.2).
     const sdx = node.position.x - prevPos.current.x;
     const sdz = node.position.z - prevPos.current.z;
     prevPos.current.x = node.position.x;
     prevPos.current.z = node.position.z;
-    const moved = Math.hypot(sdx, sdz);
-    const speed = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-    animName.current = fsm.current.step(
-      { speed, alive: true, event: consumeAnimationEvent(sessionId) },
-      delta * 1000,
-    );
+    if (isLocal) {
+      const moved = Math.hypot(sdx, sdz);
+      const speed = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
+      animName.current = fsm.current.step(
+        { speed, alive: true, event: consumeAnimationEvent(sessionId) },
+        delta * 1000,
+      );
+    } else {
+      animName.current = latest.animState;
+    }
 
     // HP bar fill, left-anchored.
     if (hpFill.current) {

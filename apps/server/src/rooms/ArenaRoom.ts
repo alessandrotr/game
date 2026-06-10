@@ -30,6 +30,12 @@ import {
 } from '@arena/shared';
 import { ArenaState, Player, Projectile } from './schema.js';
 import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
+import {
+  computeAnimState,
+  HIT_ONESHOT_MS,
+  INSTANT_ONESHOT_MS,
+  type AnimOneShot,
+} from '../animation.js';
 
 /** Maximum accepted display-name length. */
 const MAX_NAME_LENGTH = 24;
@@ -114,6 +120,8 @@ export class ArenaRoom extends Room<ArenaState> {
   private readonly projectileMeta = new Map<string, ProjectileMeta>();
   /** Casts mid wind-up (castTimeMs > 0); the player is rooted until they resolve. */
   private readonly pendingCasts = new Map<string, PendingCast>();
+  /** Transient one-shot animation (cast/attack/hit) currently asserted per player. */
+  private readonly animOneShots = new Map<string, AnimOneShot>();
 
   /** Accumulated simulation time in ms (used for cooldowns / respawn timers). */
   private simTime = 0;
@@ -240,6 +248,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.cooldowns.delete(client.sessionId);
     this.respawnAt.delete(client.sessionId);
     this.pendingCasts.delete(client.sessionId);
+    this.animOneShots.delete(client.sessionId);
   }
 
   // --- Abilities ---------------------------------------------------------
@@ -288,6 +297,13 @@ export class ArenaRoom extends Room<ArenaState> {
       z: player.z,
       dirX,
       dirZ,
+    });
+
+    // Assert the authoritative cast/attack pose for the wind-up (or a brief
+    // window for instant abilities). `charge` reads as a melee lunge.
+    this.animOneShots.set(sessionId, {
+      name: ability === 'charge' ? 'attack' : 'cast',
+      until: this.simTime + Math.max(config.castTimeMs, INSTANT_ONESHOT_MS),
     });
 
     if (config.castTimeMs > 0) {
@@ -452,6 +468,15 @@ export class ArenaRoom extends Room<ArenaState> {
     if (lethal) {
       this.destinations.delete(target.sessionId);
       this.respawnAt.set(target.sessionId, this.simTime + RESPAWN_DELAY_MS);
+    } else {
+      // Flinch — unless a cast/attack pose is already playing (don't cut it).
+      const existing = this.animOneShots.get(target.sessionId);
+      if (!existing || existing.until <= this.simTime) {
+        this.animOneShots.set(target.sessionId, {
+          name: 'hit',
+          until: this.simTime + HIT_ONESHOT_MS,
+        });
+      }
     }
   }
 
@@ -464,7 +489,9 @@ export class ArenaRoom extends Room<ArenaState> {
 
     this.state.players.forEach((player, sessionId) => {
       if (!player.alive) {
+        player.animState = 'die';
         this.pendingCasts.delete(sessionId);
+        this.animOneShots.delete(sessionId);
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -476,6 +503,10 @@ export class ArenaRoom extends Room<ArenaState> {
       }
 
       regenMana(player, MANA_REGEN, dt);
+
+      // Capture pre-move position to derive locomotion (run vs idle) below.
+      const startX = player.x;
+      const startZ = player.z;
 
       const m = this.movement;
       const pending = this.pendingCasts.get(sessionId);
@@ -529,6 +560,15 @@ export class ArenaRoom extends Room<ArenaState> {
         this.grounded.set(sessionId, true);
       }
       this.verticalVelocity.set(sessionId, vy);
+
+      // Authoritative animation: one-shots (cast/attack/hit) over locomotion.
+      const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
+      player.animState = computeAnimState({
+        alive: true,
+        moving,
+        oneShot: this.animOneShots.get(sessionId) ?? null,
+        now: this.simTime,
+      });
     });
 
     this.updateProjectiles(dt);
