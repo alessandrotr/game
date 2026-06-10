@@ -17,7 +17,7 @@ const arena: MapDescriptor = {
   halfSize: ARENA_HALF_SIZE,
   groundColor: '#1a1f33',
   ambient: { color: '#3a4a7a', intensity: 0.4 },
-  props: [{ assetId: 'vfx.portal', position: [0, 0, PORTAL_Z] }],
+  props: [],
   zones: [
     { kind: 'portal', center: [0, 0, PORTAL_Z], radius: 2.2, label: 'Town Portal' },
     { kind: 'spawn', center: [0, 0, 18], radius: 2, label: 'Spawn' },
@@ -62,7 +62,6 @@ const town: MapDescriptor = {
     // --- Town-square centrepiece + the moongate (arena portal) ---
     { assetId: 'prop.well', position: [0, 0, -2] },
     { assetId: 'prop.arch', position: [0, 0, -13.5] },
-    { assetId: 'vfx.portal', position: [0, 0, -14] },
 
     // --- Market: stalls, cart, goods near the merchant ---
     { assetId: 'prop.market.stall', position: [5, 0, 5], rotation: [0, -0.5, 0] },
