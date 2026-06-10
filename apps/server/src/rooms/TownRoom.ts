@@ -22,7 +22,7 @@ import { reviveFull } from '../combat.js';
 import { computeAnimState } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { topPlayers } from '../db/players.js';
+import { getProgress, topPlayers } from '../db/players.js';
 import { verifyToken } from '../auth.js';
 
 const MAX_NAME_LENGTH = 24;
@@ -165,6 +165,32 @@ export class TownRoom extends Room<ArenaState> {
 
     client.send(ServerMessage.Welcome, { sessionId: client.sessionId, worldSeed: this.roomId.length });
     this.chat.sendHistory(client);
+
+    // Show the account's persisted progression for this class in town too (the
+    // HUD reads level/xp/kills/deaths). Town is non-combat, so this is display
+    // only — nothing here mutates or saves it.
+    void this.loadProgress(client.sessionId, claims?.pid, player.characterClass);
+  }
+
+  /** Seed the replicated career totals from the DB so the town HUD isn't 1/0/0. */
+  private async loadProgress(
+    sessionId: string,
+    playerId: number | undefined,
+    characterClass: string,
+  ): Promise<void> {
+    const db = getPool();
+    if (!db || playerId === undefined) return;
+    try {
+      const progress = await getProgress(db, playerId, characterClass);
+      const player = this.state.players.get(sessionId);
+      if (!player) return; // left before the load finished
+      player.level = progress.level;
+      player.xp = progress.xp;
+      player.kills = progress.kills;
+      player.deaths = progress.deaths;
+    } catch (err) {
+      console.error('[town] failed to load progress:', err);
+    }
   }
 
   override onLeave(client: Client): void {
