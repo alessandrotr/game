@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/useGameStore';
+import { leaveToCharacterSelect } from '../network/colyseus';
 import { ActionBar } from './ActionBar';
 import { QueuePanel } from './QueuePanel';
 import { PlayerCard } from './PlayerCard';
@@ -19,6 +20,17 @@ export function Hud() {
       <div className="pointer-events-none absolute right-4 top-4 rounded-full border border-white/10 bg-panel/80 px-3 py-1.5 text-xs text-muted backdrop-blur-sm">
         ◍ {playerIds.length} online
       </div>
+
+      {/* Back to character select — town only, so you can't bail mid-match. */}
+      {!inArena && (
+        <button
+          type="button"
+          onClick={() => void leaveToCharacterSelect()}
+          className="pointer-events-auto absolute right-4 top-12 rounded-full border border-white/10 bg-panel/80 px-3 py-1.5 text-xs text-muted backdrop-blur-sm transition hover:text-text hover:brightness-110"
+        >
+          ↩ Change Character
+        </button>
+      )}
 
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
         {inArena

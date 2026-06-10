@@ -36,10 +36,13 @@ export function TownLights() {
           decay={2}
         />
       ))}
-      {/* Gate lantern over the arena arch. */}
+      {/* Gate lantern over the arena arch (the moongate). */}
       <pointLight position={[0, 3.3, -13.5]} color={LAMP_COLOR} intensity={8} distance={10} decay={2} />
       {/* Forge glow at the blacksmith. */}
       <pointLight position={[12, 3.6, 4.4]} color="#ff7a3a" intensity={10} distance={8} decay={2} />
+      {/* Braziers flanking the castle gatehouse, so the keep reads at dusk. */}
+      <pointLight position={[2.6, 3, -22]} color={LAMP_COLOR} intensity={14} distance={13} decay={2} />
+      <pointLight position={[-2.6, 3, -22]} color={LAMP_COLOR} intensity={14} distance={13} decay={2} />
     </group>
   );
 }

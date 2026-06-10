@@ -314,6 +314,48 @@ const signpost = prop('signpost', 'Signpost', [
   box([0.7, 0.28, 0.06], [-0.25, 1.1, 0], WOOD_DARK, { castShadow: false }),
 ]);
 
+// --- Castle & city walls (Ultima Online / Britain flavour) -----------------
+
+/** A corner tower for the castle: shaft, crenellated cap, conical roof. */
+const castleTower = (x: number, z: number): PlaceholderPart[] => [
+  cyl(1.1, 1.25, 8, 12, [x, 4, z], STONE),
+  cyl(1.4, 1.4, 0.7, 12, [x, 8, z], STONE_DARK),
+  cone(1.5, 1.7, 12, [x, 9.2, z], ROOF_SLATE),
+];
+
+/** Lord British's keep: a stone castle with four corner towers, a battlemented
+ *  keep, a gatehouse, and banners — the town's centrepiece. */
+const castle = prop('castle', "Lord British's Castle", [
+  box([10, 0.8, 10], [0, 0.4, 0], STONE_DARK), // foundation
+  box([6.5, 5.5, 6.5], [0, 3.2, 0], STONE), // keep
+  box([7.1, 0.7, 7.1], [0, 6.2, 0], STONE_DARK), // keep battlement
+  box([3.2, 0.9, 3.2], [0, 6.9, 0], STONE), // upper turret
+  cone(2.6, 2.2, 4, [0, 8.5, 0], ROOF_SLATE, { rotation: [0, Math.PI / 4, 0] }),
+  // Gatehouse with a dark portcullis, facing +z.
+  box([4.5, 4, 2], [0, 2, 4.5], STONE),
+  box([1.8, 2.6, 0.3], [0, 1.5, 5.5], '#1f1812'),
+  box([5.1, 0.6, 2.4], [0, 4.2, 4.5], STONE_DARK),
+  // Four corner towers.
+  ...castleTower(4.5, 4.5),
+  ...castleTower(-4.5, 4.5),
+  ...castleTower(4.5, -4.5),
+  ...castleTower(-4.5, -4.5),
+  // Glowing windows on the keep.
+  box([0.6, 0.9, 0.06], [-1.6, 3.4, 3.26], WINDOW, glow(1)),
+  box([0.6, 0.9, 0.06], [1.6, 3.4, 3.26], WINDOW, glow(1)),
+  // Banners on the gatehouse.
+  box([0.05, 1.4, 0.5], [-1.4, 3.4, 5.6], CLOTH, { castShadow: false }),
+  box([0.05, 1.4, 0.5], [1.4, 3.4, 5.6], CLOTH, { castShadow: false }),
+]);
+
+/** A ~5u crenellated stone wall segment (tileable along the city perimeter). */
+const wall = prop('wall', 'City Wall', [
+  box([5, 2.6, 0.9], [0, 1.3, 0], STONE),
+  box([0.7, 0.5, 0.95], [-1.6, 2.85, 0], STONE_DARK, { castShadow: false }),
+  box([0.7, 0.5, 0.95], [0, 2.85, 0], STONE_DARK, { castShadow: false }),
+  box([0.7, 0.5, 0.95], [1.6, 2.85, 0], STONE_DARK, { castShadow: false }),
+]);
+
 export const PROPS: PropDescriptor[] = [
   house,
   cottage,
@@ -334,4 +376,6 @@ export const PROPS: PropDescriptor[] = [
   rock,
   flowers,
   signpost,
+  castle,
+  wall,
 ];

@@ -31,10 +31,14 @@ export function GameScene() {
 
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
   const half = isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE;
-  // Tighten the shadow frustum to the area that actually has props (town content
-  // sits within ±20). A smaller frustum packs the 2048² map's texels onto that
-  // area → far crisper shadows than spreading them over the whole 70u ground.
-  const shadowExtent = isArena ? half : 22;
+  // Tighten the shadow frustum to the area that actually has props. A smaller
+  // frustum packs the 2048² map's texels onto that area → far crisper shadows
+  // than spreading them over the whole ground. Town reaches back to the castle.
+  const shadowExtent = isArena ? half : 30;
+  // Fog: town fades the (huge) ground into the sky colour at the horizon, so the
+  // ground edge is never a hard line. Kept clear over the town core.
+  const fogNear = isArena ? half : half * 0.65;
+  const fogFar = isArena ? half * 3 : half * 1.9;
 
   return (
     <Canvas
@@ -47,7 +51,7 @@ export function GameScene() {
       {/* Arena: moody dark. Town: warm dusk so the lit lamps, windows, and forge
           glow read against a low-key sky. */}
       <color attach="background" args={[isArena ? '#0b0d17' : '#4f4a66']} />
-      <fog attach="fog" args={[isArena ? '#0b0d17' : '#4f4a66', half, half * 3]} />
+      <fog attach="fog" args={[isArena ? '#0b0d17' : '#4f4a66', fogNear, fogFar]} />
 
       {/* Fill is kept low so the sunset sun + lamp pools read with contrast. */}
       <ambientLight intensity={isArena ? 0.4 : 0.16} />

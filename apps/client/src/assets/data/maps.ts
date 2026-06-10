@@ -1,5 +1,5 @@
 import type { MapDescriptor } from '@arena/shared';
-import { ARENA_HALF_SIZE } from '@arena/shared';
+import { ARENA_HALF_SIZE, TOWN_HALF_SIZE } from '@arena/shared';
 
 /**
  * Maps are pure data: a ground spec, a list of instances placed by asset id, and
@@ -30,71 +30,91 @@ const arena: MapDescriptor = {
 const town: MapDescriptor = {
   id: 'map.town',
   displayName: 'Town Square',
-  halfSize: 35,
+  halfSize: TOWN_HALF_SIZE,
   groundColor: '#4a6b3a',
   ambient: { color: '#fff2d0', intensity: 0.6 },
   props: [
-    // --- Buildings, ringing the square and facing inward ---
-    { assetId: 'prop.building.inn', position: [-12, 0, 1], rotation: [0, HALF_PI, 0] },
-    { assetId: 'prop.building.smithy', position: [12.5, 0, 5], rotation: [0, -HALF_PI, 0] },
-    { assetId: 'prop.building.tower', position: [-15.5, 0, -14], rotation: [0, 0.6, 0] },
-    { assetId: 'prop.building.house', position: [11, 0, -8], rotation: [0, -1.9, 0] },
-    { assetId: 'prop.building.cottage', position: [-11, 0, -9], rotation: [0, 1.9, 0] },
-    { assetId: 'prop.building.house', position: [-12, 0, 12], rotation: [0, 2.3, 0] },
-    { assetId: 'prop.building.cottage', position: [11.5, 0, 13], rotation: [0, -2.3, 0] },
-    { assetId: 'prop.building.house', position: [15, 0, -2], rotation: [0, -HALF_PI, 0] },
+    // --- Lord British's castle + city walls, looming behind the moongate ---
+    { assetId: 'prop.castle', position: [0, 0, -27] },
+    { assetId: 'prop.wall', position: [-9, 0, -29] },
+    { assetId: 'prop.wall', position: [-14, 0, -29] },
+    { assetId: 'prop.wall', position: [-19, 0, -29] },
+    { assetId: 'prop.wall', position: [9, 0, -29] },
+    { assetId: 'prop.wall', position: [14, 0, -29] },
+    { assetId: 'prop.wall', position: [19, 0, -29] },
+    { assetId: 'prop.wall', position: [-21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.wall', position: [21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
 
-    // --- Town-square centrepiece + portal gateway ---
+    // --- Buildings lining the streets, facing inward ---
+    { assetId: 'prop.building.inn', position: [-13, 0, 2], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.building.smithy', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
+    { assetId: 'prop.building.tower', position: [-20, 0, -16], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.building.tower', position: [20, 0, -16], rotation: [0, -0.5, 0] },
+    { assetId: 'prop.building.house', position: [13, 0, -9], rotation: [0, -1.9, 0] },
+    { assetId: 'prop.building.cottage', position: [-13, 0, -10], rotation: [0, 1.9, 0] },
+    { assetId: 'prop.building.house', position: [-16, 0, 15], rotation: [0, 2.3, 0] },
+    { assetId: 'prop.building.cottage', position: [16, 0, 16], rotation: [0, -2.3, 0] },
+    { assetId: 'prop.building.house', position: [19, 0, -2], rotation: [0, -HALF_PI, 0] },
+    { assetId: 'prop.building.cottage', position: [-19, 0, -3], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.building.house', position: [-10, 0, 23], rotation: [0, Math.PI, 0] },
+    { assetId: 'prop.building.cottage', position: [10, 0, 24], rotation: [0, Math.PI, 0] },
+
+    // --- Town-square centrepiece + the moongate (arena portal) ---
     { assetId: 'prop.well', position: [0, 0, -2] },
     { assetId: 'prop.arch', position: [0, 0, -13.5] },
     { assetId: 'vfx.portal', position: [0, 0, -14] },
 
     // --- Market: stalls, cart, goods near the merchant ---
-    { assetId: 'prop.market.stall', position: [5, 0, 4], rotation: [0, -0.5, 0] },
-    { assetId: 'prop.market.stall', position: [-5, 0, 5], rotation: [0, 0.5, 0] },
-    { assetId: 'prop.cart', position: [7, 0, 1.5], rotation: [0, 0.4, 0] },
-    { assetId: 'prop.crate', position: [6, 0, 5.5] },
-    { assetId: 'prop.crate', position: [-6, 0, 6.5], rotation: [0, 0.7, 0] },
-    { assetId: 'prop.barrel', position: [-8.5, 0, 3] },
-    { assetId: 'prop.barrel', position: [10, 0, 6.5] },
+    { assetId: 'prop.market.stall', position: [5, 0, 5], rotation: [0, -0.5, 0] },
+    { assetId: 'prop.market.stall', position: [-5, 0, 6], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.cart', position: [7, 0, 2], rotation: [0, 0.4, 0] },
+    { assetId: 'prop.crate', position: [6, 0, 6.5] },
+    { assetId: 'prop.crate', position: [-6, 0, 7.5], rotation: [0, 0.7, 0] },
+    { assetId: 'prop.barrel', position: [-8.5, 0, 4] },
+    { assetId: 'prop.barrel', position: [10, 0, 7.5] },
 
-    // --- Lamps flanking the central path (spawn → well → portal) ---
-    { assetId: 'prop.lamp', position: [2.8, 0, 9] },
-    { assetId: 'prop.lamp', position: [-2.8, 0, 9] },
-    { assetId: 'prop.lamp', position: [3, 0, -6] },
-    { assetId: 'prop.lamp', position: [-3, 0, -6] },
-    { assetId: 'prop.lamp', position: [2.8, 0, -11.5] },
-    { assetId: 'prop.lamp', position: [-2.8, 0, -11.5] },
+    // --- Lamps flanking the main street (spawn → well → moongate → castle) ---
+    { assetId: 'prop.lamp', position: [3, 0, 12] },
+    { assetId: 'prop.lamp', position: [-3, 0, 12] },
+    { assetId: 'prop.lamp', position: [3.2, 0, 4] },
+    { assetId: 'prop.lamp', position: [-3.2, 0, 4] },
+    { assetId: 'prop.lamp', position: [3.2, 0, -8] },
+    { assetId: 'prop.lamp', position: [-3.2, 0, -8] },
 
     // --- A fenced yard beside the back cottage ---
-    { assetId: 'prop.fence', position: [-12, 0, -6] },
-    { assetId: 'prop.fence', position: [-10, 0, -6] },
-    { assetId: 'prop.fence', position: [-8.6, 0, -7.4], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.fence', position: [-14, 0, -7] },
+    { assetId: 'prop.fence', position: [-12, 0, -7] },
+    { assetId: 'prop.fence', position: [-10.6, 0, -8.4], rotation: [0, HALF_PI, 0] },
 
     // --- Trees, pines, and rocks framing the edges ---
-    { assetId: 'prop.tree', position: [-18, 0, 9], scale: 1.1 },
-    { assetId: 'prop.tree', position: [18, 0, 11] },
-    { assetId: 'prop.tree', position: [0, 0, 19], scale: 1.2 },
-    { assetId: 'prop.tree.pine', position: [-19, 0, -7] },
-    { assetId: 'prop.tree.pine', position: [19, 0, -9], scale: 1.1 },
-    { assetId: 'prop.tree.pine', position: [-16, 0, 17] },
-    { assetId: 'prop.tree.pine', position: [16, 0, 18] },
-    { assetId: 'prop.rock', position: [-20, 0, 1] },
-    { assetId: 'prop.rock', position: [20, 0, 3], scale: 1.3 },
-    { assetId: 'prop.rock', position: [14, 0, -15] },
+    { assetId: 'prop.tree', position: [-24, 0, 10], scale: 1.2 },
+    { assetId: 'prop.tree', position: [24, 0, 12] },
+    { assetId: 'prop.tree', position: [0, 0, 27], scale: 1.3 },
+    { assetId: 'prop.tree', position: [-9, 0, 30] },
+    { assetId: 'prop.tree.pine', position: [-25, 0, -8] },
+    { assetId: 'prop.tree.pine', position: [25, 0, -10], scale: 1.1 },
+    { assetId: 'prop.tree.pine', position: [-22, 0, 22] },
+    { assetId: 'prop.tree.pine', position: [22, 0, 24] },
+    { assetId: 'prop.tree.pine', position: [11, 0, 30], scale: 1.1 },
+    { assetId: 'prop.rock', position: [-26, 0, 2] },
+    { assetId: 'prop.rock', position: [26, 0, 4], scale: 1.3 },
+    { assetId: 'prop.rock', position: [16, 0, -18] },
+    { assetId: 'prop.rock', position: [-16, 0, -19], scale: 1.2 },
 
     // --- Bushes & flowerbeds softening the ground ---
-    { assetId: 'prop.bush', position: [-9, 0, 9] },
-    { assetId: 'prop.bush', position: [9, 0, 9] },
+    { assetId: 'prop.bush', position: [-9, 0, 11] },
+    { assetId: 'prop.bush', position: [9, 0, 11] },
     { assetId: 'prop.bush', position: [-7, 0, -4] },
-    { assetId: 'prop.bush', position: [7, 0, -12] },
-    { assetId: 'prop.flowers', position: [3.5, 0, 6] },
-    { assetId: 'prop.flowers', position: [-3.5, 0, 7] },
-    { assetId: 'prop.flowers', position: [4.5, 0, -3] },
-    { assetId: 'prop.flowers', position: [-4.5, 0, -10] },
+    { assetId: 'prop.bush', position: [7, 0, -13] },
+    { assetId: 'prop.bush', position: [-11, 0, 18] },
+    { assetId: 'prop.bush', position: [12, 0, 19] },
+    { assetId: 'prop.flowers', position: [3.5, 0, 7] },
+    { assetId: 'prop.flowers', position: [-3.5, 0, 8] },
+    { assetId: 'prop.flowers', position: [5, 0, -3] },
+    { assetId: 'prop.flowers', position: [-5, 0, -11] },
 
-    // --- Signpost at the spawn end of the path ---
-    { assetId: 'prop.signpost', position: [3, 0, 10.5], rotation: [0, -0.5, 0] },
+    // --- Signpost at the spawn end of the street ---
+    { assetId: 'prop.signpost', position: [3.5, 0, 14], rotation: [0, -0.5, 0] },
   ],
   zones: [
     { kind: 'spawn', center: [0, 0, 12], radius: 3, label: 'Spawn' },

@@ -221,6 +221,19 @@ function wireRoom(joined: Room): void {
   });
 }
 
+/** Leave the current room and return to the character-select screen (staying
+ *  signed in). The room's `onLeave` resets the game store, so the app falls back
+ *  to the JoinScreen. Used by the town's "Change Character" control. */
+export async function leaveToCharacterSelect(): Promise<void> {
+  const current = room;
+  if (!current) return;
+  try {
+    await current.leave();
+  } catch {
+    /* already gone — onLeave will have cleaned up */
+  }
+}
+
 /** Join a world for the first time (from the character-select screen). Identity
  *  (token + display name) comes from the signed-in account. */
 export async function connectToRoom(
