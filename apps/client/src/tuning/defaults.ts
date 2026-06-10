@@ -100,7 +100,7 @@ export const defaultTuning: Tuning = {
     jumpForce: 8.5,
     rotationSpeed: 10,
     stoppingDistance: 0.1,
-    sprintThreshold: 6,
+    sprintThreshold: 1.5,
   },
   combat: {
     baseDamage: 20,
