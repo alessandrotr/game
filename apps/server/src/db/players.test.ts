@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { newDb } from 'pg-mem';
+import { levelForXp } from '@arena/shared';
 import { SCHEMA, type Queryable } from './database';
-import { getProgress, levelForXp, login, recordResult } from './players';
+import { getProgress, login, recordResult } from './players';
 
 /** A fresh in-memory Postgres with the schema applied. */
 async function freshDb(): Promise<Queryable> {

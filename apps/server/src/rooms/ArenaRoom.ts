@@ -27,6 +27,7 @@ import {
   ServerMessage,
   isAbilityKind,
   isCharacterClass,
+  levelForXp,
   type AbilityConfig,
   type AbilityKind,
   type AutoAttackConfig,
@@ -44,13 +45,14 @@ import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { getProgress, login, recordResult } from '../db/players.js';
 
-/** In-memory match stats accumulated for a player, flushed to the DB on leave. */
+/** A player's persisted totals at join time. Live totals are tracked on the
+ *  replicated `Player`; the delta (live − base) is flushed to the DB on leave. */
 interface MatchProfile {
   playerId: number;
   characterClass: string;
-  kills: number;
-  deaths: number;
-  xp: number;
+  baseXp: number;
+  baseKills: number;
+  baseDeaths: number;
 }
 
 /** Maximum accepted display-name length. */
@@ -285,12 +287,18 @@ export class ArenaRoom extends Room<ArenaState> {
       this.profiles.set(sessionId, {
         playerId: account.id,
         characterClass,
-        kills: 0,
-        deaths: 0,
-        xp: 0,
+        baseXp: progress.xp,
+        baseKills: progress.kills,
+        baseDeaths: progress.deaths,
       });
+      // Seed the replicated career totals so the HUD shows persisted progress.
       const player = this.state.players.get(sessionId);
-      if (player) player.level = progress.level;
+      if (player) {
+        player.level = progress.level;
+        player.xp = progress.xp;
+        player.kills = progress.kills;
+        player.deaths = progress.deaths;
+      }
     } catch (err) {
       console.error('[arena] failed to load profile:', err);
     }
@@ -310,20 +318,24 @@ export class ArenaRoom extends Room<ArenaState> {
     this.attackReadyAt.delete(client.sessionId);
   }
 
-  /** Persist a player's accumulated match stats (kills/deaths/xp) on leave. */
+  /** Persist this session's progression delta (live totals − loaded base) on leave. */
   private flushProfile(sessionId: string): void {
     const profile = this.profiles.get(sessionId);
     this.profiles.delete(sessionId);
     const db = getPool();
-    if (!db || !profile) return;
-    if (profile.kills === 0 && profile.deaths === 0 && profile.xp === 0) return;
-    void recordResult(db, profile.playerId, profile.characterClass, {
-      xp: profile.xp,
-      kills: profile.kills,
-      deaths: profile.deaths,
+    const player = this.state.players.get(sessionId);
+    if (!db || !profile || !player) return;
+    const delta = {
+      xp: player.xp - profile.baseXp,
+      kills: player.kills - profile.baseKills,
+      deaths: player.deaths - profile.baseDeaths,
       wins: 0,
       losses: 0,
-    }).catch((err) => console.error('[arena] failed to save profile:', err));
+    };
+    if (delta.xp <= 0 && delta.kills <= 0 && delta.deaths <= 0) return;
+    void recordResult(db, profile.playerId, profile.characterClass, delta).catch((err) =>
+      console.error('[arena] failed to save profile:', err),
+    );
   }
 
   // --- Abilities ---------------------------------------------------------
@@ -601,15 +613,15 @@ export class ArenaRoom extends Room<ArenaState> {
     if (lethal) {
       this.destinations.delete(target.sessionId);
       this.respawnAt.set(target.sessionId, this.simTime + RESPAWN_DELAY_MS);
-      // Accumulate persisted stats: killer gets a kill + XP, victim a death.
-      // (`fromId === target` is self-damage; only credit real kills.)
-      const killer = fromId !== target.sessionId ? this.profiles.get(fromId) : undefined;
+      // Update live, replicated career totals (the HUD reads these; the DB delta
+      // is flushed on leave). `fromId === target` is self-damage — no kill credit.
+      const killer = fromId !== target.sessionId ? this.state.players.get(fromId) : undefined;
       if (killer) {
         killer.kills += 1;
         killer.xp += XP_PER_KILL;
+        killer.level = levelForXp(killer.xp);
       }
-      const victim = this.profiles.get(target.sessionId);
-      if (victim) victim.deaths += 1;
+      target.deaths += 1;
     } else {
       // Flinch — unless a cast/attack pose is already playing (don't cut it).
       const existing = this.animOneShots.get(target.sessionId);

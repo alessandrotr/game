@@ -167,6 +167,20 @@ export const RESPAWN_DELAY_MS = 4000;
 /** XP awarded to the killer for a kill (progression / persistence). */
 export const XP_PER_KILL = 50;
 
+/**
+ * Level curve, shared by server (persistence) and client (HUD). Each level needs
+ * quadratically more XP: lvl 1 at 0, 2 at 100, 3 at 400, 4 at 900 … so
+ * `xpForLevel(L) = 100·(L-1)²` and `levelForXp` is its inverse.
+ */
+export function levelForXp(xp: number): number {
+  return Math.max(1, Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1);
+}
+
+/** Total XP required to reach `level` (the start of that level's bar). */
+export function xpForLevel(level: number): number {
+  return 100 * Math.max(0, level - 1) ** 2;
+}
+
 /** Hard cap on a projectile's lifetime, in milliseconds. */
 export const PROJECTILE_LIFETIME_MS = 3000;
 

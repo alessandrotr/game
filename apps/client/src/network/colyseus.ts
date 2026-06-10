@@ -69,6 +69,9 @@ function snapshotState(state: RawState): {
       animState: player.animState,
       attackTargetId: player.attackTargetId,
       level: player.level,
+      xp: player.xp,
+      kills: player.kills,
+      deaths: player.deaths,
     });
   });
 

@@ -1,3 +1,4 @@
+import { levelForXp } from '@arena/shared';
 import type { Queryable } from './database.js';
 
 /**
@@ -27,12 +28,6 @@ export interface ResultDelta {
   deaths: number;
   wins: number;
   losses: number;
-}
-
-/** Level curve: each level needs quadratically more XP (lvl 1 at 0, 2 at 100,
- *  3 at 400, 4 at 900 …). Pure so the client can mirror it later. */
-export function levelForXp(xp: number): number {
-  return Math.max(1, Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1);
 }
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);

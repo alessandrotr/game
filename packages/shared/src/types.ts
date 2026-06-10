@@ -29,8 +29,11 @@ export interface PlayerView {
   animState: AnimationName;
   /** Session id this player is auto-attacking, or '' — drives the attack banner. */
   attackTargetId: string;
-  /** Persisted class level for this character (1 if no DB / new player). */
+  /** Persisted class progression for this character (defaults for a new player). */
   level: number;
+  xp: number;
+  kills: number;
+  deaths: number;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
