@@ -28,6 +28,7 @@ import {
   type AbilityKind,
 } from '@arena/shared';
 import { ArenaState, Player, Projectile } from './schema.js';
+import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
 
 /** Maximum accepted display-name length. */
 const MAX_NAME_LENGTH = 24;
@@ -272,7 +273,7 @@ export class ArenaRoom extends Room<ArenaState> {
     }
 
     // Commit cost + cooldown at cast start, then face the cast direction.
-    player.mana -= config.manaCost;
+    spendMana(player, config.manaCost);
     cd[ability] = this.simTime + config.cooldownMs;
     player.rotation = Math.atan2(dirX, dirZ);
 
@@ -319,9 +320,13 @@ export class ArenaRoom extends Room<ArenaState> {
       case 'charge':
         this.performDash(player, config, dirX, dirZ);
         break;
-      case 'heal':
-        player.hp = Math.min(player.maxHp, player.hp + (config.healAmount ?? 0));
+      case 'heal': {
+        const healed = applyHeal(player, config.healAmount ?? 0);
+        if (healed > 0) {
+          this.broadcast(ServerMessage.Heal, { to: player.sessionId, amount: healed });
+        }
         break;
+      }
       case 'frost_nova':
         // Point-blank burst around the caster.
         this.applyAoeDamage(player.x, player.z, config.aoeRadius ?? 4, config.damage, player.sessionId);
@@ -368,7 +373,7 @@ export class ArenaRoom extends Room<ArenaState> {
       if (id === exceptId || !target.alive) return;
       const dx = target.x - x;
       const dz = target.z - z;
-      if (dx * dx + dz * dz <= hitSq) this.applyDamage(target, damage, exceptId);
+      if (dx * dx + dz * dz <= hitSq) this.dealDamage(target, damage, exceptId);
     });
   }
 
@@ -422,7 +427,7 @@ export class ArenaRoom extends Room<ArenaState> {
       if (id === caster.sessionId || !target.alive) return;
       const distSq = segmentDistanceSq(startX, startZ, endX, endZ, target.x, target.z);
       if (distSq <= hitRadiusSq * hitRadiusSq) {
-        this.applyDamage(target, config.damage, caster.sessionId);
+        this.dealDamage(target, config.damage, caster.sessionId);
       }
     });
 
@@ -430,20 +435,20 @@ export class ArenaRoom extends Room<ArenaState> {
     caster.z = endZ;
   }
 
-  private applyDamage(target: Player, amount: number, fromId: string): void {
-    if (!target.alive || amount <= 0) return;
-    target.hp = Math.max(0, target.hp - amount);
-    const lethal = target.hp <= 0;
+  /** Resolve a hit on a player: apply the damage via the combat core, broadcast
+   *  the result, and schedule respawn on a kill. */
+  private dealDamage(target: Player, amount: number, fromId: string): void {
+    const { applied, lethal } = applyDamage(target, amount);
+    if (applied <= 0) return;
 
     this.broadcast(ServerMessage.Damage, {
       from: fromId,
       to: target.sessionId,
-      amount,
+      amount: applied,
       lethal,
     });
 
     if (lethal) {
-      target.alive = false;
       this.destinations.delete(target.sessionId);
       this.respawnAt.set(target.sessionId, this.simTime + RESPAWN_DELAY_MS);
     }
@@ -469,7 +474,7 @@ export class ArenaRoom extends Room<ArenaState> {
         return;
       }
 
-      player.mana = Math.min(player.maxMana, player.mana + MANA_REGEN * dt);
+      regenMana(player, MANA_REGEN, dt);
 
       const m = this.movement;
       const pending = this.pendingCasts.get(sessionId);
@@ -572,7 +577,7 @@ export class ArenaRoom extends Room<ArenaState> {
       });
       if (hitId) {
         const target = this.state.players.get(hitId);
-        if (target) this.applyDamage(target, meta.damage, meta.ownerId);
+        if (target) this.dealDamage(target, meta.damage, meta.ownerId);
         expired.push(id);
       }
     });
@@ -591,10 +596,8 @@ export class ArenaRoom extends Room<ArenaState> {
     player.x = (Math.random() * 2 - 1) * range;
     player.z = (Math.random() * 2 - 1) * range;
     player.y = GROUND_Y;
-    player.hp = PLAYER_MAX_HP;
     player.maxHp = PLAYER_MAX_HP;
-    player.mana = PLAYER_MAX_MANA;
     player.maxMana = PLAYER_MAX_MANA;
-    player.alive = true;
+    reviveFull(player);
   }
 }

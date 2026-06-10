@@ -15,6 +15,12 @@ import { useGameStore } from '../store/useGameStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
+import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
+
+/** World height above a player's feet where combat numbers appear. */
+const COMBAT_TEXT_Y = 2.1;
+const DAMAGE_COLOR = '#ff5a5a';
+const HEAL_COLOR = '#7cff9e';
 
 /**
  * Structural view of the runtime Colyseus state. colyseus.js reflects the
@@ -112,14 +118,22 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   pushAnimationEvent(msg.casterId, msg.ability === 'charge' ? 'attack' : 'cast');
 }
 
-/** Show a hit spark at the damaged player's position and play a flinch. Death
- *  isn't an event — the state machine latches it from the replicated `alive`
- *  flag — so a lethal blow skips the flinch and goes straight to the death pose. */
+/** Show a hit spark + damage number at the damaged player, and play a flinch.
+ *  Death isn't an event — the state machine latches it from the replicated
+ *  `alive` flag — so a lethal blow skips the flinch and goes to the death pose. */
 function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   const target = useGameStore.getState().players.get(msg.to);
   if (!target) return;
   useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
+  spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
   if (!msg.lethal) pushAnimationEvent(msg.to, 'hit');
+}
+
+/** Show a healing number above the healed player. */
+function onHeal(msg: ServerMessagePayloads[ServerMessage.Heal]): void {
+  const target = useGameStore.getState().players.get(msg.to);
+  if (!target) return;
+  spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `+${Math.round(msg.amount)}`, HEAL_COLOR);
 }
 
 /** Join (or create) an arena room and wire its state into the store. */
@@ -131,6 +145,7 @@ export async function connectToArena(
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();
+  clearFloatingText();
   store.setStatus('connecting');
 
   try {
@@ -148,6 +163,7 @@ export async function connectToArena(
 
     room.onMessage(ServerMessage.AbilityCast, onAbilityCast);
     room.onMessage(ServerMessage.Damage, onDamage);
+    room.onMessage(ServerMessage.Heal, onHeal);
 
     room.onError((code, message) => {
       useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());

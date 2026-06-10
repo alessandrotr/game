@@ -35,6 +35,8 @@ export enum ServerMessage {
   AbilityCast = 'ability_cast',
   /** A player dealt damage to another player. */
   Damage = 'damage',
+  /** A player was healed (drives healing combat text). */
+  Heal = 'heal',
 }
 
 /** Payload map for {@link ClientMessage}. */
@@ -69,4 +71,5 @@ export interface ServerMessagePayloads {
     dirZ: number;
   };
   [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean };
+  [ServerMessage.Heal]: { to: string; amount: number };
 }

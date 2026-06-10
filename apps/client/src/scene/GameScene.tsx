@@ -11,6 +11,7 @@ import { DestinationMarker } from './DestinationMarker';
 import { Obstacles } from './Obstacles';
 import { MapView } from '../render/MapView';
 import { VfxLayer } from '../render/VfxLayer';
+import { FloatingCombatText } from '../render/FloatingCombatText';
 
 /** Root R3F canvas: lighting, arena, the camera rig, and one entity per player. */
 export function GameScene() {
@@ -50,6 +51,7 @@ export function GameScene() {
       ))}
       <Projectiles />
       <VfxLayer />
+      <FloatingCombatText />
 
       <CameraRig />
     </Canvas>
