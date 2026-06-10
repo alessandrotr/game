@@ -26,6 +26,9 @@ export class Player extends Schema {
    * play this directly; the local client predicts its own for responsiveness.
    */
   @type('string') animState = 'idle';
+  /** Session id this player is auto-attacking ('' if none). Replicated so every
+   *  client can show an "is attacking you/<name>" banner over the target. */
+  @type('string') attackTargetId = '';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

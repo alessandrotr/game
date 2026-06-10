@@ -588,6 +588,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.state.players.forEach((player, sessionId) => {
       if (!player.alive) {
         player.animState = 'die';
+        player.attackTargetId = '';
         this.pendingCasts.delete(sessionId);
         this.animOneShots.delete(sessionId);
         this.attackTargets.delete(sessionId);
@@ -671,6 +672,8 @@ export class ArenaRoom extends Room<ArenaState> {
         oneShot: this.animOneShots.get(sessionId) ?? null,
         now: this.simTime,
       });
+      // Mirror the auto-attack target into replicated state for the attack banner.
+      player.attackTargetId = this.attackTargets.get(sessionId) ?? '';
     });
 
     this.updateProjectiles(dt);

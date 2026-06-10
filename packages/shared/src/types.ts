@@ -27,6 +27,8 @@ export interface PlayerView {
   skinId: string;
   /** Authoritative animation state; remote clients render this directly. */
   animState: AnimationName;
+  /** Session id this player is auto-attacking, or '' — drives the attack banner. */
+  attackTargetId: string;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */

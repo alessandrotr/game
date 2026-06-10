@@ -61,6 +61,7 @@ function snapshotState(state: RawState): {
       characterClass: player.characterClass,
       skinId: player.skinId,
       animState: player.animState,
+      attackTargetId: player.attackTargetId,
     });
   });
 

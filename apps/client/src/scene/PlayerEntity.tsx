@@ -192,10 +192,19 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     if (isLocal) {
       const moved = Math.hypot(sdx, sdz);
       const speed = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-      animName.current = fsm.current.step(
+      const predicted = fsm.current.step(
         { speed, alive: true, event: consumeAnimationEvent(sessionId) },
         delta * 1000,
       );
+      // Surface server-driven one-shots the client can't predict (auto-attacks),
+      // but only when our own prediction is just locomotion — never override a
+      // predicted cast/hit.
+      const sv = latest.animState;
+      animName.current =
+        (predicted === 'idle' || predicted === 'run') &&
+        (sv === 'attack' || sv === 'cast' || sv === 'hit')
+          ? sv
+          : predicted;
     } else {
       animName.current = latest.animState;
     }
@@ -221,6 +230,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   return (
     <group ref={group}>
       <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
+
+      <AttackedBanner sessionId={sessionId} isLocal={isLocal} />
 
       {/* Invisible click hitbox for targeting enemies (left-click). */}
       {!isLocal && (
@@ -270,5 +281,47 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         </Text>
       </Billboard>
     </group>
+  );
+}
+
+/**
+ * A floating warning over a player who is being auto-attacked, visible to
+ * everyone (driven by the replicated `attackTargetId`). The target reads "… is
+ * attacking you!"; bystanders read "… → <target>". Refreshes with each snapshot.
+ */
+function AttackedBanner({ sessionId, isLocal }: { sessionId: string; isLocal: boolean }) {
+  useGameStore((s) => s.tick); // re-evaluate as snapshots arrive (~20/s)
+  const players = useGameStore.getState().players;
+  const self = players.get(sessionId);
+  if (!self || !self.alive) return null;
+
+  let attacker: string | null = null;
+  let count = 0;
+  for (const p of players.values()) {
+    if (p.alive && p.attackTargetId === sessionId) {
+      if (!attacker) attacker = p.name;
+      count++;
+    }
+  }
+  if (!attacker) return null;
+
+  const extra = count > 1 ? ` +${count - 1}` : '';
+  const text = isLocal
+    ? `⚔ ${attacker} is attacking you!${extra}`
+    : `⚔ ${attacker} → ${self.name}${extra}`;
+
+  return (
+    <Billboard position={[0, 2.7, 0]}>
+      <Text
+        fontSize={0.26}
+        color={isLocal ? '#ff6b6b' : '#ffb4b4'}
+        anchorX="center"
+        anchorY="bottom"
+        outlineWidth={0.02}
+        outlineColor="#000000"
+      >
+        {text}
+      </Text>
+    </Billboard>
   );
 }
