@@ -60,6 +60,8 @@ export enum ServerMessage {
   MatchOver = 'match_over',
   /** The global leaderboard, sent in reply to {@link ClientMessage.RequestLeaderboard}. */
   Leaderboard = 'leaderboard',
+  /** A player gained a level (drives the level-up flourish + HUD toast). */
+  LevelUp = 'level_up',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -150,4 +152,5 @@ export interface ServerMessagePayloads {
     /** Top entries, already ranked (best first). */
     entries: LeaderboardEntry[];
   };
+  [ServerMessage.LevelUp]: { sessionId: string; level: number };
 }

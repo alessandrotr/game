@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { CHAT_MAX_LENGTH, sanitizeChat } from '@arena/shared';
+import { allowChat, CHAT_RATE_MAX, CHAT_RATE_WINDOW_MS } from './chat';
+
+describe('allowChat (rate limit)', () => {
+  it('allows up to CHAT_RATE_MAX messages in a window, then blocks', () => {
+    const recent: number[] = [];
+    for (let i = 0; i < CHAT_RATE_MAX; i++) {
+      expect(allowChat(recent, 1000 + i)).toBe(true);
+    }
+    // The next one within the window is blocked.
+    expect(allowChat(recent, 1000 + CHAT_RATE_MAX)).toBe(false);
+  });
+
+  it('lets messages through again once older ones age out of the window', () => {
+    const recent: number[] = [];
+    for (let i = 0; i < CHAT_RATE_MAX; i++) allowChat(recent, 1000);
+    expect(allowChat(recent, 1000)).toBe(false);
+    // Past the window, the early stamps expire and a slot frees up.
+    expect(allowChat(recent, 1000 + CHAT_RATE_WINDOW_MS)).toBe(true);
+  });
+});
 
 describe('sanitizeChat', () => {
   it('trims and keeps normal text', () => {

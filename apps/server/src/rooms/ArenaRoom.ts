@@ -235,7 +235,7 @@ export class ArenaRoom extends Room<ArenaState> {
 
     this.onMessage<{ text: string }>(ClientMessage.Chat, (client, message) => {
       const player = this.state.players.get(client.sessionId);
-      this.chat.handle(this, player?.name ?? 'Adventurer', message?.text);
+      this.chat.handle(this, client.sessionId, player?.name ?? 'Adventurer', message?.text);
     });
 
     this.onMessage(
@@ -332,6 +332,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
     this.outcomes.delete(client.sessionId);
+    this.chat.forget(client.sessionId);
   }
 
   /** Persist this session's progression delta (live totals − loaded base) on leave. */
@@ -636,9 +637,16 @@ export class ArenaRoom extends Room<ArenaState> {
       // is flushed on leave). `fromId === target` is self-damage — no kill credit.
       const killer = fromId !== target.sessionId ? this.state.players.get(fromId) : undefined;
       if (killer) {
+        const beforeLevel = killer.level;
         killer.kills += 1;
         killer.xp += XP_PER_KILL;
         killer.level = levelForXp(killer.xp);
+        if (killer.level > beforeLevel) {
+          this.broadcast(ServerMessage.LevelUp, {
+            sessionId: killer.sessionId,
+            level: killer.level,
+          });
+        }
       }
       target.deaths += 1;
 

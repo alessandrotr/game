@@ -22,6 +22,14 @@ export default tseslint.config(
     },
   },
 
+  // Standalone dev tooling scripts (asset merging, inspection): Node environment.
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+
   // Client: browser environment + React rules.
   {
     files: ['apps/client/**/*.{ts,tsx}'],

@@ -17,6 +17,7 @@ import { useChatStore } from '../store/useChatStore';
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
+import { useLevelUpStore } from '../store/useLevelUpStore';
 import { getDeviceId } from '../store/deviceId';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
@@ -30,6 +31,8 @@ const ROOM_HANDLER: Record<RoomType, string> = { town: TOWN_ROOM, arena: ARENA_R
 const COMBAT_TEXT_Y = 2.1;
 const DAMAGE_COLOR = '#ff5a5a';
 const HEAL_COLOR = '#7cff9e';
+const LEVELUP_TEXT_Y = 2.7;
+const LEVELUP_COLOR = '#ffd761';
 
 /**
  * Structural view of the runtime Colyseus state. colyseus.js reflects the
@@ -147,6 +150,14 @@ function onHeal(msg: ServerMessagePayloads[ServerMessage.Heal]): void {
   spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `+${Math.round(msg.amount)}`, HEAL_COLOR);
 }
 
+/** A player leveled up: a gold flourish above them, plus a HUD toast for you. */
+function onLevelUp(msg: ServerMessagePayloads[ServerMessage.LevelUp]): void {
+  const { players, sessionId } = useGameStore.getState();
+  const who = players.get(msg.sessionId);
+  if (who) spawnFloatingText(who.x, LEVELUP_TEXT_Y, who.z, 'LEVEL UP!', LEVELUP_COLOR);
+  if (msg.sessionId === sessionId) useLevelUpStore.getState().show(msg.level);
+}
+
 /** Options from the join screen, kept so portal travel can re-join as the same
  *  character (and guest account) without re-prompting. */
 let joinOptions: {
@@ -175,6 +186,7 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.AbilityCast, onAbilityCast);
   joined.onMessage(ServerMessage.Damage, onDamage);
   joined.onMessage(ServerMessage.Heal, onHeal);
+  joined.onMessage(ServerMessage.LevelUp, onLevelUp);
   joined.onMessage(ServerMessage.Chat, (msg) => useChatStore.getState().add(msg));
   joined.onMessage(ServerMessage.ChatHistory, (msg) => useChatStore.getState().set(msg.messages));
 
@@ -218,6 +230,7 @@ export async function connectToRoom(
   store.reset();
   resetCooldowns();
   clearFloatingText();
+  useLevelUpStore.getState().clear();
   useChatStore.getState().clear();
   useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
@@ -258,6 +271,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     store.projectiles.clear();
     resetCooldowns();
     clearFloatingText();
+  useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
     useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
@@ -293,6 +307,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     store.projectiles.clear();
     resetCooldowns();
     clearFloatingText();
+  useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
     useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();

@@ -94,7 +94,7 @@ export class TownRoom extends Room<ArenaState> {
 
     this.onMessage<{ text: string }>(ClientMessage.Chat, (client, message) => {
       const player = this.state.players.get(client.sessionId);
-      this.chat.handle(this, player?.name ?? 'Adventurer', message?.text);
+      this.chat.handle(this, client.sessionId, player?.name ?? 'Adventurer', message?.text);
     });
 
     this.onMessage(ClientMessage.Queue, (client) => {
@@ -172,6 +172,7 @@ export class TownRoom extends Room<ArenaState> {
     this.grounded.delete(client.sessionId);
     this.deviceIds.delete(client.sessionId);
     this.removeFromQueue(client.sessionId);
+    this.chat.forget(client.sessionId);
   }
 
   // --- Matchmaking (Phase 11) --------------------------------------------

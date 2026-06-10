@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import cors from 'cors';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
@@ -20,17 +20,48 @@ try {
 
 const PORT = Number(process.env.PORT ?? 2567);
 const HOST = process.env.HOST ?? '0.0.0.0';
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+// --- Process-level safety nets --------------------------------------------
+// Without these, a stray rejected promise or an error thrown in an async
+// callback can take the whole server down silently. Log loudly; exit only on a
+// truly uncaught exception (state may be corrupt) so the orchestrator restarts
+// a clean process.
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled promise rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('💥  Uncaught exception — exiting for a clean restart:', err);
+  void closeDatabase().finally(() => process.exit(1));
+});
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// CORS: lock down to an allowlist in production (comma-separated origins in
+// ALLOWED_ORIGINS); reflect any origin when unset, which is fine for local dev.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : {}));
+app.use(express.json({ limit: '16kb' }));
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-// Colyseus dashboard for inspecting live rooms (dev/ops only).
-app.use('/monitor', monitor());
+// Colyseus dashboard for inspecting live rooms. It exposes room state and admin
+// controls, so it must not be open on the public internet: require basic auth
+// when MONITOR_PASSWORD is set, allow it unprotected only in dev, and disable it
+// entirely in production when no password is configured.
+const monitorPassword = process.env.MONITOR_PASSWORD;
+if (monitorPassword) {
+  app.use('/monitor', basicAuth('admin', monitorPassword), monitor());
+} else if (!IS_PROD) {
+  app.use('/monitor', monitor());
+} else {
+  console.warn('🔒  /monitor disabled in production (set MONITOR_PASSWORD to enable it).');
+}
 
 const httpServer = createServer(app);
 const gameServer = new Server({
@@ -47,7 +78,12 @@ gameServer
   .listen(PORT, HOST)
   .then(() => {
     console.log(`⚔️  Arena server listening on ws://${HOST}:${PORT}`);
-    console.log(`📊  Monitor available at http://${HOST}:${PORT}/monitor`);
+    console.log(
+      `🌐  CORS: ${allowedOrigins.length ? allowedOrigins.join(', ') : 'all origins (dev)'}`,
+    );
+    if (monitorPassword || !IS_PROD) {
+      console.log(`📊  Monitor available at http://${HOST}:${PORT}/monitor`);
+    }
   })
   .catch((err) => {
     console.error('Failed to start arena server:', err);
@@ -65,3 +101,29 @@ const shutdown = (signal: string) => {
 
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
+
+/** Minimal HTTP Basic auth guard (no dependency). Good enough to gate an
+ *  internal ops dashboard behind a shared password. */
+function basicAuth(user: string, password: string): RequestHandler {
+  const expected = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
+  return (req, res, next) => {
+    const header = req.headers.authorization ?? '';
+    if (timingSafeEqualStr(header, expected)) {
+      next();
+      return;
+    }
+    res
+      .set('WWW-Authenticate', 'Basic realm="monitor"')
+      .status(401)
+      .send('Authentication required');
+  };
+}
+
+/** Constant-time-ish string comparison (avoids leaking matches via early exit). */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
