@@ -10,8 +10,10 @@ import { MouseMove } from './MouseMove';
 import { DestinationMarker } from './DestinationMarker';
 import { Obstacles } from './Obstacles';
 import { MapView } from '../render/MapView';
+import { MapZones } from '../render/MapZones';
 import { VfxLayer } from '../render/VfxLayer';
 import { FloatingCombatText } from '../render/FloatingCombatText';
+import { Npcs } from './Npcs';
 
 /** Root R3F canvas: lighting, arena, the camera rig, and one entity per player. */
 export function GameScene() {
@@ -44,6 +46,8 @@ export function GameScene() {
       <Arena />
       <Obstacles />
       <MapView mapId="map.arena" />
+      <MapZones mapId="map.arena" />
+      <Npcs mapId="map.arena" />
       <MouseMove />
       <DestinationMarker />
       {playerIds.map((id) => (

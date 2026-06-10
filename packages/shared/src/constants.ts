@@ -37,16 +37,87 @@ export interface ArenaObstacle {
   height: number;
 }
 
-/** Static arena obstacles. Shared so the server, client prediction, and the
- *  renderer all agree on exactly the same geometry. */
-export const ARENA_OBSTACLES: readonly ArenaObstacle[] = [
-  { x: 8, z: 6, radius: 1.2, height: 3 },
-  { x: -7, z: 9, radius: 1.0, height: 2.4 },
-  { x: -10, z: -6, radius: 1.4, height: 3.6 },
-  { x: 7, z: -9, radius: 1.0, height: 2.2 },
-  { x: 0, z: 13, radius: 1.6, height: 4 },
-  { x: -14, z: 2, radius: 1.1, height: 2.8 },
-];
+/** A spawn position on the arena floor. */
+export interface SpawnPoint {
+  x: number;
+  z: number;
+}
+
+/**
+ * A selectable arena layout: its obstacles and spawn points. Shared so the
+ * server simulation, the client predictor, and the renderer all build from the
+ * exact same geometry — the data-driven core of the Arena Builder (Phase 8.2).
+ */
+export interface ArenaLayout {
+  id: string;
+  displayName: string;
+  obstacles: readonly ArenaObstacle[];
+  spawnPoints: readonly SpawnPoint[];
+}
+
+export const ARENA_LAYOUTS = {
+  /** The default: six scattered pillars favouring varied cover. */
+  pillars: {
+    id: 'pillars',
+    displayName: 'Pillars',
+    obstacles: [
+      { x: 8, z: 6, radius: 1.2, height: 3 },
+      { x: -7, z: 9, radius: 1.0, height: 2.4 },
+      { x: -10, z: -6, radius: 1.4, height: 3.6 },
+      { x: 7, z: -9, radius: 1.0, height: 2.2 },
+      { x: 0, z: 13, radius: 1.6, height: 4 },
+      { x: -14, z: 2, radius: 1.1, height: 2.8 },
+    ],
+    spawnPoints: [
+      { x: 0, z: 18 },
+      { x: 0, z: -18 },
+      { x: 18, z: 0 },
+      { x: -18, z: 0 },
+    ],
+  },
+  /** A clear ring — pure positioning duels, no cover. */
+  open: {
+    id: 'open',
+    displayName: 'Open',
+    obstacles: [],
+    spawnPoints: [
+      { x: 16, z: 16 },
+      { x: -16, z: -16 },
+      { x: 16, z: -16 },
+      { x: -16, z: 16 },
+    ],
+  },
+  /** Four pillars in a plus — central chokepoints. */
+  cross: {
+    id: 'cross',
+    displayName: 'Cross',
+    obstacles: [
+      { x: 0, z: 7, radius: 1.3, height: 3.2 },
+      { x: 0, z: -7, radius: 1.3, height: 3.2 },
+      { x: 7, z: 0, radius: 1.3, height: 3.2 },
+      { x: -7, z: 0, radius: 1.3, height: 3.2 },
+    ],
+    spawnPoints: [
+      { x: 0, z: 19 },
+      { x: 0, z: -19 },
+      { x: 19, z: 0 },
+      { x: -19, z: 0 },
+    ],
+  },
+} as const satisfies Record<string, ArenaLayout>;
+
+export type ArenaLayoutId = keyof typeof ARENA_LAYOUTS;
+
+/** The layout the arena currently uses. Server and client must agree, so it
+ *  lives here; per-room layout selection can override it in a later phase. */
+export const ACTIVE_ARENA_LAYOUT: ArenaLayout = ARENA_LAYOUTS.pillars;
+
+/** Active-layout obstacles. Shared so server, client prediction, and renderer
+ *  all agree on exactly the same geometry. */
+export const ARENA_OBSTACLES: readonly ArenaObstacle[] = ACTIVE_ARENA_LAYOUT.obstacles;
+
+/** Active-layout spawn points (the server places players at these). */
+export const ARENA_SPAWN_POINTS: readonly SpawnPoint[] = ACTIVE_ARENA_LAYOUT.spawnPoints;
 
 /**
  * Push a point (a player's center) out of any overlapping obstacle so it rests

@@ -3,6 +3,7 @@ import {
   ABILITIES,
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
+  ARENA_SPAWN_POINTS,
   CLICK_ROTATION_SPEED,
   CLICK_SPRINT_THRESHOLD,
   CLICK_STOPPING_DISTANCE,
@@ -590,11 +591,20 @@ export class ArenaRoom extends Room<ArenaState> {
 
   // --- Helpers -----------------------------------------------------------
 
-  /** Reset a player to a full, alive state at a random spawn point. */
+  /** Reset a player to a full, alive state at one of the layout's spawn points
+   *  (a small random jitter avoids stacking when several share a point). */
   private resetPlayer(player: Player): void {
-    const range = ARENA_HALF_SIZE - PLAYER_RADIUS * 2;
-    player.x = (Math.random() * 2 - 1) * range;
-    player.z = (Math.random() * 2 - 1) * range;
+    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const spawn = ARENA_SPAWN_POINTS[Math.floor(Math.random() * ARENA_SPAWN_POINTS.length)];
+    const jitter = () => (Math.random() * 2 - 1) * 1.5;
+    if (spawn) {
+      player.x = clamp(spawn.x + jitter(), -limit, limit);
+      player.z = clamp(spawn.z + jitter(), -limit, limit);
+    } else {
+      const range = ARENA_HALF_SIZE - PLAYER_RADIUS * 2;
+      player.x = (Math.random() * 2 - 1) * range;
+      player.z = (Math.random() * 2 - 1) * range;
+    }
     player.y = GROUND_Y;
     player.maxHp = PLAYER_MAX_HP;
     player.maxMana = PLAYER_MAX_MANA;

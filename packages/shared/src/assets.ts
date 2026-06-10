@@ -167,6 +167,20 @@ export interface MapProp {
   scale?: number | Vec3;
 }
 
+/** Semantic regions a map builder lays out (spawn/NPC/shop/portal). Drives
+ *  zone markers and gives later systems (matchmaking, shops) named anchors. */
+export type MapZoneKind = 'spawn' | 'npc' | 'shop' | 'portal';
+
+export interface MapZone {
+  kind: MapZoneKind;
+  /** Ground-plane center of the zone. */
+  center: Vec3;
+  /** Radius of the (circular) zone footprint, in world units. */
+  radius: number;
+  /** Optional on-ground label. */
+  label?: string;
+}
+
 export interface MapDescriptor {
   id: MapAssetId;
   displayName: string;
@@ -175,6 +189,8 @@ export interface MapDescriptor {
   groundColor: string;
   /** Static instances placed in the world, by id. */
   props: MapProp[];
+  /** Semantic regions laid out by the map builder (spawn/NPC/shop/portal). */
+  zones?: MapZone[];
   ambient?: { color: string; intensity: number };
 }
 
