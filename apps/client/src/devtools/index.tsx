@@ -1,14 +1,15 @@
 import { Suspense, lazy } from 'react';
 
 /**
- * Production-safe entry for the developer tools.
+ * Entry for the developer tools.
  *
- * `import.meta.env.DEV` is a static boolean at build time, so in a production
- * build this branch resolves to `null`, the `import('./DevTools')` call is never
- * referenced, and the bundler tree-shakes DevTools — and therefore Leva — out
- * entirely. Zero production impact.
+ * TEMP(playtest): dev tools are enabled in production too, so we can live-tune
+ * during friend playtests on the deployed build. To restore zero production
+ * impact, set this back to `import.meta.env.DEV` — that statically resolves to
+ * `null` in prod and tree-shakes DevTools (and Leva) out entirely.
  */
-const DevTools = import.meta.env.DEV ? lazy(() => import('./DevTools')) : null;
+const SHOW_DEVTOOLS = true; // was: import.meta.env.DEV
+const DevTools = SHOW_DEVTOOLS ? lazy(() => import('./DevTools')) : null;
 
 export function DevToolsGate() {
   if (!DevTools) return null;
