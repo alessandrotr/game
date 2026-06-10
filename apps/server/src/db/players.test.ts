@@ -2,7 +2,19 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newDb } from 'pg-mem';
 import { levelForXp } from '@arena/shared';
 import { SCHEMA, type Queryable } from './database';
-import { getProgress, login, recordResult, topPlayers } from './players';
+import {
+  allProgress,
+  createAccount,
+  EmailTakenError,
+  findByEmail,
+  getProgress,
+  recordResult,
+  topPlayers,
+} from './players';
+
+/** Register a test account with a throwaway password hash. */
+const account = (db: Queryable, email: string, username: string) =>
+  createAccount(db, email, username, 'salt:hash');
 
 /** A fresh in-memory Postgres with the schema applied. */
 async function freshDb(): Promise<Queryable> {
@@ -29,18 +41,24 @@ describe('player repository (pg-mem)', () => {
     db = await freshDb();
   });
 
-  it('login is find-or-create by device id (idempotent; refreshes display name)', async () => {
-    const a = await login(db, 'device-1', 'Gandalf');
-    const b = await login(db, 'device-1', 'Gandalf the White'); // same device, new name
-    expect(a.id).toBe(b.id);
-    expect(b.username).toBe('Gandalf the White');
-    // Different device = different account, even with the same display name.
-    const c = await login(db, 'device-2', 'Gandalf');
+  it('createAccount stores the account and findByEmail finds it case-insensitively', async () => {
+    const a = await account(db, 'gandalf@shire.io', 'Gandalf');
+    const found = await findByEmail(db, 'gandalf@shire.io');
+    expect(found?.id).toBe(a.id);
+    expect(found?.username).toBe('Gandalf');
+    expect(found?.passwordHash).toBe('salt:hash');
+    // Different email = different account, even with the same display name.
+    const c = await account(db, 'gandalf@white.io', 'Gandalf');
     expect(c.id).not.toBe(a.id);
   });
 
+  it('createAccount rejects a duplicate email', async () => {
+    await account(db, 'dup@example.com', 'First');
+    await expect(account(db, 'dup@example.com', 'Second')).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
   it('getProgress creates a default row then returns it', async () => {
-    const p = await login(db, 'device-mage', 'Mage1');
+    const p = await account(db, 'mage@example.com', 'Mage1');
     const prog = await getProgress(db, p.id, 'mage');
     expect(prog).toMatchObject({ xp: 0, level: 1, kills: 0, deaths: 0 });
     // Second call returns the same (still default) row.
@@ -48,7 +66,7 @@ describe('player repository (pg-mem)', () => {
   });
 
   it('recordResult accumulates stats and recomputes level', async () => {
-    const p = await login(db, 'device-warrior', 'Warrior1');
+    const p = await account(db, 'warrior@example.com', 'Warrior1');
     await recordResult(db, p.id, 'warrior', { xp: 60, kills: 1, deaths: 0, wins: 0, losses: 0 });
     let prog = await recordResult(db, p.id, 'warrior', {
       xp: 60,
@@ -71,17 +89,23 @@ describe('player repository (pg-mem)', () => {
   });
 
   it('tracks progression per class independently', async () => {
-    const p = await login(db, 'device-multi', 'Multi');
+    const p = await account(db, 'multi@example.com', 'Multi');
     await recordResult(db, p.id, 'mage', { xp: 500, kills: 3, deaths: 0, wins: 0, losses: 0 });
     const warrior = await getProgress(db, p.id, 'warrior');
     expect(warrior).toMatchObject({ xp: 0, level: 1, kills: 0 });
     const mage = await getProgress(db, p.id, 'mage');
     expect(mage).toMatchObject({ xp: 500, kills: 3 });
+
+    // allProgress returns a row per class touched (mage played + warrior, whose
+    // default row was created by the getProgress call above).
+    const all = await allProgress(db, p.id);
+    expect(all.map((r) => r.characterClass).sort()).toEqual(['mage', 'warrior']);
+    expect(all.find((r) => r.characterClass === 'mage')).toMatchObject({ xp: 500, kills: 3 });
   });
 
   it('topPlayers ranks by wins then xp, one row per player+class', async () => {
-    const ace = await login(db, 'device-ace', 'Ace');
-    const rook = await login(db, 'device-rook', 'Rook');
+    const ace = await account(db, 'ace@example.com', 'Ace');
+    const rook = await account(db, 'rook@example.com', 'Rook');
     // Rook has more wins; Ace has more xp but fewer wins.
     await recordResult(db, ace.id, 'mage', { xp: 900, kills: 5, deaths: 2, wins: 1, losses: 1 });
     await recordResult(db, rook.id, 'warrior', { xp: 100, kills: 2, deaths: 4, wins: 3, losses: 0 });

@@ -17,6 +17,7 @@ deferred.
 | `PGSSL` | no | — | `disable` for local Postgres; managed DBs use SSL (the default). |
 | `ALLOWED_ORIGINS` | prod | — | Comma-separated CORS allowlist. Unset ⇒ all origins reflected (dev only). |
 | `MONITOR_PASSWORD` | prod | — | Password (user `admin`) for `/monitor`. In production the dashboard is **disabled** unless this is set. |
+| `AUTH_SECRET` | prod | random | HMAC key for signing account session tokens. **Set in production** (≥16 chars) or every restart logs all players out. |
 
 ### Client (`apps/client`, baked in at build time)
 

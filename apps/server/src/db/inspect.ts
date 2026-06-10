@@ -32,7 +32,7 @@ console.log(
 );
 
 const players = await db.query(
-  'SELECT id, username, created_at, last_seen FROM players ORDER BY id',
+  'SELECT id, email, username, created_at, last_seen FROM players ORDER BY id',
 );
 console.log('\nplayers:');
 console.table(players.rows);

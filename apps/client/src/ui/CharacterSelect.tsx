@@ -1,5 +1,6 @@
 import { CLASS_LIST, getClassDefinition, type ClassDefinition } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 // Upper bounds used to normalize the comparison bars.
 const STAT_MAX = { health: 160, mana: 150, moveSpeed: 8, attackDamage: 60 };
@@ -58,17 +59,23 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
   );
 }
 
-/** Class cards (gold-accented) + the selected class's stats/abilities. */
+/** Class cards (gold-accented) + the selected class's stats/abilities. Each card
+ *  shows the account's level on that class (from persisted progression). */
 export function CharacterSelect() {
   const selected = useCharacterStore((s) => s.selectedClass);
   const setSelected = useCharacterStore((s) => s.setSelectedClass);
+  const progress = useAuthStore((s) => s.progress);
   const def = getClassDefinition(selected);
+
+  // Level reached per class (classes never played default to 1).
+  const levelByClass = new Map(progress.map((p) => [p.characterClass, p.level]));
 
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
         {CLASS_LIST.map((c) => {
           const isSelected = c.id === selected;
+          const level = levelByClass.get(c.id) ?? 1;
           return (
             <button
               type="button"
@@ -86,9 +93,16 @@ export function CharacterSelect() {
                 className="h-8 w-1.5 shrink-0 rounded-full"
                 style={{ background: c.color, boxShadow: `0 0 10px ${c.color}` }}
               />
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block font-display text-sm tracking-wide text-white">{c.name}</span>
                 <span className="block truncate text-[11px] text-muted">{c.role}</span>
+              </span>
+              <span
+                className="shrink-0 rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+                style={{ color: c.color }}
+                title={`Level ${level} ${c.name}`}
+              >
+                Lv {level}
               </span>
             </button>
           );

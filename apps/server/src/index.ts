@@ -8,6 +8,7 @@ import { ARENA_ROOM, TOWN_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
 import { TownRoom } from './rooms/TownRoom.js';
 import { closeDatabase, initDatabase } from './db/database.js';
+import { registerAuthRoutes } from './authRoutes.js';
 
 // Load apps/server/.env (Node ≥20.12) so local dev can set DATABASE_URL without
 // exporting it. No-ops if the file is absent (e.g. in prod, where env vars come
@@ -49,6 +50,9 @@ app.use(express.json({ limit: '16kb' }));
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
+
+// Email/password account auth (register, login, session check).
+registerAuthRoutes(app);
 
 // Colyseus dashboard for inspecting live rooms. It exposes room state and admin
 // controls, so it must not be open on the public internet: require basic auth

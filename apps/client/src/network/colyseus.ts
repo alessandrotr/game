@@ -18,7 +18,7 @@ import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
-import { getDeviceId } from '../store/deviceId';
+import { useAuthStore } from '../store/useAuthStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
@@ -159,12 +159,13 @@ function onLevelUp(msg: ServerMessagePayloads[ServerMessage.LevelUp]): void {
 }
 
 /** Options from the join screen, kept so portal travel can re-join as the same
- *  character (and guest account) without re-prompting. */
+ *  character (and account) without re-prompting. `token` carries the account
+ *  identity; the server derives the authoritative display name from it. */
 let joinOptions: {
+  token: string;
   name: string;
   characterClass: CharacterClass;
   skinId?: string;
-  deviceId: string;
 } | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
  *  join screen. */
@@ -218,14 +219,15 @@ function wireRoom(joined: Room): void {
   });
 }
 
-/** Join a world for the first time (from the join screen). */
+/** Join a world for the first time (from the character-select screen). Identity
+ *  (token + display name) comes from the signed-in account. */
 export async function connectToRoom(
   roomType: RoomType,
-  name: string,
   characterClass: CharacterClass,
   skinId?: string,
 ): Promise<void> {
-  joinOptions = { name, characterClass, skinId, deviceId: getDeviceId() };
+  const { token, username } = useAuthStore.getState();
+  joinOptions = { token: token ?? '', name: username ?? 'Adventurer', characterClass, skinId };
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();

@@ -22,7 +22,8 @@ import { reviveFull } from '../combat.js';
 import { computeAnimState } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { login, topPlayers } from '../db/players.js';
+import { topPlayers } from '../db/players.js';
+import { verifyToken } from '../auth.js';
 
 const MAX_NAME_LENGTH = 24;
 /** Where players appear when entering town (matches the town map's spawn zone). */
@@ -51,7 +52,8 @@ export class TownRoom extends Room<ArenaState> {
   private readonly grounded = new Map<string, boolean>();
   private readonly chat = new ChatLog();
   /** Device id per session, carried into the match arena's seat reservation. */
-  private readonly deviceIds = new Map<string, string>();
+  /** Session token per client, passed through to the arena seat reservation. */
+  private readonly tokens = new Map<string, string>();
   /** Session ids waiting in the 1v1 matchmaking queue, in join order. */
   private queue: string[] = [];
   private matching = false;
@@ -134,11 +136,17 @@ export class TownRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { name?: string; characterClass?: string; skinId?: string; deviceId?: string },
+    options?: { token?: string; name?: string; characterClass?: string; skinId?: string },
   ): void {
+    const claims = verifyToken(options?.token);
     const player = new Player();
     player.sessionId = client.sessionId;
-    player.name = (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Adventurer';
+    // The display name is taken from the (authoritative) account token; fall
+    // back to the client-supplied name only for unauthenticated/ephemeral joins.
+    player.name =
+      claims?.name?.slice(0, MAX_NAME_LENGTH) ||
+      (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) ||
+      'Adventurer';
     player.characterClass = isCharacterClass(options?.characterClass)
       ? options.characterClass
       : 'warrior';
@@ -148,8 +156,8 @@ export class TownRoom extends Room<ArenaState> {
     player.y = GROUND_Y;
     reviveFull(player);
 
-    const deviceId = String(options?.deviceId ?? '').slice(0, 64);
-    this.deviceIds.set(client.sessionId, deviceId);
+    // Keep the token so matchmaking can hand the same identity to the arena.
+    this.tokens.set(client.sessionId, String(options?.token ?? ''));
 
     this.state.players.set(client.sessionId, player);
     this.verticalVelocity.set(client.sessionId, 0);
@@ -157,12 +165,6 @@ export class TownRoom extends Room<ArenaState> {
 
     client.send(ServerMessage.Welcome, { sessionId: client.sessionId, worldSeed: this.roomId.length });
     this.chat.sendHistory(client);
-
-    // Register the guest account (find-or-create by device id). No-op without a DB/device.
-    const db = getPool();
-    if (db && deviceId) {
-      void login(db, deviceId, player.name).catch((err) => console.error('[town] login failed:', err));
-    }
   }
 
   override onLeave(client: Client): void {
@@ -170,7 +172,7 @@ export class TownRoom extends Room<ArenaState> {
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);
     this.grounded.delete(client.sessionId);
-    this.deviceIds.delete(client.sessionId);
+    this.tokens.delete(client.sessionId);
     this.removeFromQueue(client.sessionId);
     this.chat.forget(client.sessionId);
   }
@@ -229,17 +231,17 @@ export class TownRoom extends Room<ArenaState> {
 
   /** Arena join options carried into the match room for a queued player. */
   private joinOptions(sessionId: string): {
+    token: string;
     name: string;
     characterClass: string;
     skinId: string;
-    deviceId: string;
   } {
     const p = this.state.players.get(sessionId);
     return {
+      token: this.tokens.get(sessionId) ?? '',
       name: p?.name ?? 'Adventurer',
       characterClass: p?.characterClass ?? 'warrior',
       skinId: p?.skinId ?? '',
-      deviceId: this.deviceIds.get(sessionId) ?? '',
     };
   }
 

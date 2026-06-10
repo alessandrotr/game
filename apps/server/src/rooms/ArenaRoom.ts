@@ -45,7 +45,8 @@ import {
 } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { getProgress, login, recordResult } from '../db/players.js';
+import { getProgress, recordResult } from '../db/players.js';
+import { verifyToken } from '../auth.js';
 
 /** A player's persisted totals at join time. Live totals are tracked on the
  *  replicated `Player`; the delta (live − base) is flushed to the DB on leave. */
@@ -260,11 +261,15 @@ export class ArenaRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { name?: string; characterClass?: string; skinId?: string; deviceId?: string },
+    options?: { token?: string; name?: string; characterClass?: string; skinId?: string },
   ): void {
+    const claims = verifyToken(options?.token);
     const player = new Player();
     player.sessionId = client.sessionId;
-    player.name = (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Adventurer';
+    player.name =
+      claims?.name?.slice(0, MAX_NAME_LENGTH) ||
+      (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) ||
+      'Adventurer';
     player.characterClass = isCharacterClass(options?.characterClass)
       ? options.characterClass
       : 'warrior';
@@ -282,25 +287,24 @@ export class ArenaRoom extends Room<ArenaState> {
     });
     this.chat.sendHistory(client);
 
-    // Load persisted progression for this class (async; sets the replicated
-    // `level` and starts a stats accumulator). No-op without a DB or deviceId.
-    void this.loadProfile(client.sessionId, options?.deviceId, player.name, player.characterClass);
+    // Load persisted progression for this account + class (async; sets the
+    // replicated `level` and starts a stats accumulator). No-op without a valid
+    // token or a database.
+    void this.loadProfile(client.sessionId, claims?.pid, player.characterClass);
   }
 
-  /** Find-or-create the player (by device id) and load their class progression. */
+  /** Load this account's class progression (identity comes from the token). */
   private async loadProfile(
     sessionId: string,
-    deviceId: string | undefined,
-    name: string,
+    playerId: number | undefined,
     characterClass: string,
   ): Promise<void> {
     const db = getPool();
-    if (!db || !deviceId) return;
+    if (!db || playerId === undefined) return;
     try {
-      const account = await login(db, deviceId, name);
-      const progress = await getProgress(db, account.id, characterClass);
+      const progress = await getProgress(db, playerId, characterClass);
       this.profiles.set(sessionId, {
-        playerId: account.id,
+        playerId,
         characterClass,
         baseXp: progress.xp,
         baseKills: progress.kills,

@@ -22,14 +22,16 @@ export function databaseEnabled(): boolean {
 }
 
 /**
- * Schema, as individual idempotent statements. Players are identified by a
- * client-generated `device_id` (guest accounts); `username` is display-only.
+ * Schema, as individual idempotent statements. Players are real accounts keyed
+ * by `email` (unique, case-insensitive — stored lowercased); `username` is the
+ * display handle and `password_hash` is a salted scrypt hash.
  */
 export const SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS players (
      id SERIAL PRIMARY KEY,
-     device_id TEXT NOT NULL UNIQUE,
+     email TEXT NOT NULL UNIQUE,
      username TEXT NOT NULL,
+     password_hash TEXT NOT NULL,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
@@ -47,16 +49,22 @@ export const SCHEMA: readonly string[] = [
 ];
 
 /**
- * Evolve a pre-existing `players` table (the original username-keyed shape) to
- * the device-id shape. Best-effort: each runs independently and is ignored if it
- * doesn't apply (fresh DB) or the dialect doesn't support it (pg-mem tests use
- * SCHEMA directly and never run these).
+ * Evolve a pre-existing `players` table (originally device-id-keyed guests) to
+ * the email/password account shape. Best-effort: each runs independently and is
+ * ignored if it doesn't apply (fresh DB) or the dialect doesn't support it
+ * (pg-mem uses SCHEMA directly and never runs these).
+ *
+ * Old guest rows are left in place but become unusable: `device_id` loses its
+ * NOT NULL/uniqueness, and the new account columns are added nullable so the
+ * ALTERs succeed against existing data. New accounts always populate them.
  */
 const LEGACY_MIGRATIONS: readonly string[] = [
-  `ALTER TABLE players ADD COLUMN IF NOT EXISTS device_id TEXT`,
-  `UPDATE players SET device_id = 'legacy:' || id::text WHERE device_id IS NULL`,
-  `ALTER TABLE players DROP CONSTRAINT IF EXISTS players_username_key`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS players_device_id_key ON players(device_id)`,
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT`,
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS password_hash TEXT`,
+  `ALTER TABLE players ALTER COLUMN device_id DROP NOT NULL`,
+  `ALTER TABLE players DROP CONSTRAINT IF EXISTS players_device_id_key`,
+  `DROP INDEX IF EXISTS players_device_id_key`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS players_email_key ON players(lower(email)) WHERE email IS NOT NULL`,
 ];
 
 /** Create the tables if they don't exist, then apply legacy fixups. */
@@ -78,7 +86,22 @@ export async function migrate(q: Queryable): Promise<void> {
 export async function initDatabase(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.log('💾  No DATABASE_URL — progression persistence disabled (in-memory only).');
+    // Accounts now require a database. For zero-setup local dev, fall back to an
+    // ephemeral in-memory Postgres (pg-mem, a devDependency) so register/login
+    // work — data is lost on restart. In production (prod-deps only) pg-mem is
+    // absent, so this import fails and persistence stays disabled; prod always
+    // provides DATABASE_URL anyway.
+    try {
+      const { newDb } = await import('pg-mem');
+      const mem = newDb();
+      const { Pool } = mem.adapters.createPg();
+      const p = new Pool() as unknown as pg.Pool;
+      await migrate(p);
+      pool = p;
+      console.log('💾  No DATABASE_URL — using an ephemeral in-memory DB (accounts reset on restart).');
+    } catch {
+      console.log('💾  No DATABASE_URL and no in-memory DB available — accounts are disabled.');
+    }
     return;
   }
   // Managed Postgres (Render/Heroku/etc.) usually needs SSL with a self-signed

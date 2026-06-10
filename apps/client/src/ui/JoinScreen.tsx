@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { type FormEvent } from 'react';
 import { getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
 
@@ -21,7 +22,8 @@ export function JoinScreen() {
   const status = useGameStore((s) => s.status);
   const error = useGameStore((s) => s.error);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
-  const [name, setName] = useState('');
+  const username = useAuthStore((s) => s.username);
+  const signOut = useAuthStore((s) => s.signOut);
 
   const connecting = status === 'connecting';
   const def = getClassDefinition(selectedClass);
@@ -29,8 +31,9 @@ export function JoinScreen() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (connecting) return;
-    // Players enter the shared town hub first; portals lead to the arena.
-    void connectToRoom('town', name.trim() || 'Adventurer', selectedClass).catch(() => {
+    // Players enter the shared town hub first; portals lead to the arena. The
+    // display name comes from the signed-in account (no name field here).
+    void connectToRoom('town', selectedClass).catch(() => {
       /* status/error already recorded in the store */
     });
   };
@@ -38,13 +41,25 @@ export function JoinScreen() {
   return (
     <div className="absolute inset-0 overflow-y-auto bg-[radial-gradient(circle_at_50%_22%,#191b2c,#07080d_72%)]">
       <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 py-7">
-        <header className="mb-6 text-center">
+        <header className="relative mb-6 text-center">
           <h1 className="font-display text-4xl tracking-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.35)] sm:text-5xl">
             ARENA
           </h1>
           <p className="mt-2 text-[11px] uppercase tracking-[0.4em] text-muted">
             Choose your champion · enter the town
           </p>
+          <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted sm:absolute sm:right-0 sm:top-1 sm:mt-0">
+            <span>
+              Signed in as <span className="font-semibold text-text">{username}</span>
+            </span>
+            <button
+              type="button"
+              onClick={signOut}
+              className="rounded-lg border border-white/10 px-2.5 py-1 transition hover:border-white/30 hover:text-text"
+            >
+              Sign out
+            </button>
+          </div>
         </header>
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
@@ -72,14 +87,6 @@ export function JoinScreen() {
             <CharacterSelect />
 
             <form onSubmit={onSubmit} className="mt-auto flex flex-col gap-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your name…"
-                maxLength={24}
-                aria-label="Display name"
-                className="rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-[15px] outline-none transition focus:border-gold"
-              />
               <button
                 type="submit"
                 disabled={connecting}

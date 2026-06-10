@@ -1,15 +1,23 @@
-import { levelForXp, type LeaderboardEntry } from '@arena/shared';
+import { levelForXp, type ClassProgressView, type LeaderboardEntry } from '@arena/shared';
 import type { Queryable } from './database.js';
 
 /**
- * Player + per-class progression repository (Phase 13.2). Pure over a
- * `Queryable` so it runs against real Postgres in prod and an in-memory one in
- * tests. "Login" is a passwordless find-or-create by username.
+ * Account + per-class progression repository. Pure over a `Queryable` so it runs
+ * against real Postgres in prod and an in-memory one (pg-mem) in dev/tests.
+ * Accounts are keyed by email; passwords are hashed by the caller (see auth.ts).
  */
 
-export interface PlayerRow {
+export interface AccountRow {
   id: number;
   username: string;
+}
+
+/** Thrown by {@link createAccount} when the email is already registered. */
+export class EmailTakenError extends Error {
+  constructor() {
+    super('email already registered');
+    this.name = 'EmailTakenError';
+  }
 }
 
 export interface Progress {
@@ -32,31 +40,56 @@ export interface ResultDelta {
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
 
-/**
- * Find-or-create a player by `deviceId` (a client-generated guest-account key);
- * refreshes the display `username` and `last_seen`. Username is not unique —
- * identity is the device id.
- */
-export async function login(q: Queryable, deviceId: string, username: string): Promise<PlayerRow> {
-  const touched = await q.query(
-    'UPDATE players SET last_seen = now(), username = $2 WHERE device_id = $1 RETURNING id, username',
-    [deviceId, username],
-  );
-  if (touched.rows[0]) return touched.rows[0] as unknown as PlayerRow;
+/** An account row including its password hash (for login verification). */
+export interface AccountWithSecret extends AccountRow {
+  passwordHash: string;
+}
 
+/**
+ * Create a new account. `email` must already be normalized (lowercased) and
+ * `passwordHash` produced by auth.ts. Throws {@link EmailTakenError} if the
+ * email is already registered.
+ */
+export async function createAccount(
+  q: Queryable,
+  email: string,
+  username: string,
+  passwordHash: string,
+): Promise<AccountRow> {
+  // Pre-check keeps the common case clean; the unique index is the real guard.
+  if (await findByEmail(q, email)) throw new EmailTakenError();
   try {
     const created = await q.query(
-      'INSERT INTO players (device_id, username) VALUES ($1, $2) RETURNING id, username',
-      [deviceId, username],
+      'INSERT INTO players (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, username',
+      [email, username, passwordHash],
     );
-    return created.rows[0] as unknown as PlayerRow;
-  } catch {
-    // Lost an insert race — the row exists now, so read it.
-    const existing = await q.query('SELECT id, username FROM players WHERE device_id = $1', [
-      deviceId,
-    ]);
-    return existing.rows[0] as unknown as PlayerRow;
+    const row = created.rows[0]!;
+    return { id: num(row.id), username: String(row.username) };
+  } catch (err) {
+    // Lost the insert race against another registration with the same email.
+    if (await findByEmail(q, email)) throw new EmailTakenError();
+    throw err;
   }
+}
+
+/** Look up an account by (normalized) email, including its password hash. */
+export async function findByEmail(q: Queryable, email: string): Promise<AccountWithSecret | null> {
+  const res = await q.query(
+    'SELECT id, username, password_hash FROM players WHERE lower(email) = $1',
+    [email],
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    id: num(row.id),
+    username: String(row.username),
+    passwordHash: String(row.password_hash),
+  };
+}
+
+/** Bump an account's `last_seen` timestamp (best-effort). */
+export async function touchLastSeen(q: Queryable, playerId: number): Promise<void> {
+  await q.query('UPDATE players SET last_seen = now() WHERE id = $1', [playerId]);
 }
 
 /** Load (creating if absent) a player's progression for one class. */
@@ -141,5 +174,27 @@ export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardE
     wins: num(row.wins),
     losses: num(row.losses),
     kills: num(row.kills),
+  }));
+}
+
+/**
+ * Every class this account has progressed on. Classes never played are absent
+ * (the caller defaults them to level 1) — used to show per-class levels on the
+ * character-select screen.
+ */
+export async function allProgress(q: Queryable, playerId: number): Promise<ClassProgressView[]> {
+  const res = await q.query(
+    `SELECT character_class, level, xp, kills, deaths, wins, losses
+       FROM class_progress WHERE player_id = $1`,
+    [playerId],
+  );
+  return res.rows.map((row) => ({
+    characterClass: String(row.character_class ?? '') as ClassProgressView['characterClass'],
+    level: num(row.level),
+    xp: num(row.xp),
+    kills: num(row.kills),
+    deaths: num(row.deaths),
+    wins: num(row.wins),
+    losses: num(row.losses),
   }));
 }

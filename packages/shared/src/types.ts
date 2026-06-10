@@ -47,6 +47,27 @@ export interface ProjectileView {
   z: number;
 }
 
+/**
+ * A player's persisted progression on one class. Returned by the auth endpoints
+ * so the character-select screen can show the level reached per class.
+ */
+export interface ClassProgressView {
+  characterClass: CharacterClass;
+  level: number;
+  xp: number;
+  kills: number;
+  deaths: number;
+  wins: number;
+  losses: number;
+}
+
+/** Authentication response: a session token plus the account's per-class progress. */
+export interface AuthResult {
+  token: string;
+  username: string;
+  progress: ClassProgressView[];
+}
+
 /** Replicated room state. Mirrors `ArenaState` in the server schema. */
 export interface ArenaStateView {
   /** Keyed by Colyseus session id. */
