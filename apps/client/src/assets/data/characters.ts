@@ -63,29 +63,16 @@ const mage: CharacterDescriptor = {
   id: 'char.mage',
   displayName: 'Mage',
   class: 'mage',
-  weaponId: 'weapon.staff',
-  animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.cast' },
+  // GLB drop-in. The model is centered at the origin (~2u tall), so `offset`
+  // lifts its feet to the ground after `scale`. It ships with no rig/clips, so
+  // the renderer drives a procedural idle/cast/death fallback. Add a `clips`
+  // map here if a rigged version with named animations is dropped in later.
   render: {
-    kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.34, 0.72, 8, 16],
-        position: [0, 0.72, 0],
-        color: '#3a57d6',
-        roughness: 0.7,
-      },
-      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.4, 0], color: SKIN },
-      {
-        name: 'hat',
-        shape: 'cone',
-        args: [0.36, 0.62, 16],
-        position: [0, 1.86, 0],
-        color: '#5b3fb0',
-        roughness: 0.8,
-      },
-    ],
+    kind: 'gltf',
+    url: '/models/characters/mage.glb',
+    scale: 0.9,
+    offset: [0, 0.9, 0],
+    yaw: 0,
   },
 };
 

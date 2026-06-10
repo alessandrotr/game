@@ -73,10 +73,11 @@ export function useProceduralAnimator(
   group: React.RefObject<Group | null>,
   getAnimation: () => AnimationName,
   phase: number,
+  enabled = true,
 ): void {
   useFrame((state) => {
     const node = group.current;
-    if (!node) return;
+    if (!node || !enabled) return;
     const t = state.clock.elapsedTime;
     const name = getAnimation();
 

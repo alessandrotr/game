@@ -46,7 +46,7 @@ export function CharacterModel({ descriptor, getAnimation = ALWAYS_IDLE }: Chara
     return (
       <group>
         <Suspense fallback={null}>
-          <GltfCharacter model={descriptor.render} getAnimation={getAnimation} />
+          <GltfCharacter model={descriptor.render} getAnimation={getAnimation} phase={phase} />
         </Suspense>
         {weapon && <WeaponMount weapon={weapon} />}
       </group>
@@ -95,29 +95,41 @@ function PlaceholderCharacter({
   );
 }
 
-/** GLTF body: a cloned, skinned instance driven by the GLTF animator backend. */
+/** GLTF body: a cloned instance driven by its embedded clips when present, or a
+ *  procedural fallback (idle bob / cast pulse / death) when the model has none. */
 function GltfCharacter({
   model,
   getAnimation,
+  phase,
 }: {
   model: GltfModel;
   getAnimation: () => AnimationName;
+  phase: number;
 }) {
   const { scene, animations } = useGLTF(model.url);
   const instance = useMemo(() => cloneSkinned(scene), [scene]);
   const root = useRef<Group>(null);
   const { actions } = useAnimations(animations, root);
+  const hasClips = animations.length > 0;
 
   const resolveClip = useMemo(() => {
     const clips = model.clips ?? {};
     return (name: AnimationName) => clips[name];
   }, [model.clips]);
 
+  // Rigged models play real clips; clipless models get procedural motion on the
+  // root (its transform composes with the primitive's placement offsets below).
   useGltfAnimator(actions, getAnimation, resolveClip);
+  useProceduralAnimator(root, getAnimation, phase, !hasClips);
 
   return (
     <group ref={root}>
-      <primitive object={instance} scale={model.scale ?? 1} />
+      <primitive
+        object={instance}
+        scale={model.scale ?? 1}
+        position={model.offset ?? [0, 0, 0]}
+        rotation={[0, model.yaw ?? 0, 0]}
+      />
     </group>
   );
 }

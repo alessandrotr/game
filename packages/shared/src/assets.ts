@@ -100,7 +100,13 @@ export interface GltfModel {
   /** Resolved at load time by the registry; gameplay never sees this. */
   url: string;
   scale?: number;
-  /** Maps logical animation names to clip names inside the GLTF. */
+  /** Local position offset (e.g. to lift a center-origin model so its feet rest
+   *  on the ground). Applied after `scale`. */
+  offset?: Vec3;
+  /** Yaw (Y-rotation, radians) to correct a model that doesn't face +Z. */
+  yaw?: number;
+  /** Maps logical animation names to clip names inside the GLTF. When the model
+   *  has no clips, a procedural fallback animates it instead. */
   clips?: Partial<Record<AnimationName, string>>;
 }
 
