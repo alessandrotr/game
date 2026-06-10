@@ -9,6 +9,7 @@ import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
+import { CursorTracker } from './CursorTracker';
 import { DestinationMarker } from './DestinationMarker';
 import { Obstacles } from './Obstacles';
 import { Portals } from './Portals';
@@ -69,6 +70,7 @@ export function GameScene() {
       <Portals mapId={mapId} />
 
       <MouseMove />
+      {isArena && <CursorTracker />}
       {isArena && <GroundTargeter />}
       <DestinationMarker />
 

@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
-import { ABILITIES, CLASS_LOADOUTS, type AbilitySlot } from '@arena/shared';
+import { useEffect, useRef } from 'react';
+import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
+import { getCursorGround } from '../store/cursorState';
 import { sendCast, sendJump } from '../network/colyseus';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
@@ -9,14 +10,15 @@ import { useAbilityTargeting } from '../store/abilityTargeting';
 
 /**
  * MOBA ability input: Q/W/E/R cast the abilities bound to those slots for the
- * local player's class (via `CLASS_LOADOUTS`); Space jumps. There is no WASD —
- * movement is point-and-click (see `MouseMove`).
+ * local player's class (via `CLASS_LOADOUTS`); Space jumps. No WASD — movement
+ * is point-and-click (see `MouseMove`).
  *
- * The cast direction is the local player's current (predicted) facing. The
- * server validates cooldown/mana, applies the effect, and broadcasts results —
- * clients only request and render. We gate the send on the same mana/cooldown
- * checks the server uses so we neither spam rejected casts nor desync the
- * action-bar cooldown display.
+ * Aimed abilities (LoL-style) **hold to aim, release to fire**: holding the key
+ * shows a ground indicator that follows the cursor (`GroundTargeter`), and
+ * releasing casts toward it — a `direction` skillshot along the cursor, or a
+ * `point` ground-target under it. Right-click / Esc cancel. Self / point-blank
+ * abilities cast instantly on press. The server is authoritative; we mirror its
+ * mana/cooldown gates so the action-bar display stays honest.
  */
 const SLOT_BY_CODE: Record<string, AbilitySlot> = {
   KeyQ: 'Q',
@@ -26,21 +28,60 @@ const SLOT_BY_CODE: Record<string, AbilitySlot> = {
 };
 
 export function useAbilityHotkeys(enabled: boolean): void {
+  // The keyboard code currently held to aim an ability (so its keyup fires it).
+  const aimingCode = useRef<string | null>(null);
+
   useEffect(() => {
     if (!enabled) return;
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      // Don't fire game keys while typing (e.g. in the chat box).
+    const isTyping = () => {
       const el = document.activeElement;
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
+      return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+    };
 
-      // Esc cancels a pending ground-target.
+    /** Resolve the local player, or undefined if not ready / dead. */
+    const localPlayer = () => {
+      const { sessionId, players } = useGameStore.getState();
+      const me = sessionId ? players.get(sessionId) : undefined;
+      return me && me.alive ? me : undefined;
+    };
+
+    const castInstant = (ability: AbilityKind, fromId: string) => {
+      const config = ABILITIES[ability];
+      const local = getLocalRenderTransform();
+      const rotation = local.active ? local.rotation : 0;
+      sendCast(ability, Math.sin(rotation), Math.cos(rotation));
+      triggerCooldown(ability, config.cooldownMs);
+      pushAnimationEvent(fromId, ability === 'shockwave' ? 'attack' : 'cast');
+    };
+
+    /** Fire an aimed ability toward the cursor (called on key release). */
+    const fireAimed = (ability: AbilityKind, fromId: string) => {
+      const config = ABILITIES[ability];
+      const me = getLocalRenderTransform();
+      const cur = getCursorGround();
+      let dx = cur.x - me.x;
+      let dz = cur.z - me.z;
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len;
+      dz /= len;
+      if (config.aim === 'point') {
+        sendCast(ability, dx, dz, cur.x, cur.z);
+      } else {
+        sendCast(ability, dx, dz);
+      }
+      triggerCooldown(ability, config.cooldownMs);
+      pushAnimationEvent(fromId, 'cast');
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || isTyping()) return;
+
       if (e.code === 'Escape') {
         useAbilityTargeting.getState().cancel();
+        aimingCode.current = null;
         return;
       }
-
       if (e.code === 'Space') {
         e.preventDefault();
         sendJump();
@@ -49,47 +90,53 @@ export function useAbilityHotkeys(enabled: boolean): void {
 
       const slot = SLOT_BY_CODE[e.code];
       if (!slot) return;
-
-      const { sessionId, players } = useGameStore.getState();
-      const me = sessionId ? players.get(sessionId) : undefined;
-      if (!me || !me.alive) return;
+      const me = localPlayer();
+      if (!me) return;
 
       const ability = CLASS_LOADOUTS[me.characterClass][slot];
       if (!ability) return; // empty slot
 
-      // Pressing an ability key cancels any in-progress targeting; pressing the
-      // SAME ground-targeted ability again just toggles it off.
-      const targeting = useAbilityTargeting.getState();
-      const wasPending = targeting.pending;
-      if (wasPending) {
-        targeting.cancel();
-        if (wasPending === ability) return;
-      }
+      // Starting any cast clears a different in-progress aim.
+      useAbilityTargeting.getState().cancel();
+      aimingCode.current = null;
 
       // Mirror the server's gates so the optimistic cooldown display stays true.
       const config = ABILITIES[ability];
       if (isOnCooldown(ability) || me.mana < config.manaCost) return;
 
-      // Ground-targeted abilities enter targeting mode; the click casts them
-      // (see GroundTargeter). Cost/cooldown commit on the actual cast.
-      if (config.targeted) {
-        targeting.begin(ability);
-        return;
+      if (config.aim) {
+        // Hold to aim; the matching keyup fires toward the cursor.
+        useAbilityTargeting.getState().begin(ability);
+        aimingCode.current = e.code;
+      } else {
+        castInstant(ability, me.sessionId);
       }
+    };
 
-      // Use the client-PREDICTED facing, not the server snapshot rotation —
-      // the snapshot lags ~1+ ticks and is still interpolating, which made
-      // abilities fire in a stale direction when you turned quickly.
-      const local = getLocalRenderTransform();
-      const rotation = local.active ? local.rotation : me.rotation;
-      sendCast(ability, Math.sin(rotation), Math.cos(rotation));
-      triggerCooldown(ability, config.cooldownMs);
-      // Predict our own cast/attack pose immediately (the server confirms it for
-      // everyone else via animState). `shockwave` reads as a physical swing.
-      pushAnimationEvent(me.sessionId, ability === 'shockwave' ? 'attack' : 'cast');
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== aimingCode.current) return;
+      aimingCode.current = null;
+      const pending = useAbilityTargeting.getState().pending;
+      useAbilityTargeting.getState().cancel();
+      const me = localPlayer();
+      // Re-check gates at release (mana may have changed mid-aim).
+      if (pending && me && !isOnCooldown(pending) && me.mana >= ABILITIES[pending].manaCost) {
+        fireAimed(pending, me.sessionId);
+      }
+    };
+
+    const onBlur = () => {
+      aimingCode.current = null;
+      useAbilityTargeting.getState().cancel();
     };
 
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
   }, [enabled]);
 }

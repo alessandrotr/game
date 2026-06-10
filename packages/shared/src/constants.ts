@@ -227,8 +227,13 @@ export interface AbilityConfig {
   healAmount?: number;
   /** Area-of-effect radius (frost nova around the caster, blast at impact). */
   aoeRadius?: number;
-  /** Ground-targeted: the client picks a point on the map before casting. */
-  targeted?: boolean;
+  /**
+   * How the ability is aimed (LoL-style). Omitted = instant self/point-blank
+   * cast (heal, novas). `'direction'` = a skillshot aimed along the cursor
+   * (projectiles). `'point'` = a ground-targeted spot under the cursor (blast).
+   * Aimed abilities hold-to-aim with a ground indicator and fire on release.
+   */
+  aim?: 'direction' | 'point';
 }
 
 export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
@@ -241,6 +246,7 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     projectileSpeed: 18,
     projectileRange: 30,
     projectileRadius: 0.8,
+    aim: 'direction',
   },
   shockwave: {
     // Instant burst around the caster — damages every enemy within `aoeRadius`.
@@ -281,17 +287,18 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     projectileSpeed: 26,
     projectileRange: 40,
     projectileRadius: 0.6,
+    aim: 'direction',
   },
   arcane_blast: {
-    // Ground-targeted: the player clicks a point, and a heavy burst lands there
-    // (clamped to `range` from the caster).
+    // Ground-targeted: the player aims a spot under the cursor, and a heavy burst
+    // lands there (clamped to `range` from the caster).
     cooldownMs: 9000,
     manaCost: 50,
     castTimeMs: 0,
     range: 16,
     damage: 55,
     aoeRadius: 4,
-    targeted: true,
+    aim: 'point',
   },
 };
 

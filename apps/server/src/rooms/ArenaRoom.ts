@@ -299,7 +299,7 @@ export class ArenaRoom extends Room<ArenaState> {
     // from the caster (and the arena), and face it.
     let targetX: number | undefined;
     let targetZ: number | undefined;
-    if (config.targeted && Number.isFinite(message.tx) && Number.isFinite(message.tz)) {
+    if (config.aim === 'point' && Number.isFinite(message.tx) && Number.isFinite(message.tz)) {
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
       let ox = (message.tx as number) - player.x;
       let oz = (message.tz as number) - player.z;

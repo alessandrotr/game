@@ -1,64 +1,65 @@
 import { useRef } from 'react';
-import type { ThreeEvent } from '@react-three/fiber';
-import type { Mesh } from 'three';
-import { ABILITIES, ARENA_HALF_SIZE } from '@arena/shared';
+import { useFrame } from '@react-three/fiber';
+import type { Group, Mesh } from 'three';
+import { ABILITIES } from '@arena/shared';
 import { useAbilityTargeting } from '../store/abilityTargeting';
-import { useGameStore } from '../store/useGameStore';
+import { getCursorGround } from '../store/cursorState';
 import { getLocalRenderTransform } from '../store/localPlayer';
-import { sendCast } from '../network/colyseus';
-import { triggerCooldown } from '../store/abilityCooldowns';
-import { pushAnimationEvent } from '../render/animation/animationEvents';
-
-const SIZE = ARENA_HALF_SIZE * 2;
 
 /**
- * When a ground-targeted ability is pending, this lays an invisible ground plane
- * that tracks the cursor (showing an AoE ring sized to the ability) and casts at
- * the clicked point. The plane sits behind player hitboxes but, because those
- * hitboxes don't `stopPropagation` while targeting, the click falls through to
- * here — so clicking on or near an enemy still places the blast.
+ * The on-ground aim indicator for the ability you're currently holding to aim:
+ * a **line** from the player toward the cursor for `direction` skillshots, or a
+ * **ring** under the cursor for `point` ground-targets. Both follow the cursor
+ * and clamp to the ability's range. Purely visual — `useAbilityHotkeys` fires on
+ * key release; right-click / Esc cancel.
  */
 export function GroundTargeter() {
   const pending = useAbilityTargeting((s) => s.pending);
+  const line = useRef<Group>(null);
   const ring = useRef<Mesh>(null);
+
+  useFrame(() => {
+    if (!pending) return;
+    const config = ABILITIES[pending];
+    const me = getLocalRenderTransform();
+    const cur = getCursorGround();
+    let dx = cur.x - me.x;
+    let dz = cur.z - me.z;
+    const dist = Math.hypot(dx, dz) || 1;
+    dx /= dist;
+    dz /= dist;
+    const reach = Math.min(dist, config.range);
+
+    if (config.aim === 'direction' && line.current) {
+      const len = Math.max(0.5, reach);
+      line.current.position.set(me.x + dx * (len / 2), 0.05, me.z + dz * (len / 2));
+      line.current.rotation.y = Math.atan2(dx, dz);
+      line.current.scale.z = len;
+    } else if (config.aim === 'point' && ring.current) {
+      ring.current.position.set(me.x + dx * reach, 0.05, me.z + dz * reach);
+    }
+  });
 
   if (!pending) return null;
   const config = ABILITIES[pending];
+
+  if (config.aim === 'direction') {
+    return (
+      <group ref={line}>
+        {/* Unit-length bar along local +Z, scaled to reach in useFrame. */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[0.5, 0.02, 1]} />
+          <meshBasicMaterial color="#ffce6b" transparent opacity={0.55} depthWrite={false} />
+        </mesh>
+      </group>
+    );
+  }
+
   const radius = config.aoeRadius ?? 2;
-
-  const onMove = (e: ThreeEvent<PointerEvent>) => {
-    if (ring.current) ring.current.position.set(e.point.x, 0.04, e.point.z);
-  };
-
-  const onDown = (e: ThreeEvent<PointerEvent>) => {
-    if (e.nativeEvent.button !== 0) return; // left-click places
-    e.stopPropagation();
-    const me = getLocalRenderTransform();
-    const dx = e.point.x - me.x;
-    const dz = e.point.z - me.z;
-    const len = Math.hypot(dx, dz) || 1;
-    sendCast(pending, dx / len, dz / len, e.point.x, e.point.z);
-    triggerCooldown(pending, config.cooldownMs);
-    const localId = useGameStore.getState().sessionId;
-    if (localId) pushAnimationEvent(localId, 'cast');
-    useAbilityTargeting.getState().cancel();
-  };
-
   return (
-    <group>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.02, 0]}
-        onPointerMove={onMove}
-        onPointerDown={onDown}
-      >
-        <planeGeometry args={[SIZE, SIZE]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <ringGeometry args={[Math.max(0.1, radius - 0.25), radius, 48]} />
-        <meshBasicMaterial color="#b07bff" transparent opacity={0.8} />
-      </mesh>
-    </group>
+    <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+      <ringGeometry args={[Math.max(0.1, radius - 0.25), radius, 48]} />
+      <meshBasicMaterial color="#b07bff" transparent opacity={0.8} depthWrite={false} />
+    </mesh>
   );
 }
