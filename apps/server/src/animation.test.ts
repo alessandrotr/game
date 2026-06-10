@@ -7,6 +7,7 @@ describe('computeAnimState', () => {
       computeAnimState({
         alive: false,
         moving: true,
+        sprinting: true,
         oneShot: { name: 'cast', until: 1000 },
         now: 0,
       }),
@@ -15,21 +16,41 @@ describe('computeAnimState', () => {
 
   it('plays an unexpired one-shot over locomotion', () => {
     expect(
-      computeAnimState({ alive: true, moving: true, oneShot: { name: 'cast', until: 500 }, now: 200 }),
+      computeAnimState({
+        alive: true,
+        moving: true,
+        sprinting: true,
+        oneShot: { name: 'cast', until: 500 },
+        now: 200,
+      }),
     ).toBe('cast');
   });
 
   it('ignores an expired one-shot and falls back to locomotion', () => {
     expect(
-      computeAnimState({ alive: true, moving: true, oneShot: { name: 'cast', until: 500 }, now: 600 }),
+      computeAnimState({
+        alive: true,
+        moving: true,
+        sprinting: true,
+        oneShot: { name: 'cast', until: 500 },
+        now: 600,
+      }),
     ).toBe('run');
     expect(
-      computeAnimState({ alive: true, moving: false, oneShot: { name: 'hit', until: 500 }, now: 600 }),
+      computeAnimState({
+        alive: true,
+        moving: false,
+        sprinting: false,
+        oneShot: { name: 'hit', until: 500 },
+        now: 600,
+      }),
     ).toBe('idle');
   });
 
-  it('chooses run vs idle by movement when no one-shot', () => {
-    expect(computeAnimState({ alive: true, moving: true, oneShot: null, now: 0 })).toBe('run');
-    expect(computeAnimState({ alive: true, moving: false, oneShot: null, now: 0 })).toBe('idle');
+  it('chooses run (sprint) / walk / idle by movement', () => {
+    const base = { alive: true, oneShot: null, now: 0 };
+    expect(computeAnimState({ ...base, moving: true, sprinting: true })).toBe('run');
+    expect(computeAnimState({ ...base, moving: true, sprinting: false })).toBe('walk');
+    expect(computeAnimState({ ...base, moving: false, sprinting: false })).toBe('idle');
   });
 });

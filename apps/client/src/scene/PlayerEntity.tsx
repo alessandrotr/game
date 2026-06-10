@@ -105,7 +105,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // Hold position and play the death pose in place (no movement while down).
       if (isLocal) {
         clearDestination();
-        animName.current = fsm.current.step({ speed: 0, alive: false, event: null }, delta * 1000);
+        animName.current = fsm.current.step(
+          { speed: 0, sprinting: false, alive: false, event: null },
+          delta * 1000,
+        );
       } else {
         animName.current = latest.animState; // authoritative ('die')
       }
@@ -192,8 +195,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     if (isLocal) {
       const moved = Math.hypot(sdx, sdz);
       const speed = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
+      const dest = getDestination();
+      const sprinting = dest.active && dest.sprint;
       const predicted = fsm.current.step(
-        { speed, alive: true, event: consumeAnimationEvent(sessionId) },
+        { speed, sprinting, alive: true, event: consumeAnimationEvent(sessionId) },
         delta * 1000,
       );
       // Surface server-driven one-shots the client can't predict (auto-attacks),
@@ -201,7 +206,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // predicted cast/hit.
       const sv = latest.animState;
       animName.current =
-        (predicted === 'idle' || predicted === 'run') &&
+        (predicted === 'idle' || predicted === 'walk' || predicted === 'run') &&
         (sv === 'attack' || sv === 'cast' || sv === 'hit')
           ? sv
           : predicted;

@@ -109,11 +109,25 @@ function GltfCharacter({
   const { scene, animations } = useGLTF(model.url);
   const instance = useMemo(() => cloneSkinned(scene), [scene]);
   const root = useRef<Group>(null);
-  const { actions } = useAnimations(animations, root);
-  const hasClips = animations.length > 0;
+  // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
+  // character animates without drifting — its world position is driven by the
+  // server/prediction, not the clip. Keeps rotation tracks (the actual motion).
+  const inPlace = useMemo(
+    () =>
+      animations.map((clip) => {
+        const stripped = clip.clone();
+        stripped.tracks = stripped.tracks.filter((t) => !t.name.endsWith('.position'));
+        return stripped;
+      }),
+    [animations],
+  );
+  const { actions } = useAnimations(inPlace, root);
+  const hasClips = inPlace.length > 0;
 
   const resolveClip = useMemo(() => {
     const clips = model.clips ?? {};
+    // Only play explicitly-mapped clips — an unmapped state (e.g. idle for a
+    // run-only model) stops the clip and rests, rather than running in place.
     return (name: AnimationName) => clips[name];
   }, [model.clips]);
 

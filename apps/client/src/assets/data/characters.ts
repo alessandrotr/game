@@ -80,37 +80,16 @@ const archer: CharacterDescriptor = {
   id: 'char.archer',
   displayName: 'Archer',
   class: 'archer',
-  weaponId: 'weapon.bow',
-  animations: { idle: 'anim.idle', walk: 'anim.walk', attack: 'anim.attack' },
+  // Rigged Mixamo GLB (~180u tall in cm → scale 0.01, feet at origin). It ships
+  // with a single run clip ('mixamo.com'); the renderer plays it for every state
+  // until idle/attack/death clips are added.
   render: {
-    kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.32, 0.72, 8, 16],
-        position: [0, 0.72, 0],
-        color: '#3f9d56',
-        roughness: 0.7,
-      },
-      { name: 'head', shape: 'sphere', args: [0.25, 16, 16], position: [0, 1.38, 0], color: SKIN },
-      {
-        name: 'hood',
-        shape: 'cone',
-        args: [0.32, 0.36, 16],
-        position: [0, 1.56, 0],
-        color: '#2c6e3d',
-        roughness: 0.9,
-      },
-      {
-        name: 'quiver',
-        shape: 'cylinder',
-        args: [0.08, 0.08, 0.5, 12],
-        position: [-0.3, 1.05, -0.22],
-        rotation: [0.35, 0, 0.3],
-        color: '#6b4a2a',
-      },
-    ],
+    kind: 'gltf',
+    url: '/models/characters/archer.glb',
+    scale: 0.01,
+    offset: [0, 0, 0],
+    yaw: 0,
+    clips: { run: 'mixamo.com' },
   },
 };
 

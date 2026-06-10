@@ -271,7 +271,14 @@ export class TownRoom extends Room<ArenaState> {
 
       // Locomotion-only animation (no combat poses in town).
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
-      player.animState = computeAnimState({ alive: true, moving, oneShot: null, now: this.simTime });
+      const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
+      player.animState = computeAnimState({
+        alive: true,
+        moving,
+        sprinting,
+        oneShot: null,
+        now: this.simTime,
+      });
     });
 
     this.state.tick++;

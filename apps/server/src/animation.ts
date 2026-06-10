@@ -12,7 +12,7 @@
  */
 
 /** The replicated animation states (a subset of the client's logical names). */
-export type AnimState = 'idle' | 'run' | 'attack' | 'cast' | 'hit' | 'die';
+export type AnimState = 'idle' | 'walk' | 'run' | 'attack' | 'cast' | 'hit' | 'die';
 
 /** A transient, non-looping animation the server is currently asserting. */
 export interface AnimOneShot {
@@ -25,6 +25,8 @@ export interface AnimInputs {
   alive: boolean;
   /** Whether the player moved meaningfully this tick. */
   moving: boolean;
+  /** Whether the movement was at sprint speed (Run) vs walk speed (Walk). */
+  sprinting: boolean;
   /** Active one-shot, or null. */
   oneShot: AnimOneShot | null;
   /** Current sim time, ms. */
@@ -38,10 +40,12 @@ export const HIT_ONESHOT_MS = 300;
 
 /**
  * Resolve the animation state. Death wins outright; otherwise an unexpired
- * one-shot (cast/attack/hit) plays; otherwise locomotion by movement.
+ * one-shot (cast/attack/hit) plays; otherwise locomotion — Run when sprinting,
+ * Walk when moving normally, else Idle.
  */
 export function computeAnimState(inputs: AnimInputs): AnimState {
   if (!inputs.alive) return 'die';
   if (inputs.oneShot && inputs.now < inputs.oneShot.until) return inputs.oneShot.name;
-  return inputs.moving ? 'run' : 'idle';
+  if (!inputs.moving) return 'idle';
+  return inputs.sprinting ? 'run' : 'walk';
 }

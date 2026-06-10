@@ -10,7 +10,7 @@ import type { AnimationName } from '@arena/shared';
  * same `step()` with no change to gameplay or rendering code.
  *
  * States map onto the shared logical `AnimationName`s:
- *   Idle / Run  — locomotion, chosen by speed
+ *   Idle / Walk / Run — locomotion (Run = sprinting, Walk = normal movement)
  *   Attack / Cast / Hit — non-looping one-shots, triggered by events
  *   Death — latched while `!alive`, overrides everything
  */
@@ -21,14 +21,16 @@ export type AnimationEventKind = 'attack' | 'cast' | 'hit';
 export interface AnimationInputs {
   /** Horizontal speed in world units/second. */
   speed: number;
+  /** Whether the player is sprinting (Run) vs walking (Walk) while moving. */
+  sprinting: boolean;
   /** Whether the character is alive. Death latches until this returns true. */
   alive: boolean;
   /** A one-shot event to play this step, or null. */
   event: AnimationEventKind | null;
 }
 
-/** Speed (world units/sec) at or above which locomotion is Run rather than Idle. */
-const RUN_SPEED_THRESHOLD = 0.6;
+/** Speed (world units/sec) at or above which the character counts as moving. */
+const MOVE_SPEED_THRESHOLD = 0.6;
 
 /**
  * Fallback one-shot durations (ms). The GLTF backend prefers the real clip
@@ -53,8 +55,8 @@ export function createCharacterFSM(): CharacterFSM {
   let oneShot: { name: AnimationEventKind; remaining: number } | null = null;
   let current: AnimationName = 'idle';
 
-  const locomotion = (speed: number): AnimationName =>
-    speed >= RUN_SPEED_THRESHOLD ? 'run' : 'idle';
+  const locomotion = (speed: number, sprinting: boolean): AnimationName =>
+    speed < MOVE_SPEED_THRESHOLD ? 'idle' : sprinting ? 'run' : 'walk';
 
   return {
     get current() {
@@ -86,7 +88,7 @@ export function createCharacterFSM(): CharacterFSM {
         oneShot = null;
       }
 
-      current = locomotion(inputs.speed);
+      current = locomotion(inputs.speed, inputs.sprinting);
       return current;
     },
   };

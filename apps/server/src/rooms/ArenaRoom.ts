@@ -733,11 +733,13 @@ export class ArenaRoom extends Room<ArenaState> {
       }
       this.verticalVelocity.set(sessionId, vy);
 
-      // Authoritative animation: one-shots (cast/attack/hit) over locomotion.
+      // Authoritative animation: one-shots over locomotion (Run = sprinting).
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
+      const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
       player.animState = computeAnimState({
         alive: true,
         moving,
+        sprinting,
         oneShot: this.animOneShots.get(sessionId) ?? null,
         now: this.simTime,
       });
