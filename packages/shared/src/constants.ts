@@ -5,8 +5,12 @@
 
 import type { CharacterClass } from './assets.js';
 
-/** Registered Colyseus room handler name. */
+/** Registered Colyseus room handler names. */
 export const ARENA_ROOM = 'arena';
+export const TOWN_ROOM = 'town';
+
+/** Town square half-extent in world units (matches the town map's `halfSize`). */
+export const TOWN_HALF_SIZE = 35;
 
 /** Server simulation rate (ticks per second). */
 export const TICK_RATE = 20;

@@ -32,6 +32,7 @@ function StatBar({
 export function Hud() {
   const playerIds = useGameStore((s) => s.playerIds);
   const sessionId = useGameStore((s) => s.sessionId);
+  const inArena = useGameStore((s) => s.room) === 'arena';
   // Subscribing to `tick` re-renders ~20×/s so vitals track the server.
   useGameStore((s) => s.tick);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
@@ -40,23 +41,27 @@ export function Hud() {
     <>
       <div className="pointer-events-none absolute left-4 top-4 rounded-[10px] border border-accent/20 bg-panel/85 px-4 py-3 text-[13px] leading-relaxed">
         <div>
-          <span className="text-muted">Name:</span> {me?.name ?? '—'}
+          <span className="text-muted">{inArena ? 'Arena' : 'Town'} ·</span> {me?.name ?? '—'}
         </div>
-        {me && (
+        {me && inArena && (
           <>
             <StatBar label="HP" value={me.hp} max={me.maxHp} color="#4ade80" />
             <StatBar label="MP" value={me.mana} max={me.maxMana} color="#60a5fa" />
           </>
         )}
-        {me && !me.alive && <div className="mt-1 font-semibold text-red-400">Defeated — respawning…</div>}
+        {me && inArena && !me.alive && (
+          <div className="mt-1 font-semibold text-red-400">Defeated — respawning…</div>
+        )}
         <div>
           <span className="text-muted">Players:</span> {playerIds.length}
         </div>
       </div>
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
-        Right-click move · Left-click enemy to attack · Space jump · Q W E R · F talk
+        {inArena
+          ? 'Right-click move · Left-click enemy to attack · Space jump · Q W E R · F talk'
+          : 'Right-click move · Click a portal to travel · F talk · Enter to chat'}
       </div>
-      <ActionBar />
+      {inArena && <ActionBar />}
     </>
   );
 }

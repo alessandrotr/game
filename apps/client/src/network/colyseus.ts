@@ -2,6 +2,7 @@ import { Client, type Room } from 'colyseus.js';
 import {
   ABILITIES,
   ARENA_ROOM,
+  TOWN_ROOM,
   ClientMessage,
   ServerMessage,
   type AbilityKind,
@@ -11,11 +12,15 @@ import {
   type ProjectileView,
   type ServerMessagePayloads,
 } from '@arena/shared';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore, type RoomType } from '../store/useGameStore';
+import { useChatStore } from '../store/useChatStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
+
+/** Colyseus handler name for each world. */
+const ROOM_HANDLER: Record<RoomType, string> = { town: TOWN_ROOM, arena: ARENA_ROOM };
 
 /** World height above a player's feet where combat numbers appear. */
 const COMBAT_TEXT_Y = 2.1;
@@ -134,48 +139,106 @@ function onHeal(msg: ServerMessagePayloads[ServerMessage.Heal]): void {
   spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `+${Math.round(msg.amount)}`, HEAL_COLOR);
 }
 
-/** Join (or create) an arena room and wire its state into the store. */
-export async function connectToArena(
+/** Options from the join screen, kept so portal travel can re-join as the same
+ *  character without re-prompting. */
+let joinOptions: { name: string; characterClass: CharacterClass; skinId?: string } | null = null;
+/** True while intentionally switching rooms, so `onLeave` doesn't reset to the
+ *  join screen. */
+let traveling = false;
+
+/** Wire a freshly-joined room's state + messages into the stores. */
+function wireRoom(joined: Room): void {
+  joined.onStateChange((state) => {
+    const raw = state as unknown as RawState;
+    const { players, projectiles } = snapshotState(raw);
+    useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
+  });
+
+  // Identity is read from `room.sessionId`; the Welcome message is acknowledged
+  // here only so colyseus.js doesn't warn about an unhandled type.
+  joined.onMessage(ServerMessage.Welcome, () => {});
+
+  // Combat events only fire in the arena; harmless to listen for everywhere.
+  joined.onMessage(ServerMessage.AbilityCast, onAbilityCast);
+  joined.onMessage(ServerMessage.Damage, onDamage);
+  joined.onMessage(ServerMessage.Heal, onHeal);
+  joined.onMessage(ServerMessage.Chat, (msg) => useChatStore.getState().add(msg));
+  joined.onMessage(ServerMessage.ChatHistory, (msg) => useChatStore.getState().set(msg.messages));
+
+  joined.onError((code, message) => {
+    useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
+  });
+
+  joined.onLeave(() => {
+    if (traveling) return; // an intentional room switch — keep playing
+    room = null;
+    useGameStore.getState().reset();
+    useChatStore.getState().clear();
+  });
+}
+
+/** Join a world for the first time (from the join screen). */
+export async function connectToRoom(
+  roomType: RoomType,
   name: string,
   characterClass: CharacterClass,
   skinId?: string,
 ): Promise<void> {
+  joinOptions = { name, characterClass, skinId };
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();
   clearFloatingText();
+  useChatStore.getState().clear();
   store.setStatus('connecting');
 
   try {
     client ??= new Client(ENDPOINT);
-    room = await client.joinOrCreate(ARENA_ROOM, { name, characterClass, skinId });
-
+    room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
     store.setSessionId(room.sessionId);
+    store.setRoom(roomType);
     store.setStatus('connected');
-
-    room.onStateChange((state) => {
-      const raw = state as unknown as RawState;
-      const { players, projectiles } = snapshotState(raw);
-      useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
-    });
-
-    room.onMessage(ServerMessage.AbilityCast, onAbilityCast);
-    room.onMessage(ServerMessage.Damage, onDamage);
-    room.onMessage(ServerMessage.Heal, onHeal);
-
-    room.onError((code, message) => {
-      useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
-    });
-
-    room.onLeave(() => {
-      room = null;
-      useGameStore.getState().reset();
-    });
+    wireRoom(room);
   } catch (err) {
     room = null;
     const message = err instanceof Error ? err.message : 'Failed to connect';
     store.setStatus('error', message);
     throw err;
+  }
+}
+
+/** Switch worlds (town ↔ arena) as the same character — used by portals. Keeps
+ *  the UI on the game (no flash back to the join screen). */
+export async function travelTo(roomType: RoomType): Promise<void> {
+  if (!client || !joinOptions || traveling) return;
+  const store = useGameStore.getState();
+  traveling = true;
+  try {
+    if (room) {
+      try {
+        await room.leave();
+      } catch {
+        /* ignore */
+      }
+      room = null;
+    }
+    // Clear the old world's transient state; stay 'connected' so the scene stays up.
+    store.players.clear();
+    store.projectiles.clear();
+    resetCooldowns();
+    clearFloatingText();
+    useChatStore.getState().clear();
+
+    room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
+    store.setSessionId(room.sessionId);
+    store.setRoom(roomType);
+    store.setStatus('connected');
+    wireRoom(room);
+  } catch (err) {
+    room = null;
+    store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
+  } finally {
+    traveling = false;
   }
 }
 
@@ -208,6 +271,11 @@ export function sendCast(
   tz?: number,
 ): void {
   room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ, tx, tz });
+}
+
+/** Send a global chat message to the current room. */
+export function sendChat(text: string): void {
+  room?.send(ClientMessage.Chat, { text });
 }
 
 /** Dev-only: push live movement tuning to the authoritative server. */

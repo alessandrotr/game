@@ -8,6 +8,7 @@
  */
 
 import type { AbilityConfig, AbilityKind } from './constants.js';
+import type { ChatMessage } from './chat.js';
 
 /** Message identifiers sent from client to server. */
 export enum ClientMessage {
@@ -23,6 +24,8 @@ export enum ClientMessage {
   CastAbility = 'cast_ability',
   /** Set or change the player's display name. */
   SetName = 'set_name',
+  /** Send a global chat message to everyone in the room. */
+  Chat = 'chat',
   /** Dev-only: live-tune authoritative movement values for the room. */
   DevTune = 'dev_tune',
   /** Dev-only: live-tune authoritative ability balance values for the room. */
@@ -39,6 +42,10 @@ export enum ServerMessage {
   Damage = 'damage',
   /** A player was healed (drives healing combat text). */
   Heal = 'heal',
+  /** A chat message was broadcast to the room. */
+  Chat = 'chat',
+  /** Recent chat history, sent to a client when it joins. */
+  ChatHistory = 'chat_history',
 }
 
 /** Payload map for {@link ClientMessage}. */
@@ -56,6 +63,7 @@ export interface ClientMessagePayloads {
     tz?: number;
   };
   [ClientMessage.SetName]: { name: string };
+  [ClientMessage.Chat]: { text: string };
   [ClientMessage.DevTune]: {
     walkSpeed: number;
     sprintSpeed: number;
@@ -85,4 +93,6 @@ export interface ServerMessagePayloads {
   };
   [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean };
   [ServerMessage.Heal]: { to: string; amount: number };
+  [ServerMessage.Chat]: ChatMessage;
+  [ServerMessage.ChatHistory]: { messages: ChatMessage[] };
 }

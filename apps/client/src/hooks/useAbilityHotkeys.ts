@@ -31,6 +31,9 @@ export function useAbilityHotkeys(enabled: boolean): void {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      // Don't fire game keys while typing (e.g. in the chat box).
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
 
       // Esc cancels a pending ground-target.
       if (e.code === 'Escape') {

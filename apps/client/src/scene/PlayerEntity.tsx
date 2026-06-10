@@ -221,6 +221,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   /** Left-click an enemy to attack-move + auto-attack it (right-click still moves). */
   const onAttackDown = (e: { nativeEvent: MouseEvent; stopPropagation: () => void }) => {
     if (e.nativeEvent.button !== 0) return;
+    // No combat in town.
+    if (useGameStore.getState().room !== 'arena') return;
     // While aiming a ground-targeted ability, let the click fall through to the
     // ground targeter (don't consume it / don't stopPropagation).
     if (useAbilityTargeting.getState().pending) return;

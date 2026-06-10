@@ -39,6 +39,7 @@ import {
   INSTANT_ONESHOT_MS,
   type AnimOneShot,
 } from '../animation.js';
+import { ChatLog } from '../chat.js';
 
 /** Maximum accepted display-name length. */
 const MAX_NAME_LENGTH = 24;
@@ -108,6 +109,7 @@ export class ArenaRoom extends Room<ArenaState> {
   private readonly pendingCasts = new Map<string, PendingCast>();
   /** Transient one-shot animation (cast/attack/hit) currently asserted per player. */
   private readonly animOneShots = new Map<string, AnimOneShot>();
+  private readonly chat = new ChatLog();
   /** Current auto-attack target (a player session id) per attacker. */
   private readonly attackTargets = new Map<string, string>();
   /** Sim time (ms) each player's next auto-attack is ready. */
@@ -199,6 +201,11 @@ export class ArenaRoom extends Room<ArenaState> {
       this.destinations.delete(client.sessionId);
     });
 
+    this.onMessage<{ text: string }>(ClientMessage.Chat, (client, message) => {
+      const player = this.state.players.get(client.sessionId);
+      this.chat.handle(this, player?.name ?? 'Adventurer', message?.text);
+    });
+
     this.onMessage(
       ClientMessage.AbilityTune,
       (_client, message: Partial<Record<AbilityKind, Partial<AbilityConfig>>>) => {
@@ -241,6 +248,7 @@ export class ArenaRoom extends Room<ArenaState> {
       sessionId: client.sessionId,
       worldSeed: this.roomId.length,
     });
+    this.chat.sendHistory(client);
   }
 
   override onLeave(client: Client): void {

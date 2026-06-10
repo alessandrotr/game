@@ -3,11 +3,16 @@ import type { PlayerView, ProjectileView } from '@arena/shared';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
+/** Which world the local player is currently in. */
+export type RoomType = 'town' | 'arena';
+
 interface GameStore {
   status: ConnectionStatus;
   error: string | null;
   /** This client's Colyseus session id, set once connected. */
   sessionId: string | null;
+  /** The world the client is currently connected to (town hub or arena). */
+  room: RoomType | null;
   /** Server tick of the latest applied snapshot. */
   tick: number;
 
@@ -29,6 +34,7 @@ interface GameStore {
 
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
+  setRoom: (room: RoomType | null) => void;
   /** Replace snapshot contents and refresh id lists if membership changed. */
   applySnapshot: (
     players: Map<string, PlayerView>,
@@ -50,6 +56,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   status: 'idle',
   error: null,
   sessionId: null,
+  room: null,
   tick: 0,
   playerIds: [],
   projectileIds: [],
@@ -58,6 +65,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
+  setRoom: (room) => set({ room }),
 
   applySnapshot: (incomingPlayers, incomingProjectiles, tick) => {
     const { players, projectiles, playerIds, projectileIds } = get();
@@ -83,6 +91,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       status: 'idle',
       error: null,
       sessionId: null,
+      room: null,
       tick: 0,
       playerIds: [],
       projectileIds: [],

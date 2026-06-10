@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { getClassDefinition } from '@arena/shared';
-import { connectToArena } from '../network/colyseus';
+import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { CharacterSelect } from './CharacterSelect';
@@ -29,7 +29,8 @@ export function JoinScreen() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (connecting) return;
-    void connectToArena(name.trim() || 'Adventurer', selectedClass).catch(() => {
+    // Players enter the shared town hub first; portals lead to the arena.
+    void connectToRoom('town', name.trim() || 'Adventurer', selectedClass).catch(() => {
       /* status/error already recorded in the store */
     });
   };
@@ -42,7 +43,7 @@ export function JoinScreen() {
             ARENA
           </h1>
           <p className="mt-2 text-[11px] uppercase tracking-[0.4em] text-muted">
-            Choose your champion
+            Choose your champion · enter the town
           </p>
         </header>
 
@@ -84,7 +85,7 @@ export function JoinScreen() {
                 disabled={connecting}
                 className="font-display rounded-xl border border-gold/60 bg-gradient-to-b from-gold to-[#9c7a2c] px-4 py-3 text-base font-semibold tracking-[0.15em] text-black shadow-[0_8px_24px_rgba(200,162,74,0.25)] transition hover:brightness-110 disabled:cursor-progress disabled:opacity-60"
               >
-                {connecting ? 'ENTERING…' : 'ENTER THE ARENA'}
+                {connecting ? 'ENTERING…' : 'ENTER THE WORLD'}
               </button>
               {error && <div className="text-center text-[13px] text-red-400">{error}</div>}
             </form>

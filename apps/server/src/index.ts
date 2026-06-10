@@ -4,8 +4,9 @@ import cors from 'cors';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
-import { ARENA_ROOM } from '@arena/shared';
+import { ARENA_ROOM, TOWN_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
+import { TownRoom } from './rooms/TownRoom.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -26,6 +27,7 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer }),
 });
 
+gameServer.define(TOWN_ROOM, TownRoom);
 gameServer.define(ARENA_ROOM, ArenaRoom);
 
 gameServer

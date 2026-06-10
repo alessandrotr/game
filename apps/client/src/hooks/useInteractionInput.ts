@@ -13,6 +13,9 @@ export function useInteractionInput(enabled: boolean): void {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      // Ignore keys while typing in a text field (chat).
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
       const store = useInteractionStore.getState();
 
       if (e.code === 'Escape') {
