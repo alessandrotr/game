@@ -46,6 +46,16 @@ export const SCHEMA: readonly string[] = [
      losses INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (player_id, character_class)
    )`,
+  // Persisted chat per channel (e.g. 'town'), so the log survives a room being
+  // disposed when empty or a server restart. The last N are replayed on join.
+  `CREATE TABLE IF NOT EXISTS chat_messages (
+     id SERIAL PRIMARY KEY,
+     channel TEXT NOT NULL,
+     sender TEXT NOT NULL,
+     body TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS chat_messages_channel_id ON chat_messages(channel, id)`,
 ];
 
 /**

@@ -3,34 +3,74 @@ import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
 import { sendChat } from '../network/colyseus';
 
+const COLLAPSE_KEY = 'arena.chat.collapsed';
+
+function loadCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function saveCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+  } catch {
+    /* storage blocked — preference only lasts this session */
+  }
+}
+
 /**
  * Global chat (Phase 10.2): a message log + input, shown in both town and arena.
- * Enter focuses the input when you're not already typing; submitting sends and
- * blurs (so game keys work again). The server sanitizes and broadcasts.
+ * Per-room history (the server replays the last 50 on join); town chat is
+ * persisted server-side. Can be hidden to a small pill and reopened; the choice
+ * is remembered across reloads. Enter focuses the input (reopening if hidden);
+ * submitting sends and blurs so game keys work again.
  */
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const [text, setText] = useState('');
+  const [collapsed, setCollapsed] = useState(loadCollapsed);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  /** Focus the input on the next render after an Enter-triggered reopen. */
+  const focusOnOpen = useRef(false);
+
+  const toggle = (next: boolean) => {
+    setCollapsed(next);
+    saveCollapsed(next);
+  };
 
   // Keep the log pinned to the latest message.
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, collapsed]);
 
-  // Enter focuses chat unless we're already in a text field.
+  // Focus the input once it mounts after reopening via Enter.
+  useEffect(() => {
+    if (!collapsed && focusOnOpen.current) {
+      focusOnOpen.current = false;
+      inputRef.current?.focus();
+    }
+  }, [collapsed]);
+
+  // Enter focuses chat (reopening it if hidden) unless already in a text field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
       const el = document.activeElement;
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
       e.preventDefault();
-      inputRef.current?.focus();
+      if (collapsed) {
+        focusOnOpen.current = true;
+        toggle(false);
+      } else {
+        inputRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [collapsed]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -40,8 +80,38 @@ export function ChatPanel() {
     inputRef.current?.blur();
   };
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => toggle(false)}
+        className="pointer-events-auto absolute bottom-4 left-4 flex items-center gap-1.5 rounded-lg border border-white/10 bg-panel/80 px-3 py-2 text-[13px] text-muted backdrop-blur-sm transition hover:text-text"
+      >
+        💬 Chat
+        {messages.length > 0 && (
+          <span className="rounded-full bg-accent/20 px-1.5 text-[11px] font-semibold text-accent">
+            {messages.length}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className="pointer-events-none absolute bottom-4 left-4 flex w-80 max-w-[60vw] flex-col gap-1">
+      <div className="pointer-events-auto flex items-center justify-between px-1">
+        <span className="text-[11px] uppercase tracking-wider text-muted">Chat</span>
+        <button
+          type="button"
+          onClick={() => toggle(true)}
+          aria-label="Hide chat"
+          title="Hide chat"
+          className="rounded px-1.5 text-sm text-muted transition hover:text-text"
+        >
+          ▾
+        </button>
+      </div>
+
       {messages.length > 0 && (
         <div
           ref={logRef}

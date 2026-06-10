@@ -1,5 +1,7 @@
 import type { Client, Room } from '@colyseus/core';
 import { CHAT_HISTORY_SIZE, sanitizeChat, ServerMessage, type ChatMessage } from '@arena/shared';
+import { getPool } from './db/database.js';
+import { loadRecentChat, saveChatMessage } from './db/chat.js';
 
 /** Sliding-window rate limit: at most this many messages per sender per window. */
 export const CHAT_RATE_MAX = 5;
@@ -24,16 +26,38 @@ export function allowChat(recent: number[], now: number): boolean {
  * sender (Phase 15 hardening), keeps a bounded history, broadcasts to everyone,
  * and replays recent lines to joiners. Shared by every room type so chat behaves
  * identically in town and arena.
+ *
+ * When constructed with a `channel`, the log is also **persisted** to the DB:
+ * `load()` restores the last {@link CHAT_HISTORY_SIZE} on room create, and each
+ * message is saved — so a channel (e.g. town) survives the room being disposed
+ * when empty, or a server restart. Without a channel it stays in-memory only
+ * (fine for ephemeral arena matches).
  */
 export class ChatLog {
-  private readonly history: ChatMessage[] = [];
+  private history: ChatMessage[] = [];
   /** Recent send timestamps per sender key (session id), for rate limiting. */
   private readonly recent = new Map<string, number[]>();
+  private readonly channel?: string;
+
+  constructor(options?: { channel?: string }) {
+    this.channel = options?.channel;
+  }
+
+  /** Restore persisted history for this channel (call once on room create). */
+  async load(): Promise<void> {
+    const db = getPool();
+    if (!db || !this.channel) return;
+    try {
+      this.history = await loadRecentChat(db, this.channel, CHAT_HISTORY_SIZE);
+    } catch (err) {
+      console.error('[chat] failed to load history:', err);
+    }
+  }
 
   /**
-   * Sanitize, rate-limit, record, and broadcast a chat line. No-op on
-   * empty/invalid input or when the sender is over their rate limit. `key`
-   * identifies the sender for rate limiting (use the session id).
+   * Sanitize, rate-limit, record, broadcast, and (if persistent) save a chat
+   * line. No-op on empty/invalid input or when the sender is over their rate
+   * limit. `key` identifies the sender for rate limiting (use the session id).
    */
   handle(room: Room, key: string, from: string, rawText: unknown): void {
     const text = sanitizeChat(rawText);
@@ -50,6 +74,13 @@ export class ChatLog {
     this.history.push(message);
     if (this.history.length > CHAT_HISTORY_SIZE) this.history.shift();
     room.broadcast(ServerMessage.Chat, message);
+
+    const db = getPool();
+    if (db && this.channel) {
+      void saveChatMessage(db, this.channel, from, text).catch((err) =>
+        console.error('[chat] failed to save message:', err),
+      );
+    }
   }
 
   /** Replay recent history to a single client (call on join). */

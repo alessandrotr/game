@@ -50,7 +50,9 @@ export class TownRoom extends Room<ArenaState> {
   private readonly destinations = new Map<string, { x: number; z: number; sprint: boolean }>();
   private readonly verticalVelocity = new Map<string, number>();
   private readonly grounded = new Map<string, boolean>();
-  private readonly chat = new ChatLog();
+  // Town is the persistent shared channel — its chat is saved to the DB so it
+  // survives the room being disposed when empty (and server restarts).
+  private readonly chat = new ChatLog({ channel: 'town' });
   /** Device id per session, carried into the match arena's seat reservation. */
   /** Session token per client, passed through to the arena seat reservation. */
   private readonly tokens = new Map<string, string>();
@@ -59,7 +61,10 @@ export class TownRoom extends Room<ArenaState> {
   private matching = false;
   private simTime = 0;
 
-  override onCreate(): void {
+  override async onCreate(): Promise<void> {
+    // Restore the persisted town chat before anyone joins, so the first joiner
+    // sees the saved history rather than an empty log.
+    await this.chat.load();
     this.setState(new ArenaState());
 
     this.onMessage<{ x: number; z: number }>(ClientMessage.MoveTo, (client, message) => {
