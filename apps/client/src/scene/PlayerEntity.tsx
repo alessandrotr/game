@@ -18,8 +18,15 @@ import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation
 const REMOTE_SMOOTHING = 14;
 /** How fast the predicted local position settles onto the server's once idle. */
 const SETTLE_SMOOTHING = 8;
-/** Error beyond this (world units) hard-snaps the local player to the server. */
-const RESYNC_THRESHOLD = 2.5;
+/**
+ * Error beyond this (world units) hard-snaps the local player to the server.
+ * Set well above lag-induced divergence: while walking, the client legitimately
+ * runs ahead of the server by ~one round-trip (e.g. sprint 9 u/s × 400ms ≈ 3.6u),
+ * and the client mirrors the server's speed/collision/clamp so it doesn't drift.
+ * Snapping on that gap caused a rubber-band loop under real latency. Only a true
+ * server reposition (respawn/knockback) clears this bar.
+ */
+const RESYNC_THRESHOLD = 8;
 /** Movement bound: matches the server's clamp. */
 const LIMIT = ARENA_HALF_SIZE - PLAYER_RADIUS;
 /** Per-frame horizontal step larger than this is a teleport (blink/respawn),
