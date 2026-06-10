@@ -170,7 +170,7 @@ export const CLICK_STOPPING_DISTANCE = 0.1;
 export const CLICK_ROTATION_SPEED = 10;
 
 /** Mouse-move: cursor distance (world units) beyond which the player sprints. */
-export const CLICK_SPRINT_THRESHOLD = 6;
+export const CLICK_SPRINT_THRESHOLD = 1.5;
 
 /** The abilities players can cast. */
 export type AbilityKind = 'fireball' | 'charge' | 'heal' | 'frost_nova' | 'blink' | 'meteor';
