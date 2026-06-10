@@ -63,16 +63,16 @@ const mage: CharacterDescriptor = {
   id: 'char.mage',
   displayName: 'Mage',
   class: 'mage',
-  // GLB drop-in. The model is centered at the origin (~2u tall), so `offset`
-  // lifts its feet to the ground after `scale`. It ships with no rig/clips, so
-  // the renderer drives a procedural idle/cast/death fallback. Add a `clips`
-  // map here if a rigged version with named animations is dropped in later.
+  // Rigged GLB (Meshy AI). ~1.7u tall with feet at the origin, so it needs no
+  // scale/offset. Idle/Walk/Run clips were merged from three single-clip Meshy
+  // exports (see scripts/merge-clips.mjs) onto one shared skeleton.
   render: {
     kind: 'gltf',
     url: '/models/characters/mage.glb',
-    scale: 0.9,
-    offset: [0, 0.9, 0],
+    scale: 1,
+    offset: [0, 0, 0],
     yaw: 0,
+    clips: { idle: 'Idle', walk: 'Walk', run: 'Run' },
   },
 };
 

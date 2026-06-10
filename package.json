@@ -23,10 +23,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",
+    "@gltf-transform/core": "^4.4.0",
+    "@gltf-transform/extensions": "^4.4.0",
     "eslint": "^9.11.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.12",
+    "fbx2gltf": "0.9.7-p1",
     "globals": "^15.9.0",
     "prettier": "^3.3.3",
     "puppeteer-core": "^25.1.0",
