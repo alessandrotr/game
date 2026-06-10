@@ -6,7 +6,9 @@ import type { AuthResult } from '@arena/shared';
  * swapping the ws/wss scheme for http/https.
  */
 const WS_ENDPOINT = import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567';
-const HTTP_BASE = WS_ENDPOINT.replace(/^ws/, 'http');
+// ws→http / wss→https, and strip any trailing slash so paths don't double up
+// (e.g. a `VITE_SERVER_URL` ending in `/` would produce `…//auth/register`).
+const HTTP_BASE = WS_ENDPOINT.replace(/^ws/, 'http').replace(/\/+$/, '');
 
 async function post(path: string, body: unknown): Promise<AuthResult> {
   const res = await request(path, { method: 'POST', body: JSON.stringify(body) });

@@ -47,7 +47,9 @@ interface RawState {
   tick: number;
 }
 
-const ENDPOINT = import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567';
+// Strip any trailing slash so the Colyseus client builds clean URLs even if
+// VITE_SERVER_URL is configured with one.
+const ENDPOINT = (import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567').replace(/\/+$/, '');
 
 let client: Client | null = null;
 let room: Room | null = null;
