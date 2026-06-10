@@ -22,7 +22,7 @@ import { reviveFull } from '../combat.js';
 import { computeAnimState } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { login } from '../db/players.js';
+import { login, topPlayers } from '../db/players.js';
 
 const MAX_NAME_LENGTH = 24;
 /** Where players appear when entering town (matches the town map's spawn zone). */
@@ -106,6 +106,20 @@ export class TownRoom extends Room<ArenaState> {
     this.onMessage(ClientMessage.Unqueue, (client) => {
       this.removeFromQueue(client.sessionId);
       this.sendQueueUpdate(client, false);
+    });
+
+    this.onMessage(ClientMessage.RequestLeaderboard, (client) => {
+      const db = getPool();
+      if (!db) {
+        client.send(ServerMessage.Leaderboard, { enabled: false, entries: [] });
+        return;
+      }
+      void topPlayers(db, 20)
+        .then((entries) => client.send(ServerMessage.Leaderboard, { enabled: true, entries }))
+        .catch((err) => {
+          console.error('[town] leaderboard query failed:', err);
+          client.send(ServerMessage.Leaderboard, { enabled: true, entries: [] });
+        });
     });
 
     // Town has no combat/tuning, but accept (and ignore) these so a stray dev

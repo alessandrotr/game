@@ -15,6 +15,8 @@ import {
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
+import { useMatchResultStore } from '../store/useMatchResultStore';
+import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { getDeviceId } from '../store/deviceId';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
@@ -182,8 +184,13 @@ function wireRoom(joined: Room): void {
   );
   joined.onMessage(ServerMessage.MatchFound, (msg) => {
     useMatchmakingStore.getState().reset();
+  useMatchResultStore.getState().clear();
     void joinByReservation(msg.reservation);
   });
+  joined.onMessage(ServerMessage.MatchOver, (msg) => useMatchResultStore.getState().set(msg));
+  joined.onMessage(ServerMessage.Leaderboard, (msg) =>
+    useLeaderboardStore.getState().set(msg.enabled, msg.entries),
+  );
 
   joined.onError((code, message) => {
     useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
@@ -195,6 +202,7 @@ function wireRoom(joined: Room): void {
     useGameStore.getState().reset();
     useChatStore.getState().clear();
     useMatchmakingStore.getState().reset();
+  useMatchResultStore.getState().clear();
   });
 }
 
@@ -212,6 +220,7 @@ export async function connectToRoom(
   clearFloatingText();
   useChatStore.getState().clear();
   useMatchmakingStore.getState().reset();
+  useMatchResultStore.getState().clear();
   store.setStatus('connecting');
 
   try {
@@ -251,6 +260,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     clearFloatingText();
     useChatStore.getState().clear();
     useMatchmakingStore.getState().reset();
+  useMatchResultStore.getState().clear();
 
     room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
     store.setSessionId(room.sessionId);
@@ -285,6 +295,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     clearFloatingText();
     useChatStore.getState().clear();
     useMatchmakingStore.getState().reset();
+  useMatchResultStore.getState().clear();
 
     // The reservation shape is internal to Colyseus; consume it directly.
     room = await client.consumeSeatReservation(reservation as never);
@@ -306,6 +317,10 @@ export function sendQueue(): void {
 }
 export function sendUnqueue(): void {
   room?.send(ClientMessage.Unqueue, {});
+}
+
+export function requestLeaderboard(): void {
+  room?.send(ClientMessage.RequestLeaderboard, {});
 }
 
 /** Update the world-space point to move toward (hold-to-move). */

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newDb } from 'pg-mem';
 import { levelForXp } from '@arena/shared';
 import { SCHEMA, type Queryable } from './database';
-import { getProgress, login, recordResult } from './players';
+import { getProgress, login, recordResult, topPlayers } from './players';
 
 /** A fresh in-memory Postgres with the schema applied. */
 async function freshDb(): Promise<Queryable> {
@@ -77,5 +77,22 @@ describe('player repository (pg-mem)', () => {
     expect(warrior).toMatchObject({ xp: 0, level: 1, kills: 0 });
     const mage = await getProgress(db, p.id, 'mage');
     expect(mage).toMatchObject({ xp: 500, kills: 3 });
+  });
+
+  it('topPlayers ranks by wins then xp, one row per player+class', async () => {
+    const ace = await login(db, 'device-ace', 'Ace');
+    const rook = await login(db, 'device-rook', 'Rook');
+    // Rook has more wins; Ace has more xp but fewer wins.
+    await recordResult(db, ace.id, 'mage', { xp: 900, kills: 5, deaths: 2, wins: 1, losses: 1 });
+    await recordResult(db, rook.id, 'warrior', { xp: 100, kills: 2, deaths: 4, wins: 3, losses: 0 });
+    // A second class for Ace gets its own row.
+    await recordResult(db, ace.id, 'archer', { xp: 50, kills: 1, deaths: 0, wins: 0, losses: 0 });
+
+    const board = await topPlayers(db, 10);
+    expect(board).toHaveLength(3);
+    // Wins dominate: Rook (3) first, then Ace's mage (1), then Ace's archer (0).
+    expect(board[0]).toMatchObject({ name: 'Rook', characterClass: 'warrior', wins: 3 });
+    expect(board[1]).toMatchObject({ name: 'Ace', characterClass: 'mage', wins: 1 });
+    expect(board[2]).toMatchObject({ name: 'Ace', characterClass: 'archer', wins: 0 });
   });
 });

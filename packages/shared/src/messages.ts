@@ -34,6 +34,8 @@ export enum ClientMessage {
   DevTune = 'dev_tune',
   /** Dev-only: live-tune authoritative ability balance values for the room. */
   AbilityTune = 'ability_tune',
+  /** Ask the server for the global leaderboard (town only). */
+  RequestLeaderboard = 'request_leaderboard',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -54,6 +56,29 @@ export enum ServerMessage {
   QueueUpdate = 'queue_update',
   /** A match was found — carries a seat reservation to consume into the arena. */
   MatchFound = 'match_found',
+  /** A ranked match ended — carries the winner and final scoreboard. */
+  MatchOver = 'match_over',
+  /** The global leaderboard, sent in reply to {@link ClientMessage.RequestLeaderboard}. */
+  Leaderboard = 'leaderboard',
+}
+
+/** A player's line on the end-of-match scoreboard. */
+export interface MatchScore {
+  /** Session id of the player (compare against the local id to find yourself). */
+  id: string;
+  name: string;
+  kills: number;
+  deaths: number;
+}
+
+/** One ranked row on the global leaderboard (a player's progress for a class). */
+export interface LeaderboardEntry {
+  name: string;
+  characterClass: string;
+  level: number;
+  wins: number;
+  losses: number;
+  kills: number;
 }
 
 /** Payload map for {@link ClientMessage}. */
@@ -74,6 +99,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.Chat]: { text: string };
   [ClientMessage.Queue]: Record<string, never>;
   [ClientMessage.Unqueue]: Record<string, never>;
+  [ClientMessage.RequestLeaderboard]: Record<string, never>;
   [ClientMessage.DevTune]: {
     walkSpeed: number;
     sprintSpeed: number;
@@ -109,4 +135,19 @@ export interface ServerMessagePayloads {
   /** `reservation` is a Colyseus seat reservation passed straight to
    *  `client.consumeSeatReservation()` — its internal shape is opaque to us. */
   [ServerMessage.MatchFound]: { reservation: unknown };
+  [ServerMessage.MatchOver]: {
+    /** Session id of the winner. */
+    winnerId: string;
+    winnerName: string;
+    /** Kills that were needed to win (for "5 / 5" style display). */
+    target: number;
+    /** Final scoreboard for everyone in the match. */
+    scores: MatchScore[];
+  };
+  [ServerMessage.Leaderboard]: {
+    /** False when persistence is disabled (no DATABASE_URL) — show a notice. */
+    enabled: boolean;
+    /** Top entries, already ranked (best first). */
+    entries: LeaderboardEntry[];
+  };
 }

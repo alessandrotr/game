@@ -13,6 +13,8 @@ import {
   GROUND_Y,
   JUMP_FORCE,
   MANA_REGEN,
+  MATCH_KILL_TARGET,
+  MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
   PLAYER_MAX_HP,
   PLAYER_MAX_MANA,
@@ -135,6 +137,13 @@ export class ArenaRoom extends Room<ArenaState> {
   private simTime = 0;
   private projectileSeq = 0;
 
+  /** A ranked 1v1 (from matchmaking): tracks a kill target and ends decisively. */
+  private ranked = false;
+  /** Latched once a winner is decided; freezes the sim for the results screen. */
+  private matchOver = false;
+  /** Win/loss verdict per session, recorded to the DB when each player leaves. */
+  private readonly outcomes = new Map<string, 'win' | 'loss'>();
+
   /** Authoritative movement values, live-tunable via the dev tools. */
   private movement = {
     walkSpeed: PLAYER_SPEED,
@@ -156,6 +165,7 @@ export class ArenaRoom extends Room<ArenaState> {
     // A matchmade 1v1: cap at two players and hide from public join (only the
     // two reserved seats get in).
     if (options?.match) {
+      this.ranked = true;
       this.maxClients = 2;
       this.setPrivate(true);
     }
@@ -321,6 +331,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.animOneShots.delete(client.sessionId);
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
+    this.outcomes.delete(client.sessionId);
   }
 
   /** Persist this session's progression delta (live totals − loaded base) on leave. */
@@ -330,14 +341,17 @@ export class ArenaRoom extends Room<ArenaState> {
     const db = getPool();
     const player = this.state.players.get(sessionId);
     if (!db || !profile || !player) return;
+    const outcome = this.outcomes.get(sessionId);
     const delta = {
       xp: player.xp - profile.baseXp,
       kills: player.kills - profile.baseKills,
       deaths: player.deaths - profile.baseDeaths,
-      wins: 0,
-      losses: 0,
+      wins: outcome === 'win' ? 1 : 0,
+      losses: outcome === 'loss' ? 1 : 0,
     };
-    if (delta.xp <= 0 && delta.kills <= 0 && delta.deaths <= 0) return;
+    if (delta.xp <= 0 && delta.kills <= 0 && delta.deaths <= 0 && !delta.wins && !delta.losses) {
+      return;
+    }
     void recordResult(db, profile.playerId, profile.characterClass, delta).catch((err) =>
       console.error('[arena] failed to save profile:', err),
     );
@@ -627,6 +641,11 @@ export class ArenaRoom extends Room<ArenaState> {
         killer.level = levelForXp(killer.xp);
       }
       target.deaths += 1;
+
+      // Ranked match: the first to the kill target wins, ending the match.
+      if (this.ranked && !this.matchOver && killer && killer.kills >= MATCH_KILL_TARGET) {
+        this.endMatch(killer.sessionId);
+      }
     } else {
       // Flinch — unless a cast/attack pose is already playing (don't cut it).
       const existing = this.animOneShots.get(target.sessionId);
@@ -639,10 +658,32 @@ export class ArenaRoom extends Room<ArenaState> {
     }
   }
 
+  /** Decide a ranked match: record each player's verdict, broadcast the final
+   *  scoreboard, and freeze the sim so clients can show the results screen. */
+  private endMatch(winnerId: string): void {
+    this.matchOver = true;
+    const scores: { id: string; name: string; kills: number; deaths: number }[] = [];
+    this.state.players.forEach((player, sessionId) => {
+      this.outcomes.set(sessionId, sessionId === winnerId ? 'win' : 'loss');
+      scores.push({ id: sessionId, name: player.name, kills: player.kills, deaths: player.deaths });
+    });
+    this.broadcast(ServerMessage.MatchOver, {
+      winnerId,
+      winnerName: this.state.players.get(winnerId)?.name ?? 'Unknown',
+      target: MATCH_KILL_TARGET,
+      scores,
+    });
+    // Clients return to town on their own; dispose as a backstop if they linger.
+    this.clock.setTimeout(() => this.disconnect(), MATCH_RESULT_LINGER_MS);
+  }
+
   // --- Simulation --------------------------------------------------------
 
   private update(deltaMs: number): void {
     this.simTime += deltaMs;
+    // Once a winner is decided, freeze the world — players hold their final pose
+    // under the results overlay until they leave (or the room auto-disposes).
+    if (this.matchOver) return;
     const dt = deltaMs / 1000;
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
 

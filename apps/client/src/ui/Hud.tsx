@@ -2,6 +2,8 @@ import { useGameStore } from '../store/useGameStore';
 import { ActionBar } from './ActionBar';
 import { QueuePanel } from './QueuePanel';
 import { PlayerCard } from './PlayerCard';
+import { MatchResult } from './MatchResult';
+import { Leaderboard } from './Leaderboard';
 
 /** In-game heads-up display: the player card, controls hint, and action bar. */
 export function Hud() {
@@ -24,6 +26,9 @@ export function Hud() {
       </div>
 
       {inArena ? <ActionBar /> : <QueuePanel />}
+      {!inArena && <Leaderboard />}
+
+      <MatchResult />
     </>
   );
 }

@@ -167,6 +167,16 @@ export const RESPAWN_DELAY_MS = 4000;
 /** XP awarded to the killer for a kill (progression / persistence). */
 export const XP_PER_KILL = 50;
 
+/** Kills needed to win a ranked 1v1 match (first to this total). */
+export const MATCH_KILL_TARGET = 5;
+
+/**
+ * How long a finished ranked room lingers on the results screen before the
+ * server force-disposes it. Clients normally return to town on their own well
+ * within this window; this is the backstop so abandoned rooms don't leak.
+ */
+export const MATCH_RESULT_LINGER_MS = 20000;
+
 /**
  * Level curve, shared by server (persistence) and client (HUD). Each level needs
  * quadratically more XP: lvl 1 at 0, 2 at 100, 3 at 400, 4 at 900 … so

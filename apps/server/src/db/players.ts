@@ -1,4 +1,4 @@
-import { levelForXp } from '@arena/shared';
+import { levelForXp, type LeaderboardEntry } from '@arena/shared';
 import type { Queryable } from './database.js';
 
 /**
@@ -119,4 +119,27 @@ export async function recordResult(
     wins: num(row.wins),
     losses: num(row.losses),
   };
+}
+
+/**
+ * The global leaderboard: top class-progress rows (one per player+class),
+ * ranked by wins then XP. Each row is a player's record on a single class.
+ */
+export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardEntry[]> {
+  const res = await q.query(
+    `SELECT p.username, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills
+       FROM class_progress cp
+       JOIN players p ON p.id = cp.player_id
+      ORDER BY cp.wins DESC, cp.xp DESC, cp.kills DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((row) => ({
+    name: String(row.username ?? 'Adventurer'),
+    characterClass: String(row.character_class ?? ''),
+    level: num(row.level),
+    wins: num(row.wins),
+    losses: num(row.losses),
+    kills: num(row.kills),
+  }));
 }
