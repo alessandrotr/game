@@ -4,6 +4,7 @@ import { ARENA_HALF_SIZE, TOWN_HALF_SIZE, type MapAssetId } from '@arena/shared'
 import { useGameStore } from '../store/useGameStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
+import { TownLights } from './TownLights';
 import { PlayerEntity } from './PlayerEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
@@ -30,35 +31,45 @@ export function GameScene() {
 
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
   const half = isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE;
+  // Tighten the shadow frustum to the area that actually has props (town content
+  // sits within ±20). A smaller frustum packs the 2048² map's texels onto that
+  // area → far crisper shadows than spreading them over the whole 70u ground.
+  const shadowExtent = isArena ? half : 22;
 
   return (
     <Canvas
-      shadows
+      shadows="soft"
       dpr={[1, 2]}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
       gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Arena: moody dark. Town: soft warm daylight with a sky-coloured fog. */}
-      <color attach="background" args={[isArena ? '#0b0d17' : '#a8c0dc']} />
-      <fog attach="fog" args={[isArena ? '#0b0d17' : '#a8c0dc', half, half * 3]} />
+      {/* Arena: moody dark. Town: warm dusk so the lit lamps, windows, and forge
+          glow read against a low-key sky. */}
+      <color attach="background" args={[isArena ? '#0b0d17' : '#4f4a66']} />
+      <fog attach="fog" args={[isArena ? '#0b0d17' : '#4f4a66', half, half * 3]} />
 
-      <ambientLight intensity={isArena ? 0.4 : 0.28} />
-      {/* Outdoor sky/ground fill — cheap, and gives the town natural ambience. */}
-      {!isArena && <hemisphereLight color="#cfe0f5" groundColor="#5a5236" intensity={0.65} />}
+      {/* Fill is kept low so the sunset sun + lamp pools read with contrast. */}
+      <ambientLight intensity={isArena ? 0.4 : 0.16} />
+      {/* Outdoor sky/ground fill — carries the town's ambient (no IBL there). */}
+      {!isArena && <hemisphereLight color="#6d72a4" groundColor="#40382a" intensity={0.5} />}
       <directionalLight
-        position={isArena ? [10, 20, 10] : [14, 22, 8]}
-        intensity={isArena ? 1.1 : 1.5}
-        color={isArena ? '#ffffff' : '#ffe6bd'}
+        position={isArena ? [10, 20, 10] : [16, 15, 9]}
+        intensity={isArena ? 1.1 : 1.15}
+        color={isArena ? '#ffffff' : '#ffc078'}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-camera-left={-half}
-        shadow-camera-right={half}
-        shadow-camera-top={half}
-        shadow-camera-bottom={-half}
+        shadow-bias={-0.0002}
+        shadow-normalBias={0.04}
+        shadow-camera-near={1}
+        shadow-camera-far={80}
+        shadow-camera-left={-shadowExtent}
+        shadow-camera-right={shadowExtent}
+        shadow-camera-top={shadowExtent}
+        shadow-camera-bottom={-shadowExtent}
       />
-      <Environment preset={isArena ? 'night' : 'sunset'} />
+      {/* IBL only in the arena; the town is lit by sun + hemisphere + its lamps. */}
+      {isArena && <Environment preset="night" />}
 
       {isArena ? (
         <>
@@ -66,7 +77,10 @@ export function GameScene() {
           <Obstacles />
         </>
       ) : (
-        <TownGround />
+        <>
+          <TownGround />
+          <TownLights />
+        </>
       )}
 
       <MapView mapId={mapId} />
