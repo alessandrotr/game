@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+/* Theme tokens — exposed as Tailwind color utilities (bg-bg, text-muted, …). */
+@theme {
+  --color-bg: #0b0d17;
+  --color-panel: #121628;
+  --color-accent: #6c8cff;
+  --color-gold: #c8a24a;
+  --color-text: #e6e9f5;
+  --color-muted: #8b91a8;
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+}
+
+/* Global base only: full-height app, dark scheme, canvas reset. No component CSS. */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}

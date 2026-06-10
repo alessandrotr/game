@@ -1,0 +1,30 @@
+{
+  "name": "@arena/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -b --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@arena/shared": "workspace:*",
+    "@colyseus/core": "^0.15.17",
+    "@colyseus/monitor": "^0.15.6",
+    "@colyseus/schema": "^2.0.36",
+    "@colyseus/ws-transport": "^0.15.3",
+    "colyseus": "^0.15.17",
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.16.10",
+    "tsx": "^4.19.1"
+  }
+}

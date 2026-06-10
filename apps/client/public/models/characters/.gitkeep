@@ -1,0 +1,5 @@
+# Drop rigged character GLB files here.
+#
+# One file per class: warrior.glb, mage.glb, archer.glb, priest.glb
+# Each a single skinned mesh with embedded, named clips (Idle, Run, Attack,
+# Cast, Die). See docs/ANIMATION_PIPELINE.md for the full workflow.

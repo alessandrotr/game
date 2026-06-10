@@ -1,0 +1,234 @@
+/**
+ * Tunable simulation and world constants shared by client and server.
+ * The server is authoritative; the client uses these only for prediction and rendering.
+ */
+
+import type { CharacterClass } from './assets.js';
+
+/** Registered Colyseus room handler name. */
+export const ARENA_ROOM = 'arena';
+
+/** Server simulation rate (ticks per second). */
+export const TICK_RATE = 20;
+
+/** Fixed simulation timestep in milliseconds. */
+export const TICK_MS = 1000 / TICK_RATE;
+
+/** Square arena half-extent in world units; valid X/Z range is [-ARENA_HALF_SIZE, ARENA_HALF_SIZE]. */
+export const ARENA_HALF_SIZE = 25;
+
+/** Player movement speed in world units per second. */
+export const PLAYER_SPEED = 6;
+
+/** Player collision/visual radius in world units. */
+export const PLAYER_RADIUS = 0.5;
+
+/** Starting and maximum player health. */
+export const PLAYER_MAX_HP = 100;
+
+/** Maximum players allowed in a single arena instance. */
+export const MAX_PLAYERS = 16;
+
+/** A cylindrical arena obstacle (pillar) with circular collision. */
+export interface ArenaObstacle {
+  x: number;
+  z: number;
+  radius: number;
+  height: number;
+}
+
+/** Static arena obstacles. Shared so the server, client prediction, and the
+ *  renderer all agree on exactly the same geometry. */
+export const ARENA_OBSTACLES: readonly ArenaObstacle[] = [
+  { x: 8, z: 6, radius: 1.2, height: 3 },
+  { x: -7, z: 9, radius: 1.0, height: 2.4 },
+  { x: -10, z: -6, radius: 1.4, height: 3.6 },
+  { x: 7, z: -9, radius: 1.0, height: 2.2 },
+  { x: 0, z: 13, radius: 1.6, height: 4 },
+  { x: -14, z: 2, radius: 1.1, height: 2.8 },
+];
+
+/**
+ * Push a point (a player's center) out of any overlapping obstacle so it rests
+ * against the edge — a simple circle-vs-circle collision used identically by
+ * the authoritative server and the client predictor.
+ */
+export function collideArenaObstacles(x: number, z: number): { x: number; z: number } {
+  for (const o of ARENA_OBSTACLES) {
+    const dx = x - o.x;
+    const dz = z - o.z;
+    const min = o.radius + PLAYER_RADIUS;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < min * min && distSq > 1e-6) {
+      const d = Math.sqrt(distSq);
+      x = o.x + (dx / d) * min;
+      z = o.z + (dz / d) * min;
+    }
+  }
+  return { x, z };
+}
+
+/** Player movement speed while sprinting, in world units per second. */
+export const SPRINT_SPEED = 9;
+
+/** Downward acceleration, world units per second². */
+export const GRAVITY = 24;
+
+/** Upward launch velocity applied on jump, world units per second. */
+export const JUMP_FORCE = 8.5;
+
+/** World Y of the ground plane the players' feet rest on. */
+export const GROUND_Y = 0;
+
+/** Starting and maximum player mana. */
+export const PLAYER_MAX_MANA = 100;
+
+/** Mana restored per second. */
+export const MANA_REGEN = 12;
+
+/** Delay before a defeated player respawns, in milliseconds. */
+export const RESPAWN_DELAY_MS = 4000;
+
+/** Hard cap on a projectile's lifetime, in milliseconds. */
+export const PROJECTILE_LIFETIME_MS = 3000;
+
+/** Mouse-move: how close (world units) to the destination counts as arrived. */
+export const CLICK_STOPPING_DISTANCE = 0.1;
+
+/** Mouse-move: how fast a player turns to face its movement direction (1/second). */
+export const CLICK_ROTATION_SPEED = 10;
+
+/** Mouse-move: cursor distance (world units) beyond which the player sprints. */
+export const CLICK_SPRINT_THRESHOLD = 6;
+
+/** The abilities players can cast. */
+export type AbilityKind = 'fireball' | 'charge' | 'heal' | 'frost_nova' | 'blink' | 'meteor';
+
+export const ABILITY_KINDS: readonly AbilityKind[] = [
+  'fireball',
+  'charge',
+  'heal',
+  'frost_nova',
+  'blink',
+  'meteor',
+];
+
+export function isAbilityKind(value: unknown): value is AbilityKind {
+  return typeof value === 'string' && (ABILITY_KINDS as readonly string[]).includes(value);
+}
+
+/** Authoritative balance values for one ability (server is the source of truth). */
+export interface AbilityConfig {
+  /** Cooldown between casts, in milliseconds. */
+  cooldownMs: number;
+  /** Mana spent per cast. */
+  manaCost: number;
+  /**
+   * Wind-up before the effect resolves, in milliseconds. While casting, the
+   * player is rooted; the effect is applied when the timer elapses. `0` resolves
+   * instantly on the same tick the cast is requested.
+   */
+  castTimeMs: number;
+  /**
+   * Effective reach in world units (projectile travel, dash distance, or 0 for
+   * self-targeted). Used for UI display and range-based decisions.
+   */
+  range: number;
+  /** Damage dealt on hit (0 for non-damaging abilities). */
+  damage: number;
+  /** Projectile travel speed, world units/second (projectile abilities). */
+  projectileSpeed?: number;
+  /** Maximum projectile travel distance (projectile abilities). */
+  projectileRange?: number;
+  /** Projectile collision radius (projectile abilities). */
+  projectileRadius?: number;
+  /** Dash distance (movement abilities). */
+  dashDistance?: number;
+  /** Dash hit radius along the path (movement abilities). */
+  dashRadius?: number;
+  /** Health restored (heal abilities). */
+  healAmount?: number;
+  /** Area-of-effect radius (frost nova around the caster, meteor at impact). */
+  aoeRadius?: number;
+}
+
+export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
+  fireball: {
+    cooldownMs: 1500,
+    manaCost: 20,
+    castTimeMs: 0,
+    range: 30,
+    damage: 30,
+    projectileSpeed: 18,
+    projectileRange: 30,
+    projectileRadius: 0.8,
+  },
+  charge: {
+    cooldownMs: 6000,
+    manaCost: 25,
+    castTimeMs: 0,
+    range: 8,
+    damage: 25,
+    dashDistance: 8,
+    dashRadius: 1.4,
+  },
+  heal: {
+    // A short channel — proves the cast-time machinery (rooted wind-up, cast
+    // bar) end to end; the other abilities resolve instantly (castTimeMs: 0).
+    cooldownMs: 10000,
+    manaCost: 40,
+    castTimeMs: 600,
+    range: 0,
+    damage: 0,
+    healAmount: 40,
+  },
+  // --- Mage kit (Phase 6) ---
+  frost_nova: {
+    // Instant point-blank burst: damages every enemy within `aoeRadius`.
+    cooldownMs: 5000,
+    manaCost: 30,
+    castTimeMs: 0,
+    range: 5,
+    damage: 22,
+    aoeRadius: 5,
+  },
+  blink: {
+    // Instant self-teleport `range` units along the facing direction. No damage.
+    cooldownMs: 4000,
+    manaCost: 20,
+    castTimeMs: 0,
+    range: 10,
+    damage: 0,
+  },
+  meteor: {
+    // Rooted wind-up (telegraph), then a heavy AoE strike `range` units ahead.
+    cooldownMs: 9000,
+    manaCost: 50,
+    castTimeMs: 900,
+    range: 12,
+    damage: 60,
+    aoeRadius: 3.5,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Ability slots & per-class loadouts — the QWER input contract.
+// ---------------------------------------------------------------------------
+
+/** The four MOBA ability input slots. */
+export type AbilitySlot = 'Q' | 'W' | 'E' | 'R';
+
+export const ABILITY_SLOTS: readonly AbilitySlot[] = ['Q', 'W', 'E', 'R'];
+
+/**
+ * Which ability each class binds to each QWER slot. Empty slots (e.g. `R`) are
+ * intentionally unbound until per-class kits land — the action bar renders them
+ * as disabled. Data-driven so a class kit is a single edit here.
+ */
+export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, AbilityKind>>> = {
+  warrior: { Q: 'fireball', W: 'charge', E: 'heal' },
+  // Phase 6: the Mage is the first fully-realized kit.
+  mage: { Q: 'fireball', W: 'frost_nova', E: 'blink', R: 'meteor' },
+  archer: { Q: 'fireball', W: 'charge', E: 'heal' },
+  priest: { Q: 'fireball', W: 'charge', E: 'heal' },
+};
