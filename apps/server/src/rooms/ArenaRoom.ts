@@ -22,6 +22,7 @@ import {
   RESPAWN_DELAY_MS,
   SPRINT_SPEED,
   TICK_MS,
+  XP_PER_KILL,
   ClientMessage,
   ServerMessage,
   isAbilityKind,
@@ -40,6 +41,17 @@ import {
   type AnimOneShot,
 } from '../animation.js';
 import { ChatLog } from '../chat.js';
+import { getPool } from '../db/database.js';
+import { getProgress, login, recordResult } from '../db/players.js';
+
+/** In-memory match stats accumulated for a player, flushed to the DB on leave. */
+interface MatchProfile {
+  playerId: number;
+  characterClass: string;
+  kills: number;
+  deaths: number;
+  xp: number;
+}
 
 /** Maximum accepted display-name length. */
 const MAX_NAME_LENGTH = 24;
@@ -110,6 +122,8 @@ export class ArenaRoom extends Room<ArenaState> {
   /** Transient one-shot animation (cast/attack/hit) currently asserted per player. */
   private readonly animOneShots = new Map<string, AnimOneShot>();
   private readonly chat = new ChatLog();
+  /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
+  private readonly profiles = new Map<string, MatchProfile>();
   /** Current auto-attack target (a player session id) per attacker. */
   private readonly attackTargets = new Map<string, string>();
   /** Sim time (ms) each player's next auto-attack is ready. */
@@ -255,9 +269,35 @@ export class ArenaRoom extends Room<ArenaState> {
       worldSeed: this.roomId.length,
     });
     this.chat.sendHistory(client);
+
+    // Load persisted progression for this class (async; sets the replicated
+    // `level` and starts a stats accumulator). No-op when persistence is off.
+    void this.loadProfile(client.sessionId, player.name, player.characterClass);
+  }
+
+  /** Find-or-create the player and load their class progression. */
+  private async loadProfile(sessionId: string, name: string, characterClass: string): Promise<void> {
+    const db = getPool();
+    if (!db) return;
+    try {
+      const account = await login(db, name);
+      const progress = await getProgress(db, account.id, characterClass);
+      this.profiles.set(sessionId, {
+        playerId: account.id,
+        characterClass,
+        kills: 0,
+        deaths: 0,
+        xp: 0,
+      });
+      const player = this.state.players.get(sessionId);
+      if (player) player.level = progress.level;
+    } catch (err) {
+      console.error('[arena] failed to load profile:', err);
+    }
   }
 
   override onLeave(client: Client): void {
+    this.flushProfile(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);
@@ -268,6 +308,22 @@ export class ArenaRoom extends Room<ArenaState> {
     this.animOneShots.delete(client.sessionId);
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
+  }
+
+  /** Persist a player's accumulated match stats (kills/deaths/xp) on leave. */
+  private flushProfile(sessionId: string): void {
+    const profile = this.profiles.get(sessionId);
+    this.profiles.delete(sessionId);
+    const db = getPool();
+    if (!db || !profile) return;
+    if (profile.kills === 0 && profile.deaths === 0 && profile.xp === 0) return;
+    void recordResult(db, profile.playerId, profile.characterClass, {
+      xp: profile.xp,
+      kills: profile.kills,
+      deaths: profile.deaths,
+      wins: 0,
+      losses: 0,
+    }).catch((err) => console.error('[arena] failed to save profile:', err));
   }
 
   // --- Abilities ---------------------------------------------------------
@@ -545,6 +601,15 @@ export class ArenaRoom extends Room<ArenaState> {
     if (lethal) {
       this.destinations.delete(target.sessionId);
       this.respawnAt.set(target.sessionId, this.simTime + RESPAWN_DELAY_MS);
+      // Accumulate persisted stats: killer gets a kill + XP, victim a death.
+      // (`fromId === target` is self-damage; only credit real kills.)
+      const killer = fromId !== target.sessionId ? this.profiles.get(fromId) : undefined;
+      if (killer) {
+        killer.kills += 1;
+        killer.xp += XP_PER_KILL;
+      }
+      const victim = this.profiles.get(target.sessionId);
+      if (victim) victim.deaths += 1;
     } else {
       // Flinch — unless a cast/attack pose is already playing (don't cut it).
       const existing = this.animOneShots.get(target.sessionId);

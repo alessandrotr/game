@@ -21,6 +21,8 @@ import { ArenaState, Player } from './schema.js';
 import { reviveFull } from '../combat.js';
 import { computeAnimState } from '../animation.js';
 import { ChatLog } from '../chat.js';
+import { getPool } from '../db/database.js';
+import { login } from '../db/players.js';
 
 const MAX_NAME_LENGTH = 24;
 /** Where players appear when entering town (matches the town map's spawn zone). */
@@ -136,6 +138,10 @@ export class TownRoom extends Room<ArenaState> {
 
     client.send(ServerMessage.Welcome, { sessionId: client.sessionId, worldSeed: this.roomId.length });
     this.chat.sendHistory(client);
+
+    // Register the account (find-or-create + touch last_seen). No-op without a DB.
+    const db = getPool();
+    if (db) void login(db, player.name).catch((err) => console.error('[town] login failed:', err));
   }
 
   override onLeave(client: Client): void {

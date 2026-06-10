@@ -29,6 +29,8 @@ export class Player extends Schema {
   /** Session id this player is auto-attacking ('' if none). Replicated so every
    *  client can show an "is attacking you/<name>" banner over the target. */
   @type('string') attackTargetId = '';
+  /** Persisted class level (loaded from the DB on join; 1 if none). */
+  @type('number') level = 1;
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

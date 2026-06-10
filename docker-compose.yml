@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: arena
+      POSTGRES_PASSWORD: arena
+      POSTGRES_DB: arena
+    ports:
+      - '5432:5432'
+    volumes:
+      - arena_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U arena']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   server:
     build:
       context: .
@@ -10,6 +27,12 @@ services:
       - NODE_ENV=production
       - PORT=2567
       - HOST=0.0.0.0
+      # Player persistence. `postgres` is the compose service hostname.
+      - DATABASE_URL=postgres://arena:arena@postgres:5432/arena
+      - PGSSL=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:2567/health']
       interval: 15s
@@ -30,3 +53,6 @@ services:
     depends_on:
       - server
     restart: unless-stopped
+
+volumes:
+  arena_pgdata:

@@ -7,6 +7,16 @@ import { monitor } from '@colyseus/monitor';
 import { ARENA_ROOM, TOWN_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
 import { TownRoom } from './rooms/TownRoom.js';
+import { closeDatabase, initDatabase } from './db/database.js';
+
+// Load apps/server/.env (Node ≥20.12) so local dev can set DATABASE_URL without
+// exporting it. No-ops if the file is absent (e.g. in prod, where env vars come
+// from the host).
+try {
+  (process as { loadEnvFile?: (path?: string) => void }).loadEnvFile?.();
+} catch {
+  /* no .env file — fine */
+}
 
 const PORT = Number(process.env.PORT ?? 2567);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -30,6 +40,9 @@ const gameServer = new Server({
 gameServer.define(TOWN_ROOM, TownRoom);
 gameServer.define(ARENA_ROOM, ArenaRoom);
 
+// Connect persistence (if configured) before accepting players.
+await initDatabase();
+
 gameServer
   .listen(PORT, HOST)
   .then(() => {
@@ -43,6 +56,7 @@ gameServer
 
 const shutdown = (signal: string) => {
   console.log(`\n${signal} received — shutting down gracefully...`);
+  void closeDatabase();
   gameServer
     .gracefullyShutdown()
     .then(() => process.exit(0))

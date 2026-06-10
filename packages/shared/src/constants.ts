@@ -164,6 +164,9 @@ export const MANA_REGEN = 12;
 /** Delay before a defeated player respawns, in milliseconds. */
 export const RESPAWN_DELAY_MS = 4000;
 
+/** XP awarded to the killer for a kill (progression / persistence). */
+export const XP_PER_KILL = 50;
+
 /** Hard cap on a projectile's lifetime, in milliseconds. */
 export const PROJECTILE_LIFETIME_MS = 3000;
 
