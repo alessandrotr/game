@@ -30,8 +30,8 @@ function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
           position={part.position ?? [0, 0, 0]}
           rotation={part.rotation ?? [0, 0, 0]}
           scale={part.scale ?? 1}
-          castShadow
-          receiveShadow
+          castShadow={part.castShadow ?? true}
+          receiveShadow={part.receiveShadow ?? true}
         >
           <PrimitiveGeometry shape={part.shape} args={part.args} />
           <meshStandardMaterial

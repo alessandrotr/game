@@ -86,6 +86,10 @@ export interface PlaceholderPart {
   roughness?: number;
   /** When set, the part renders transparent at this opacity. */
   opacity?: number;
+  /** Shadow participation (default true). Disable on small/flat decor to keep
+   *  the shadow pass cheap when a scene has many props. */
+  castShadow?: boolean;
+  receiveShadow?: boolean;
 }
 
 /** A model built from primitives — the default while there is no art. */

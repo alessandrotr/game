@@ -39,15 +39,20 @@ export function GameScene() {
       gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <color attach="background" args={['#0b0d17']} />
-      <fog attach="fog" args={['#0b0d17', half, half * 3]} />
+      {/* Arena: moody dark. Town: soft warm daylight with a sky-coloured fog. */}
+      <color attach="background" args={[isArena ? '#0b0d17' : '#a8c0dc']} />
+      <fog attach="fog" args={[isArena ? '#0b0d17' : '#a8c0dc', half, half * 3]} />
 
-      <ambientLight intensity={isArena ? 0.4 : 0.6} />
+      <ambientLight intensity={isArena ? 0.4 : 0.28} />
+      {/* Outdoor sky/ground fill — cheap, and gives the town natural ambience. */}
+      {!isArena && <hemisphereLight color="#cfe0f5" groundColor="#5a5236" intensity={0.65} />}
       <directionalLight
-        position={[10, 20, 10]}
-        intensity={1.1}
+        position={isArena ? [10, 20, 10] : [14, 22, 8]}
+        intensity={isArena ? 1.1 : 1.5}
+        color={isArena ? '#ffffff' : '#ffe6bd'}
         castShadow
         shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
         shadow-camera-left={-half}
         shadow-camera-right={half}
         shadow-camera-top={half}
