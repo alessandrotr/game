@@ -160,7 +160,7 @@ export async function recordResult(
  */
 export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardEntry[]> {
   const res = await q.query(
-    `SELECT p.username, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills
+    `SELECT p.username, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills, cp.deaths
        FROM class_progress cp
        JOIN players p ON p.id = cp.player_id
       ORDER BY cp.wins DESC, cp.xp DESC, cp.kills DESC
@@ -174,6 +174,7 @@ export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardE
     wins: num(row.wins),
     losses: num(row.losses),
     kills: num(row.kills),
+    deaths: num(row.deaths),
   }));
 }
 

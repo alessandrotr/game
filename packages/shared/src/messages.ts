@@ -81,6 +81,7 @@ export interface LeaderboardEntry {
   wins: number;
   losses: number;
   kills: number;
+  deaths: number;
 }
 
 /** Payload map for {@link ClientMessage}. */

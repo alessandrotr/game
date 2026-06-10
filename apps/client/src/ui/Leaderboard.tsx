@@ -22,11 +22,16 @@ function Row({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
         {rank}
       </span>
       <span className="min-w-0 flex-1 truncate font-semibold text-text">{entry.name}</span>
-      <span className="w-16 text-xs font-medium" style={{ color: cls.color }}>
+      <span className="w-14 text-xs font-medium" style={{ color: cls.color }}>
         {cls.name}
       </span>
-      <span className="w-10 text-center text-xs text-muted">Lv{entry.level}</span>
-      <span className="w-16 text-right tabular-nums">
+      <span className="w-9 text-center text-xs text-muted">Lv{entry.level}</span>
+      <span className="w-16 text-right tabular-nums" title="Kills / Deaths">
+        <span className="font-bold text-[#5fe08a]">{entry.kills}</span>
+        <span className="text-muted">/</span>
+        <span className="font-bold text-[#ff7a7a]">{entry.deaths}</span>
+      </span>
+      <span className="w-14 text-right tabular-nums" title="Wins–Losses">
         <span className="font-bold text-[#5fe08a]">{entry.wins}</span>
         <span className="text-muted">-</span>
         <span className="font-bold text-[#ff7a7a]">{entry.losses}</span>
@@ -92,7 +97,19 @@ export function Leaderboard() {
                   No ranked matches played yet. Be the first to win one!
                 </div>
               ) : (
-                entries.map((entry, i) => <Row key={i} entry={entry} rank={i + 1} />)
+                <>
+                  <div className="flex items-center gap-3 border-b border-white/10 pb-1.5 text-[10px] uppercase tracking-wider text-muted">
+                    <span className="w-6 text-right">#</span>
+                    <span className="flex-1">Player</span>
+                    <span className="w-14">Class</span>
+                    <span className="w-9 text-center">Lvl</span>
+                    <span className="w-16 text-right">K / D</span>
+                    <span className="w-14 text-right">W–L</span>
+                  </div>
+                  {entries.map((entry, i) => (
+                    <Row key={i} entry={entry} rank={i + 1} />
+                  ))}
+                </>
               )}
             </div>
           </div>
