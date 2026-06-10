@@ -25,27 +25,34 @@ export function isLooping(name: AnimationName): boolean {
 /**
  * GLTF backend: watches the logical animation getter and crossfades the bound
  * `useAnimations` actions accordingly. `resolveClip` turns a logical name into a
- * clip name present in the model (with an idle fallback so a model missing a
- * clip still shows *something* rather than freezing).
+ * clip name present in the model.
+ *
+ * `rest` is a fallback for states with no mapped clip (e.g. idle on a run-only
+ * model): instead of resting in the bind/T-pose, it holds a single frame of the
+ * given clip as a static standing pose. Omit it once a real idle clip exists.
  */
 export function useGltfAnimator(
   actions: Record<string, AnimationAction | null>,
   getAnimation: () => AnimationName,
   resolveClip: (name: AnimationName) => string | undefined,
+  rest?: { clip?: string; fraction?: number },
 ): void {
   const currentName = useRef<AnimationName | null>(null);
 
-  const actionFor = (name: AnimationName): AnimationAction | null => {
-    const clip = resolveClip(name) ?? resolveClip('idle');
-    return clip ? (actions[clip] ?? null) : null;
+  /** The clip to play for a state, and whether it's a held static pose. */
+  const targetFor = (name: AnimationName): { action: AnimationAction | null; pose: boolean } => {
+    const mapped = resolveClip(name);
+    if (mapped) return { action: actions[mapped] ?? null, pose: false };
+    const restClip = rest?.clip;
+    return { action: restClip ? (actions[restClip] ?? null) : null, pose: true };
   };
 
   useFrame(() => {
     const name = getAnimation();
     if (name === currentName.current) return;
 
-    const prev = currentName.current ? actionFor(currentName.current) : null;
-    const next = actionFor(name);
+    const prev = currentName.current ? targetFor(currentName.current).action : null;
+    const { action: next, pose } = targetFor(name);
     currentName.current = name;
 
     if (!next) {
@@ -53,13 +60,21 @@ export function useGltfAnimator(
       return;
     }
 
-    const loop = isLooping(name);
     next.reset();
-    next.setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
-    next.clampWhenFinished = !loop;
+    if (pose) {
+      // Hold one frame as a static standing pose (e.g. idle from a run clip).
+      next.setLoop(LoopRepeat, Infinity);
+      next.clampWhenFinished = false;
+    } else {
+      const loop = isLooping(name);
+      next.setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
+      next.clampWhenFinished = !loop;
+    }
 
     if (prev && prev !== next) prev.fadeOut(FADE);
     next.fadeIn(FADE).play();
+    next.paused = pose;
+    if (pose) next.time = (rest?.fraction ?? 0) * next.getClip().duration;
   });
 }
 

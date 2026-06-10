@@ -127,13 +127,21 @@ function GltfCharacter({
   const resolveClip = useMemo(() => {
     const clips = model.clips ?? {};
     // Only play explicitly-mapped clips — an unmapped state (e.g. idle for a
-    // run-only model) stops the clip and rests, rather than running in place.
+    // run-only model) holds a rest pose instead of running in place.
     return (name: AnimationName) => clips[name];
   }, [model.clips]);
 
+  // For a rigged model with no idle clip, hold a frame of its first clip as a
+  // standing pose (avoids the bind/T-pose "arms out"). Skipped once idle exists.
+  const rest = useMemo(
+    () =>
+      model.clips?.idle ? undefined : { clip: inPlace[0]?.name, fraction: 0.15 },
+    [model.clips, inPlace],
+  );
+
   // Rigged models play real clips; clipless models get procedural motion on the
   // root (its transform composes with the primitive's placement offsets below).
-  useGltfAnimator(actions, getAnimation, resolveClip);
+  useGltfAnimator(actions, getAnimation, resolveClip, rest);
   useProceduralAnimator(root, getAnimation, phase, !hasClips);
 
   return (
