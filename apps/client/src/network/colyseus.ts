@@ -92,27 +92,21 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     case 'heal':
       spawn('vfx.heal', [msg.x, 0.1, msg.z], [0, 0, 1]);
       break;
-    case 'charge':
-      spawn('vfx.cast', [msg.x, 0.6, msg.z], [msg.dirX, 0, msg.dirZ]);
+    case 'arcane_bolt':
+      // Long-range bolt: replicated projectile + a muzzle flash at the caster.
+      spawn('vfx.cast', [msg.x, msg.y, msg.z], [msg.dirX, 0, msg.dirZ]);
+      break;
+    case 'shockwave':
+      spawn('vfx.shockwave', [msg.x, 0.2, msg.z], [0, 0, 1]);
       break;
     case 'frost_nova':
       spawn('vfx.frost', [msg.x, 0.2, msg.z], [0, 0, 1]);
       break;
-    case 'blink': {
-      // Flash at the origin and again where the caster reappears.
-      const dist = ABILITIES.blink.range;
-      spawn('vfx.blink', [msg.x, 0.8, msg.z], [0, 0, 1]);
-      spawn('vfx.blink', [msg.x + msg.dirX * dist, 0.8, msg.z + msg.dirZ * dist], [0, 0, 1]);
-      break;
-    }
-    case 'meteor': {
-      // Telegraph the impact point now; the blast lands after the wind-up. The
-      // server applies the damage authoritatively at the same moment.
-      const meteor = ABILITIES.meteor;
-      const tx = msg.x + msg.dirX * meteor.range;
-      const tz = msg.z + msg.dirZ * meteor.range;
-      spawn('vfx.meteor_telegraph', [tx, 0, tz], [0, 0, 1]);
-      window.setTimeout(() => spawn('vfx.meteor', [tx, 0.3, tz], [0, 0, 1]), meteor.castTimeMs);
+    case 'arcane_blast': {
+      // Burst at the server-resolved impact point (the clicked target).
+      const tx = msg.tx ?? msg.x + msg.dirX * ABILITIES.arcane_blast.range;
+      const tz = msg.tz ?? msg.z + msg.dirZ * ABILITIES.arcane_blast.range;
+      spawn('vfx.arcane_blast', [tx, 0.4, tz], [0, 0, 1]);
       break;
     }
   }
@@ -205,9 +199,15 @@ export function sendAttack(targetId: string): void {
   room?.send(ClientMessage.Attack, { targetId });
 }
 
-/** Request to cast an ability in a direction. */
-export function sendCast(ability: AbilityKind, dirX: number, dirZ: number): void {
-  room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ });
+/** Request to cast an ability in a direction (with an optional ground target). */
+export function sendCast(
+  ability: AbilityKind,
+  dirX: number,
+  dirZ: number,
+  tx?: number,
+  tz?: number,
+): void {
+  room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ, tx, tz });
 }
 
 /** Dev-only: push live movement tuning to the authoritative server. */

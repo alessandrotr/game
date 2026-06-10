@@ -165,77 +165,94 @@ const frost: VfxDescriptor = {
   },
 };
 
-const blink: VfxDescriptor = {
-  id: 'vfx.blink',
-  displayName: 'Blink',
-  behavior: 'burst',
-  durationMs: 400,
+/** Arcane Bolt: a fast violet projectile (the mage's long-range bolt). */
+const arcaneBolt: VfxDescriptor = {
+  id: 'vfx.arcane_bolt',
+  displayName: 'Arcane Bolt',
+  behavior: 'projectile',
+  speed: 26,
+  durationMs: 2000,
   render: {
     kind: 'placeholder',
     parts: [
       {
-        name: 'flash',
+        name: 'core',
         shape: 'sphere',
-        args: [0.45, 16, 16],
-        color: '#e6d2ff',
+        args: [0.16, 16, 16],
+        color: '#efe3ff',
         emissive: '#b07bff',
-        emissiveIntensity: 2.6,
-        opacity: 0.75,
+        emissiveIntensity: 3,
+      },
+      {
+        name: 'aura',
+        shape: 'sphere',
+        args: [0.28, 16, 16],
+        color: '#c79bff',
+        emissive: '#7a2bff',
+        emissiveIntensity: 2,
+        opacity: 0.55,
       },
     ],
   },
 };
 
-const meteor: VfxDescriptor = {
-  id: 'vfx.meteor',
-  displayName: 'Meteor Impact',
+/** Shockwave: an orange ground ring bursting out from the caster. */
+const shockwave: VfxDescriptor = {
+  id: 'vfx.shockwave',
+  displayName: 'Shockwave',
   behavior: 'burst',
-  durationMs: 700,
+  durationMs: 550,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'ring',
+        shape: 'torus',
+        args: [1.2, 0.16, 12, 36],
+        rotation: [Math.PI / 2, 0, 0],
+        color: '#ffd9a0',
+        emissive: '#ff7a1a',
+        emissiveIntensity: 2.6,
+      },
+      {
+        name: 'core',
+        shape: 'sphere',
+        args: [0.55, 16, 16],
+        color: '#ffe6b0',
+        emissive: '#ff9d3a',
+        emissiveIntensity: 1.8,
+        opacity: 0.5,
+      },
+    ],
+  },
+};
+
+/** Arcane Blast: a violet explosion at the strike point. */
+const arcaneBlast: VfxDescriptor = {
+  id: 'vfx.arcane_blast',
+  displayName: 'Arcane Blast',
+  behavior: 'burst',
+  durationMs: 650,
   render: {
     kind: 'placeholder',
     parts: [
       {
         name: 'blast',
         shape: 'sphere',
-        args: [0.9, 18, 18],
-        color: '#ffd9a0',
-        emissive: '#ff6a1a',
+        args: [0.95, 18, 18],
+        color: '#e9d2ff',
+        emissive: '#9b4dff',
         emissiveIntensity: 3,
         opacity: 0.7,
       },
       {
         name: 'shock',
         shape: 'torus',
-        args: [1.4, 0.16, 12, 36],
+        args: [1.5, 0.16, 12, 36],
         rotation: [Math.PI / 2, 0, 0],
-        color: '#ff8b3d',
-        emissive: '#ff4d00',
+        color: '#c79bff',
+        emissive: '#7a2bff',
         emissiveIntensity: 2.2,
-      },
-    ],
-  },
-};
-
-/** A ground telegraph marking where a meteor will land. Its lifetime matches the
- *  meteor's default wind-up so it clears right as the strike lands. */
-const meteorTelegraph: VfxDescriptor = {
-  id: 'vfx.meteor_telegraph',
-  displayName: 'Meteor Telegraph',
-  behavior: 'static',
-  durationMs: 900,
-  render: {
-    kind: 'placeholder',
-    parts: [
-      {
-        name: 'marker',
-        shape: 'torus',
-        args: [1.4, 0.08, 10, 32],
-        position: [0, 0.05, 0],
-        rotation: [Math.PI / 2, 0, 0],
-        color: '#ff7a3a',
-        emissive: '#ff3b00',
-        emissiveIntensity: 1.6,
-        opacity: 0.85,
       },
     ],
   },
@@ -248,7 +265,7 @@ export const VFX: VfxDescriptor[] = [
   cast,
   portal,
   frost,
-  blink,
-  meteor,
-  meteorTelegraph,
+  shockwave,
+  arcaneBolt,
+  arcaneBlast,
 ];

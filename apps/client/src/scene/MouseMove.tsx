@@ -4,6 +4,7 @@ import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { setDestination } from '../store/destinationState';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { useTargetStore } from '../store/targetState';
+import { useAbilityTargeting } from '../store/abilityTargeting';
 import { getTuning } from '../tuning';
 import { sendMoveTo } from '../network/colyseus';
 
@@ -41,6 +42,12 @@ export function MouseMove() {
     const canvas = gl.domElement;
     const onDown = (e: MouseEvent) => {
       if (e.button !== 2) return; // right button only
+      // While aiming a ground-targeted ability, right-click cancels the aim
+      // (it does not also issue a move order).
+      if (useAbilityTargeting.getState().pending) {
+        useAbilityTargeting.getState().cancel();
+        return;
+      }
       held.current = true;
       screen.current = { x: e.clientX, y: e.clientY };
       sendAccum.current = SEND_INTERVAL; // send on the first frame

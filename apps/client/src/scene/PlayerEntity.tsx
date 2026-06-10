@@ -7,6 +7,7 @@ import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
+import { useAbilityTargeting } from '../store/abilityTargeting';
 import { sendAttack } from '../network/colyseus';
 import { getTuning } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
@@ -220,6 +221,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   /** Left-click an enemy to attack-move + auto-attack it (right-click still moves). */
   const onAttackDown = (e: { nativeEvent: MouseEvent; stopPropagation: () => void }) => {
     if (e.nativeEvent.button !== 0) return;
+    // While aiming a ground-targeted ability, let the click fall through to the
+    // ground targeter (don't consume it / don't stopPropagation).
+    if (useAbilityTargeting.getState().pending) return;
     e.stopPropagation();
     const latest = useGameStore.getState().players.get(sessionId);
     if (!latest || !latest.alive) return;

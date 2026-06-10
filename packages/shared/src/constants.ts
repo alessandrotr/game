@@ -173,15 +173,21 @@ export const CLICK_ROTATION_SPEED = 10;
 export const CLICK_SPRINT_THRESHOLD = 1.5;
 
 /** The abilities players can cast. */
-export type AbilityKind = 'fireball' | 'charge' | 'heal' | 'frost_nova' | 'blink' | 'meteor';
+export type AbilityKind =
+  | 'fireball'
+  | 'heal'
+  | 'frost_nova'
+  | 'shockwave'
+  | 'arcane_bolt'
+  | 'arcane_blast';
 
 export const ABILITY_KINDS: readonly AbilityKind[] = [
   'fireball',
-  'charge',
   'heal',
   'frost_nova',
-  'blink',
-  'meteor',
+  'shockwave',
+  'arcane_bolt',
+  'arcane_blast',
 ];
 
 export function isAbilityKind(value: unknown): value is AbilityKind {
@@ -213,14 +219,12 @@ export interface AbilityConfig {
   projectileRange?: number;
   /** Projectile collision radius (projectile abilities). */
   projectileRadius?: number;
-  /** Dash distance (movement abilities). */
-  dashDistance?: number;
-  /** Dash hit radius along the path (movement abilities). */
-  dashRadius?: number;
   /** Health restored (heal abilities). */
   healAmount?: number;
-  /** Area-of-effect radius (frost nova around the caster, meteor at impact). */
+  /** Area-of-effect radius (frost nova around the caster, blast at impact). */
   aoeRadius?: number;
+  /** Ground-targeted: the client picks a point on the map before casting. */
+  targeted?: boolean;
 }
 
 export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
@@ -234,14 +238,14 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     projectileRange: 30,
     projectileRadius: 0.8,
   },
-  charge: {
+  shockwave: {
+    // Instant burst around the caster — damages every enemy within `aoeRadius`.
     cooldownMs: 6000,
     manaCost: 25,
     castTimeMs: 0,
-    range: 8,
-    damage: 25,
-    dashDistance: 8,
-    dashRadius: 1.4,
+    range: 5,
+    damage: 24,
+    aoeRadius: 5,
   },
   heal: {
     // A short channel — proves the cast-time machinery (rooted wind-up, cast
@@ -263,22 +267,27 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     damage: 22,
     aoeRadius: 5,
   },
-  blink: {
-    // Instant self-teleport `range` units along the facing direction. No damage.
-    cooldownMs: 4000,
-    manaCost: 20,
+  arcane_bolt: {
+    // A second projectile — longer range and faster than the fireball.
+    cooldownMs: 3000,
+    manaCost: 22,
     castTimeMs: 0,
-    range: 10,
-    damage: 0,
+    range: 40,
+    damage: 24,
+    projectileSpeed: 26,
+    projectileRange: 40,
+    projectileRadius: 0.6,
   },
-  meteor: {
-    // Rooted wind-up (telegraph), then a heavy AoE strike `range` units ahead.
+  arcane_blast: {
+    // Ground-targeted: the player clicks a point, and a heavy burst lands there
+    // (clamped to `range` from the caster).
     cooldownMs: 9000,
     manaCost: 50,
-    castTimeMs: 900,
-    range: 12,
-    damage: 60,
-    aoeRadius: 3.5,
+    castTimeMs: 0,
+    range: 16,
+    damage: 55,
+    aoeRadius: 4,
+    targeted: true,
   },
 };
 
@@ -297,11 +306,11 @@ export const ABILITY_SLOTS: readonly AbilitySlot[] = ['Q', 'W', 'E', 'R'];
  * as disabled. Data-driven so a class kit is a single edit here.
  */
 export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, AbilityKind>>> = {
-  warrior: { Q: 'fireball', W: 'charge', E: 'heal' },
+  warrior: { Q: 'fireball', W: 'shockwave', E: 'heal' },
   // Phase 6: the Mage is the first fully-realized kit.
-  mage: { Q: 'fireball', W: 'frost_nova', E: 'blink', R: 'meteor' },
-  archer: { Q: 'fireball', W: 'charge', E: 'heal' },
-  priest: { Q: 'fireball', W: 'charge', E: 'heal' },
+  mage: { Q: 'fireball', W: 'frost_nova', E: 'arcane_bolt', R: 'arcane_blast' },
+  archer: { Q: 'fireball', W: 'shockwave', E: 'heal' },
+  priest: { Q: 'fireball', W: 'shockwave', E: 'heal' },
 };
 
 // ---------------------------------------------------------------------------

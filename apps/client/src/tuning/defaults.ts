@@ -62,7 +62,7 @@ export interface AbilityTuning {
   /** Wind-up before the effect resolves, in seconds. */
   castTime?: number;
   projectileSpeed?: number;
-  /** Dash/teleport/strike distance (maps to dashDistance for charge, else range). */
+  /** Teleport/strike reach (maps to the server's `range`). */
   distance?: number;
   /** Area-of-effect radius (frost nova, meteor). */
   aoeRadius?: number;
@@ -70,7 +70,13 @@ export interface AbilityTuning {
   amount?: number;
 }
 
-export type AbilityId = 'fireball' | 'charge' | 'heal' | 'frost_nova' | 'blink' | 'meteor';
+export type AbilityId =
+  | 'fireball'
+  | 'heal'
+  | 'frost_nova'
+  | 'shockwave'
+  | 'arcane_bolt'
+  | 'arcane_blast';
 export type AbilitiesTuning = Record<AbilityId, AbilityTuning>;
 
 /** Simple AI knobs (consumed once AI exists). */
@@ -118,11 +124,11 @@ export const defaultTuning: Tuning = {
   },
   abilities: {
     fireball: { damage: 30, cooldown: 1.5, manaCost: 20, projectileSpeed: 18 },
-    charge: { damage: 25, cooldown: 6, manaCost: 25, distance: 8 },
     heal: { amount: 40, cooldown: 10, manaCost: 40, castTime: 0.6 },
     frost_nova: { damage: 22, cooldown: 5, manaCost: 30, aoeRadius: 5 },
-    blink: { cooldown: 4, manaCost: 20, distance: 10 },
-    meteor: { damage: 60, cooldown: 9, manaCost: 50, castTime: 0.9, distance: 12, aoeRadius: 3.5 },
+    shockwave: { damage: 24, cooldown: 6, manaCost: 25, aoeRadius: 5 },
+    arcane_bolt: { damage: 24, cooldown: 3, manaCost: 22, projectileSpeed: 26 },
+    arcane_blast: { damage: 55, cooldown: 9, manaCost: 50, distance: 16, aoeRadius: 4 },
   },
   ai: {
     aggroRadius: 12,

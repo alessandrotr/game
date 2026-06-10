@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Billboard, Text } from '@react-three/drei';
 import type { MapAssetId } from '@arena/shared';
 import { npcsForMap } from '../assets/data/npcs';
 import { assets } from '../assets/registry';
@@ -35,6 +36,19 @@ export function Npcs({ mapId }: { mapId: MapAssetId }) {
         <group key={npc.id} position={npc.position} rotation={[0, npc.rotation ?? 0, 0]}>
           <CharacterModel descriptor={assets.getCharacter(npc.characterId)} />
           <InteractionRing npcId={npc.id} radius={npc.interactionRadius} />
+          {/* Floating name, like players (counter-rotated via billboard). */}
+          <Billboard position={[0, 2.3, 0]}>
+            <Text
+              fontSize={0.3}
+              color="#ffe2a8"
+              anchorX="center"
+              anchorY="bottom"
+              outlineWidth={0.02}
+              outlineColor="#000000"
+            >
+              {npc.name}
+            </Text>
+          </Billboard>
         </group>
       ))}
     </>

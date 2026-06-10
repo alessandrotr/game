@@ -6,7 +6,7 @@ import type {
   ClientMessagePayloads,
 } from '@arena/shared';
 import { useTuningStore } from '../tuning/useTuningStore';
-import type { AbilityId, AbilityTuning } from '../tuning/defaults';
+import type { AbilityTuning } from '../tuning/defaults';
 import { sendAbilityTune } from '../network/colyseus';
 
 /**
@@ -18,7 +18,7 @@ import { sendAbilityTune } from '../network/colyseus';
  * server's `AbilityConfig` units (milliseconds, per-ability field). Stripped
  * from production builds via `import.meta.env.DEV`.
  */
-function toServerConfig(id: AbilityId, t: AbilityTuning): Partial<AbilityConfig> {
+function toServerConfig(t: AbilityTuning): Partial<AbilityConfig> {
   const out: Partial<AbilityConfig> = {};
   if (t.damage != null) out.damage = t.damage;
   if (t.cooldown != null) out.cooldownMs = t.cooldown * 1000;
@@ -27,12 +27,8 @@ function toServerConfig(id: AbilityId, t: AbilityTuning): Partial<AbilityConfig>
   if (t.projectileSpeed != null) out.projectileSpeed = t.projectileSpeed;
   if (t.aoeRadius != null) out.aoeRadius = t.aoeRadius;
   if (t.amount != null) out.healAmount = t.amount;
-  if (t.distance != null) {
-    // "Distance" is the dash length for charge, and the teleport/strike reach
-    // (the `range` field) for everything else.
-    if (id === 'charge') out.dashDistance = t.distance;
-    else out.range = t.distance;
-  }
+  // "Distance" maps to the server's reach (`range`) — teleport / strike point.
+  if (t.distance != null) out.range = t.distance;
   return out;
 }
 
@@ -45,7 +41,7 @@ export function useServerAbilityTuning(connected: boolean): void {
       const abilities = useTuningStore.getState().values.abilities;
       const payload: ClientMessagePayloads[ClientMessage.AbilityTune] = {};
       for (const [id, tuning] of Object.entries(abilities)) {
-        payload[id as AbilityKind] = toServerConfig(id as AbilityId, tuning);
+        payload[id as AbilityKind] = toServerConfig(tuning);
       }
       const key = JSON.stringify(payload);
       if (key === last) return;

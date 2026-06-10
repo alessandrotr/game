@@ -77,28 +77,10 @@ interface PendingCast {
   config: AbilityConfig;
   dirX: number;
   dirZ: number;
+  /** Ground-target impact point (ground-targeted abilities only). */
+  targetX?: number;
+  targetZ?: number;
   resolveAt: number;
-}
-
-/** Squared distance from point (px,pz) to segment (ax,az)-(bx,bz) on the ground plane. */
-function segmentDistanceSq(
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  px: number,
-  pz: number,
-): number {
-  const abx = bx - ax;
-  const abz = bz - az;
-  const lenSq = abx * abx + abz * abz;
-  let t = lenSq > 0 ? ((px - ax) * abx + (pz - az) * abz) / lenSq : 0;
-  t = clamp(t, 0, 1);
-  const cx = ax + abx * t;
-  const cz = az + abz * t;
-  const dx = px - cx;
-  const dz = pz - cz;
-  return dx * dx + dz * dz;
 }
 
 /**
@@ -188,7 +170,7 @@ export class ArenaRoom extends Room<ArenaState> {
       }
     });
 
-    this.onMessage<{ ability: AbilityKind; dirX: number; dirZ: number }>(
+    this.onMessage<{ ability: AbilityKind; dirX: number; dirZ: number; tx?: number; tz?: number }>(
       ClientMessage.CastAbility,
       (client, message) => this.handleCast(client.sessionId, message),
     );
@@ -278,7 +260,7 @@ export class ArenaRoom extends Room<ArenaState> {
 
   private handleCast(
     sessionId: string,
-    message: { ability: AbilityKind; dirX: number; dirZ: number },
+    message: { ability: AbilityKind; dirX: number; dirZ: number; tx?: number; tz?: number },
   ): void {
     const player = this.state.players.get(sessionId);
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
@@ -305,6 +287,27 @@ export class ArenaRoom extends Room<ArenaState> {
       dirZ = Math.cos(player.rotation);
     }
 
+    // Ground-targeted abilities: resolve the clicked point, clamped to `range`
+    // from the caster (and the arena), and face it.
+    let targetX: number | undefined;
+    let targetZ: number | undefined;
+    if (config.targeted && Number.isFinite(message.tx) && Number.isFinite(message.tz)) {
+      const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+      let ox = (message.tx as number) - player.x;
+      let oz = (message.tz as number) - player.z;
+      const d = Math.hypot(ox, oz);
+      if (d > config.range && d > 1e-3) {
+        ox = (ox / d) * config.range;
+        oz = (oz / d) * config.range;
+      }
+      targetX = clamp(player.x + ox, -limit, limit);
+      targetZ = clamp(player.z + oz, -limit, limit);
+      if (d > 1e-3) {
+        dirX = ox / Math.hypot(ox, oz);
+        dirZ = oz / Math.hypot(ox, oz);
+      }
+    }
+
     // Commit cost + cooldown at cast start, then face the cast direction.
     spendMana(player, config.manaCost);
     cd[ability] = this.simTime + config.cooldownMs;
@@ -320,12 +323,14 @@ export class ArenaRoom extends Room<ArenaState> {
       z: player.z,
       dirX,
       dirZ,
+      tx: targetX,
+      tz: targetZ,
     });
 
     // Assert the authoritative cast/attack pose for the wind-up (or a brief
-    // window for instant abilities). `charge` reads as a melee lunge.
+    // window for instant abilities). `shockwave` reads as a physical swing.
     this.animOneShots.set(sessionId, {
-      name: ability === 'charge' ? 'attack' : 'cast',
+      name: ability === 'shockwave' ? 'attack' : 'cast',
       until: this.simTime + Math.max(config.castTimeMs, INSTANT_ONESHOT_MS),
     });
 
@@ -337,10 +342,12 @@ export class ArenaRoom extends Room<ArenaState> {
         config,
         dirX,
         dirZ,
+        targetX,
+        targetZ,
         resolveAt: this.simTime + config.castTimeMs,
       });
     } else {
-      this.resolveCast(player, ability, config, dirX, dirZ);
+      this.resolveCast(player, ability, config, dirX, dirZ, targetX, targetZ);
     }
   }
 
@@ -352,13 +359,13 @@ export class ArenaRoom extends Room<ArenaState> {
     config: AbilityConfig,
     dirX: number,
     dirZ: number,
+    targetX?: number,
+    targetZ?: number,
   ): void {
     switch (ability) {
       case 'fireball':
+      case 'arcane_bolt':
         this.spawnProjectile(player, ability, config, dirX, dirZ);
-        break;
-      case 'charge':
-        this.performDash(player, config, dirX, dirZ);
         break;
       case 'heal': {
         const healed = applyHeal(player, config.healAmount ?? 0);
@@ -368,35 +375,19 @@ export class ArenaRoom extends Room<ArenaState> {
         break;
       }
       case 'frost_nova':
+      case 'shockwave':
         // Point-blank burst around the caster.
         this.applyAoeDamage(player.x, player.z, config.aoeRadius ?? 4, config.damage, player.sessionId);
         break;
-      case 'blink':
-        this.blink(player, config, dirX, dirZ);
-        break;
-      case 'meteor': {
-        // Rooted during the wind-up, so the caster's position is the launch
-        // point: the strike lands `range` units ahead in the cast direction.
+      case 'arcane_blast': {
+        // Burst at the clicked point (falls back to a point ahead if untargeted).
         const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-        const tx = clamp(player.x + dirX * config.range, -limit, limit);
-        const tz = clamp(player.z + dirZ * config.range, -limit, limit);
-        this.applyAoeDamage(tx, tz, config.aoeRadius ?? 3, config.damage, player.sessionId);
+        const ix = targetX ?? clamp(player.x + dirX * config.range, -limit, limit);
+        const iz = targetZ ?? clamp(player.z + dirZ * config.range, -limit, limit);
+        this.applyAoeDamage(ix, iz, config.aoeRadius ?? 3, config.damage, player.sessionId);
         break;
       }
     }
-  }
-
-  /** Instant teleport `range` units along the cast direction, clamped to the
-   *  arena and pushed out of obstacles. No damage. */
-  private blink(caster: Player, config: AbilityConfig, dirX: number, dirZ: number): void {
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-    const destX = clamp(caster.x + dirX * config.range, -limit, limit);
-    const destZ = clamp(caster.z + dirZ * config.range, -limit, limit);
-    const fixed = collideArenaObstacles(destX, destZ);
-    caster.x = fixed.x;
-    caster.z = fixed.z;
-    // Cancel any in-flight move so the player doesn't slide back to a stale target.
-    this.destinations.delete(caster.sessionId);
   }
 
   /** Damage every living player (except `exceptId`) within `radius` of (x, z). */
@@ -447,32 +438,6 @@ export class ArenaRoom extends Room<ArenaState> {
       traveled: 0,
       spawnedAt: this.simTime,
     });
-  }
-
-  private performDash(
-    caster: Player,
-    config: (typeof ABILITIES)[AbilityKind],
-    dirX: number,
-    dirZ: number,
-  ): void {
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-    const distance = config.dashDistance ?? 6;
-    const startX = caster.x;
-    const startZ = caster.z;
-    const endX = clamp(startX + dirX * distance, -limit, limit);
-    const endZ = clamp(startZ + dirZ * distance, -limit, limit);
-    const hitRadiusSq = (config.dashRadius ?? 1) + PLAYER_RADIUS;
-
-    this.state.players.forEach((target, id) => {
-      if (id === caster.sessionId || !target.alive) return;
-      const distSq = segmentDistanceSq(startX, startZ, endX, endZ, target.x, target.z);
-      if (distSq <= hitRadiusSq * hitRadiusSq) {
-        this.dealDamage(target, config.damage, caster.sessionId);
-      }
-    });
-
-    caster.x = endX;
-    caster.z = endZ;
   }
 
   /**
@@ -613,7 +578,15 @@ export class ArenaRoom extends Room<ArenaState> {
       if (pending) {
         // Rooted wind-up: resolve when the timer elapses, no movement meanwhile.
         if (this.simTime >= pending.resolveAt) {
-          this.resolveCast(player, pending.ability, pending.config, pending.dirX, pending.dirZ);
+          this.resolveCast(
+            player,
+            pending.ability,
+            pending.config,
+            pending.dirX,
+            pending.dirZ,
+            pending.targetX,
+            pending.targetZ,
+          );
           this.pendingCasts.delete(sessionId);
         }
       } else if (this.attackTargets.has(sessionId)) {

@@ -47,7 +47,14 @@ export interface ClientMessagePayloads {
   [ClientMessage.StopMove]: Record<string, never>;
   [ClientMessage.Jump]: Record<string, never>;
   [ClientMessage.Attack]: { targetId: string };
-  [ClientMessage.CastAbility]: { ability: AbilityKind; dirX: number; dirZ: number };
+  [ClientMessage.CastAbility]: {
+    ability: AbilityKind;
+    dirX: number;
+    dirZ: number;
+    /** Ground-target point (ground-targeted abilities only). */
+    tx?: number;
+    tz?: number;
+  };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.DevTune]: {
     walkSpeed: number;
@@ -72,6 +79,9 @@ export interface ServerMessagePayloads {
     z: number;
     dirX: number;
     dirZ: number;
+    /** Resolved impact point for ground-targeted abilities (else absent). */
+    tx?: number;
+    tz?: number;
   };
   [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean };
   [ServerMessage.Heal]: { to: string; amount: number };

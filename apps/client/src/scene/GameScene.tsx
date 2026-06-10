@@ -7,6 +7,7 @@ import { PlayerEntity } from './PlayerEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { MouseMove } from './MouseMove';
+import { GroundTargeter } from './GroundTargeter';
 import { DestinationMarker } from './DestinationMarker';
 import { Obstacles } from './Obstacles';
 import { MapView } from '../render/MapView';
@@ -49,6 +50,7 @@ export function GameScene() {
       <MapZones mapId="map.arena" />
       <Npcs mapId="map.arena" />
       <MouseMove />
+      <GroundTargeter />
       <DestinationMarker />
       {playerIds.map((id) => (
         <PlayerEntity key={id} sessionId={id} />

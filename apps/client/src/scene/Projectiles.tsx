@@ -9,6 +9,7 @@ import { AssetMesh } from '../render/AssetMesh';
 /** Maps a projectile's source tag (ability kind or auto-attack) to its VFX. */
 const ABILITY_VFX: Record<string, VfxAssetId> = {
   fireball: 'vfx.fireball',
+  arcane_bolt: 'vfx.arcane_bolt',
   auto_bolt: 'vfx.fireball',
   auto_arrow: 'vfx.arrow',
 };

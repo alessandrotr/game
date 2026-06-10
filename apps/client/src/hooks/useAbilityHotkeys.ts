@@ -5,6 +5,7 @@ import { getLocalRenderTransform } from '../store/localPlayer';
 import { sendCast, sendJump } from '../network/colyseus';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
+import { useAbilityTargeting } from '../store/abilityTargeting';
 
 /**
  * MOBA ability input: Q/W/E/R cast the abilities bound to those slots for the
@@ -31,6 +32,12 @@ export function useAbilityHotkeys(enabled: boolean): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
 
+      // Esc cancels a pending ground-target.
+      if (e.code === 'Escape') {
+        useAbilityTargeting.getState().cancel();
+        return;
+      }
+
       if (e.code === 'Space') {
         e.preventDefault();
         sendJump();
@@ -47,9 +54,25 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const ability = CLASS_LOADOUTS[me.characterClass][slot];
       if (!ability) return; // empty slot
 
+      // Pressing an ability key cancels any in-progress targeting; pressing the
+      // SAME ground-targeted ability again just toggles it off.
+      const targeting = useAbilityTargeting.getState();
+      const wasPending = targeting.pending;
+      if (wasPending) {
+        targeting.cancel();
+        if (wasPending === ability) return;
+      }
+
       // Mirror the server's gates so the optimistic cooldown display stays true.
       const config = ABILITIES[ability];
       if (isOnCooldown(ability) || me.mana < config.manaCost) return;
+
+      // Ground-targeted abilities enter targeting mode; the click casts them
+      // (see GroundTargeter). Cost/cooldown commit on the actual cast.
+      if (config.targeted) {
+        targeting.begin(ability);
+        return;
+      }
 
       // Use the client-PREDICTED facing, not the server snapshot rotation —
       // the snapshot lags ~1+ ticks and is still interpolating, which made
@@ -59,8 +82,8 @@ export function useAbilityHotkeys(enabled: boolean): void {
       sendCast(ability, Math.sin(rotation), Math.cos(rotation));
       triggerCooldown(ability, config.cooldownMs);
       // Predict our own cast/attack pose immediately (the server confirms it for
-      // everyone else via animState). `charge` reads as a melee lunge.
-      pushAnimationEvent(me.sessionId, ability === 'charge' ? 'attack' : 'cast');
+      // everyone else via animState). `shockwave` reads as a physical swing.
+      pushAnimationEvent(me.sessionId, ability === 'shockwave' ? 'attack' : 'cast');
     };
 
     window.addEventListener('keydown', onKeyDown);

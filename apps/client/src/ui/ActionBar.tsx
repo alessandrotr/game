@@ -12,11 +12,11 @@ import { cooldownRemaining } from '../store/abilityCooldowns';
 /** Placeholder glyphs until real ability icons (a reserved `iconUrl`) land. */
 const ABILITY_GLYPH: Record<AbilityKind, string> = {
   fireball: '🔥',
-  charge: '⚔️',
   heal: '✚',
   frost_nova: '❄️',
-  blink: '✦',
-  meteor: '☄️',
+  shockwave: '💥',
+  arcane_bolt: '🔷',
+  arcane_blast: '🔮',
 };
 
 /**
