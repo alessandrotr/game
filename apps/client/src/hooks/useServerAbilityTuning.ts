@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
-import type { AbilityConfig, AbilityKind, ClientMessagePayloads } from '@arena/shared';
-import { ClientMessage } from '@arena/shared';
+import type {
+  AbilityConfig,
+  AbilityKind,
+  ClientMessage,
+  ClientMessagePayloads,
+} from '@arena/shared';
 import { useTuningStore } from '../tuning/useTuningStore';
 import type { AbilityId, AbilityTuning } from '../tuning/defaults';
 import { sendAbilityTune } from '../network/colyseus';
