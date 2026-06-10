@@ -32,24 +32,28 @@ export interface ResultDelta {
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
 
-/** Find-or-create a player by username; touches `last_seen`. */
-export async function login(q: Queryable, username: string): Promise<PlayerRow> {
+/**
+ * Find-or-create a player by `deviceId` (a client-generated guest-account key);
+ * refreshes the display `username` and `last_seen`. Username is not unique —
+ * identity is the device id.
+ */
+export async function login(q: Queryable, deviceId: string, username: string): Promise<PlayerRow> {
   const touched = await q.query(
-    'UPDATE players SET last_seen = now() WHERE username = $1 RETURNING id, username',
-    [username],
+    'UPDATE players SET last_seen = now(), username = $2 WHERE device_id = $1 RETURNING id, username',
+    [deviceId, username],
   );
   if (touched.rows[0]) return touched.rows[0] as unknown as PlayerRow;
 
   try {
     const created = await q.query(
-      'INSERT INTO players (username) VALUES ($1) RETURNING id, username',
-      [username],
+      'INSERT INTO players (device_id, username) VALUES ($1, $2) RETURNING id, username',
+      [deviceId, username],
     );
     return created.rows[0] as unknown as PlayerRow;
   } catch {
     // Lost an insert race — the row exists now, so read it.
-    const existing = await q.query('SELECT id, username FROM players WHERE username = $1', [
-      username,
+    const existing = await q.query('SELECT id, username FROM players WHERE device_id = $1', [
+      deviceId,
     ]);
     return existing.rows[0] as unknown as PlayerRow;
   }

@@ -15,6 +15,7 @@ import {
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
+import { getDeviceId } from '../store/deviceId';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
@@ -145,8 +146,13 @@ function onHeal(msg: ServerMessagePayloads[ServerMessage.Heal]): void {
 }
 
 /** Options from the join screen, kept so portal travel can re-join as the same
- *  character without re-prompting. */
-let joinOptions: { name: string; characterClass: CharacterClass; skinId?: string } | null = null;
+ *  character (and guest account) without re-prompting. */
+let joinOptions: {
+  name: string;
+  characterClass: CharacterClass;
+  skinId?: string;
+  deviceId: string;
+} | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
  *  join screen. */
 let traveling = false;
@@ -199,7 +205,7 @@ export async function connectToRoom(
   characterClass: CharacterClass,
   skinId?: string,
 ): Promise<void> {
-  joinOptions = { name, characterClass, skinId };
+  joinOptions = { name, characterClass, skinId, deviceId: getDeviceId() };
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();

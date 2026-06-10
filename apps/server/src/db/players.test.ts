@@ -29,17 +29,18 @@ describe('player repository (pg-mem)', () => {
     db = await freshDb();
   });
 
-  it('login is find-or-create (idempotent by username)', async () => {
-    const a = await login(db, 'Gandalf');
-    const b = await login(db, 'Gandalf');
+  it('login is find-or-create by device id (idempotent; refreshes display name)', async () => {
+    const a = await login(db, 'device-1', 'Gandalf');
+    const b = await login(db, 'device-1', 'Gandalf the White'); // same device, new name
     expect(a.id).toBe(b.id);
-    expect(a.username).toBe('Gandalf');
-    const c = await login(db, 'Merlin');
+    expect(b.username).toBe('Gandalf the White');
+    // Different device = different account, even with the same display name.
+    const c = await login(db, 'device-2', 'Gandalf');
     expect(c.id).not.toBe(a.id);
   });
 
   it('getProgress creates a default row then returns it', async () => {
-    const p = await login(db, 'Mage1');
+    const p = await login(db, 'device-mage', 'Mage1');
     const prog = await getProgress(db, p.id, 'mage');
     expect(prog).toMatchObject({ xp: 0, level: 1, kills: 0, deaths: 0 });
     // Second call returns the same (still default) row.
@@ -47,7 +48,7 @@ describe('player repository (pg-mem)', () => {
   });
 
   it('recordResult accumulates stats and recomputes level', async () => {
-    const p = await login(db, 'Warrior1');
+    const p = await login(db, 'device-warrior', 'Warrior1');
     await recordResult(db, p.id, 'warrior', { xp: 60, kills: 1, deaths: 0, wins: 0, losses: 0 });
     let prog = await recordResult(db, p.id, 'warrior', {
       xp: 60,
@@ -70,7 +71,7 @@ describe('player repository (pg-mem)', () => {
   });
 
   it('tracks progression per class independently', async () => {
-    const p = await login(db, 'Multi');
+    const p = await login(db, 'device-multi', 'Multi');
     await recordResult(db, p.id, 'mage', { xp: 500, kills: 3, deaths: 0, wins: 0, losses: 0 });
     const warrior = await getProgress(db, p.id, 'warrior');
     expect(warrior).toMatchObject({ xp: 0, level: 1, kills: 0 });

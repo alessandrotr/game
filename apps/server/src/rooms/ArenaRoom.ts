@@ -250,7 +250,7 @@ export class ArenaRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { name?: string; characterClass?: string; skinId?: string },
+    options?: { name?: string; characterClass?: string; skinId?: string; deviceId?: string },
   ): void {
     const player = new Player();
     player.sessionId = client.sessionId;
@@ -273,16 +273,21 @@ export class ArenaRoom extends Room<ArenaState> {
     this.chat.sendHistory(client);
 
     // Load persisted progression for this class (async; sets the replicated
-    // `level` and starts a stats accumulator). No-op when persistence is off.
-    void this.loadProfile(client.sessionId, player.name, player.characterClass);
+    // `level` and starts a stats accumulator). No-op without a DB or deviceId.
+    void this.loadProfile(client.sessionId, options?.deviceId, player.name, player.characterClass);
   }
 
-  /** Find-or-create the player and load their class progression. */
-  private async loadProfile(sessionId: string, name: string, characterClass: string): Promise<void> {
+  /** Find-or-create the player (by device id) and load their class progression. */
+  private async loadProfile(
+    sessionId: string,
+    deviceId: string | undefined,
+    name: string,
+    characterClass: string,
+  ): Promise<void> {
     const db = getPool();
-    if (!db) return;
+    if (!db || !deviceId) return;
     try {
-      const account = await login(db, name);
+      const account = await login(db, deviceId, name);
       const progress = await getProgress(db, account.id, characterClass);
       this.profiles.set(sessionId, {
         playerId: account.id,

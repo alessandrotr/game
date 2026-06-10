@@ -21,11 +21,15 @@ export function databaseEnabled(): boolean {
   return pool !== null;
 }
 
-/** Schema, as individual statements (idempotent) so it runs on every boot. */
+/**
+ * Schema, as individual idempotent statements. Players are identified by a
+ * client-generated `device_id` (guest accounts); `username` is display-only.
+ */
 export const SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS players (
      id SERIAL PRIMARY KEY,
-     username TEXT NOT NULL UNIQUE,
+     device_id TEXT NOT NULL UNIQUE,
+     username TEXT NOT NULL,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
@@ -42,9 +46,29 @@ export const SCHEMA: readonly string[] = [
    )`,
 ];
 
-/** Create the tables if they don't exist. */
+/**
+ * Evolve a pre-existing `players` table (the original username-keyed shape) to
+ * the device-id shape. Best-effort: each runs independently and is ignored if it
+ * doesn't apply (fresh DB) or the dialect doesn't support it (pg-mem tests use
+ * SCHEMA directly and never run these).
+ */
+const LEGACY_MIGRATIONS: readonly string[] = [
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS device_id TEXT`,
+  `UPDATE players SET device_id = 'legacy:' || id::text WHERE device_id IS NULL`,
+  `ALTER TABLE players DROP CONSTRAINT IF EXISTS players_username_key`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS players_device_id_key ON players(device_id)`,
+];
+
+/** Create the tables if they don't exist, then apply legacy fixups. */
 export async function migrate(q: Queryable): Promise<void> {
   for (const statement of SCHEMA) await q.query(statement);
+  for (const statement of LEGACY_MIGRATIONS) {
+    try {
+      await q.query(statement);
+    } catch {
+      /* not applicable on a fresh DB / unsupported dialect — ignore */
+    }
+  }
 }
 
 /**

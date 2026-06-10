@@ -50,6 +50,8 @@ export class TownRoom extends Room<ArenaState> {
   private readonly verticalVelocity = new Map<string, number>();
   private readonly grounded = new Map<string, boolean>();
   private readonly chat = new ChatLog();
+  /** Device id per session, carried into the match arena's seat reservation. */
+  private readonly deviceIds = new Map<string, string>();
   /** Session ids waiting in the 1v1 matchmaking queue, in join order. */
   private queue: string[] = [];
   private matching = false;
@@ -118,7 +120,7 @@ export class TownRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { name?: string; characterClass?: string; skinId?: string },
+    options?: { name?: string; characterClass?: string; skinId?: string; deviceId?: string },
   ): void {
     const player = new Player();
     player.sessionId = client.sessionId;
@@ -132,6 +134,9 @@ export class TownRoom extends Room<ArenaState> {
     player.y = GROUND_Y;
     reviveFull(player);
 
+    const deviceId = String(options?.deviceId ?? '').slice(0, 64);
+    this.deviceIds.set(client.sessionId, deviceId);
+
     this.state.players.set(client.sessionId, player);
     this.verticalVelocity.set(client.sessionId, 0);
     this.grounded.set(client.sessionId, true);
@@ -139,9 +144,11 @@ export class TownRoom extends Room<ArenaState> {
     client.send(ServerMessage.Welcome, { sessionId: client.sessionId, worldSeed: this.roomId.length });
     this.chat.sendHistory(client);
 
-    // Register the account (find-or-create + touch last_seen). No-op without a DB.
+    // Register the guest account (find-or-create by device id). No-op without a DB/device.
     const db = getPool();
-    if (db) void login(db, player.name).catch((err) => console.error('[town] login failed:', err));
+    if (db && deviceId) {
+      void login(db, deviceId, player.name).catch((err) => console.error('[town] login failed:', err));
+    }
   }
 
   override onLeave(client: Client): void {
@@ -149,6 +156,7 @@ export class TownRoom extends Room<ArenaState> {
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);
     this.grounded.delete(client.sessionId);
+    this.deviceIds.delete(client.sessionId);
     this.removeFromQueue(client.sessionId);
   }
 
@@ -205,12 +213,18 @@ export class TownRoom extends Room<ArenaState> {
   }
 
   /** Arena join options carried into the match room for a queued player. */
-  private joinOptions(sessionId: string): { name: string; characterClass: string; skinId: string } {
+  private joinOptions(sessionId: string): {
+    name: string;
+    characterClass: string;
+    skinId: string;
+    deviceId: string;
+  } {
     const p = this.state.players.get(sessionId);
     return {
       name: p?.name ?? 'Adventurer',
       characterClass: p?.characterClass ?? 'warrior',
       skinId: p?.skinId ?? '',
+      deviceId: this.deviceIds.get(sessionId) ?? '',
     };
   }
 
