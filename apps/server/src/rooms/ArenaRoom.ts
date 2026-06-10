@@ -4,6 +4,7 @@ import {
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
   ARENA_SPAWN_POINTS,
+  AUTO_ATTACKS,
   CLICK_ROTATION_SPEED,
   CLICK_SPRINT_THRESHOLD,
   CLICK_STOPPING_DISTANCE,
@@ -27,6 +28,8 @@ import {
   isCharacterClass,
   type AbilityConfig,
   type AbilityKind,
+  type AutoAttackConfig,
+  type CharacterClass,
 } from '@arena/shared';
 import { ArenaState, Player, Projectile } from './schema.js';
 import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
@@ -45,7 +48,8 @@ const PROJECTILE_Y = 1;
 /** Server-only metadata for an in-flight projectile (not replicated). */
 interface ProjectileMeta {
   ownerId: string;
-  ability: AbilityKind;
+  /** Source tag (ability kind or auto-attack vfx) — drives the client visual. */
+  ability: string;
   dirX: number;
   dirZ: number;
   speed: number;
@@ -122,6 +126,10 @@ export class ArenaRoom extends Room<ArenaState> {
   private readonly pendingCasts = new Map<string, PendingCast>();
   /** Transient one-shot animation (cast/attack/hit) currently asserted per player. */
   private readonly animOneShots = new Map<string, AnimOneShot>();
+  /** Current auto-attack target (a player session id) per attacker. */
+  private readonly attackTargets = new Map<string, string>();
+  /** Sim time (ms) each player's next auto-attack is ready. */
+  private readonly attackReadyAt = new Map<string, number>();
 
   /** Accumulated simulation time in ms (used for cooldowns / respawn timers). */
   private simTime = 0;
@@ -153,9 +161,22 @@ export class ArenaRoom extends Room<ArenaState> {
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
       const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
       const z = Number.isFinite(message?.z) ? clamp(message.z, -limit, limit) : player.z;
+      // A manual move order cancels any auto-attack.
+      this.attackTargets.delete(client.sessionId);
       // Lock sprint-vs-walk based on the distance at issue time.
       const sprint = Math.hypot(x - player.x, z - player.z) > this.movement.sprintThreshold;
       this.destinations.set(client.sessionId, { x, z, sprint });
+    });
+
+    this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !player.alive) return;
+      const targetId = String(message?.targetId ?? '');
+      const target = this.state.players.get(targetId);
+      if (!target || targetId === client.sessionId || !target.alive) return;
+      // Attack-move toward the target; clear any plain move destination.
+      this.attackTargets.set(client.sessionId, targetId);
+      this.destinations.delete(client.sessionId);
     });
 
     this.onMessage(ClientMessage.Jump, (client) => {
@@ -249,6 +270,8 @@ export class ArenaRoom extends Room<ArenaState> {
     this.respawnAt.delete(client.sessionId);
     this.pendingCasts.delete(client.sessionId);
     this.animOneShots.delete(client.sessionId);
+    this.attackTargets.delete(client.sessionId);
+    this.attackReadyAt.delete(client.sessionId);
   }
 
   // --- Abilities ---------------------------------------------------------
@@ -452,6 +475,81 @@ export class ArenaRoom extends Room<ArenaState> {
     caster.z = endZ;
   }
 
+  /**
+   * Auto-attack tick: face the target, chase it into range, then strike on the
+   * class's attack-speed timer (a projectile for ranged classes, a direct hit
+   * for melee). Clears the order if the target is gone or dead.
+   */
+  private updateAutoAttack(attacker: Player, sessionId: string, dt: number): void {
+    const targetId = this.attackTargets.get(sessionId);
+    const target = targetId ? this.state.players.get(targetId) : undefined;
+    if (!target || !target.alive) {
+      this.attackTargets.delete(sessionId);
+      return;
+    }
+
+    const cfg = AUTO_ATTACKS[attacker.characterClass as CharacterClass];
+    const dx = target.x - attacker.x;
+    const dz = target.z - attacker.z;
+    const dist = Math.hypot(dx, dz);
+    const ndx = dist > 1e-3 ? dx / dist : 0;
+    const ndz = dist > 1e-3 ? dz / dist : 0;
+    if (dist > 1e-3) attacker.rotation = Math.atan2(ndx, ndz);
+
+    if (dist > cfg.range) {
+      // Chase: walk toward the target, stopping right at attack range.
+      const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+      const step = Math.min(this.movement.walkSpeed * dt, dist - cfg.range + 0.01);
+      attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
+      attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
+      return;
+    }
+
+    // In range: strike when the attack timer is ready.
+    if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
+    this.attackReadyAt.set(sessionId, this.simTime + cfg.cooldownMs);
+    this.animOneShots.set(sessionId, {
+      name: 'attack',
+      until: this.simTime + Math.min(cfg.cooldownMs, 400),
+    });
+    if (cfg.kind === 'ranged') {
+      this.spawnAutoProjectile(attacker, ndx, ndz, cfg);
+    } else {
+      this.dealDamage(target, cfg.damage, sessionId);
+    }
+  }
+
+  /** Spawn a basic-attack projectile (ranged auto-attacks). */
+  private spawnAutoProjectile(
+    owner: Player,
+    dirX: number,
+    dirZ: number,
+    cfg: AutoAttackConfig,
+  ): void {
+    const id = `p${this.projectileSeq++}`;
+    const projectile = new Projectile();
+    projectile.id = id;
+    projectile.ownerId = owner.sessionId;
+    projectile.ability = cfg.projectileVfx ?? 'fireball';
+    projectile.x = owner.x + dirX * (PLAYER_RADIUS + 0.3);
+    projectile.z = owner.z + dirZ * (PLAYER_RADIUS + 0.3);
+    projectile.y = PROJECTILE_Y;
+    this.state.projectiles.set(id, projectile);
+
+    this.projectileMeta.set(id, {
+      ownerId: owner.sessionId,
+      ability: projectile.ability,
+      dirX,
+      dirZ,
+      speed: cfg.projectileSpeed ?? 20,
+      range: cfg.range + 6,
+      radius: cfg.projectileRadius ?? 0.5,
+      damage: cfg.damage,
+      traveled: 0,
+      spawnedAt: this.simTime,
+    });
+  }
+
   /** Resolve a hit on a player: apply the damage via the combat core, broadcast
    *  the result, and schedule respawn on a kill. */
   private dealDamage(target: Player, amount: number, fromId: string): void {
@@ -492,6 +590,7 @@ export class ArenaRoom extends Room<ArenaState> {
         player.animState = 'die';
         this.pendingCasts.delete(sessionId);
         this.animOneShots.delete(sessionId);
+        this.attackTargets.delete(sessionId);
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -516,6 +615,9 @@ export class ArenaRoom extends Room<ArenaState> {
           this.resolveCast(player, pending.ability, pending.config, pending.dirX, pending.dirZ);
           this.pendingCasts.delete(sessionId);
         }
+      } else if (this.attackTargets.has(sessionId)) {
+        // Auto-attack: chase the target into range, then strike on a timer.
+        this.updateAutoAttack(player, sessionId, dt);
       } else {
         // Point-and-click movement: walk toward the active destination, if any.
         const dest = this.destinations.get(sessionId);

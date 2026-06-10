@@ -303,3 +303,48 @@ export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, 
   archer: { Q: 'fireball', W: 'charge', E: 'heal' },
   priest: { Q: 'fireball', W: 'charge', E: 'heal' },
 };
+
+// ---------------------------------------------------------------------------
+// Auto-attacks — click an enemy to attack-move and strike on a timer.
+// ---------------------------------------------------------------------------
+
+export type AutoAttackKind = 'ranged' | 'melee';
+
+/** Per-class basic attack. Server-authoritative; no mana, no cooldown UI. */
+export interface AutoAttackConfig {
+  kind: AutoAttackKind;
+  /** Max center-to-center distance (world units) at which the attack lands. */
+  range: number;
+  damage: number;
+  /** Attack interval (attack speed), in milliseconds. */
+  cooldownMs: number;
+  /** Projectile speed (ranged only), world units/second. */
+  projectileSpeed?: number;
+  /** Projectile collision radius (ranged only). */
+  projectileRadius?: number;
+  /** Projectile VFX tag the client maps to a visual (ranged only). */
+  projectileVfx?: string;
+}
+
+export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
+  warrior: { kind: 'melee', range: 2.6, damage: 11, cooldownMs: 800 },
+  priest: { kind: 'melee', range: 2.6, damage: 7, cooldownMs: 900 },
+  mage: {
+    kind: 'ranged',
+    range: 20,
+    damage: 9,
+    cooldownMs: 1000,
+    projectileSpeed: 22,
+    projectileRadius: 0.5,
+    projectileVfx: 'auto_bolt',
+  },
+  archer: {
+    kind: 'ranged',
+    range: 22,
+    damage: 12,
+    cooldownMs: 750,
+    projectileSpeed: 30,
+    projectileRadius: 0.4,
+    projectileVfx: 'auto_arrow',
+  },
+};

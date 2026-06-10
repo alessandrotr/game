@@ -54,7 +54,7 @@ export function Hud() {
         </div>
       </div>
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
-        Hold right-click to move · Space jump · Q W E R abilities · F talk
+        Right-click move · Left-click enemy to attack · Space jump · Q W E R · F talk
       </div>
       <ActionBar />
     </>

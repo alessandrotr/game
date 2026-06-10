@@ -6,9 +6,11 @@ import { useGameStore } from '../store/useGameStore';
 import { assets } from '../assets/registry';
 import { AssetMesh } from '../render/AssetMesh';
 
-/** Maps a projectile's ability to the VFX asset used to render it. */
+/** Maps a projectile's source tag (ability kind or auto-attack) to its VFX. */
 const ABILITY_VFX: Record<string, VfxAssetId> = {
   fireball: 'vfx.fireball',
+  auto_bolt: 'vfx.fireball',
+  auto_arrow: 'vfx.arrow',
 };
 
 /** Interpolation stiffness for projectile motion (1/second). */

@@ -6,6 +6,8 @@ import { ARENA_HALF_SIZE, PLAYER_RADIUS, collideArenaObstacles, type AnimationNa
 import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
+import { useTargetStore } from '../store/targetState';
+import { sendAttack } from '../network/colyseus';
 import { getTuning } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
@@ -63,6 +65,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Class/skin/name are assigned at join and don't change — read once at mount.
   const player = useGameStore.getState().players.get(sessionId);
   const isLocal = useGameStore.getState().sessionId === sessionId;
+  const isTargeted = useTargetStore((s) => s.targetId === sessionId);
   const descriptor = useMemo(
     () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId),
     [player?.characterClass, player?.skinId],
@@ -95,6 +98,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     if (!node || !latest) return;
 
     if (!latest.alive) {
+      // A dead target is no longer attackable — drop the local highlight.
+      if (useTargetStore.getState().targetId === sessionId) {
+        useTargetStore.getState().setTarget(null);
+      }
       // Hold position and play the death pose in place (no movement while down).
       if (isLocal) {
         clearDestination();
@@ -201,15 +208,41 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     }
   });
 
+  /** Left-click an enemy to attack-move + auto-attack it (right-click still moves). */
+  const onAttackDown = (e: { nativeEvent: MouseEvent; stopPropagation: () => void }) => {
+    if (e.nativeEvent.button !== 0) return;
+    e.stopPropagation();
+    const latest = useGameStore.getState().players.get(sessionId);
+    if (!latest || !latest.alive) return;
+    sendAttack(sessionId);
+    useTargetStore.getState().setTarget(sessionId);
+  };
+
   return (
     <group ref={group}>
       <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
+
+      {/* Invisible click hitbox for targeting enemies (left-click). */}
+      {!isLocal && (
+        <mesh position={[0, 1, 0]} onPointerDown={onAttackDown}>
+          <cylinderGeometry args={[0.7, 0.7, 2, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
 
       {/* Local-player marker ring on the ground. */}
       {isLocal && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.55, 0.7, 32]} />
           <meshBasicMaterial color="#6c8cff" transparent opacity={0.8} />
+        </mesh>
+      )}
+
+      {/* Red target ring on the enemy the local player is attacking. */}
+      {!isLocal && isTargeted && (
+        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.6, 0.78, 32]} />
+          <meshBasicMaterial color="#ff5a5a" transparent opacity={0.9} />
         </mesh>
       )}
 

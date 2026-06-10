@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { setDestination } from '../store/destinationState';
 import { getLocalRenderTransform } from '../store/localPlayer';
+import { useTargetStore } from '../store/targetState';
 import { getTuning } from '../tuning';
 import { sendMoveTo } from '../network/colyseus';
 
@@ -43,6 +44,7 @@ export function MouseMove() {
       held.current = true;
       screen.current = { x: e.clientX, y: e.clientY };
       sendAccum.current = SEND_INTERVAL; // send on the first frame
+      useTargetStore.getState().setTarget(null); // a move order cancels auto-attack
     };
     const onMove = (e: MouseEvent) => {
       screen.current = { x: e.clientX, y: e.clientY };

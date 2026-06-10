@@ -17,6 +17,8 @@ export enum ClientMessage {
   StopMove = 'stop_move',
   /** Request a jump; the server applies it only when grounded. */
   Jump = 'jump',
+  /** Set the auto-attack target (a player session id); attack-move toward it. */
+  Attack = 'attack',
   /** Request to cast an ability in a direction. */
   CastAbility = 'cast_ability',
   /** Set or change the player's display name. */
@@ -44,6 +46,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.MoveTo]: { x: number; z: number };
   [ClientMessage.StopMove]: Record<string, never>;
   [ClientMessage.Jump]: Record<string, never>;
+  [ClientMessage.Attack]: { targetId: string };
   [ClientMessage.CastAbility]: { ability: AbilityKind; dirX: number; dirZ: number };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.DevTune]: {

@@ -199,6 +199,11 @@ export function sendJump(): void {
   room?.send(ClientMessage.Jump, {});
 }
 
+/** Set the auto-attack target (attack-move toward a player and strike). */
+export function sendAttack(targetId: string): void {
+  room?.send(ClientMessage.Attack, { targetId });
+}
+
 /** Request to cast an ability in a direction. */
 export function sendCast(ability: AbilityKind, dirX: number, dirZ: number): void {
   room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ });
