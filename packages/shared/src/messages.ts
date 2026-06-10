@@ -26,6 +26,10 @@ export enum ClientMessage {
   SetName = 'set_name',
   /** Send a global chat message to everyone in the room. */
   Chat = 'chat',
+  /** Join the 1v1 matchmaking queue (town only). */
+  Queue = 'queue',
+  /** Leave the matchmaking queue. */
+  Unqueue = 'unqueue',
   /** Dev-only: live-tune authoritative movement values for the room. */
   DevTune = 'dev_tune',
   /** Dev-only: live-tune authoritative ability balance values for the room. */
@@ -46,6 +50,10 @@ export enum ServerMessage {
   Chat = 'chat',
   /** Recent chat history, sent to a client when it joins. */
   ChatHistory = 'chat_history',
+  /** Matchmaking queue status (size / whether this client is searching). */
+  QueueUpdate = 'queue_update',
+  /** A match was found — carries a seat reservation to consume into the arena. */
+  MatchFound = 'match_found',
 }
 
 /** Payload map for {@link ClientMessage}. */
@@ -64,6 +72,8 @@ export interface ClientMessagePayloads {
   };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.Chat]: { text: string };
+  [ClientMessage.Queue]: Record<string, never>;
+  [ClientMessage.Unqueue]: Record<string, never>;
   [ClientMessage.DevTune]: {
     walkSpeed: number;
     sprintSpeed: number;
@@ -95,4 +105,8 @@ export interface ServerMessagePayloads {
   [ServerMessage.Heal]: { to: string; amount: number };
   [ServerMessage.Chat]: ChatMessage;
   [ServerMessage.ChatHistory]: { messages: ChatMessage[] };
+  [ServerMessage.QueueUpdate]: { searching: boolean; size: number };
+  /** `reservation` is a Colyseus seat reservation passed straight to
+   *  `client.consumeSeatReservation()` — its internal shape is opaque to us. */
+  [ServerMessage.MatchFound]: { reservation: unknown };
 }

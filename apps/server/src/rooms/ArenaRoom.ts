@@ -136,7 +136,13 @@ export class ArenaRoom extends Room<ArenaState> {
    */
   private readonly abilities: Record<AbilityKind, AbilityConfig> = structuredClone(ABILITIES);
 
-  override onCreate(): void {
+  override onCreate(options?: { match?: boolean }): void {
+    // A matchmade 1v1: cap at two players and hide from public join (only the
+    // two reserved seats get in).
+    if (options?.match) {
+      this.maxClients = 2;
+      this.setPrivate(true);
+    }
     this.setState(new ArenaState());
 
     this.onMessage<{ x: number; z: number }>(ClientMessage.MoveTo, (client, message) => {

@@ -1,5 +1,6 @@
-import { Room, type Client } from '@colyseus/core';
+import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
+  ARENA_ROOM,
   CLICK_ROTATION_SPEED,
   CLICK_SPRINT_THRESHOLD,
   CLICK_STOPPING_DISTANCE,
@@ -47,6 +48,9 @@ export class TownRoom extends Room<ArenaState> {
   private readonly verticalVelocity = new Map<string, number>();
   private readonly grounded = new Map<string, boolean>();
   private readonly chat = new ChatLog();
+  /** Session ids waiting in the 1v1 matchmaking queue, in join order. */
+  private queue: string[] = [];
+  private matching = false;
   private simTime = 0;
 
   override onCreate(): void {
@@ -89,6 +93,17 @@ export class TownRoom extends Room<ArenaState> {
       this.chat.handle(this, player?.name ?? 'Adventurer', message?.text);
     });
 
+    this.onMessage(ClientMessage.Queue, (client) => {
+      if (!this.queue.includes(client.sessionId)) this.queue.push(client.sessionId);
+      this.sendQueueUpdate(client, true);
+      void this.tryMatch();
+    });
+
+    this.onMessage(ClientMessage.Unqueue, (client) => {
+      this.removeFromQueue(client.sessionId);
+      this.sendQueueUpdate(client, false);
+    });
+
     // Town has no combat/tuning, but accept (and ignore) these so a stray dev
     // message never triggers Colyseus's unhandled-message disconnect (code 4002).
     this.onMessage(ClientMessage.DevTune, () => {});
@@ -128,6 +143,69 @@ export class TownRoom extends Room<ArenaState> {
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);
     this.grounded.delete(client.sessionId);
+    this.removeFromQueue(client.sessionId);
+  }
+
+  // --- Matchmaking (Phase 11) --------------------------------------------
+
+  private removeFromQueue(sessionId: string): void {
+    this.queue = this.queue.filter((id) => id !== sessionId);
+  }
+
+  private sendQueueUpdate(client: Client, searching: boolean): void {
+    client.send(ServerMessage.QueueUpdate, { searching, size: this.queue.length });
+  }
+
+  /**
+   * Pair queued players into private 1v1 arenas. Pops two at a time, creates a
+   * dedicated match room, reserves a seat for each, and hands the reservations
+   * back so the clients consume them and auto-join the same arena.
+   */
+  private async tryMatch(): Promise<void> {
+    if (this.matching) return; // serialize async room creation
+    this.matching = true;
+    try {
+      while (this.queue.length >= 2) {
+        const aId = this.queue.shift()!;
+        const bId = this.queue.shift()!;
+        const a = this.clients.find((c) => c.sessionId === aId);
+        const b = this.clients.find((c) => c.sessionId === bId);
+        // Drop anyone who vanished; requeue the survivor.
+        if (!a || !this.state.players.has(aId)) {
+          if (b && this.state.players.has(bId)) this.queue.unshift(bId);
+          continue;
+        }
+        if (!b || !this.state.players.has(bId)) {
+          this.queue.unshift(aId);
+          break;
+        }
+
+        try {
+          const room = await matchMaker.createRoom(ARENA_ROOM, { match: true });
+          const seatA = await matchMaker.reserveSeatFor(room, this.joinOptions(aId));
+          const seatB = await matchMaker.reserveSeatFor(room, this.joinOptions(bId));
+          a.send(ServerMessage.MatchFound, { reservation: seatA });
+          b.send(ServerMessage.MatchFound, { reservation: seatB });
+        } catch (err) {
+          // Room creation failed — put both back and stop trying this pass.
+          this.queue.unshift(bId, aId);
+          console.error('[town] matchmaking failed:', err);
+          break;
+        }
+      }
+    } finally {
+      this.matching = false;
+    }
+  }
+
+  /** Arena join options carried into the match room for a queued player. */
+  private joinOptions(sessionId: string): { name: string; characterClass: string; skinId: string } {
+    const p = this.state.players.get(sessionId);
+    return {
+      name: p?.name ?? 'Adventurer',
+      characterClass: p?.characterClass ?? 'warrior',
+      skinId: p?.skinId ?? '',
+    };
   }
 
   private update(deltaMs: number): void {

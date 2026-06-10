@@ -14,6 +14,7 @@ import {
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
+import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
@@ -165,6 +166,15 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.Chat, (msg) => useChatStore.getState().add(msg));
   joined.onMessage(ServerMessage.ChatHistory, (msg) => useChatStore.getState().set(msg.messages));
 
+  // Matchmaking (town): queue status + the match-found seat reservation.
+  joined.onMessage(ServerMessage.QueueUpdate, (msg) =>
+    useMatchmakingStore.getState().set(msg.searching, msg.size),
+  );
+  joined.onMessage(ServerMessage.MatchFound, (msg) => {
+    useMatchmakingStore.getState().reset();
+    void joinByReservation(msg.reservation);
+  });
+
   joined.onError((code, message) => {
     useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
   });
@@ -174,6 +184,7 @@ function wireRoom(joined: Room): void {
     room = null;
     useGameStore.getState().reset();
     useChatStore.getState().clear();
+    useMatchmakingStore.getState().reset();
   });
 }
 
@@ -190,6 +201,7 @@ export async function connectToRoom(
   resetCooldowns();
   clearFloatingText();
   useChatStore.getState().clear();
+  useMatchmakingStore.getState().reset();
   store.setStatus('connecting');
 
   try {
@@ -228,6 +240,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     resetCooldowns();
     clearFloatingText();
     useChatStore.getState().clear();
+    useMatchmakingStore.getState().reset();
 
     room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
     store.setSessionId(room.sessionId);
@@ -240,6 +253,49 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   } finally {
     traveling = false;
   }
+}
+
+/** Consume a matchmaking seat reservation and enter the dedicated 1v1 arena. */
+async function joinByReservation(reservation: unknown): Promise<void> {
+  if (!client || traveling) return;
+  const store = useGameStore.getState();
+  traveling = true;
+  try {
+    if (room) {
+      try {
+        await room.leave();
+      } catch {
+        /* ignore */
+      }
+      room = null;
+    }
+    store.players.clear();
+    store.projectiles.clear();
+    resetCooldowns();
+    clearFloatingText();
+    useChatStore.getState().clear();
+    useMatchmakingStore.getState().reset();
+
+    // The reservation shape is internal to Colyseus; consume it directly.
+    room = await client.consumeSeatReservation(reservation as never);
+    store.setSessionId(room.sessionId);
+    store.setRoom('arena');
+    store.setStatus('connected');
+    wireRoom(room);
+  } catch (err) {
+    room = null;
+    store.setStatus('error', err instanceof Error ? err.message : 'Failed to join match');
+  } finally {
+    traveling = false;
+  }
+}
+
+/** Join / leave the 1v1 matchmaking queue (town only). */
+export function sendQueue(): void {
+  room?.send(ClientMessage.Queue, {});
+}
+export function sendUnqueue(): void {
+  room?.send(ClientMessage.Unqueue, {});
 }
 
 /** Update the world-space point to move toward (hold-to-move). */

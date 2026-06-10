@@ -1,5 +1,6 @@
 import { useGameStore } from '../store/useGameStore';
 import { ActionBar } from './ActionBar';
+import { QueuePanel } from './QueuePanel';
 
 /** A labelled stat bar (HP/mana). */
 function StatBar({
@@ -61,7 +62,7 @@ export function Hud() {
           ? 'Right-click move · Left-click enemy to attack · Space jump · Q W E R · F talk'
           : 'Right-click move · Click a portal to travel · F talk · Enter to chat'}
       </div>
-      {inArena && <ActionBar />}
+      {inArena ? <ActionBar /> : <QueuePanel />}
     </>
   );
 }
