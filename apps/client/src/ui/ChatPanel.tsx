@@ -2,25 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ChevronDown, MessageSquare } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
+import { usePersistentToggle } from '../hooks/usePersistentToggle';
 import { sendChat } from '../network/colyseus';
 import { Badge, Button, IconButton, Input } from './primitives';
-
-const COLLAPSE_KEY = 'arena.chat.collapsed';
-
-function loadCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-function saveCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-  } catch {
-    /* storage blocked — preference only lasts this session */
-  }
-}
 
 /**
  * Global chat (Phase 10.2): a message log + input, shown in both town and arena.
@@ -32,16 +16,11 @@ function saveCollapsed(collapsed: boolean): void {
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const [text, setText] = useState('');
-  const [collapsed, setCollapsed] = useState(loadCollapsed);
+  const [collapsed, toggle] = usePersistentToggle('arena.chat.collapsed', false);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   /** Focus the input on the next render after an Enter-triggered reopen. */
   const focusOnOpen = useRef(false);
-
-  const toggle = (next: boolean) => {
-    setCollapsed(next);
-    saveCollapsed(next);
-  };
 
   // Keep the log pinned to the latest message.
   useEffect(() => {

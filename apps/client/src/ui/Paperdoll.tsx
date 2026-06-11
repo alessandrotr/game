@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { getClassDefinition, xpForLevel } from '@arena/shared';
+import { getClassDefinition, xpProgress } from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, Meter, StatTile } from './primitives';
-import { STAT_COLORS } from './theme';
+import { STAT_COLORS, accentHeaderStyle } from './theme';
 
 /**
  * UO-style "paperdoll": click another player in town to inspect them. Shows a
@@ -33,10 +33,7 @@ export function Paperdoll() {
   if (!data) return null;
 
   const def = getClassDefinition(data.characterClass);
-  const levelStart = xpForLevel(data.level);
-  const levelEnd = xpForLevel(data.level + 1);
-  const span = Math.max(1, levelEnd - levelStart);
-  const into = Math.max(0, Math.min(span, data.xp - levelStart));
+  const { span, into } = xpProgress(data.level, data.xp);
   const kd = data.deaths === 0 ? data.kills.toFixed(2) : (data.kills / data.deaths).toFixed(2);
 
   return (
@@ -44,7 +41,7 @@ export function Paperdoll() {
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3"
-        style={{ background: `linear-gradient(90deg, ${def.color}33, transparent)` }}
+        style={accentHeaderStyle(def.color, '33')}
       >
         <div className="min-w-0">
           <div className="truncate font-display text-lg font-bold tracking-wide text-text">

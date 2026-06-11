@@ -264,6 +264,22 @@ export function xpForLevel(level: number): number {
   return 100 * Math.max(0, level - 1) ** 2;
 }
 
+/**
+ * A player's progress through their current level: the bar's `span` (XP needed
+ * for this level), how far `into` it they are, and the 0–1 `fraction`. Used by
+ * the player card and paperdoll to draw the XP bar.
+ */
+export function xpProgress(
+  level: number,
+  xp: number,
+): { start: number; end: number; span: number; into: number; fraction: number } {
+  const start = xpForLevel(level);
+  const end = xpForLevel(level + 1);
+  const span = Math.max(1, end - start);
+  const into = Math.max(0, Math.min(span, xp - start));
+  return { start, end, span, into, fraction: into / span };
+}
+
 /** Hard cap on a projectile's lifetime, in milliseconds. */
 export const PROJECTILE_LIFETIME_MS = 3000;
 

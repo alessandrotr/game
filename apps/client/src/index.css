@@ -25,6 +25,11 @@
   color-scheme: dark;
 }
 
+/* Shared full-screen backdrop for the auth and character-select screens. */
+@utility bg-arena-radial {
+  background-image: radial-gradient(circle at 50% 22%, #191b2c, #07080d 72%);
+}
+
 /* Tailwind v4 made buttons use the default cursor; restore the pointer. */
 @layer base {
   button:not(:disabled),

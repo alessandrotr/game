@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
 import { Button } from './primitives';
+import { ScreenHeader } from './ScreenHeader';
 
 /** Difficulty pips (UO-flavored). */
 function Difficulty({ level }: { level: number }) {
@@ -47,15 +48,13 @@ export function JoinScreen() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto bg-[radial-gradient(circle_at_50%_22%,#191b2c,#07080d_72%)]">
+    <div className="absolute inset-0 overflow-y-auto bg-arena-radial">
       <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 py-7">
-        <header className="relative mb-6 text-center">
-          <h1 className="font-display text-4xl tracking-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.35)] sm:text-5xl">
-            ARENA
-          </h1>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.4em] text-muted">
-            Choose your champion · enter the town
-          </p>
+        <ScreenHeader
+          className="relative mb-6"
+          titleClassName="text-4xl sm:text-5xl"
+          subtitle="Choose your champion · enter the town"
+        >
           <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted sm:absolute sm:right-0 sm:top-1 sm:mt-0">
             <span>
               Signed in as <span className="font-semibold text-text">{username}</span>
@@ -64,7 +63,7 @@ export function JoinScreen() {
               Sign out
             </Button>
           </div>
-        </header>
+        </ScreenHeader>
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
           {/* 3D model showcase */}

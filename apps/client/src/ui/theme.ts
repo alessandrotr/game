@@ -13,3 +13,12 @@ export const STAT_COLORS = {
   xpTip: 'var(--color-xp-tip)',
   text: 'var(--color-text)',
 } as const;
+
+/**
+ * Inline style for a panel header tinted by a class's accent color — a faint
+ * left-to-right wash that fades to transparent. `alphaHex` is the two-digit hex
+ * alpha appended to the (hex) color (paperdoll uses `33`, the player card `26`).
+ */
+export function accentHeaderStyle(color: string, alphaHex = '26'): { background: string } {
+  return { background: `linear-gradient(90deg, ${color}${alphaHex}, transparent)` };
+}

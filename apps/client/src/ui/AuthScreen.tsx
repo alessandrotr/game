@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react';
+import * as ToggleGroup from '@radix-ui/react-toggle-group';
+import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button, Input } from './primitives';
+import { ScreenHeader } from './ScreenHeader';
 
 /**
  * Account gate: sign in or register with email + password. Shown before the
@@ -28,32 +31,35 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center overflow-y-auto bg-[radial-gradient(circle_at_50%_22%,#191b2c,#07080d_72%)] p-5">
+    <div className="absolute inset-0 flex items-center justify-center overflow-y-auto bg-arena-radial p-5">
       <div className="w-full max-w-sm">
-        <header className="mb-8 text-center">
-          <h1 className="font-display text-5xl tracking-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.35)]">
-            ARENA
-          </h1>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.4em] text-muted">
-            {isRegister ? 'Create your account' : 'Sign in to your account'}
-          </p>
-        </header>
+        <ScreenHeader
+          className="mb-8"
+          subtitle={isRegister ? 'Create your account' : 'Sign in to your account'}
+        />
 
         {/* Mode toggle */}
-        <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/30 p-1">
+        <ToggleGroup.Root
+          type="single"
+          value={mode}
+          onValueChange={(v) => v && setMode(v as 'login' | 'register')}
+          aria-label="Authentication mode"
+          className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/30 p-1"
+        >
           {(['login', 'register'] as const).map((m) => (
-            <button
+            <ToggleGroup.Item
               key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold tracking-wide transition ${
-                mode === m ? 'bg-gold/15 text-gold' : 'text-muted hover:text-white'
-              }`}
+              value={m}
+              className={cn(
+                'rounded-lg px-4 py-2 text-sm font-semibold tracking-wide text-muted transition hover:text-white',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60',
+                'data-[state=on]:bg-gold/15 data-[state=on]:text-gold',
+              )}
             >
               {m === 'login' ? 'Sign In' : 'Register'}
-            </button>
+            </ToggleGroup.Item>
           ))}
-        </div>
+        </ToggleGroup.Root>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <Input
