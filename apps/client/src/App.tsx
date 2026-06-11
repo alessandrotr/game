@@ -23,6 +23,8 @@ export default function App() {
   const status = useGameStore((s) => s.status);
   const connected = status === 'connected';
   const inArena = useGameStore((s) => s.room) === 'arena';
+  const transitioning = useGameStore((s) => s.transitioning);
+  const transitionLabel = useGameStore((s) => s.transitionLabel);
 
   // Account gate: validate any saved session token once on boot.
   const authStatus = useAuthStore((s) => s.status);
@@ -80,6 +82,9 @@ export default function App() {
       ) : (
         <JoinScreen />
       )}
+
+      {/* Cover the town↔arena swap so the wait reads as a deliberate load. */}
+      {transitioning && <LoadingScreen subtitle={transitionLabel} />}
     </>
   );
 }

@@ -13,6 +13,11 @@ interface GameStore {
   sessionId: string | null;
   /** The world the client is currently connected to (town hub or arena). */
   room: RoomType | null;
+  /** True while switching worlds (town↔arena): the UI shows a loading screen
+   *  over the old scene until the new room is joined. */
+  transitioning: boolean;
+  /** Tagline shown on the transition loading screen. */
+  transitionLabel: string;
   /** Server tick of the latest applied snapshot. */
   tick: number;
 
@@ -35,6 +40,8 @@ interface GameStore {
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
   setRoom: (room: RoomType | null) => void;
+  /** Toggle the world-swap loading screen (with an optional tagline). */
+  setTransitioning: (transitioning: boolean, label?: string) => void;
   /** Replace snapshot contents and refresh id lists if membership changed. */
   applySnapshot: (
     players: Map<string, PlayerView>,
@@ -57,6 +64,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   error: null,
   sessionId: null,
   room: null,
+  transitioning: false,
+  transitionLabel: 'Loading the arena…',
   tick: 0,
   playerIds: [],
   projectileIds: [],
@@ -66,6 +75,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
   setRoom: (room) => set({ room }),
+  setTransitioning: (transitioning, label) =>
+    set(label ? { transitioning, transitionLabel: label } : { transitioning }),
 
   applySnapshot: (incomingPlayers, incomingProjectiles, tick) => {
     const { players, projectiles, playerIds, projectileIds } = get();
@@ -92,6 +103,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       error: null,
       sessionId: null,
       room: null,
+      transitioning: false,
       tick: 0,
       playerIds: [],
       projectileIds: [],

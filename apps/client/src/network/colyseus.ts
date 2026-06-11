@@ -409,6 +409,8 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   if (!client || !joinOptions || traveling) return;
   const store = useGameStore.getState();
   traveling = true;
+  // Cover the world swap with the branded loading screen.
+  store.setTransitioning(true, roomType === 'arena' ? 'Entering the arena…' : 'Returning to town…');
   // Matchmaking only exists in town: drop it when leaving for the arena (it's
   // reopened below when arriving in town).
   disconnectMatchmaking();
@@ -443,6 +445,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
   } finally {
     traveling = false;
+    store.setTransitioning(false);
   }
 }
 
@@ -451,6 +454,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   if (!client || traveling) return;
   const store = useGameStore.getState();
   traveling = true;
+  store.setTransitioning(true, 'Entering the arena…');
   disconnectMatchmaking(); // belt-and-braces: the match-found handler already did
   try {
     // Non-blocking leave (see travelTo): don't wait out the close handshake
@@ -480,6 +484,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to join match');
   } finally {
     traveling = false;
+    store.setTransitioning(false);
   }
 }
 
