@@ -5,6 +5,7 @@ import {
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
   ARENA_SPAWN_POINTS,
+  stepLocomotion,
   AUTO_ATTACKS,
   CLASS_ABILITY_OVERRIDES,
   CLASS_DEFINITIONS,
@@ -86,12 +87,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Interpolate an angle along the shortest path, handling the ±π wrap. */
-function lerpAngle(a: number, b: number, t: number): number {
-  const tau = Math.PI * 2;
-  const diff = ((((b - a) % tau) + tau + Math.PI) % tau) - Math.PI;
-  return a + diff * t;
-}
 
 /** A cast in its wind-up: the effect resolves at `resolveAt` (sim time, ms). */
 interface PendingCast {
@@ -115,12 +110,8 @@ interface PendingCast {
 export class ArenaRoom extends Room<ArenaState> {
   override maxClients = MAX_PLAYERS;
 
-  /**
-   * Active move destination per session (cleared on arrival/death/cast).
-   * `sprint` is decided when the destination is set and held constant for the
-   * whole trip, so the player doesn't downshift to walk as it nears the mark.
-   */
-  private readonly destinations = new Map<string, { x: number; z: number; sprint: boolean }>();
+  /** Active move destination per session (cleared on arrival/death/cast). */
+  private readonly destinations = new Map<string, { x: number; z: number }>();
   private readonly verticalVelocity = new Map<string, number>();
   private readonly grounded = new Map<string, boolean>();
   private readonly cooldowns = new Map<string, Partial<Record<AbilityKind, number>>>();
@@ -218,9 +209,7 @@ export class ArenaRoom extends Room<ArenaState> {
       const z = Number.isFinite(message?.z) ? clamp(message.z, -limit, limit) : player.z;
       // A manual move order cancels any auto-attack.
       this.attackTargets.delete(client.sessionId);
-      // Lock sprint-vs-walk based on the distance at issue time.
-      const sprint = Math.hypot(x - player.x, z - player.z) > this.movement.sprintThreshold;
-      this.destinations.set(client.sessionId, { x, z, sprint });
+      this.destinations.set(client.sessionId, { x, z });
     });
 
     this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
@@ -806,36 +795,29 @@ export class ArenaRoom extends Room<ArenaState> {
         // Auto-attack: chase the target into range, then strike on a timer.
         this.updateAutoAttack(player, sessionId, dt);
       } else {
-        // Point-and-click movement: walk toward the active destination, if any.
-        const dest = this.destinations.get(sessionId);
-        if (dest) {
-          const dx = dest.x - player.x;
-          const dz = dest.z - player.z;
-          const distance = Math.hypot(dx, dz);
-          const remaining = distance - m.stoppingDistance;
-          // Epsilon so the arrival branch reliably fires (avoids hovering a
-          // hair above the threshold forever due to float rounding).
-          if (remaining > 0.02) {
-            const ndx = dx / distance;
-            const ndz = dz / distance;
-            // Constant speed for the whole trip (decided at issue time) so the
-            // player doesn't slow to a walk as it nears the mark.
-            const walk = this.walkSpeedFor(player.characterClass);
-            const speed = dest.sprint ? walk * m.sprintMultiplier : walk;
-            const step = Math.min(speed * dt, remaining);
-            player.x = clamp(player.x + ndx * step, -limit, limit);
-            player.z = clamp(player.z + ndz * step, -limit, limit);
-            const face = Math.atan2(ndx, ndz);
-            player.rotation = lerpAngle(player.rotation, face, 1 - Math.exp(-m.rotationSpeed * dt));
-          } else {
-            // Arrived: stop. (While the button is held the client keeps
-            // re-issuing the target, so this only sticks after release.)
-            this.destinations.delete(sessionId);
-          }
-        }
+        // Point-and-click movement: the shared deterministic step (also run by
+        // the client predictor) walks toward the destination and slides around
+        // obstacles, so client and server stay in lockstep.
+        const result = stepLocomotion(
+          { x: player.x, z: player.z, rotation: player.rotation },
+          this.destinations.get(sessionId) ?? null,
+          {
+            speed: this.walkSpeedFor(player.characterClass),
+            rotationSpeed: m.rotationSpeed,
+            stoppingDistance: m.stoppingDistance,
+            halfBounds: limit,
+            obstacles: ARENA_OBSTACLES,
+          },
+          dt,
+        );
+        player.x = result.x;
+        player.z = result.z;
+        player.rotation = result.rotation;
+        if (result.arrived) this.destinations.delete(sessionId);
       }
 
-      // Resolve obstacle collisions on the final horizontal position.
+      // Resolve obstacle collisions for the non-move paths (auto-attack chase,
+      // idle overlaps); stepLocomotion already resolved the move path.
       const fixed = collideArenaObstacles(player.x, player.z);
       player.x = fixed.x;
       player.z = fixed.z;
@@ -851,16 +833,14 @@ export class ArenaRoom extends Room<ArenaState> {
       }
       this.verticalVelocity.set(sessionId, vy);
 
-      // Authoritative animation: one-shots over locomotion (Run = sprinting).
+      // Authoritative animation: one-shots over locomotion (Run while moving).
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
-      const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
       // Moving cancels a dance (but not a combat pose like cast/attack).
       const active = this.animOneShots.get(sessionId);
       if (active && moving && isEmote(active.name)) this.animOneShots.delete(sessionId);
       player.animState = computeAnimState({
         alive: true,
         moving,
-        sprinting,
         oneShot: this.animOneShots.get(sessionId) ?? null,
         now: this.simTime,
       });

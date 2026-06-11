@@ -112,9 +112,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.Emote]: { emote: string };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
   [ClientMessage.DevTune]: {
-    sprintMultiplier: number;
     jumpForce: number;
-    sprintThreshold: number;
     stoppingDistance: number;
     rotationSpeed: number;
   };

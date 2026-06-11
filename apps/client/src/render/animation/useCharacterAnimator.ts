@@ -25,6 +25,13 @@ const LOOPING: ReadonlySet<AnimationName> = new Set<AnimationName>([
 /** Crossfade duration between clips, in seconds. */
 const FADE = 0.18;
 
+/** Ground speed (world units/sec) at which the run clip's feet match the floor
+ *  (playback `timeScale` = 1). Scaling around this keeps feet from sliding when
+ *  a class moves faster/slower. Tune if a new run clip strides differently. */
+const RUN_REFERENCE_SPEED = 6;
+/** Keep the speed-matched playback rate sane even if move speed is tuned far. */
+const clampTimeScale = (v: number): number => Math.min(1.8, Math.max(0.6, v));
+
 export function isLooping(name: AnimationName): boolean {
   return LOOPING.has(name);
 }
@@ -43,6 +50,8 @@ export function useGltfAnimator(
   getAnimation: () => AnimationName,
   resolveClip: (name: AnimationName) => string | undefined,
   rest?: { clip?: string; fraction?: number },
+  /** Live ground speed (world units/sec); scales the run clip so feet don't slide. */
+  getSpeed?: () => number,
 ): void {
   const currentName = useRef<AnimationName | null>(null);
 
@@ -56,32 +65,38 @@ export function useGltfAnimator(
 
   useFrame(() => {
     const name = getAnimation();
-    if (name === currentName.current) return;
 
-    const prev = currentName.current ? targetFor(currentName.current).action : null;
-    const { action: next, pose } = targetFor(name);
-    currentName.current = name;
+    if (name !== currentName.current) {
+      const prev = currentName.current ? targetFor(currentName.current).action : null;
+      const { action: next, pose } = targetFor(name);
+      currentName.current = name;
 
-    if (!next) {
-      prev?.fadeOut(FADE);
-      return;
+      if (!next) {
+        prev?.fadeOut(FADE);
+      } else {
+        next.reset();
+        if (pose) {
+          // Hold one frame as a static standing pose (e.g. idle from a run clip).
+          next.setLoop(LoopRepeat, Infinity);
+          next.clampWhenFinished = false;
+        } else {
+          const loop = isLooping(name);
+          next.setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
+          next.clampWhenFinished = !loop;
+        }
+
+        if (prev && prev !== next) prev.fadeOut(FADE);
+        next.fadeIn(FADE).play();
+        next.paused = pose;
+        if (pose) next.time = (rest?.fraction ?? 0) * next.getClip().duration;
+      }
     }
 
-    next.reset();
-    if (pose) {
-      // Hold one frame as a static standing pose (e.g. idle from a run clip).
-      next.setLoop(LoopRepeat, Infinity);
-      next.clampWhenFinished = false;
-    } else {
-      const loop = isLooping(name);
-      next.setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
-      next.clampWhenFinished = !loop;
+    // Match locomotion playback to ground speed each frame so feet don't slide.
+    if (getSpeed && (currentName.current === 'run' || currentName.current === 'walk')) {
+      const { action, pose } = targetFor(currentName.current);
+      if (action && !pose) action.timeScale = clampTimeScale(getSpeed() / RUN_REFERENCE_SPEED);
     }
-
-    if (prev && prev !== next) prev.fadeOut(FADE);
-    next.fadeIn(FADE).play();
-    next.paused = pose;
-    if (pose) next.time = (rest?.fraction ?? 0) * next.getClip().duration;
   });
 }
 

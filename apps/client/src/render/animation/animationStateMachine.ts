@@ -10,7 +10,7 @@ import { EMOTE_MS, isEmote, type AnimationName } from '@arena/shared';
  * same `step()` with no change to gameplay or rendering code.
  *
  * States map onto the shared logical `AnimationName`s:
- *   Idle / Walk / Run — locomotion (Run = sprinting, Walk = normal movement)
+ *   Idle / Run — locomotion (single move speed: Run while moving, else Idle)
  *   Attack / Cast / Hit — non-looping one-shots, triggered by events
  *   Death — latched while `!alive`, overrides everything
  */
@@ -22,8 +22,6 @@ export type AnimationEventKind = 'attack' | 'cast' | 'hit' | 'dance1' | 'dance2'
 export interface AnimationInputs {
   /** Horizontal speed in world units/second. */
   speed: number;
-  /** Whether the player is sprinting (Run) vs walking (Walk) while moving. */
-  sprinting: boolean;
   /** Whether the character is alive. Death latches until this returns true. */
   alive: boolean;
   /** A one-shot event to play this step, or null. */
@@ -58,8 +56,10 @@ export function createCharacterFSM(): CharacterFSM {
   let oneShot: { name: AnimationEventKind; remaining: number } | null = null;
   let current: AnimationName = 'idle';
 
-  const locomotion = (speed: number, sprinting: boolean): AnimationName =>
-    speed < MOVE_SPEED_THRESHOLD ? 'idle' : sprinting ? 'run' : 'walk';
+  // Single move speed (LoL-style): run while moving, idle when stopped. The
+  // `walk` clip stays in the type for future slow/rooted states.
+  const locomotion = (speed: number): AnimationName =>
+    speed < MOVE_SPEED_THRESHOLD ? 'idle' : 'run';
 
   return {
     get current() {
@@ -97,7 +97,7 @@ export function createCharacterFSM(): CharacterFSM {
         }
       }
 
-      current = locomotion(inputs.speed, inputs.sprinting);
+      current = locomotion(inputs.speed);
       return current;
     },
   };

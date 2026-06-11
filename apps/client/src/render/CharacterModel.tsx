@@ -31,6 +31,8 @@ interface CharacterModelProps {
    * Defaults to a constant idle so the component is usable without a state machine.
    */
   getAnimation?: () => AnimationName;
+  /** Live ground speed (world units/sec); scales the run clip so feet don't slide. */
+  getSpeed?: () => number;
 }
 
 /**
@@ -38,7 +40,11 @@ interface CharacterModelProps {
  * its grip weapon, and animates it via the controller. The transform, network
  * smoothing, and labels are the caller's responsibility (see `PlayerEntity`).
  */
-export function CharacterModel({ descriptor, getAnimation = ALWAYS_IDLE }: CharacterModelProps) {
+export function CharacterModel({
+  descriptor,
+  getAnimation = ALWAYS_IDLE,
+  getSpeed,
+}: CharacterModelProps) {
   const phase = useMemo(() => seedOf(descriptor.id), [descriptor.id]);
   const weapon = descriptor.weaponId ? assets.getWeapon(descriptor.weaponId) : undefined;
 
@@ -46,7 +52,12 @@ export function CharacterModel({ descriptor, getAnimation = ALWAYS_IDLE }: Chara
     return (
       <group>
         <Suspense fallback={null}>
-          <GltfCharacter model={descriptor.render} getAnimation={getAnimation} phase={phase} />
+          <GltfCharacter
+            model={descriptor.render}
+            getAnimation={getAnimation}
+            getSpeed={getSpeed}
+            phase={phase}
+          />
         </Suspense>
         {weapon && <WeaponMount weapon={weapon} />}
       </group>
@@ -100,10 +111,12 @@ function PlaceholderCharacter({
 function GltfCharacter({
   model,
   getAnimation,
+  getSpeed,
   phase,
 }: {
   model: GltfModel;
   getAnimation: () => AnimationName;
+  getSpeed?: () => number;
   phase: number;
 }) {
   const { scene, animations } = useGLTF(model.url);
@@ -166,7 +179,7 @@ function GltfCharacter({
 
   // Rigged models play real clips; clipless models get procedural motion on the
   // root (its transform composes with the primitive's placement offsets below).
-  useGltfAnimator(actions, getAnimation, resolveClip, rest);
+  useGltfAnimator(actions, getAnimation, resolveClip, rest, getSpeed);
   useProceduralAnimator(root, getAnimation, phase, !hasClips);
 
   return (

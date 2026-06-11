@@ -2,10 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { setDestination } from '../store/destinationState';
-import { getLocalRenderTransform } from '../store/localPlayer';
 import { useTargetStore } from '../store/targetState';
 import { useAbilityTargeting } from '../store/abilityTargeting';
-import { getMovementFeel } from '../tuning';
 import { sendMoveTo } from '../network/colyseus';
 
 /** Ground plane (y = 0) the cursor is projected onto. */
@@ -85,13 +83,8 @@ export function MouseMove() {
     raycaster.current.setFromCamera(ndc.current, camera);
     if (!raycaster.current.ray.intersectPlane(GROUND, point.current)) return;
 
-    // Lock sprint-vs-walk on the player→target distance (matches the server).
-    const me = getLocalRenderTransform();
-    const targetDist = Math.hypot(point.current.x - me.x, point.current.z - me.z);
-    const sprint = targetDist > getMovementFeel().sprintThreshold;
-
     // Update local prediction every frame; throttle the authoritative update.
-    setDestination(point.current.x, point.current.z, sprint);
+    setDestination(point.current.x, point.current.z);
     lastTarget.current = { x: point.current.x, z: point.current.z };
     sendAccum.current += delta;
     if (sendAccum.current >= SEND_INTERVAL) {

@@ -37,6 +37,10 @@ ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=prod-deps /repo/node_modules ./node_modules
 COPY --from=prod-deps /repo/apps/server/node_modules ./apps/server/node_modules
+# The shared package now has a runtime dep (zod); ship its node_modules too — its
+# pnpm symlinks resolve into the copied root .pnpm store. (Skipping this is what
+# caused "Cannot find package 'zod'" at runtime once shared imported it.)
+COPY --from=prod-deps /repo/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=build /repo/packages/shared/dist ./packages/shared/dist
 COPY --from=build /repo/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build /repo/apps/server/dist ./apps/server/dist

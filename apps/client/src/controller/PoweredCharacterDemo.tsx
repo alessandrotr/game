@@ -52,8 +52,8 @@ function PoweredCharacter({ characterClass }: { characterClass: CharacterClass }
     // click-to-move knobs used by the arena, not this physics controller).
     // Accel/decel come from the controller's own config defaults.
     overrides: {
-      walkSpeed: player.walkSpeed,
-      sprintSpeed: player.sprintSpeed,
+      walkSpeed: player.speed,
+      sprintSpeed: player.speed,
       jumpForce: player.jumpForce,
     },
   });

@@ -3,17 +3,14 @@
  * and the on-ground marker. Plain mutable singleton (no React state) so it can
  * be read/written every frame without re-renders.
  *
- * `sprint` is decided when the destination is set and held constant for the
- * whole trip (matches the server), so speed doesn't ramp down near the mark.
- * The server is authoritative for movement; this mirror is for responsive
- * local prediction and visual feedback.
+ * The server is authoritative for movement; this mirror is for responsive local
+ * prediction and visual feedback. Single move speed (no sprint flag).
  */
-const destination = { x: 0, z: 0, sprint: false, active: false };
+const destination = { x: 0, z: 0, active: false };
 
-export function setDestination(x: number, z: number, sprint: boolean): void {
+export function setDestination(x: number, z: number): void {
   destination.x = x;
   destination.z = z;
-  destination.sprint = sprint;
   destination.active = true;
 }
 

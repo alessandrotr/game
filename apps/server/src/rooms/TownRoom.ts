@@ -1,24 +1,23 @@
 import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
   ARENA_ROOM,
-  CLICK_ROTATION_SPEED,
-  CLICK_SPRINT_THRESHOLD,
-  CLICK_STOPPING_DISTANCE,
   EMOTE_MS,
   GRAVITY,
   GROUND_Y,
   JUMP_FORCE,
   MAX_PLAYERS,
+  MOVEMENT,
   PLAYER_RADIUS,
-  PLAYER_SPEED,
-  SPRINT_SPEED,
   TICK_MS,
   TOWN_HALF_SIZE,
+  TOWN_OBSTACLES,
   ClientMessage,
   ServerMessage,
-  collideTownObstacles,
+  getClassDefinition,
   isCharacterClass,
   isEmote,
+  stepLocomotion,
+  type CharacterClass,
 } from '@arena/shared';
 import { ArenaState, Player } from './schema.js';
 import { reviveFull } from '../combat.js';
@@ -34,13 +33,6 @@ const TOWN_SPAWN = { x: 0, z: 12 };
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
-/** Interpolate an angle along the shortest path, handling the ±π wrap. */
-function lerpAngle(a: number, b: number, t: number): number {
-  const tau = Math.PI * 2;
-  const diff = ((((b - a) % tau) + tau + Math.PI) % tau) - Math.PI;
-  return a + diff * t;
-}
-
 /**
  * The town hub (Phase 10.1): a shared, **non-combat** space. Players walk around
  * (point-and-click), see each other, and chat globally. It reuses the arena's
@@ -50,7 +42,7 @@ function lerpAngle(a: number, b: number, t: number): number {
 export class TownRoom extends Room<ArenaState> {
   override maxClients = MAX_PLAYERS;
 
-  private readonly destinations = new Map<string, { x: number; z: number; sprint: boolean }>();
+  private readonly destinations = new Map<string, { x: number; z: number }>();
   private readonly verticalVelocity = new Map<string, number>();
   private readonly grounded = new Map<string, boolean>();
   // Town is the persistent shared channel — its chat is saved to the DB so it
@@ -78,8 +70,7 @@ export class TownRoom extends Room<ArenaState> {
       const limit = TOWN_HALF_SIZE - PLAYER_RADIUS;
       const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
       const z = Number.isFinite(message?.z) ? clamp(message.z, -limit, limit) : player.z;
-      const sprint = Math.hypot(x - player.x, z - player.z) > CLICK_SPRINT_THRESHOLD;
-      this.destinations.set(client.sessionId, { x, z, sprint });
+      this.destinations.set(client.sessionId, { x, z });
     });
 
     this.onMessage(ClientMessage.StopMove, (client) => {
@@ -299,30 +290,24 @@ export class TownRoom extends Room<ArenaState> {
       const startX = player.x;
       const startZ = player.z;
 
-      // Point-and-click movement toward the active destination, if any.
-      const dest = this.destinations.get(sessionId);
-      if (dest) {
-        const dx = dest.x - player.x;
-        const dz = dest.z - player.z;
-        const distance = Math.hypot(dx, dz);
-        const remaining = distance - CLICK_STOPPING_DISTANCE;
-        if (remaining > 0.02) {
-          const ndx = dx / distance;
-          const ndz = dz / distance;
-          const speed = dest.sprint ? SPRINT_SPEED : PLAYER_SPEED;
-          const step = Math.min(speed * dt, remaining);
-          player.x = clamp(player.x + ndx * step, -limit, limit);
-          player.z = clamp(player.z + ndz * step, -limit, limit);
-          // Collide with town props (buildings, walls, well, …).
-          const fixed = collideTownObstacles(player.x, player.z);
-          player.x = fixed.x;
-          player.z = fixed.z;
-          const face = Math.atan2(ndx, ndz);
-          player.rotation = lerpAngle(player.rotation, face, 1 - Math.exp(-CLICK_ROTATION_SPEED * dt));
-        } else {
-          this.destinations.delete(sessionId);
-        }
-      }
+      // Point-and-click movement via the shared deterministic step (same code
+      // the client predictor runs), at the player's per-class move speed.
+      const result = stepLocomotion(
+        { x: player.x, z: player.z, rotation: player.rotation },
+        this.destinations.get(sessionId) ?? null,
+        {
+          speed: getClassDefinition(player.characterClass as CharacterClass).stats.moveSpeed,
+          rotationSpeed: MOVEMENT.rotationSpeed,
+          stoppingDistance: MOVEMENT.stoppingDistance,
+          halfBounds: limit,
+          obstacles: TOWN_OBSTACLES,
+        },
+        dt,
+      );
+      player.x = result.x;
+      player.z = result.z;
+      player.rotation = result.rotation;
+      if (result.arrived) this.destinations.delete(sessionId);
 
       // Vertical movement (gravity + jump).
       let vy = this.verticalVelocity.get(sessionId) ?? 0;
@@ -338,7 +323,6 @@ export class TownRoom extends Room<ArenaState> {
       // Locomotion + emotes (no combat poses in town). A dance plays until it
       // expires or the player moves.
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
-      const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
       let oneShot = this.animOneShots.get(sessionId) ?? null;
       if (oneShot && (moving || this.simTime >= oneShot.until)) {
         this.animOneShots.delete(sessionId);
@@ -347,7 +331,6 @@ export class TownRoom extends Room<ArenaState> {
       player.animState = computeAnimState({
         alive: true,
         moving,
-        sprinting,
         oneShot,
         now: this.simTime,
       });

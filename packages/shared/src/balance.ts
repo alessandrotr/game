@@ -27,12 +27,8 @@ import type { CharacterClass } from './assets.js';
 import {
   ABILITIES,
   ABILITY_KINDS,
-  CLICK_ROTATION_SPEED,
-  CLICK_SPRINT_THRESHOLD,
   CLICK_STOPPING_DISTANCE,
   JUMP_FORCE,
-  PLAYER_SPEED,
-  SPRINT_SPEED,
   type AbilityConfig,
   type AbilityKind,
 } from './constants.js';
@@ -53,28 +49,22 @@ export interface FieldMeta {
 // ---------------------------------------------------------------------------
 
 export interface MovementConfig {
-  /** Sprint speed as a multiple of the player's (per-class) walk speed. */
-  sprintMultiplier: number;
   jumpForce: number;
+  /** Turn rate toward the travel direction (1/second) — high = snappy LoL-style. */
   rotationSpeed: number;
   stoppingDistance: number;
-  sprintThreshold: number;
 }
 
 export const MOVEMENT: MovementConfig = {
-  sprintMultiplier: SPRINT_SPEED / PLAYER_SPEED,
   jumpForce: JUMP_FORCE,
-  rotationSpeed: CLICK_ROTATION_SPEED,
+  rotationSpeed: 28,
   stoppingDistance: CLICK_STOPPING_DISTANCE,
-  sprintThreshold: CLICK_SPRINT_THRESHOLD,
 };
 
 export const MOVEMENT_FIELD_META = {
-  sprintMultiplier: { min: 1, max: 3, step: 0.05, label: 'Sprint ×' },
   jumpForce: { min: 0, max: 40, step: 0.1, label: 'Jump Force' },
-  rotationSpeed: { min: 0, max: 30, step: 0.5, label: 'Rotation Speed' },
+  rotationSpeed: { min: 0, max: 40, step: 0.5, label: 'Rotation Speed' },
   stoppingDistance: { min: 0, max: 5, step: 0.05, label: 'Stopping Distance' },
-  sprintThreshold: { min: 0, max: 40, step: 0.5, label: 'Sprint Threshold' },
 } satisfies Record<keyof MovementConfig, FieldMeta>;
 
 // ---------------------------------------------------------------------------
@@ -151,11 +141,9 @@ export const abilityOverrideSchema = abilityConfigSchema.partial();
 
 export const movementSchema = z
   .object({
-    sprintMultiplier: num(MOVEMENT_FIELD_META.sprintMultiplier),
     jumpForce: num(MOVEMENT_FIELD_META.jumpForce),
     rotationSpeed: num(MOVEMENT_FIELD_META.rotationSpeed),
     stoppingDistance: num(MOVEMENT_FIELD_META.stoppingDistance),
-    sprintThreshold: num(MOVEMENT_FIELD_META.sprintThreshold),
   })
   .strict();
 

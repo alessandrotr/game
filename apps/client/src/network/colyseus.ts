@@ -24,6 +24,8 @@ import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
+import { clearSnapshots, recordSnapshots } from '../store/snapshotBuffer';
+import { clearDestination } from '../store/destinationState';
 
 /** Colyseus handler name for each world. */
 const ROOM_HANDLER: Record<RoomType, string> = { town: TOWN_ROOM, arena: ARENA_ROOM };
@@ -176,10 +178,16 @@ let traveling = false;
 
 /** Wire a freshly-joined room's state + messages into the stores. */
 function wireRoom(joined: Room): void {
+  clearSnapshots(); // fresh interpolation timeline per room (no cross-room bleed)
+  // A teleport (portal/scene change) cancels any pending move order — arrive
+  // idle and wait for the next command, rather than resuming a stale walk.
+  clearDestination();
   joined.onStateChange((state) => {
     const raw = state as unknown as RawState;
     const { players, projectiles } = snapshotState(raw);
     useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
+    // Feed the interpolation buffer used to render remote players smoothly.
+    recordSnapshots(players, performance.now());
   });
 
   // Identity is read from `room.sessionId`; the Welcome message is acknowledged

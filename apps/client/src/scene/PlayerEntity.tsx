@@ -4,10 +4,11 @@ import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
+  ARENA_OBSTACLES,
   TOWN_HALF_SIZE,
+  TOWN_OBSTACLES,
   PLAYER_RADIUS,
-  collideArenaObstacles,
-  collideTownObstacles,
+  stepLocomotion,
   type AnimationName,
   type CharacterClass,
 } from '@arena/shared';
@@ -18,48 +19,35 @@ import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
 import { sendAttack } from '../network/colyseus';
+import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
 
-/** Smoothing factor for interpolating remote players toward server snapshots. */
+/** Smoothing for the local player's vertical (jump) toward the server's. */
 const REMOTE_SMOOTHING = 14;
-/** How fast the predicted local position settles onto the server's once idle. */
-const SETTLE_SMOOTHING = 8;
+/** While idle, how fast the predicted position settles onto the server's. With
+ *  the shared deterministic step they're already aligned, so this just absorbs
+ *  any sub-unit residual seamlessly. */
+const SETTLE_RATE = 10;
 /**
- * Error beyond this (world units) hard-snaps the local player to the server.
- * Set well above lag-induced divergence: while walking, the client legitimately
- * runs ahead of the server by ~one round-trip (e.g. sprint 9 u/s × 400ms ≈ 3.6u),
- * and the client mirrors the server's speed/collision/clamp so it doesn't drift.
- * Snapping on that gap caused a rubber-band loop under real latency. Only a true
- * server reposition (respawn/knockback) clears this bar.
+ * Divergence (world units) that counts as a true reposition (respawn/knockback/
+ * blink) and hard-snaps the local player. Above the lag-induced lead: the client
+ * legitimately runs ~one round-trip ahead while moving (≈ speed × RTT), and the
+ * shared step keeps it from drifting otherwise.
  */
-const RESYNC_THRESHOLD = 8;
+const TELEPORT_SNAP = 6;
 /** Per-frame horizontal step larger than this is a teleport (blink/respawn),
  *  not locomotion — don't let it flash the run animation. */
 const TELEPORT_STEP = 2;
 const HP_BAR_WIDTH = 1;
 
-interface PlayerEntityProps {
-  sessionId: string;
-}
-
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-/** Interpolate an angle along the shortest path, handling the ±π wrap. */
-function lerpAngle(a: number, b: number, t: number): number {
-  const tau = Math.PI * 2;
-  const diff = ((((b - a) % tau) + tau + Math.PI) % tau) - Math.PI;
-  return a + diff * t;
-}
-
-/** Hard-snap the predicted position to the server's on large divergence. */
-function reconcile(pos: Vector3, scratch: Vector3, server: { x: number; z: number }): void {
-  if (pos.distanceTo(scratch.set(server.x, 0, server.z)) > RESYNC_THRESHOLD) {
-    pos.copy(scratch);
-  }
+interface PlayerEntityProps {
+  sessionId: string;
 }
 
 /**
@@ -90,7 +78,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);
   const predictedRot = useRef(player?.rotation ?? 0);
-  const serverPos = useRef(new Vector3());
 
   // Animation: a state machine fed each frame, exposed to the model via a stable
   // getter so the character animates without per-frame React re-renders.
@@ -98,6 +85,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const animName = useRef<AnimationName>('idle');
   const getAnimation = useRef(() => animName.current).current;
   const prevPos = useRef({ x: player?.x ?? 0, z: player?.z ?? 0 });
+  // Rendered ground speed, exposed via a stable getter so the GLTF animator can
+  // match the run clip's playback to it (no foot-sliding).
+  const speedRef = useRef(0);
+  const getSpeed = useRef(() => speedRef.current).current;
 
   useEffect(() => {
     // Drop any pending one-shot animation event for this session on unmount
@@ -121,10 +112,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // Hold position and play the death pose in place (no movement while down).
       if (isLocal) {
         clearDestination();
-        animName.current = fsm.current.step(
-          { speed: 0, sprinting: false, alive: false, event: null },
-          delta * 1000,
-        );
+        animName.current = fsm.current.step({ speed: 0, alive: false, event: null }, delta * 1000);
       } else {
         animName.current = latest.animState; // authoritative ('die')
       }
@@ -133,77 +121,64 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       return;
     }
 
-    // Vertical (jump/fall) is server-authoritative for all players.
-    const yT = 1 - Math.exp(-REMOTE_SMOOTHING * delta);
-    node.position.y = MathUtils.lerp(node.position.y, latest.y, yT);
-
     if (isLocal) {
+      // Vertical (jump/fall) stays server-authoritative, smoothed.
+      node.position.y = MathUtils.lerp(node.position.y, latest.y, 1 - Math.exp(-REMOTE_SMOOTHING * delta));
+
       if (!predicted.current) {
         predicted.current = new Vector3(latest.x, 0, latest.z);
         predictedRot.current = latest.rotation;
       }
       const pos = predicted.current;
-      const tuning = getLocalMovement(latest.characterClass as CharacterClass);
-      // Mirror the server's bounds + obstacles for the current world, so the
-      // prediction matches (town and arena have different sizes and props).
+      const mv = getLocalMovement(latest.characterClass as CharacterClass);
       const isArena = useGameStore.getState().room === 'arena';
-      const limit = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
-      const collide = isArena ? collideArenaObstacles : collideTownObstacles;
-
       const dest = getDestination();
-      if (dest.active) {
-        // Hold-to-move: crisp (no momentum), distance-based walk/sprint.
-        const dx = dest.x - pos.x;
-        const dz = dest.z - pos.z;
-        const distance = Math.hypot(dx, dz);
-        const remaining = distance - tuning.stoppingDistance;
-        // Epsilon so arrival reliably clears the destination (and the marker).
-        if (remaining > 0.02) {
-          const ndx = dx / distance;
-          const ndz = dz / distance;
-          // Constant speed locked at issue time — no slowdown nearing the mark.
-          const speed = dest.sprint ? tuning.sprintSpeed : tuning.walkSpeed;
-          const step = Math.min(speed * delta, remaining);
-          pos.x = clamp(pos.x + ndx * step, -limit, limit);
-          pos.z = clamp(pos.z + ndz * step, -limit, limit);
-          const face = Math.atan2(ndx, ndz);
-          predictedRot.current = lerpAngle(
-            predictedRot.current,
-            face,
-            1 - Math.exp(-tuning.rotationSpeed * delta),
-          );
-          reconcile(pos, serverPos.current, latest);
-        } else {
-          // Arrived. While held, MouseMove re-targets next frame; after release
-          // this sticks and the character stops at the point.
-          clearDestination();
-        }
-      } else {
-        // Idle / just arrived: HOLD the predicted position. Only correct on a
-        // meaningful divergence. Continuously lerping toward the snapshot here
-        // yanked the player backward at the instant of arrival, because the
-        // snapshot lags ~1 tick behind the (correct) predicted position.
-        if (pos.distanceTo(serverPos.current.set(latest.x, 0, latest.z)) > 0.75) {
-          const t = 1 - Math.exp(-SETTLE_SMOOTHING * delta);
-          pos.x = MathUtils.lerp(pos.x, latest.x, t);
-          pos.z = MathUtils.lerp(pos.z, latest.z, t);
-        }
-      }
 
-      // Mirror the server's obstacle collision so prediction matches.
-      const fixed = collide(pos.x, pos.z);
-      pos.x = fixed.x;
-      pos.z = fixed.z;
+      // The SAME deterministic step the server runs → prediction matches by
+      // construction (single speed, slides around obstacles, clamps to bounds).
+      const result = stepLocomotion(
+        { x: pos.x, z: pos.z, rotation: predictedRot.current },
+        dest.active ? { x: dest.x, z: dest.z } : null,
+        {
+          speed: mv.speed,
+          rotationSpeed: mv.rotationSpeed,
+          stoppingDistance: mv.stoppingDistance,
+          halfBounds: (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS,
+          obstacles: isArena ? ARENA_OBSTACLES : TOWN_OBSTACLES,
+        },
+        delta,
+      );
+      pos.x = result.x;
+      pos.z = result.z;
+      predictedRot.current = result.rotation;
+      if (result.arrived) clearDestination();
+
+      // Reconcile: snap on a true reposition (respawn/knockback); while idle,
+      // gently settle onto the server (already aligned, so this is invisible);
+      // while moving, trust prediction — it legitimately leads by ~latency.
+      const err = Math.hypot(pos.x - latest.x, pos.z - latest.z);
+      if (err > TELEPORT_SNAP) {
+        pos.set(latest.x, 0, latest.z);
+      } else if (!dest.active) {
+        const t = 1 - Math.exp(-SETTLE_RATE * delta);
+        pos.x = MathUtils.lerp(pos.x, latest.x, t);
+        pos.z = MathUtils.lerp(pos.z, latest.z, t);
+      }
 
       node.position.x = pos.x;
       node.position.z = pos.z;
       node.rotation.y = predictedRot.current;
       setLocalRenderTransform(pos.x, pos.z, predictedRot.current);
     } else {
-      const t = 1 - Math.exp(-REMOTE_SMOOTHING * delta);
-      node.position.x = MathUtils.lerp(node.position.x, latest.x, t);
-      node.position.z = MathUtils.lerp(node.position.z, latest.z, t);
-      node.rotation.y = lerpAngle(node.rotation.y, latest.rotation, t);
+      // Remote: render ~INTERP_DELAY in the past, interpolating between the two
+      // bracketing snapshots → constant-velocity, jitter-free motion.
+      const s = sampleTransform(sessionId, performance.now() - INTERP_DELAY_MS);
+      if (s) {
+        node.position.x = s.x;
+        node.position.y = s.y;
+        node.position.z = s.z;
+        node.rotation.y = s.rotation;
+      }
     }
 
     // Animation. The LOCAL player predicts its own (zero latency) from rendered
@@ -213,13 +188,13 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     const sdz = node.position.z - prevPos.current.z;
     prevPos.current.x = node.position.x;
     prevPos.current.z = node.position.z;
+    // Rendered ground speed (local & remote) — feeds the run-clip timeScale match.
+    const moved = Math.hypot(sdx, sdz);
+    speedRef.current = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
     if (isLocal) {
-      const moved = Math.hypot(sdx, sdz);
-      const speed = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-      const dest = getDestination();
-      const sprinting = dest.active && dest.sprint;
+      const speed = speedRef.current;
       const predicted = fsm.current.step(
-        { speed, sprinting, alive: true, event: consumeAnimationEvent(sessionId) },
+        { speed, alive: true, event: consumeAnimationEvent(sessionId) },
         delta * 1000,
       );
       // Surface server-driven one-shots the client can't predict (auto-attacks),
@@ -269,7 +244,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
   return (
     <group ref={group}>
-      <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
+      <CharacterModel descriptor={descriptor} getAnimation={getAnimation} getSpeed={getSpeed} />
 
       {/* Chat speech bubble above the head (mirrors what the player typed). */}
       {bubble && (

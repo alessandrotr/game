@@ -17,9 +17,7 @@ export function useServerMovementTuning(connected: boolean): void {
     const push = () => {
       const m = getMovementFeel();
       const next: ClientMessagePayloads[ClientMessage.DevTune] = {
-        sprintMultiplier: m.sprintMultiplier,
         jumpForce: m.jumpForce,
-        sprintThreshold: m.sprintThreshold,
         stoppingDistance: m.stoppingDistance,
         rotationSpeed: m.rotationSpeed,
       };

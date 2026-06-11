@@ -67,29 +67,24 @@ export const effectiveAbilityForClass = (
 ): AbilityConfig => merge(effectiveAbilityBase(ov, k), ov.classAbilities?.[c]?.[k]);
 
 /**
- * Local-player movement for client-side prediction: per-class walk speed (the
- * move-speed stat) with sprint derived from the global multiplier, plus the
- * shared feel fields. Same shape the predictor used before the per-class split.
+ * Local-player movement for client-side prediction: the per-class move speed
+ * (single speed, LoL-style) plus the shared feel fields. Feeds the shared
+ * `stepLocomotion` so prediction matches the server exactly.
  */
 export interface LocalMovement {
-  walkSpeed: number;
-  sprintSpeed: number;
+  speed: number;
   jumpForce: number;
   rotationSpeed: number;
   stoppingDistance: number;
-  sprintThreshold: number;
 }
 
 export function localMovement(ov: BalanceOverrides, c: CharacterClass): LocalMovement {
   const m = effectiveMovement(ov);
-  const walkSpeed = effectiveClassStats(ov, c).moveSpeed;
   return {
-    walkSpeed,
-    sprintSpeed: walkSpeed * m.sprintMultiplier,
+    speed: effectiveClassStats(ov, c).moveSpeed,
     jumpForce: m.jumpForce,
     rotationSpeed: m.rotationSpeed,
     stoppingDistance: m.stoppingDistance,
-    sprintThreshold: m.sprintThreshold,
   };
 }
 
