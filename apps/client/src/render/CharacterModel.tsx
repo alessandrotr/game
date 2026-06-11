@@ -126,7 +126,7 @@ function GltfCharacter({
       for (const mat of mats) {
         const std = mat as MeshStandardMaterial;
         if (std && 'metalness' in std) {
-          std.metalness = 0;
+          std.metalness = 0.3;
           if (std.roughness < 0.5) std.roughness = 0.8;
         }
       }
