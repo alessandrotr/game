@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ChevronDown, MessageSquare } from 'lucide-react';
+import { ChevronDown, MessageSquare, Users } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
+import { useGameStore } from '../store/useGameStore';
 import { usePersistentToggle } from '../hooks/usePersistentToggle';
 import { sendChat } from '../network/colyseus';
 import { Badge, Button, IconButton, Input } from './primitives';
@@ -15,6 +16,7 @@ import { Badge, Button, IconButton, Input } from './primitives';
  */
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
+  const onlineCount = useGameStore((s) => s.playerIds.length);
   const [text, setText] = useState('');
   const [collapsed, toggle] = usePersistentToggle('arena.chat.collapsed', false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,7 +72,10 @@ export function ChatPanel() {
       >
         <MessageSquare size={14} aria-hidden="true" />
         Chat
-        {messages.length > 0 && <Badge variant="accent">{messages.length}</Badge>}
+        <Badge variant="accent" className="gap-1">
+          <Users size={11} aria-hidden="true" />
+          {onlineCount}
+        </Badge>
       </Button>
     );
   }
