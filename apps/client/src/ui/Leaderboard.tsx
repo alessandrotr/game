@@ -77,7 +77,7 @@ export function Leaderboard() {
       <DialogTrigger asChild>
         <Button
           variant="panel"
-          className="font-display pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 gap-1.5 bg-panel/90 text-xs"
+          className="font-display pointer-events-auto gap-1.5 bg-panel/90 px-3 py-2 text-xs backdrop-blur-md"
         >
           <Trophy size={14} aria-hidden="true" />
           Leaderboard

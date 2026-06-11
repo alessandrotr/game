@@ -1,9 +1,17 @@
 import { useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
+import { Environment, Lightformer } from '@react-three/drei';
+import {
+  ACESFilmicToneMapping,
+  AgXToneMapping,
+  NeutralToneMapping,
+  type Material,
+  type Mesh,
+  type ToneMapping,
+} from 'three';
 import { type MapAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
-import { useEnvStore } from '../tuning/useEnvStore';
+import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
@@ -45,7 +53,7 @@ export function GameScene() {
       gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <ToneExposure value={env.exposure} />
+      <ToneMap mode={env.toneMapping} exposure={env.exposure} />
       <color attach="background" args={[env.background]} />
       <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
 
@@ -78,8 +86,44 @@ export function GameScene() {
           separate silhouettes from the background. */}
       <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
       <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
-      {/* IBL only in the arena; the town is lit by sun + hemisphere + its lamps. */}
-      {isArena && <Environment preset="night" />}
+      {/* Image-based lighting. Arena uses the night preset; the town builds a
+          procedural dusk environment from its own tuned sky/sun/ground colours
+          (zero external asset, baked once) for realistic ambient + reflections. */}
+      {isArena ? (
+        <Environment preset="night" environmentIntensity={env.envIntensity} />
+      ) : (
+        <Environment
+          key={`${env.hemiSky}${env.sunColor}${env.hemiGround}`}
+          frames={1}
+          resolution={64}
+          environmentIntensity={env.envIntensity}
+        >
+          <Lightformer
+            form="rect"
+            intensity={1.2}
+            color={env.hemiSky}
+            scale={[50, 50, 1]}
+            position={[0, 14, 0]}
+            rotation={[Math.PI / 2, 0, 0]}
+          />
+          <Lightformer
+            form="rect"
+            intensity={2.2}
+            color={env.sunColor}
+            scale={[16, 16, 1]}
+            position={[14, 9, 8]}
+            rotation={[0, -Math.PI / 3, 0]}
+          />
+          <Lightformer
+            form="rect"
+            intensity={0.5}
+            color={env.hemiGround}
+            scale={[50, 50, 1]}
+            position={[0, -10, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          />
+        </Environment>
+      )}
 
       {isArena ? (
         <>
@@ -121,12 +165,28 @@ export function GameScene() {
   );
 }
 
-/** Applies tone-mapping exposure live, so the dev-tools slider takes effect
- *  (the Canvas `gl` prop only sets it once, at creation). */
-function ToneExposure({ value }: { value: number }) {
+const TONE_MAPPING: Record<ToneMappingMode, ToneMapping> = {
+  aces: ACESFilmicToneMapping,
+  agx: AgXToneMapping,
+  neutral: NeutralToneMapping,
+};
+
+/** Applies the tone-mapping operator + exposure live (the Canvas `gl` prop only
+ *  sets these once, at creation). Changing the operator recompiles materials,
+ *  since the tonemap is baked into each shader. */
+function ToneMap({ mode, exposure }: { mode: ToneMappingMode; exposure: number }) {
   const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
   useEffect(() => {
-    gl.toneMappingExposure = value;
-  }, [gl, value]);
+    gl.toneMapping = TONE_MAPPING[mode];
+    scene.traverse((o) => {
+      const mat = (o as Mesh).material;
+      if (!mat) return;
+      (Array.isArray(mat) ? mat : [mat]).forEach((m: Material) => (m.needsUpdate = true));
+    });
+  }, [gl, scene, mode]);
+  useEffect(() => {
+    gl.toneMappingExposure = exposure;
+  }, [gl, exposure]);
   return null;
 }

@@ -17,18 +17,22 @@ export function Hud() {
 
   return (
     <>
-      {/* Left column: player card + (town) the change-character button under it. */}
+      {/* Left column: player card + (town) the change-character and leaderboard
+          buttons stacked under it. */}
       <div className="pointer-events-none absolute left-4 top-4 flex w-64 flex-col items-stretch gap-2">
         <PlayerCard />
         {!inArena && (
-          <Button
-            variant="panel"
-            onClick={() => void leaveToCharacterSelect()}
-            className="pointer-events-auto gap-1.5 px-3 py-2 text-xs backdrop-blur-md"
-          >
-            <RotateCcw size={13} aria-hidden="true" />
-            Change Character
-          </Button>
+          <>
+            <Button
+              variant="panel"
+              onClick={() => void leaveToCharacterSelect()}
+              className="pointer-events-auto gap-1.5 px-3 py-2 text-xs backdrop-blur-md"
+            >
+              <RotateCcw size={13} aria-hidden="true" />
+              Change Character
+            </Button>
+            <Leaderboard />
+          </>
         )}
       </div>
 
@@ -45,7 +49,6 @@ export function Hud() {
       </div>
 
       {inArena ? <ActionBar /> : <QueuePanel />}
-      {!inArena && <Leaderboard />}
 
       <MatchResult />
       <LevelUpToast />

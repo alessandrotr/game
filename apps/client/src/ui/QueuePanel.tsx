@@ -13,7 +13,7 @@ export function QueuePanel() {
   const size = useMatchmakingStore((s) => s.size);
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2">
+    <div className="pointer-events-none absolute right-4 top-14 flex justify-end">
       {searching ? (
         <Button
           variant="goldOutline"

@@ -7,7 +7,15 @@ import { ARENA_HALF_SIZE, TOWN_HALF_SIZE } from '@arena/shared';
  * (Leva, lazy) writes here. Defaults mirror the hand-tuned values the scene
  * shipped with, so with dev tools off the look is unchanged.
  */
+/** Tone-mapping operator: ACES (default), AgX (filmic, more realistic), or
+ *  Khronos PBR Neutral (flattest). */
+export type ToneMappingMode = 'aces' | 'agx' | 'neutral';
+
 export interface EnvConfig {
+  /** Output tone-mapping operator. */
+  toneMapping: ToneMappingMode;
+  /** Image-based-lighting (IBL) intensity from the procedural environment. */
+  envIntensity: number;
   background: string;
   fogColor: string;
   fogNear: number;
@@ -33,6 +41,8 @@ export interface EnvConfig {
 }
 
 const TOWN: EnvConfig = {
+  toneMapping: 'aces',
+  envIntensity: 0.25,
   background: '#4f4a66',
   fogColor: '#4f4a66',
   fogNear: TOWN_HALF_SIZE * 0.65,
@@ -58,6 +68,8 @@ const TOWN: EnvConfig = {
 };
 
 const ARENA: EnvConfig = {
+  toneMapping: 'aces',
+  envIntensity: 1,
   background: '#0b0d17',
   fogColor: '#0b0d17',
   fogNear: ARENA_HALF_SIZE,
