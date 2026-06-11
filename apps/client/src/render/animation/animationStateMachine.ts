@@ -1,4 +1,4 @@
-import type { AnimationName } from '@arena/shared';
+import { EMOTE_MS, isEmote, type AnimationName } from '@arena/shared';
 
 /**
  * A character animation state machine — the Phase 4.2 deliverable.
@@ -15,8 +15,9 @@ import type { AnimationName } from '@arena/shared';
  *   Death — latched while `!alive`, overrides everything
  */
 
-/** One-shot animation events the machine reacts to (death is driven by `alive`). */
-export type AnimationEventKind = 'attack' | 'cast' | 'hit';
+/** One-shot animation events the machine reacts to (death is driven by `alive`).
+ *  Emotes (dances) are long, looping one-shots cancelled by movement. */
+export type AnimationEventKind = 'attack' | 'cast' | 'hit' | 'dance1' | 'dance2';
 
 export interface AnimationInputs {
   /** Horizontal speed in world units/second. */
@@ -41,6 +42,8 @@ const ONESHOT_MS: Record<AnimationEventKind, number> = {
   attack: 500,
   cast: 600,
   hit: 350,
+  dance1: EMOTE_MS,
+  dance2: EMOTE_MS,
 };
 
 export interface CharacterFSM {
@@ -78,14 +81,20 @@ export function createCharacterFSM(): CharacterFSM {
         return current;
       }
 
-      // Continue an in-progress one-shot until its time runs out.
+      // Continue an in-progress one-shot until its time runs out. A dance is
+      // also cancelled the moment the player starts moving (combat poses aren't).
       if (oneShot) {
-        oneShot.remaining -= dtMs;
-        if (oneShot.remaining > 0) {
-          current = oneShot.name;
-          return current;
+        const moving = inputs.speed >= MOVE_SPEED_THRESHOLD;
+        if (isEmote(oneShot.name) && moving) {
+          oneShot = null;
+        } else {
+          oneShot.remaining -= dtMs;
+          if (oneShot.remaining > 0) {
+            current = oneShot.name;
+            return current;
+          }
+          oneShot = null;
         }
-        oneShot = null;
       }
 
       current = locomotion(inputs.speed, inputs.sprinting);

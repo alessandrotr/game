@@ -21,10 +21,17 @@ const warrior: CharacterDescriptor = {
   render: {
     kind: 'gltf',
     url: '/models/characters/warrior.glb',
-    scale: 1,
+    scale: 1.35,
     offset: [0, 0, 0],
     yaw: 0,
-    clips: { idle: 'Idle', walk: 'Walk', run: 'Run', die: 'Die' },
+    clips: {
+      idle: 'Idle',
+      walk: 'Walk',
+      run: 'Run',
+      die: 'Die',
+      dance1: 'Dance1',
+      dance2: 'Dance2',
+    },
   },
 };
 
@@ -38,7 +45,7 @@ const mage: CharacterDescriptor = {
   render: {
     kind: 'gltf',
     url: '/models/characters/mage.glb',
-    scale: 1,
+    scale: 1.35,
     offset: [0, 0, 0],
     yaw: 0,
     clips: { idle: 'Idle', walk: 'Walk', run: 'Run' },
@@ -55,7 +62,7 @@ const archer: CharacterDescriptor = {
   render: {
     kind: 'gltf',
     url: '/models/characters/archer.glb',
-    scale: 0.01,
+    scale: 0.0135,
     offset: [0, 0, 0],
     yaw: 0,
     clips: { run: 'mixamo.com' },

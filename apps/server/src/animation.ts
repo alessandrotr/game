@@ -12,11 +12,20 @@
  */
 
 /** The replicated animation states (a subset of the client's logical names). */
-export type AnimState = 'idle' | 'walk' | 'run' | 'attack' | 'cast' | 'hit' | 'die';
+export type AnimState =
+  | 'idle'
+  | 'walk'
+  | 'run'
+  | 'attack'
+  | 'cast'
+  | 'hit'
+  | 'die'
+  | 'dance1'
+  | 'dance2';
 
-/** A transient, non-looping animation the server is currently asserting. */
+/** A transient animation the server is currently asserting (combat pose or emote). */
 export interface AnimOneShot {
-  name: 'attack' | 'cast' | 'hit';
+  name: 'attack' | 'cast' | 'hit' | 'dance1' | 'dance2';
   /** Sim time (ms) the one-shot ends at. */
   until: number;
 }

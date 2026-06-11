@@ -36,6 +36,15 @@ describe('createCharacterFSM', () => {
     expect(fsm.step({ ...still, event: 'hit' }, FRAME)).toBe('hit');
   });
 
+  it('plays an emote (dance) while still, and movement cancels it', () => {
+    const fsm = createCharacterFSM();
+    expect(fsm.step({ ...still, event: 'dance1' }, FRAME)).toBe('dance1');
+    // Keeps dancing while standing.
+    expect(fsm.step(still, FRAME)).toBe('dance1');
+    // Moving cancels the dance immediately → back to locomotion.
+    expect(fsm.step(moving, FRAME)).toBe('run');
+  });
+
   it('latches Death over everything until revival', () => {
     const fsm = createCharacterFSM();
     fsm.step({ ...moving, event: 'attack' }, FRAME);

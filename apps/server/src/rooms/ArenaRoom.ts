@@ -11,6 +11,7 @@ import {
   collideArenaObstacles,
   GRAVITY,
   GROUND_Y,
+  EMOTE_MS,
   JUMP_FORCE,
   MANA_REGEN,
   MATCH_KILL_TARGET,
@@ -29,6 +30,7 @@ import {
   ServerMessage,
   isAbilityKind,
   isCharacterClass,
+  isEmote,
   levelForXp,
   type AbilityConfig,
   type AbilityKind,
@@ -203,6 +205,15 @@ export class ArenaRoom extends Room<ArenaState> {
         this.verticalVelocity.set(client.sessionId, this.movement.jumpForce);
         this.grounded.set(client.sessionId, false);
       }
+    });
+
+    this.onMessage<{ emote: string }>(ClientMessage.Emote, (client, message) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !player.alive || !isEmote(message?.emote)) return;
+      this.animOneShots.set(client.sessionId, {
+        name: message.emote,
+        until: this.simTime + EMOTE_MS,
+      });
     });
 
     this.onMessage<{ ability: AbilityKind; dirX: number; dirZ: number; tx?: number; tz?: number }>(
@@ -789,6 +800,9 @@ export class ArenaRoom extends Room<ArenaState> {
       // Authoritative animation: one-shots over locomotion (Run = sprinting).
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
       const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
+      // Moving cancels a dance (but not a combat pose like cast/attack).
+      const active = this.animOneShots.get(sessionId);
+      if (active && moving && isEmote(active.name)) this.animOneShots.delete(sessionId);
       player.animState = computeAnimState({
         alive: true,
         moving,

@@ -4,6 +4,7 @@ import {
   CLICK_ROTATION_SPEED,
   CLICK_SPRINT_THRESHOLD,
   CLICK_STOPPING_DISTANCE,
+  EMOTE_MS,
   GRAVITY,
   GROUND_Y,
   JUMP_FORCE,
@@ -17,10 +18,11 @@ import {
   ServerMessage,
   collideTownObstacles,
   isCharacterClass,
+  isEmote,
 } from '@arena/shared';
 import { ArenaState, Player } from './schema.js';
 import { reviveFull } from '../combat.js';
-import { computeAnimState } from '../animation.js';
+import { computeAnimState, type AnimOneShot } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { getProgress, topPlayers } from '../db/players.js';
@@ -57,6 +59,8 @@ export class TownRoom extends Room<ArenaState> {
   /** Device id per session, carried into the match arena's seat reservation. */
   /** Session token per client, passed through to the arena seat reservation. */
   private readonly tokens = new Map<string, string>();
+  /** Active emote (dance) per player; cleared on movement or when it expires. */
+  private readonly animOneShots = new Map<string, AnimOneShot>();
   /** Session ids waiting in the 1v1 matchmaking queue, in join order. */
   private queue: string[] = [];
   private matching = false;
@@ -114,6 +118,14 @@ export class TownRoom extends Room<ArenaState> {
     this.onMessage(ClientMessage.Unqueue, (client) => {
       this.removeFromQueue(client.sessionId);
       this.sendQueueUpdate(client, false);
+    });
+
+    this.onMessage<{ emote: string }>(ClientMessage.Emote, (client, message) => {
+      if (!isEmote(message?.emote)) return;
+      this.animOneShots.set(client.sessionId, {
+        name: message.emote,
+        until: this.simTime + EMOTE_MS,
+      });
     });
 
     this.onMessage(ClientMessage.RequestLeaderboard, (client) => {
@@ -205,6 +217,7 @@ export class TownRoom extends Room<ArenaState> {
     this.verticalVelocity.delete(client.sessionId);
     this.grounded.delete(client.sessionId);
     this.tokens.delete(client.sessionId);
+    this.animOneShots.delete(client.sessionId);
     this.removeFromQueue(client.sessionId);
     this.chat.forget(client.sessionId);
   }
@@ -322,14 +335,20 @@ export class TownRoom extends Room<ArenaState> {
       }
       this.verticalVelocity.set(sessionId, vy);
 
-      // Locomotion-only animation (no combat poses in town).
+      // Locomotion + emotes (no combat poses in town). A dance plays until it
+      // expires or the player moves.
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
       const sprinting = this.destinations.get(sessionId)?.sprint ?? false;
+      let oneShot = this.animOneShots.get(sessionId) ?? null;
+      if (oneShot && (moving || this.simTime >= oneShot.until)) {
+        this.animOneShots.delete(sessionId);
+        oneShot = null;
+      }
       player.animState = computeAnimState({
         alive: true,
         moving,
         sprinting,
-        oneShot: null,
+        oneShot,
         now: this.simTime,
       });
     });

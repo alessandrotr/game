@@ -60,8 +60,27 @@ export const CLASS_TO_ASSET = {
 // Animation logical names
 // ---------------------------------------------------------------------------
 
-export const ANIMATION_NAMES = ['idle', 'walk', 'run', 'attack', 'cast', 'hit', 'die'] as const;
+export const ANIMATION_NAMES = [
+  'idle',
+  'walk',
+  'run',
+  'attack',
+  'cast',
+  'hit',
+  'die',
+  // Emotes — player-triggered loops (number keys), replicated like other states.
+  'dance1',
+  'dance2',
+] as const;
 export type AnimationName = (typeof ANIMATION_NAMES)[number];
+
+/** Emote animation names, in number-key order (1, 2, …). */
+export const EMOTES = ['dance1', 'dance2'] as const;
+export type EmoteName = (typeof EMOTES)[number];
+
+export function isEmote(name: string): name is EmoteName {
+  return (EMOTES as readonly string[]).includes(name);
+}
 
 // ---------------------------------------------------------------------------
 // Render sources — the replaceability seam.

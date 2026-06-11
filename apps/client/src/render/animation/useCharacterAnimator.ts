@@ -12,8 +12,15 @@ import type { AnimationName } from '@arena/shared';
  * machine that produces the name.
  */
 
-/** Logical animations that loop; everything else is a one-shot that clamps. */
-const LOOPING: ReadonlySet<AnimationName> = new Set<AnimationName>(['idle', 'walk', 'run']);
+/** Logical animations that loop; everything else is a one-shot that clamps.
+ *  Emotes (dances) loop while held by the FSM's emote one-shot window. */
+const LOOPING: ReadonlySet<AnimationName> = new Set<AnimationName>([
+  'idle',
+  'walk',
+  'run',
+  'dance1',
+  'dance2',
+]);
 
 /** Crossfade duration between clips, in seconds. */
 const FADE = 0.18;

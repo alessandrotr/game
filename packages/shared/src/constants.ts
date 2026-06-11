@@ -242,6 +242,9 @@ export const XP_PER_KILL = 50;
 /** Kills needed to win a ranked 1v1 match (first to this total). */
 export const MATCH_KILL_TARGET = 5;
 
+/** How long an emote (dance) plays before returning to idle, in milliseconds. */
+export const EMOTE_MS = 5000;
+
 /**
  * How long a finished ranked room lingers on the results screen before the
  * server force-disposes it. Clients normally return to town on their own well

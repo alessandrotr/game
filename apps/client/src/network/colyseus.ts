@@ -351,6 +351,11 @@ export function sendUnqueue(): void {
   room?.send(ClientMessage.Unqueue, {});
 }
 
+/** Play an emote (dance), replicated to everyone in the room. */
+export function sendEmote(emote: string): void {
+  room?.send(ClientMessage.Emote, { emote });
+}
+
 export function requestLeaderboard(): void {
   room?.send(ClientMessage.RequestLeaderboard, {});
 }

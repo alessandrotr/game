@@ -35,8 +35,8 @@ export function Hud() {
 
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
         {inArena
-          ? 'Right-click move · Left-click enemy to attack · Space jump · Q W E R · F talk'
-          : 'Right-click move · Click a portal to travel · F talk · Enter to chat'}
+          ? 'Right-click move · Left-click enemy to attack · Space jump · Q W E R · 1-2 dance'
+          : 'Right-click move · Click a player to inspect · Space jump · 1-2 dance · F talk · Enter to chat'}
       </div>
 
       {inArena ? <ActionBar /> : <QueuePanel />}

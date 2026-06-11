@@ -36,6 +36,8 @@ export enum ClientMessage {
   AbilityTune = 'ability_tune',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
+  /** Play an emote (dance) — replicated so everyone sees it. */
+  Emote = 'emote',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -103,6 +105,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.Queue]: Record<string, never>;
   [ClientMessage.Unqueue]: Record<string, never>;
   [ClientMessage.RequestLeaderboard]: Record<string, never>;
+  [ClientMessage.Emote]: { emote: string };
   [ClientMessage.DevTune]: {
     walkSpeed: number;
     sprintSpeed: number;
