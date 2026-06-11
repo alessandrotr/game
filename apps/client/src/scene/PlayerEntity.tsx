@@ -272,13 +272,13 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       {/* Chat speech bubble above the head (mirrors what the player typed). */}
       {bubble && (
-        <Html position={[0, 3.4, 0]} center distanceFactor={9} zIndexRange={[20, 0]}>
+        <Html position={[0, 3.4, 0]} center zIndexRange={[20, 0]}>
           <div
             key={bubble.nonce}
-            className="pointer-events-none relative max-w-[200px] -translate-y-1/2 whitespace-pre-wrap rounded-xl border border-black/10 bg-white/95 px-2.5 py-1.5 text-center text-[12px] font-medium leading-snug text-[#14151d] shadow-lg"
+            className="pointer-events-none relative w-max max-w-[280px] -translate-y-1/2 whitespace-pre-wrap rounded-2xl border border-black/10 bg-white/95 px-4 py-2.5 text-center text-[18px] font-semibold leading-snug text-[#14151d] shadow-xl"
           >
             {bubble.text}
-            <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[7px] border-x-transparent border-t-white/95" />
+            <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[9px] border-t-[11px] border-x-transparent border-t-white/95" />
           </div>
         </Html>
       )}
