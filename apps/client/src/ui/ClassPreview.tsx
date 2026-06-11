@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
-import { getClassDefinition } from '@arena/shared';
+import { getClassDefinition, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
@@ -31,8 +31,9 @@ function Pedestal({ color }: { color: string }) {
  * idle; drag to orbit, scroll/pinch to zoom. Its own R3F canvas, independent of
  * the game scene.
  */
-export function ClassPreview() {
-  const selected = useCharacterStore((s) => s.selectedClass);
+export function ClassPreview({ characterClass }: { characterClass?: CharacterClass } = {}) {
+  const storeSelected = useCharacterStore((s) => s.selectedClass);
+  const selected = characterClass ?? storeSelected;
   const def = getClassDefinition(selected);
   const descriptor = useMemo(() => resolveCharacter(selected), [selected]);
 

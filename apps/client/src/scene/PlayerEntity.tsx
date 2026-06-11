@@ -14,6 +14,7 @@ import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
+import { usePaperdollStore } from '../store/usePaperdollStore';
 import { sendAttack } from '../network/colyseus';
 import { getTuning } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
@@ -240,15 +241,27 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   });
 
   /** Left-click an enemy to attack-move + auto-attack it (right-click still moves). */
-  const onAttackDown = (e: { nativeEvent: MouseEvent; stopPropagation: () => void }) => {
+  const onPlayerClick = (e: { nativeEvent: MouseEvent; stopPropagation: () => void }) => {
     if (e.nativeEvent.button !== 0) return;
-    // No combat in town.
-    if (useGameStore.getState().room !== 'arena') return;
-    e.stopPropagation();
     const latest = useGameStore.getState().players.get(sessionId);
-    if (!latest || !latest.alive) return;
-    sendAttack(sessionId);
-    useTargetStore.getState().setTarget(sessionId);
+    if (!latest) return;
+    e.stopPropagation();
+    if (useGameStore.getState().room === 'arena') {
+      if (!latest.alive) return;
+      sendAttack(sessionId);
+      useTargetStore.getState().setTarget(sessionId);
+    } else {
+      // Town: inspect the clicked player (UO-style paperdoll).
+      usePaperdollStore.getState().open({
+        sessionId,
+        name: latest.name,
+        characterClass: latest.characterClass,
+        level: latest.level,
+        xp: latest.xp,
+        kills: latest.kills,
+        deaths: latest.deaths,
+      });
+    }
   };
 
   return (
@@ -259,7 +272,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       {/* Invisible click hitbox for targeting enemies (left-click). */}
       {!isLocal && (
-        <mesh position={[0, 1, 0]} onPointerDown={onAttackDown}>
+        <mesh position={[0, 1, 0]} onPointerDown={onPlayerClick}>
           <cylinderGeometry args={[0.7, 0.7, 2, 12]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>

@@ -6,6 +6,7 @@ import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
 import { Leaderboard } from './Leaderboard';
 import { LevelUpToast } from './LevelUpToast';
+import { Paperdoll } from './Paperdoll';
 
 /** In-game heads-up display: the player card, controls hint, and action bar. */
 export function Hud() {
@@ -43,6 +44,7 @@ export function Hud() {
 
       <MatchResult />
       <LevelUpToast />
+      <Paperdoll />
     </>
   );
 }
