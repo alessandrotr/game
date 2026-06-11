@@ -1,5 +1,6 @@
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { sendQueue, sendUnqueue } from '../network/colyseus';
+import { Button } from './primitives';
 
 /**
  * Town matchmaking control (Phase 11): a button to queue for a 1v1, and a
@@ -13,22 +14,22 @@ export function QueuePanel() {
   return (
     <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2">
       {searching ? (
-        <button
-          type="button"
+        <Button
+          variant="goldOutline"
           onClick={sendUnqueue}
-          className="font-display pointer-events-auto rounded-xl border border-gold/50 bg-panel/90 px-5 py-2.5 text-sm tracking-wide text-gold transition hover:brightness-110"
+          className="pointer-events-auto px-5 py-2.5"
         >
           ⚔ Searching for match… {size > 1 ? `(${size} queued)` : ''} ·{' '}
           <span className="text-muted">cancel</span>
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button
+          variant="gold"
           onClick={sendQueue}
-          className="font-display pointer-events-auto rounded-xl border border-gold/60 bg-gradient-to-b from-gold to-[#9c7a2c] px-5 py-2.5 text-sm font-semibold tracking-wide text-black shadow-[0_6px_20px_rgba(200,162,74,0.25)] transition hover:brightness-110"
+          className="pointer-events-auto px-5 py-2.5 shadow-[0_6px_20px_rgba(200,162,74,0.25)]"
         >
           Find 1v1 Match
-        </button>
+        </Button>
       )}
     </div>
   );

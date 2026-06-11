@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useGameStore } from '../store/useGameStore';
 import { travelTo } from '../network/colyseus';
+import { Button, Card, Overlay } from './primitives';
 
 /** Seconds the results screen shows before auto-returning to town. */
 const AUTO_RETURN_SECONDS = 8;
@@ -40,8 +41,8 @@ export function MatchResult() {
   const scores = [...result.scores].sort((a, b) => b.kills - a.kills);
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-2xl">
+    <Overlay closeOnBackdrop={false}>
+      <Card variant="modal" className="w-[340px]">
         <div
           className="px-6 py-5 text-center"
           style={{ background: `linear-gradient(180deg, ${accent}22, transparent)` }}
@@ -79,18 +80,18 @@ export function MatchResult() {
         </div>
 
         <div className="px-6 pb-5 pt-3">
-          <button
-            type="button"
+          <Button
+            variant="gold"
             onClick={() => void travelTo('town')}
-            className="font-display w-full rounded-xl border border-gold/60 bg-gradient-to-b from-gold to-[#9c7a2c] px-5 py-2.5 text-sm font-semibold tracking-wide text-black transition hover:brightness-110"
+            className="w-full px-5 py-2.5 shadow-none"
           >
             Return to Town
-          </button>
+          </Button>
           <div className="mt-2 text-center text-[11px] text-muted">
             Returning automatically in {secondsLeft}s…
           </div>
         </div>
-      </div>
-    </div>
+      </Card>
+    </Overlay>
   );
 }

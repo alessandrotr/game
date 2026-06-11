@@ -1,8 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
-
-const inputClass =
-  'rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-[15px] outline-none transition focus:border-gold';
+import { Button, Input } from './primitives';
 
 /**
  * Account gate: sign in or register with email + password. Shown before the
@@ -58,7 +56,7 @@ export function AuthScreen() {
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -66,10 +64,9 @@ export function AuthScreen() {
             autoComplete="email"
             required
             aria-label="Email"
-            className={inputClass}
           />
           {isRegister && (
-            <input
+            <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Display name"
@@ -77,10 +74,9 @@ export function AuthScreen() {
               autoComplete="username"
               required
               aria-label="Display name"
-              className={inputClass}
             />
           )}
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -88,15 +84,10 @@ export function AuthScreen() {
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             required
             aria-label="Password"
-            className={inputClass}
           />
-          <button
-            type="submit"
-            disabled={busy}
-            className="font-display mt-1 rounded-xl border border-gold/60 bg-gradient-to-b from-gold to-[#9c7a2c] px-4 py-3 text-base font-semibold tracking-[0.15em] text-black shadow-[0_8px_24px_rgba(200,162,74,0.25)] transition hover:brightness-110 disabled:cursor-progress disabled:opacity-60"
-          >
+          <Button type="submit" variant="gold" size="lg" disabled={busy} className="mt-1 tracking-[0.15em]">
             {busy ? 'PLEASE WAIT…' : isRegister ? 'CREATE ACCOUNT' : 'SIGN IN'}
-          </button>
+          </Button>
           {error && <div className="text-center text-[13px] text-red-400">{error}</div>}
         </form>
       </div>

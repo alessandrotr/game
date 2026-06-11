@@ -1,5 +1,6 @@
 import { useGameStore } from '../store/useGameStore';
 import { leaveToCharacterSelect } from '../network/colyseus';
+import { Badge, Button } from './primitives';
 import { ActionBar } from './ActionBar';
 import { QueuePanel } from './QueuePanel';
 import { PlayerCard } from './PlayerCard';
@@ -19,20 +20,20 @@ export function Hud() {
       <div className="pointer-events-none absolute left-4 top-4 flex w-64 flex-col items-stretch gap-2">
         <PlayerCard />
         {!inArena && (
-          <button
-            type="button"
+          <Button
+            variant="panel"
             onClick={() => void leaveToCharacterSelect()}
-            className="pointer-events-auto rounded-xl border border-white/10 bg-panel/85 px-3 py-2 text-xs tracking-wide text-muted backdrop-blur-md transition hover:text-text hover:brightness-110"
+            className="pointer-events-auto px-3 py-2 text-xs backdrop-blur-md"
           >
             ↩ Change Character
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Online count, top-right. */}
-      <div className="pointer-events-none absolute right-4 top-4 rounded-full border border-white/10 bg-panel/80 px-3 py-1.5 text-xs text-muted backdrop-blur-sm">
+      <Badge variant="neutral" className="pointer-events-none absolute right-4 top-4">
         ◍ {playerIds.length} online
-      </div>
+      </Badge>
 
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
         {inArena

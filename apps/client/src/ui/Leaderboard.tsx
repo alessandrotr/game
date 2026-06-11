@@ -1,6 +1,7 @@
 import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@arena/shared';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { requestLeaderboard } from '../network/colyseus';
+import { Button, Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from './primitives';
 
 /** Resolve a class string to its display name + accent color (safe for unknowns). */
 function classInfo(characterClass: string): { name: string; color: string } {
@@ -47,74 +48,66 @@ function Row({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
 export function Leaderboard() {
   const { open, loading, enabled, entries, setOpen, setLoading } = useLeaderboardStore();
 
-  const onOpen = () => {
-    setOpen(true);
-    setLoading(true);
-    requestLeaderboard();
+  // Fetch fresh standings each time the dialog opens; Radix drives open/close.
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) {
+      setLoading(true);
+      requestLeaderboard();
+    }
   };
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="font-display pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 rounded-xl border border-white/10 bg-panel/90 px-4 py-2 text-xs tracking-wide text-muted transition hover:text-text hover:brightness-110"
-      >
-        🏆 Leaderboard
-      </button>
-
-      {open && (
-        <div
-          className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          variant="panel"
+          className="font-display pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 bg-panel/90 text-xs"
         >
-          <div
-            className="w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <h2 className="font-display text-lg font-bold tracking-wide text-gold">
-                🏆 Leaderboard
-              </h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-muted transition hover:text-text"
-              >
-                ✕
-              </button>
-            </div>
+          🏆 Leaderboard
+        </Button>
+      </DialogTrigger>
 
-            <div className="max-h-[60vh] overflow-y-auto px-5 py-2">
-              {loading ? (
-                <div className="py-10 text-center text-sm text-muted">Loading…</div>
-              ) : !enabled ? (
-                <div className="py-10 text-center text-sm text-muted">
-                  Persistence is disabled on this server — no standings yet.
-                </div>
-              ) : entries.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted">
-                  No ranked matches played yet. Be the first to win one!
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3 border-b border-white/10 pb-1.5 text-[10px] uppercase tracking-wider text-muted">
-                    <span className="w-6 text-right">#</span>
-                    <span className="flex-1">Player</span>
-                    <span className="w-14">Class</span>
-                    <span className="w-9 text-center">Lvl</span>
-                    <span className="w-16 text-right">K / D</span>
-                    <span className="w-14 text-right">W–L</span>
-                  </div>
-                  {entries.map((entry, i) => (
-                    <Row key={i} entry={entry} rank={i + 1} />
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
+      <DialogContent className="w-[420px]" aria-describedby={undefined}>
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <DialogTitle className="font-display text-lg font-bold tracking-wide text-gold">
+            🏆 Leaderboard
+          </DialogTitle>
+          <DialogClose asChild>
+            <Button variant="ghost" size="none" aria-label="Close">
+              ✕
+            </Button>
+          </DialogClose>
         </div>
-      )}
-    </>
+
+        <div className="max-h-[60vh] overflow-y-auto px-5 py-2">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-muted">Loading…</div>
+          ) : !enabled ? (
+            <div className="py-10 text-center text-sm text-muted">
+              Persistence is disabled on this server — no standings yet.
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted">
+              No ranked matches played yet. Be the first to win one!
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 border-b border-white/10 pb-1.5 text-[10px] uppercase tracking-wider text-muted">
+                <span className="w-6 text-right">#</span>
+                <span className="flex-1">Player</span>
+                <span className="w-14">Class</span>
+                <span className="w-9 text-center">Lvl</span>
+                <span className="w-16 text-right">K / D</span>
+                <span className="w-14 text-right">W–L</span>
+              </div>
+              {entries.map((entry, i) => (
+                <Row key={i} entry={entry} rank={i + 1} />
+              ))}
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,38 +1,32 @@
 import { CLASS_LIST, getClassDefinition, type ClassDefinition } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { Badge, Card, Meter } from './primitives';
 
 // Upper bounds used to normalize the comparison bars.
 const STAT_MAX = { health: 160, mana: 150, moveSpeed: 8, attackDamage: 60 };
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-function StatRow({
-  label,
-  value,
-  max,
-  color,
-}: {
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-}) {
-  const ratio = Math.max(0, Math.min(1, value / max));
+/** A class comparison stat (Health / Mana / …) — `Meter` tuned for this screen. */
+function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-16 text-muted">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/50">
-        <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: color }} />
-      </div>
-      <span className="w-8 text-right tabular-nums text-white/80">{value}</span>
-    </div>
+    <Meter
+      value={value}
+      max={max}
+      fill={color}
+      label={label}
+      valueText={value}
+      className="text-xs"
+      labelClassName="w-16"
+      valueClassName="w-8"
+    />
   );
 }
 
 function ClassInfo({ def }: { def: ClassDefinition }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+    <Card variant="inset">
       <p className="mb-3 text-[13px] leading-relaxed text-muted">{def.description}</p>
       <div className="flex flex-col gap-2">
         <StatRow label="Health" value={def.stats.health} max={STAT_MAX.health} color={def.color} />
@@ -47,15 +41,12 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {def.abilities.map((ability) => (
-          <span
-            key={ability}
-            className="rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[11px] uppercase tracking-wider text-gold"
-          >
+          <Badge key={ability} variant="gold">
             {capitalize(ability)}
-          </span>
+          </Badge>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 

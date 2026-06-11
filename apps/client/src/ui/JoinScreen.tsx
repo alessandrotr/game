@@ -6,6 +6,7 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
+import { Button } from './primitives';
 
 /** Difficulty pips (UO-flavored). */
 function Difficulty({ level }: { level: number }) {
@@ -52,13 +53,9 @@ export function JoinScreen() {
             <span>
               Signed in as <span className="font-semibold text-text">{username}</span>
             </span>
-            <button
-              type="button"
-              onClick={signOut}
-              className="rounded-lg border border-white/10 px-2.5 py-1 transition hover:border-white/30 hover:text-text"
-            >
+            <Button variant="outline" size="sm" onClick={signOut}>
               Sign out
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -87,13 +84,9 @@ export function JoinScreen() {
             <CharacterSelect />
 
             <form onSubmit={onSubmit} className="mt-auto flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={connecting}
-                className="font-display rounded-xl border border-gold/60 bg-gradient-to-b from-gold to-[#9c7a2c] px-4 py-3 text-base font-semibold tracking-[0.15em] text-black shadow-[0_8px_24px_rgba(200,162,74,0.25)] transition hover:brightness-110 disabled:cursor-progress disabled:opacity-60"
-              >
+              <Button type="submit" variant="gold" size="lg" disabled={connecting} className="tracking-[0.15em]">
                 {connecting ? 'ENTERING…' : 'ENTER THE WORLD'}
-              </button>
+              </Button>
               {error && <div className="text-center text-[13px] text-red-400">{error}</div>}
             </form>
           </section>

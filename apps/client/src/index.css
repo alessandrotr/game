@@ -6,6 +6,7 @@
   --color-panel: #121628;
   --color-accent: #6c8cff;
   --color-gold: #c8a24a;
+  --color-gold-dark: #9c7a2c;
   --color-text: #e6e9f5;
   --color-muted: #8b91a8;
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
@@ -14,6 +15,14 @@
 /* Global base only: full-height app, dark scheme, canvas reset. No component CSS. */
 :root {
   color-scheme: dark;
+}
+
+/* Tailwind v4 made buttons use the default cursor; restore the pointer. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 html,

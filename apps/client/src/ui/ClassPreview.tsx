@@ -1,10 +1,21 @@
-import { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
+import { useMemo, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { ContactShadows, OrbitControls } from '@react-three/drei';
+import type { Group } from 'three';
 import { getClassDefinition, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
+
+/** Slowly spins its children about Y (used for the lite HUD portrait, which has
+ *  no OrbitControls). */
+function Spin({ children }: { children: React.ReactNode }) {
+  const ref = useRef<Group>(null);
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.rotation.y += dt * 0.6;
+  });
+  return <group ref={ref}>{children}</group>;
+}
 
 /** Glowing rune pedestal the champion stands on (Ultima-style circle). */
 function Pedestal({ color }: { color: string }) {
@@ -31,27 +42,59 @@ function Pedestal({ color }: { color: string }) {
  * idle; drag to orbit, scroll/pinch to zoom. Its own R3F canvas, independent of
  * the game scene.
  */
-export function ClassPreview({ characterClass }: { characterClass?: CharacterClass } = {}) {
+export function ClassPreview({
+  characterClass,
+  lite = false,
+}: {
+  characterClass?: CharacterClass;
+  /** Cheap auto-rotating bust for an always-on HUD: no shadows, env, contact
+   *  shadows, or controls — safe to keep rendering during gameplay. */
+  lite?: boolean;
+} = {}) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
   const def = getClassDefinition(selected);
   const descriptor = useMemo(() => resolveCharacter(selected), [selected]);
+
+  if (lite) {
+    return (
+      <Canvas
+        dpr={[1, 1.5]}
+        camera={{ position: [0, 1.25, 3.3], fov: 38 }}
+        onCreated={({ camera }) => camera.lookAt(0, 1.0, 0)}
+      >
+        <ambientLight intensity={0.85} />
+        <directionalLight position={[2, 4, 3]} intensity={1.4} color="#fff1d4" />
+        <directionalLight position={[-3, 2, -2]} intensity={0.5} color="#8ea8ff" />
+        <Spin>
+          <group key={selected}>
+            <CharacterModel descriptor={descriptor} />
+          </group>
+          <Pedestal color={def.color} />
+        </Spin>
+      </Canvas>
+    );
+  }
 
   return (
     <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.5, 4], fov: 42 }}>
       <color attach="background" args={['#0a0b12']} />
       <fog attach="fog" args={['#0a0b12', 6, 16]} />
 
-      <ambientLight intensity={0.45} />
+      {/* Lit explicitly (no IBL) — an <Environment> here fetches an HDR from a
+          CDN and suspends the whole canvas subtree while it loads, which kept
+          OrbitControls (and the model) from ever mounting if the asset was slow
+          or blocked. Matte characters don't need it. */}
+      <ambientLight intensity={0.7} />
       <directionalLight
         position={[3, 5, 2]}
-        intensity={1.5}
+        intensity={1.6}
         color="#fff1d4"
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <directionalLight position={[-4, 2, -3]} intensity={0.7} color="#6c8cff" />
-      <Environment preset="sunset" />
+      <directionalLight position={[-4, 2, -3]} intensity={0.8} color="#8ea8ff" />
+      <directionalLight position={[0, 3, -5]} intensity={0.5} color="#ffd9a8" />
 
       {/* Remount on class change so the new model pops in cleanly. */}
       <group key={selected}>

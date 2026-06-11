@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
 import { sendChat } from '../network/colyseus';
+import { Badge, Button, Input } from './primitives';
 
 const COLLAPSE_KEY = 'arena.chat.collapsed';
 
@@ -82,18 +83,14 @@ export function ChatPanel() {
 
   if (collapsed) {
     return (
-      <button
-        type="button"
+      <Button
+        variant="panel"
         onClick={() => toggle(false)}
-        className="pointer-events-auto absolute bottom-4 left-4 flex items-center gap-1.5 rounded-lg border border-white/10 bg-panel/80 px-3 py-2 text-[13px] text-muted backdrop-blur-sm transition hover:text-text"
+        className="pointer-events-auto absolute bottom-4 left-4 gap-1.5 rounded-lg bg-panel/80 px-3 py-2 text-[13px] backdrop-blur-sm"
       >
         💬 Chat
-        {messages.length > 0 && (
-          <span className="rounded-full bg-accent/20 px-1.5 text-[11px] font-semibold text-accent">
-            {messages.length}
-          </span>
-        )}
-      </button>
+        {messages.length > 0 && <Badge variant="accent">{messages.length}</Badge>}
+      </Button>
     );
   }
 
@@ -101,15 +98,9 @@ export function ChatPanel() {
     <div className="pointer-events-none absolute bottom-4 left-4 flex w-80 max-w-[60vw] flex-col gap-1">
       <div className="pointer-events-auto flex items-center justify-between px-1">
         <span className="text-[11px] uppercase tracking-wider text-muted">Chat</span>
-        <button
-          type="button"
-          onClick={() => toggle(true)}
-          aria-label="Hide chat"
-          title="Hide chat"
-          className="rounded px-1.5 text-sm text-muted transition hover:text-text"
-        >
+        <Button variant="ghost" size="icon" onClick={() => toggle(true)} aria-label="Hide chat" title="Hide chat">
           ▾
-        </button>
+        </Button>
       </div>
 
       {messages.length > 0 && (
@@ -126,14 +117,16 @@ export function ChatPanel() {
         </div>
       )}
       <form onSubmit={onSubmit} className="pointer-events-auto">
-        <input
+        <Input
           ref={inputRef}
+          tone="accent"
+          inputSize="sm"
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={CHAT_MAX_LENGTH}
           placeholder="Press Enter to chat…"
           aria-label="Chat message"
-          className="w-full rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-[13px] outline-none transition focus:border-accent"
+          className="w-full"
         />
       </form>
     </div>
