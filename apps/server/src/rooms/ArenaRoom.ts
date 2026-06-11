@@ -1,32 +1,31 @@
 import { Room, type Client } from '@colyseus/core';
 import {
   ABILITIES,
+  ABILITY_FIELD_META,
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
   ARENA_SPAWN_POINTS,
   AUTO_ATTACKS,
-  CLICK_ROTATION_SPEED,
-  CLICK_SPRINT_THRESHOLD,
-  CLICK_STOPPING_DISTANCE,
+  CLASS_ABILITY_OVERRIDES,
+  CLASS_DEFINITIONS,
+  CLASS_STAT_FIELD_META,
   collideArenaObstacles,
   GRAVITY,
   GROUND_Y,
   EMOTE_MS,
-  JUMP_FORCE,
   MANA_REGEN,
   MATCH_KILL_TARGET,
   MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
-  PLAYER_MAX_HP,
-  PLAYER_MAX_MANA,
+  MOVEMENT,
+  MOVEMENT_FIELD_META,
   PLAYER_RADIUS,
-  PLAYER_SPEED,
   PROJECTILE_LIFETIME_MS,
   RESPAWN_DELAY_MS,
-  SPRINT_SPEED,
   TICK_MS,
   XP_PER_KILL,
   ClientMessage,
+  type ClientMessagePayloads,
   ServerMessage,
   isAbilityKind,
   isCharacterClass,
@@ -36,6 +35,9 @@ import {
   type AbilityKind,
   type AutoAttackConfig,
   type CharacterClass,
+  type ClassStats,
+  type FieldMeta,
+  type MovementConfig,
 } from '@arena/shared';
 import { ArenaState, Player, Projectile } from './schema.js';
 import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
@@ -147,22 +149,56 @@ export class ArenaRoom extends Room<ArenaState> {
   /** Win/loss verdict per session, recorded to the DB when each player leaves. */
   private readonly outcomes = new Map<string, 'win' | 'loss'>();
 
-  /** Authoritative movement values, live-tunable via the dev tools. */
-  private movement = {
-    walkSpeed: PLAYER_SPEED,
-    sprintSpeed: SPRINT_SPEED,
-    jumpForce: JUMP_FORCE,
-    sprintThreshold: CLICK_SPRINT_THRESHOLD,
-    stoppingDistance: CLICK_STOPPING_DISTANCE,
-    rotationSpeed: CLICK_ROTATION_SPEED,
-  };
+  /**
+   * Authoritative balance for this room, seeded from the shared canonical values
+   * and live-tunable via the dev tools (per-room copies so tuning one room never
+   * leaks into another):
+   *  - `movement`: global movement "feel" (per-class walk speed is `classStats`).
+   *  - `classStats`: per-class HP / mana / move speed / attack.
+   *  - `abilityBase`: the global ability defaults.
+   *  - `classAbilityOverrides`: per-class deltas over the base.
+   */
+  private readonly movement: MovementConfig = structuredClone(MOVEMENT);
+  private readonly classStats: Record<CharacterClass, ClassStats> = structuredClone(
+    Object.fromEntries(
+      (Object.keys(CLASS_DEFINITIONS) as CharacterClass[]).map((c) => [c, CLASS_DEFINITIONS[c].stats]),
+    ),
+  ) as Record<CharacterClass, ClassStats>;
+  private readonly abilityBase: Record<AbilityKind, AbilityConfig> = structuredClone(ABILITIES);
+  private readonly classAbilityOverrides: Partial<
+    Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>
+  > = structuredClone(CLASS_ABILITY_OVERRIDES);
+
+  /** The effective ability config for a class = global base ⊕ that class's override. */
+  private abilityFor(characterClass: string, kind: AbilityKind): AbilityConfig {
+    const override = this.classAbilityOverrides[characterClass as CharacterClass]?.[kind];
+    return override ? { ...this.abilityBase[kind], ...override } : this.abilityBase[kind];
+  }
+
+  /** Per-player walk speed (the class move-speed stat). Class is validated on
+   *  join, so the fallback only guards against an unexpected/blank class. */
+  private walkSpeedFor(characterClass: string): number {
+    return this.classStats[characterClass as CharacterClass]?.moveSpeed ?? CLASS_DEFINITIONS.warrior.stats.moveSpeed;
+  }
 
   /**
-   * Authoritative ability balance, seeded from the shared defaults and
-   * live-tunable via the dev tools (the Leva combat panel pushes overrides). A
-   * per-room copy so tuning one room never leaks into another.
+   * Merge a numeric override patch into a target, clamping each field to its
+   * meta range and ignoring unknown/non-numeric fields — the single validation
+   * path for every dev-tune message (ranges come from the shared field meta).
    */
-  private readonly abilities: Record<AbilityKind, AbilityConfig> = structuredClone(ABILITIES);
+  private mergeTuned(
+    target: Record<string, number>,
+    patch: Record<string, unknown> | undefined,
+    meta: Partial<Record<string, FieldMeta>>,
+  ): void {
+    if (!patch || typeof patch !== 'object') return;
+    for (const [field, value] of Object.entries(patch)) {
+      const m = meta[field];
+      if (m && typeof value === 'number' && Number.isFinite(value)) {
+        target[field] = clamp(value, m.min, m.max);
+      }
+    }
+  }
 
   override onCreate(options?: { match?: boolean }): void {
     // A matchmade 1v1: cap at two players and hide from public join (only the
@@ -231,14 +267,7 @@ export class ArenaRoom extends Room<ArenaState> {
     });
 
     this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) => {
-      const num = (v: unknown, fallback: number, max: number) =>
-        Number.isFinite(v) ? clamp(v as number, 0, max) : fallback;
-      this.movement.walkSpeed = num(message?.walkSpeed, this.movement.walkSpeed, 40);
-      this.movement.sprintSpeed = num(message?.sprintSpeed, this.movement.sprintSpeed, 50);
-      this.movement.jumpForce = num(message?.jumpForce, this.movement.jumpForce, 40);
-      this.movement.sprintThreshold = num(message?.sprintThreshold, this.movement.sprintThreshold, 40);
-      this.movement.stoppingDistance = num(message?.stoppingDistance, this.movement.stoppingDistance, 5);
-      this.movement.rotationSpeed = num(message?.rotationSpeed, this.movement.rotationSpeed, 30);
+      this.mergeTuned(this.movement as unknown as Record<string, number>, message, MOVEMENT_FIELD_META);
     });
 
     this.onMessage(ClientMessage.StopMove, (client) => {
@@ -252,17 +281,41 @@ export class ArenaRoom extends Room<ArenaState> {
 
     this.onMessage(
       ClientMessage.AbilityTune,
-      (_client, message: Partial<Record<AbilityKind, Partial<AbilityConfig>>>) => {
+      (_client, message: ClientMessagePayloads[ClientMessage.AbilityTune]) => {
         if (!message || typeof message !== 'object') return;
-        for (const [kind, overrides] of Object.entries(message)) {
-          if (!isAbilityKind(kind) || !overrides) continue;
-          const config = this.abilities[kind] as unknown as Record<string, number>;
-          // Merge only finite, non-negative numeric fields — ignore junk.
-          for (const [field, value] of Object.entries(overrides)) {
-            if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-              config[field] = value;
-            }
+        // Global base patches.
+        for (const [kind, overrides] of Object.entries(message.global ?? {})) {
+          if (!isAbilityKind(kind)) continue;
+          this.mergeTuned(
+            this.abilityBase[kind] as unknown as Record<string, number>,
+            overrides as Record<string, unknown>,
+            ABILITY_FIELD_META,
+          );
+        }
+        // Per-class delta patches.
+        for (const [cls, byKind] of Object.entries(message.perClass ?? {})) {
+          if (!isCharacterClass(cls) || !byKind) continue;
+          const classOverrides = (this.classAbilityOverrides[cls] ??= {});
+          for (const [kind, overrides] of Object.entries(byKind)) {
+            if (!isAbilityKind(kind)) continue;
+            const slot = (classOverrides[kind] ??= {});
+            this.mergeTuned(slot as Record<string, number>, overrides as Record<string, unknown>, ABILITY_FIELD_META);
           }
+        }
+      },
+    );
+
+    this.onMessage(
+      ClientMessage.StatTune,
+      (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) => {
+        if (!message || typeof message !== 'object') return;
+        for (const [cls, patch] of Object.entries(message)) {
+          if (!isCharacterClass(cls)) continue;
+          this.mergeTuned(
+            this.classStats[cls] as unknown as Record<string, number>,
+            patch as Record<string, unknown>,
+            CLASS_STAT_FIELD_META,
+          );
         }
       },
     );
@@ -383,7 +436,7 @@ export class ArenaRoom extends Room<ArenaState> {
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
 
     const ability = message.ability;
-    const config = this.abilities[ability];
+    const config = this.abilityFor(player.characterClass, ability);
     const cd = this.cooldowns.get(sessionId);
     if (!cd) return;
 
@@ -581,7 +634,7 @@ export class ArenaRoom extends Room<ArenaState> {
     if (dist > cfg.range) {
       // Chase: walk toward the target, stopping right at attack range.
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const step = Math.min(this.movement.walkSpeed * dt, dist - cfg.range + 0.01);
+      const step = Math.min(this.walkSpeedFor(attacker.characterClass) * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
       attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
       return;
@@ -767,7 +820,8 @@ export class ArenaRoom extends Room<ArenaState> {
             const ndz = dz / distance;
             // Constant speed for the whole trip (decided at issue time) so the
             // player doesn't slow to a walk as it nears the mark.
-            const speed = dest.sprint ? m.sprintSpeed : m.walkSpeed;
+            const walk = this.walkSpeedFor(player.characterClass);
+            const speed = dest.sprint ? walk * m.sprintMultiplier : walk;
             const step = Math.min(speed * dt, remaining);
             player.x = clamp(player.x + ndx * step, -limit, limit);
             player.z = clamp(player.z + ndz * step, -limit, limit);
@@ -889,8 +943,9 @@ export class ArenaRoom extends Room<ArenaState> {
       player.z = (Math.random() * 2 - 1) * range;
     }
     player.y = GROUND_Y;
-    player.maxHp = PLAYER_MAX_HP;
-    player.maxMana = PLAYER_MAX_MANA;
+    const stats = this.classStats[player.characterClass as CharacterClass];
+    player.maxHp = stats.health;
+    player.maxMana = stats.mana;
     reviveFull(player);
   }
 }

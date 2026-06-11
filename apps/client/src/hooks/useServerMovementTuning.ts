@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
-import { useTuningStore } from '../tuning/useTuningStore';
+import type { ClientMessage, ClientMessagePayloads } from '@arena/shared';
+import { getMovementFeel, useTuningStore } from '../tuning';
 import { sendDevTune } from '../network/colyseus';
 
 /**
- * Dev-only: streams the Player movement tuning (walk/sprint/jump) to the
- * authoritative server so Leva edits apply live to the real simulation. The
- * server is still the source of truth — this just lets it be tuned at runtime.
- * Stripped from production builds via `import.meta.env.DEV`.
+ * Dev-only: streams the global movement "feel" (sprint multiplier, jump, turn,
+ * stop, sprint threshold) to the authoritative server so Leva edits apply live.
+ * Per-class walk speed travels via the stat-tuning hook. Stripped from prod via
+ * `import.meta.env.DEV`.
  */
 export function useServerMovementTuning(connected: boolean): void {
   useEffect(() => {
@@ -14,16 +15,15 @@ export function useServerMovementTuning(connected: boolean): void {
 
     let last = '';
     const push = () => {
-      const p = useTuningStore.getState().values.player;
-      const next = {
-        walkSpeed: p.walkSpeed,
-        sprintSpeed: p.sprintSpeed,
-        jumpForce: p.jumpForce,
-        sprintThreshold: p.sprintThreshold,
-        stoppingDistance: p.stoppingDistance,
-        rotationSpeed: p.rotationSpeed,
+      const m = getMovementFeel();
+      const next: ClientMessagePayloads[ClientMessage.DevTune] = {
+        sprintMultiplier: m.sprintMultiplier,
+        jumpForce: m.jumpForce,
+        sprintThreshold: m.sprintThreshold,
+        stoppingDistance: m.stoppingDistance,
+        rotationSpeed: m.rotationSpeed,
       };
-      const key = Object.values(next).join('|');
+      const key = JSON.stringify(next);
       if (key === last) return;
       last = key;
       sendDevTune(next);

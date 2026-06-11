@@ -8,6 +8,8 @@
  */
 
 import type { AbilityConfig, AbilityKind } from './constants.js';
+import type { CharacterClass } from './assets.js';
+import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
 
 /** Message identifiers sent from client to server. */
@@ -30,10 +32,12 @@ export enum ClientMessage {
   Queue = 'queue',
   /** Leave the matchmaking queue. */
   Unqueue = 'unqueue',
-  /** Dev-only: live-tune authoritative movement values for the room. */
+  /** Dev-only: live-tune authoritative movement "feel" for the room. */
   DevTune = 'dev_tune',
-  /** Dev-only: live-tune authoritative ability balance values for the room. */
+  /** Dev-only: live-tune ability balance (global base and/or per-class overrides). */
   AbilityTune = 'ability_tune',
+  /** Dev-only: live-tune per-class stats (HP / mana / move speed / attack). */
+  StatTune = 'stat_tune',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
@@ -106,16 +110,24 @@ export interface ClientMessagePayloads {
   [ClientMessage.Unqueue]: Record<string, never>;
   [ClientMessage.RequestLeaderboard]: Record<string, never>;
   [ClientMessage.Emote]: { emote: string };
+  /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
   [ClientMessage.DevTune]: {
-    walkSpeed: number;
-    sprintSpeed: number;
+    sprintMultiplier: number;
     jumpForce: number;
     sprintThreshold: number;
     stoppingDistance: number;
     rotationSpeed: number;
   };
-  /** Per-ability balance overrides, in the server's own units (ms, world units). */
-  [ClientMessage.AbilityTune]: Partial<Record<AbilityKind, Partial<AbilityConfig>>>;
+  /**
+   * Ability balance overrides, in the server's own units (ms, world units):
+   * `global` patches the shared base; `perClass` patches a single class's copy.
+   */
+  [ClientMessage.AbilityTune]: {
+    global?: Partial<Record<AbilityKind, Partial<AbilityConfig>>>;
+    perClass?: Partial<Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>>;
+  };
+  /** Per-class stat overrides (HP / mana / move speed / attack). */
+  [ClientMessage.StatTune]: Partial<Record<CharacterClass, Partial<ClassStats>>>;
 }
 
 /** Payload map for {@link ServerMessage}. */

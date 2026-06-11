@@ -1,4 +1,5 @@
 export * from './constants.js';
+export * from './balance.js';
 export * from './assets.js';
 export * from './classes.js';
 export * from './types.js';

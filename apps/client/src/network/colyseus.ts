@@ -414,6 +414,11 @@ export function sendAbilityTune(values: ClientMessagePayloads[ClientMessage.Abil
   room?.send(ClientMessage.AbilityTune, values);
 }
 
+/** Dev-only: push live per-class stat overrides to the authoritative server. */
+export function sendStatTune(values: ClientMessagePayloads[ClientMessage.StatTune]): void {
+  room?.send(ClientMessage.StatTune, values);
+}
+
 /** Leave the current room, if any. */
 export function disconnect(): void {
   room?.leave(true);

@@ -6,6 +6,7 @@ import { useJump } from './hooks/useJump';
 import { useEmotes } from './hooks/useEmotes';
 import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
+import { useServerStatTuning } from './hooks/useServerStatTuning';
 import { useInteractionInput } from './hooks/useInteractionInput';
 import { GameScene } from './scene/GameScene';
 import { JoinScreen } from './ui/JoinScreen';
@@ -35,6 +36,7 @@ export default function App() {
   useEmotes(connected); // number keys → dances, in both worlds
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);
+  useServerStatTuning(connected && inArena);
   useInteractionInput(connected);
 
   // Sign-in gate sits in front of everything. While restoring a saved session,

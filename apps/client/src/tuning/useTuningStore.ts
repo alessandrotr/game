@@ -1,48 +1,96 @@
 import { create } from 'zustand';
-import { defaultTuning, type AbilityId, type AbilityTuning, type Tuning } from './defaults';
+import { persist } from 'zustand/middleware';
+import type { AbilityConfig, AbilityKind, CharacterClass, ClassStats, MovementConfig } from '@arena/shared';
+import {
+  effectiveCamera,
+  effectiveMovement,
+  exportBalance,
+  localMovement,
+  type BalanceOverrides,
+  type CameraConfig,
+  type LocalMovement,
+} from './balance';
 
 interface TuningStore {
-  /** Current tuning values (start at defaults; the dev panel edits them). */
-  values: Tuning;
-  /** Patch a flat section (player/combat/arena/camera/ai). */
-  setSection: <K extends keyof Tuning>(section: K, patch: Partial<Tuning[K]>) => void;
-  /** Patch a single ability's tuning. */
-  setAbility: (id: AbilityId, patch: Partial<AbilityTuning>) => void;
-  /** Restore all values to defaults. */
+  /** The override diff over the shared canonical balance (persisted). */
+  overrides: BalanceOverrides;
+  setMovement: (patch: Partial<MovementConfig>) => void;
+  setCamera: (patch: Partial<CameraConfig>) => void;
+  setClassStat: (c: CharacterClass, patch: Partial<ClassStats>) => void;
+  setAbilityBase: (k: AbilityKind, patch: Partial<AbilityConfig>) => void;
+  setClassAbility: (c: CharacterClass, k: AbilityKind, patch: Partial<AbilityConfig>) => void;
+  /** Clear all overrides (back to shared canonical defaults). */
   reset: () => void;
 }
 
 /**
- * Holds the live tuning values. Always present (no Leva dependency). Systems
- * read from here; the dev-only Leva panels are the only writers.
+ * Live tuning overrides. Always present (no Leva dependency) and persisted to
+ * localStorage so a balancing session survives a reload. Gameplay/render read
+ * the effective values via the resolvers below; the dev panels are the writers.
  */
-export const useTuningStore = create<TuningStore>((set) => ({
-  values: structuredClone(defaultTuning),
+export const useTuningStore = create<TuningStore>()(
+  persist(
+    (set) => ({
+      overrides: {},
 
-  setSection: (section, patch) =>
-    set((s) => ({ values: { ...s.values, [section]: { ...s.values[section], ...patch } } })),
+      setMovement: (patch) =>
+        set((s) => ({ overrides: { ...s.overrides, movement: { ...s.overrides.movement, ...patch } } })),
 
-  setAbility: (id, patch) =>
-    set((s) => ({
-      values: {
-        ...s.values,
-        abilities: { ...s.values.abilities, [id]: { ...s.values.abilities[id], ...patch } },
-      },
-    })),
+      setCamera: (patch) =>
+        set((s) => ({ overrides: { ...s.overrides, camera: { ...s.overrides.camera, ...patch } } })),
 
-  reset: () => set({ values: structuredClone(defaultTuning) }),
-}));
+      setClassStat: (c, patch) =>
+        set((s) => ({
+          overrides: {
+            ...s.overrides,
+            classStats: { ...s.overrides.classStats, [c]: { ...s.overrides.classStats?.[c], ...patch } },
+          },
+        })),
 
-/**
- * Reactive selector for components — re-renders when the selected slice changes.
- * Use in React components (e.g. to feed props that should update live).
- */
-export function useTuning<T>(selector: (values: Tuning) => T): T {
-  return useTuningStore((s) => selector(s.values));
+      setAbilityBase: (k, patch) =>
+        set((s) => ({
+          overrides: {
+            ...s.overrides,
+            abilityBase: { ...s.overrides.abilityBase, [k]: { ...s.overrides.abilityBase?.[k], ...patch } },
+          },
+        })),
+
+      setClassAbility: (c, k, patch) =>
+        set((s) => {
+          const forClass = s.overrides.classAbilities?.[c];
+          return {
+            overrides: {
+              ...s.overrides,
+              classAbilities: {
+                ...s.overrides.classAbilities,
+                [c]: { ...forClass, [k]: { ...forClass?.[k], ...patch } },
+              },
+            },
+          };
+        }),
+
+      reset: () => set({ overrides: {} }),
+    }),
+    { name: 'arena.balance.overrides' },
+  ),
+);
+
+// --- Effective-value accessors (canonical ⊕ overrides) ---
+
+/** Non-reactive snapshot of the local-player movement, for `useFrame` hot paths. */
+export const getLocalMovement = (c: CharacterClass): LocalMovement =>
+  localMovement(useTuningStore.getState().overrides, c);
+
+/** Non-reactive movement feel (sprint threshold, etc.). */
+export const getMovementFeel = (): MovementConfig => effectiveMovement(useTuningStore.getState().overrides);
+
+/** Non-reactive camera snapshot. */
+export const getCamera = (): CameraConfig => effectiveCamera(useTuningStore.getState().overrides);
+
+/** Reactive selector over the override diff (for panels / the export button). */
+export function useOverrides<T>(selector: (o: BalanceOverrides) => T): T {
+  return useTuningStore((s) => selector(s.overrides));
 }
 
-/**
- * Non-reactive snapshot for hot paths — read inside `useFrame` so live edits
- * apply without triggering React re-renders.
- */
-export const getTuning = (): Tuning => useTuningStore.getState().values;
+/** The current effective balance as a paste-ready snapshot string. */
+export const getExportedBalance = (): string => exportBalance(useTuningStore.getState().overrides);

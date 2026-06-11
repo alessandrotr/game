@@ -1,60 +1,55 @@
-import { useEffect } from 'react';
-import { button } from 'leva';
-import { defaultTuning, type AbilityId, type AbilityTuning } from '../tuning/defaults';
-import { useTuningStore } from '../tuning/useTuningStore';
-import { useLevaSection } from './levaControls';
-import type { ControlMeta } from './tuningModules';
+import {
+  ABILITY_FIELD_META,
+  ABILITY_KINDS,
+  CLASS_DEFINITIONS,
+  type AbilityConfig,
+  type CharacterClass,
+} from '@arena/shared';
+import { effectiveAbilityBase, effectiveAbilityForClass, useTuningStore } from '../tuning';
+import { MetaPanel } from './MetaPanel';
 
-/** Control metadata shared across abilities, keyed by ability field name. */
-const ABILITY_CONTROLS: Record<string, ControlMeta> = {
-  damage: { min: 0, max: 200, step: 1, label: 'Damage' },
-  cooldown: { min: 0, max: 30, step: 0.1, label: 'Cooldown (s)' },
-  manaCost: { min: 0, max: 200, step: 1, label: 'Mana Cost' },
-  castTime: { min: 0, max: 5, step: 0.05, label: 'Cast Time (s)' },
-  projectileSpeed: { min: 0, max: 60, step: 0.5, label: 'Projectile Speed' },
-  distance: { min: 0, max: 30, step: 0.1, label: 'Distance' },
-  aoeRadius: { min: 0, max: 15, step: 0.1, label: 'AoE Radius' },
-  amount: { min: 0, max: 200, step: 1, label: 'Amount' },
-};
+const titleCase = (s: string) =>
+  s
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 
-const titleCase = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
-
-/** One Leva folder per ability — each isolated so field names can repeat. */
-function AbilityControls({ id }: { id: AbilityId }) {
-  const abilityDefaults = defaultTuning.abilities[id] as unknown as Record<string, number>;
-
-  const [values, set] = useLevaSection(
-    `Ability · ${titleCase(id)}`,
-    () => {
-      const schema: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(abilityDefaults)) {
-        schema[key] = { value, ...(ABILITY_CONTROLS[key] ?? {}) };
-      }
-      schema['Reset to defaults'] = button(() => set(abilityDefaults));
-      return schema;
-    },
-    { collapsed: true },
-  );
-
-  useEffect(() => {
-    useTuningStore.getState().setAbility(id, values as unknown as Partial<AbilityTuning>);
-  }, [id, values]);
-
-  return null;
-}
+const asNumbers = (cfg: AbilityConfig) => cfg as unknown as Record<string, number>;
 
 /**
- * Combat balancing panel. Renders a folder per ability, derived from the
- * registry — adding an ability to `defaultTuning.abilities` (and `AbilityId`)
- * makes a panel appear automatically, with no changes here.
+ * Ability balance folders, generated from the shared meta: one per ability for
+ * the GLOBAL base, plus one per (class, ability-in-its-kit) for PER-CLASS
+ * overrides. Editing a class folder only diverges that class; the global folder
+ * moves the shared baseline.
  */
-export function AbilityPanel() {
-  const ids = Object.keys(defaultTuning.abilities) as AbilityId[];
+export function AbilityPanels() {
+  const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];
   return (
     <>
-      {ids.map((id) => (
-        <AbilityControls key={id} id={id} />
+      {ABILITY_KINDS.map((kind) => (
+        <MetaPanel
+          key={`global-${kind}`}
+          folder={`Ability (Global) · ${titleCase(kind)}`}
+          meta={ABILITY_FIELD_META}
+          getInitial={() => asNumbers(effectiveAbilityBase(useTuningStore.getState().overrides, kind))}
+          onChange={(patch) => useTuningStore.getState().setAbilityBase(kind, patch as Partial<AbilityConfig>)}
+        />
       ))}
+      {classes.flatMap((c) =>
+        CLASS_DEFINITIONS[c].abilities.map((kind) => (
+          <MetaPanel
+            key={`${c}-${kind}`}
+            folder={`${CLASS_DEFINITIONS[c].name} · ${titleCase(kind)}`}
+            meta={ABILITY_FIELD_META}
+            getInitial={() =>
+              asNumbers(effectiveAbilityForClass(useTuningStore.getState().overrides, c, kind))
+            }
+            onChange={(patch) =>
+              useTuningStore.getState().setClassAbility(c, kind, patch as Partial<AbilityConfig>)
+            }
+          />
+        )),
+      )}
     </>
   );
 }

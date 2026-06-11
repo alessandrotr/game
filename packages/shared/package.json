@@ -19,5 +19,8 @@
     "dev": "tsc -b --watch --preserveWatchOutput",
     "typecheck": "tsc -b --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

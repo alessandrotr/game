@@ -18,7 +18,7 @@ import { CharacterModel } from '../render/CharacterModel';
 import { MapView } from '../render/MapView';
 import { VfxLayer } from '../render/VfxLayer';
 import { useEffectsStore } from '../store/useEffectsStore';
-import { useTuning } from '../tuning';
+import { effectiveCamera, localMovement, useOverrides } from '../tuning';
 import { DevToolsGate } from '../devtools';
 
 // Capsule collider sized to the placeholder characters (feet at the body origin).
@@ -40,7 +40,10 @@ function PoweredCharacter({ characterClass }: { characterClass: CharacterClass }
   const descriptor = useMemo(() => resolveCharacter(characterClass), [characterClass]);
   // Inject tuned movement values; field names match the controller config 1:1,
   // and the new object identity on each edit makes changes apply live.
-  const player = useTuning((t) => t.player);
+  const player = localMovement(
+    useOverrides((o) => o),
+    characterClass,
+  );
   const state = useRapierCharacterController({
     bodyRef,
     visualRef,
@@ -98,7 +101,7 @@ function PoweredCharacter({ characterClass }: { characterClass: CharacterClass }
 
 /** Follow camera whose distance/height/smoothing are driven by camera tuning. */
 function TunedFollowCamera({ target }: { target: RefObject<Group | null> }) {
-  const camera = useTuning((t) => t.camera);
+  const camera = effectiveCamera(useOverrides((o) => o));
   return (
     <FollowCamera
       target={target}

@@ -9,6 +9,7 @@ import {
   collideArenaObstacles,
   collideTownObstacles,
   type AnimationName,
+  type CharacterClass,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
@@ -17,7 +18,7 @@ import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
 import { sendAttack } from '../network/colyseus';
-import { getTuning } from '../tuning';
+import { getLocalMovement } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
@@ -142,7 +143,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         predictedRot.current = latest.rotation;
       }
       const pos = predicted.current;
-      const tuning = getTuning().player;
+      const tuning = getLocalMovement(latest.characterClass as CharacterClass);
       // Mirror the server's bounds + obstacles for the current world, so the
       // prediction matches (town and arena have different sizes and props).
       const isArena = useGameStore.getState().room === 'arena';

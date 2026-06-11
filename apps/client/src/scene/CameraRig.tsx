@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
-import { getTuning } from '../tuning';
+import { getCamera } from '../tuning';
 
 /**
  * Fixed-angle isometric-style camera that smoothly follows the local player.
@@ -27,7 +27,7 @@ export function CameraRig() {
       target.set(me.x, 0, me.z);
     }
 
-    const cam = getTuning().camera;
+    const cam = getCamera();
     desired.set(target.x, target.y + cam.height, target.z + cam.distance);
     const t = 1 - Math.exp(-cam.followSmoothing * delta);
     camera.position.lerp(desired, t);

@@ -5,7 +5,7 @@ import { setDestination } from '../store/destinationState';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { useTargetStore } from '../store/targetState';
 import { useAbilityTargeting } from '../store/abilityTargeting';
-import { getTuning } from '../tuning';
+import { getMovementFeel } from '../tuning';
 import { sendMoveTo } from '../network/colyseus';
 
 /** Ground plane (y = 0) the cursor is projected onto. */
@@ -88,7 +88,7 @@ export function MouseMove() {
     // Lock sprint-vs-walk on the player→target distance (matches the server).
     const me = getLocalRenderTransform();
     const targetDist = Math.hypot(point.current.x - me.x, point.current.z - me.z);
-    const sprint = targetDist > getTuning().player.sprintThreshold;
+    const sprint = targetDist > getMovementFeel().sprintThreshold;
 
     // Update local prediction every frame; throttle the authoritative update.
     setDestination(point.current.x, point.current.z, sprint);
