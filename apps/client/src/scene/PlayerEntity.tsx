@@ -296,7 +296,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       {/* Name + HP bar always face the camera (billboarded), independent of
           the character's facing. */}
-      <Billboard position={[0, 1.95, 0]}>
+      <Billboard position={[0, 2.7, 0]}>
         <mesh>
           <planeGeometry args={[HP_BAR_WIDTH, 0.12]} />
           <meshBasicMaterial color="#1a1f2e" />
@@ -306,7 +306,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           <meshBasicMaterial color="#4ade80" />
         </mesh>
         <Text
-          position={[0, 0.35, 0]}
+          position={[0, 0.2, 0]}
           fontSize={0.32}
           color="#e6e9f5"
           anchorX="center"

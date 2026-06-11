@@ -43,17 +43,7 @@ export const MAP_NPCS: Partial<Record<MapAssetId, NpcInstance[]>> = {
       interactionRadius: 3,
     },
   ],
-  'map.town': [
-    {
-      id: 'npc.town.merchant',
-      name: 'Merchant',
-      characterId: 'char.npc.merchant',
-      position: [0, 0, 2],
-      rotation: Math.PI,
-      dialogueId: 'dialogue.merchant',
-      interactionRadius: 3,
-    },
-  ],
+  'map.town': [],
 };
 
 export function npcsForMap(mapId: MapAssetId): NpcInstance[] {

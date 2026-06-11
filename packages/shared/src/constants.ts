@@ -185,8 +185,6 @@ export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[]
   { x: 10, z: 24, radius: 1.5 },
   // Town centre & furniture.
   { x: 0, z: -2, radius: 1.2 }, // well
-  { x: -1.8, z: -13.5, radius: 0.6 }, // arch pillar
-  { x: 1.8, z: -13.5, radius: 0.6 }, // arch pillar
   { x: 5, z: 5, radius: 1.3 }, // stall
   { x: -5, z: 6, radius: 1.3 }, // stall
   { x: 7, z: 2, radius: 0.9 }, // cart

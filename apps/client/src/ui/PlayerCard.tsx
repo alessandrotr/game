@@ -51,7 +51,7 @@ export function PlayerCard() {
   const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
 
   return (
-    <div className="pointer-events-none absolute left-4 top-4 w-64 overflow-hidden rounded-2xl border border-white/10 bg-panel/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+    <div className="pointer-events-none w-64 overflow-hidden rounded-2xl border border-white/10 bg-panel/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
       {/* Class-tinted header strip */}
       <div
         className="flex items-center gap-3 px-3 py-3"

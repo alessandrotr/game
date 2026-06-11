@@ -120,7 +120,7 @@ export const defaultTuning: Tuning = {
   camera: {
     distance: 13.5,
     height: 15.8,
-    followSmoothing: 8,
+    followSmoothing: 30,
   },
   abilities: {
     fireball: { damage: 30, cooldown: 1.5, manaCost: 20, projectileSpeed: 18 },

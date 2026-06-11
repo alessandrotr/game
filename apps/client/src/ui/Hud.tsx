@@ -15,28 +15,29 @@ export function Hud() {
 
   return (
     <>
-      <PlayerCard />
+      {/* Left column: player card + (town) the change-character button under it. */}
+      <div className="pointer-events-none absolute left-4 top-4 flex w-64 flex-col items-stretch gap-2">
+        <PlayerCard />
+        {!inArena && (
+          <button
+            type="button"
+            onClick={() => void leaveToCharacterSelect()}
+            className="pointer-events-auto rounded-xl border border-white/10 bg-panel/85 px-3 py-2 text-xs tracking-wide text-muted backdrop-blur-md transition hover:text-text hover:brightness-110"
+          >
+            ↩ Change Character
+          </button>
+        )}
+      </div>
 
       {/* Online count, top-right. */}
       <div className="pointer-events-none absolute right-4 top-4 rounded-full border border-white/10 bg-panel/80 px-3 py-1.5 text-xs text-muted backdrop-blur-sm">
         ◍ {playerIds.length} online
       </div>
 
-      {/* Back to character select — town only, so you can't bail mid-match. */}
-      {!inArena && (
-        <button
-          type="button"
-          onClick={() => void leaveToCharacterSelect()}
-          className="pointer-events-auto absolute right-4 top-12 rounded-full border border-white/10 bg-panel/80 px-3 py-1.5 text-xs text-muted backdrop-blur-sm transition hover:text-text hover:brightness-110"
-        >
-          ↩ Change Character
-        </button>
-      )}
-
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
         {inArena
           ? 'Right-click move · Left-click enemy to attack · Space jump · Q W E R · 1-2 dance'
-          : 'Right-click move · Click a player to inspect · Space jump · 1-2 dance · F talk · Enter to chat'}
+          : 'Right-click move · Click a player to inspect · Space jump · 1-2 dance · Enter to chat'}
       </div>
 
       {inArena ? <ActionBar /> : <QueuePanel />}

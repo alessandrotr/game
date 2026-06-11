@@ -61,7 +61,6 @@ const town: MapDescriptor = {
 
     // --- Town-square centrepiece + the moongate (arena portal) ---
     { assetId: 'prop.well', position: [0, 0, -2] },
-    { assetId: 'prop.arch', position: [0, 0, -13.5] },
 
     // --- Market: stalls, cart, goods near the merchant ---
     { assetId: 'prop.market.stall', position: [5, 0, 5], rotation: [0, -0.5, 0] },
@@ -117,8 +116,6 @@ const town: MapDescriptor = {
   ],
   zones: [
     { kind: 'spawn', center: [0, 0, 12], radius: 3, label: 'Spawn' },
-    { kind: 'npc', center: [0, 0, 2], radius: 3.5, label: 'Merchant' },
-    { kind: 'shop', center: [12, 0, 4], radius: 4, label: 'Blacksmith' },
     { kind: 'portal', center: [0, 0, -14], radius: 2.5, label: 'Arena' },
   ],
 };
