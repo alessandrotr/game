@@ -415,16 +415,14 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   // reopened below when arriving in town).
   disconnectMatchmaking();
   try {
-    // Fully leave the old world before joining the next. Awaiting the close
-    // keeps the old room's stale events (onLeave/onError/onStateChange) from
-    // bleeding into the new session — the loading screen covers the wait.
+    // Leave the old world without waiting out the close round-trip — but detach
+    // its listeners first so its late onLeave/onError/onStateChange can't bleed
+    // into the new session (that race was bouncing players to character select).
     if (room) {
-      try {
-        await room.leave();
-      } catch {
-        /* ignore */
-      }
+      const previous = room;
       room = null;
+      previous.removeAllListeners();
+      void previous.leave().catch(() => {});
     }
     // Clear the old world's transient state; stay 'connected' so the scene stays up.
     store.players.clear();
@@ -436,7 +434,9 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
 
+    const t0 = performance.now();
     room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
+    console.debug(`[travel] join ${roomType} took ${Math.round(performance.now() - t0)}ms`);
     store.setSessionId(room.sessionId);
     store.setRoom(roomType);
     store.setStatus('connected');
@@ -459,14 +459,12 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   store.setTransitioning(true, 'Entering the arena…');
   disconnectMatchmaking(); // belt-and-braces: the match-found handler already did
   try {
-    // Fully leave the old world before consuming the seat (see travelTo).
+    // Detach + non-blocking leave of the old world (see travelTo).
     if (room) {
-      try {
-        await room.leave();
-      } catch {
-        /* ignore */
-      }
+      const previous = room;
       room = null;
+      previous.removeAllListeners();
+      void previous.leave().catch(() => {});
     }
     store.players.clear();
     store.projectiles.clear();
@@ -478,7 +476,9 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   useMatchResultStore.getState().clear();
 
     // The reservation shape is internal to Colyseus; consume it directly.
+    const t0 = performance.now();
     room = await client.consumeSeatReservation(reservation as never);
+    console.debug(`[travel] consume arena seat took ${Math.round(performance.now() - t0)}ms`);
     store.setSessionId(room.sessionId);
     store.setRoom('arena');
     store.setStatus('connected');
