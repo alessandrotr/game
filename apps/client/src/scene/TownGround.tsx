@@ -1,55 +1,78 @@
 /**
  * Stylized town ground for the (larger, Britain-inspired) town.
  *
- * The grass is a single huge plane that runs far past the fog distance, so its
- * edge is never visible — the ground simply fades into the sky-coloured fog at
- * the horizon (no abrupt cutoff). A central stone plaza and packed-cobble
- * streets connect the spawn, the moongate/castle, and the blacksmith. A handful
- * of flat meshes at slightly stepped heights (no z-fighting) — cheap.
+ * Everything is drawn flat at y = 0 — the same plane the player's feet rest on —
+ * so the plaza/streets never sit *above* ground and clip the player's ankles.
+ * Coplanar surfaces are layered with `polygonOffset` (a depth bias) instead of a
+ * physical height, so there's no z-fighting and no "swallowed feet". The grass
+ * is a single huge plane that runs far past the fog, so the horizon blends.
  */
 const GRASS = '#4a6b3a';
 const STREET = '#857a66';
 const PLAZA = '#8e887b';
 const PLAZA_RIM = '#6c675b';
 
+/** Coplanar decal that renders above the grass without z-fighting. */
+function GroundDecal({
+  children,
+  color,
+  order,
+  receiveShadow = true,
+}: {
+  children: React.ReactNode;
+  color: string;
+  order: number;
+  receiveShadow?: boolean;
+}) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow={receiveShadow}>
+      {children}
+      <meshStandardMaterial
+        color={color}
+        roughness={1}
+        polygonOffset
+        polygonOffsetFactor={-order}
+        polygonOffsetUnits={-order}
+      />
+    </mesh>
+  );
+}
+
 export function TownGround() {
   return (
     <group>
       {/* Huge grass field — extends well beyond the fog so the horizon blends. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[600, 600]} />
         <meshStandardMaterial color={GRASS} roughness={1} metalness={0} />
       </mesh>
 
-      {/* Main street: spawn → well → moongate → castle gate (runs along z). */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -4]} receiveShadow>
-        <planeGeometry args={[5, 44]} />
-        <meshStandardMaterial color={STREET} roughness={1} />
-      </mesh>
+      {/* Streets (flat at y=0), positioned in world space by the parent group. */}
+      <group position={[0, 0, -4]}>
+        <GroundDecal color={STREET} order={1}>
+          <planeGeometry args={[5, 44]} />
+        </GroundDecal>
+      </group>
+      <group position={[8, 0, 5]}>
+        <GroundDecal color={STREET} order={1}>
+          <planeGeometry args={[18, 4]} />
+        </GroundDecal>
+      </group>
+      <group position={[-8, 0, 2]}>
+        <GroundDecal color={STREET} order={1}>
+          <planeGeometry args={[18, 4]} />
+        </GroundDecal>
+      </group>
 
-      {/* East cross street → blacksmith. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[8, 0.02, 5]} receiveShadow>
-        <planeGeometry args={[18, 4]} />
-        <meshStandardMaterial color={STREET} roughness={1} />
-      </mesh>
-
-      {/* West cross street → inn. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-8, 0.02, 2]} receiveShadow>
-        <planeGeometry args={[18, 4]} />
-        <meshStandardMaterial color={STREET} roughness={1} />
-      </mesh>
-
-      {/* Plaza rim (darker stone, slightly wider and lower). */}
-      <mesh position={[0, 0.025, -2]}>
-        <cylinderGeometry args={[8.4, 8.4, 0.05, 28]} />
-        <meshStandardMaterial color={PLAZA_RIM} roughness={1} />
-      </mesh>
-
-      {/* Plaza floor (warm stone). */}
-      <mesh position={[0, 0.04, -2]} receiveShadow>
-        <cylinderGeometry args={[7.8, 7.8, 0.06, 28]} />
-        <meshStandardMaterial color={PLAZA} roughness={0.95} />
-      </mesh>
+      {/* Central plaza: rim then floor, layered above the streets. */}
+      <group position={[0, 0, -2]}>
+        <GroundDecal color={PLAZA_RIM} order={2}>
+          <circleGeometry args={[8.4, 48]} />
+        </GroundDecal>
+        <GroundDecal color={PLAZA} order={3}>
+          <circleGeometry args={[7.8, 48]} />
+        </GroundDecal>
+      </group>
     </group>
   );
 }

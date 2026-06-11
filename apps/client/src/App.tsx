@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
+import { useJump } from './hooks/useJump';
 import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
 import { useInteractionInput } from './hooks/useInteractionInput';
@@ -29,6 +30,7 @@ export default function App() {
   // and Colyseus disconnects a client that sends an unhandled message). Movement
   // and NPC interaction apply in both worlds.
   useAbilityHotkeys(connected && inArena);
+  useJump(connected); // jump works in both town and arena
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);
   useInteractionInput(connected);

@@ -15,6 +15,7 @@ import {
   TOWN_HALF_SIZE,
   ClientMessage,
   ServerMessage,
+  collideTownObstacles,
   isCharacterClass,
 } from '@arena/shared';
 import { ArenaState, Player } from './schema.js';
@@ -299,6 +300,10 @@ export class TownRoom extends Room<ArenaState> {
           const step = Math.min(speed * dt, remaining);
           player.x = clamp(player.x + ndx * step, -limit, limit);
           player.z = clamp(player.z + ndz * step, -limit, limit);
+          // Collide with town props (buildings, walls, well, …).
+          const fixed = collideTownObstacles(player.x, player.z);
+          player.x = fixed.x;
+          player.z = fixed.z;
           const face = Math.atan2(ndx, ndz);
           player.rotation = lerpAngle(player.rotation, face, 1 - Math.exp(-CLICK_ROTATION_SPEED * dt));
         } else {

@@ -3,7 +3,7 @@ import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot } from '@
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
-import { sendCast, sendJump } from '../network/colyseus';
+import { sendCast } from '../network/colyseus';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { useAbilityTargeting } from '../store/abilityTargeting';
@@ -80,11 +80,6 @@ export function useAbilityHotkeys(enabled: boolean): void {
       if (e.code === 'Escape') {
         useAbilityTargeting.getState().cancel();
         aimingCode.current = null;
-        return;
-      }
-      if (e.code === 'Space') {
-        e.preventDefault();
-        sendJump();
         return;
       }
 

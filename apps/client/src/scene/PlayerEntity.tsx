@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
-import { ARENA_HALF_SIZE, PLAYER_RADIUS, collideArenaObstacles, type AnimationName } from '@arena/shared';
+import {
+  ARENA_HALF_SIZE,
+  TOWN_HALF_SIZE,
+  PLAYER_RADIUS,
+  collideArenaObstacles,
+  collideTownObstacles,
+  type AnimationName,
+} from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
@@ -27,8 +34,6 @@ const SETTLE_SMOOTHING = 8;
  * server reposition (respawn/knockback) clears this bar.
  */
 const RESYNC_THRESHOLD = 8;
-/** Movement bound: matches the server's clamp. */
-const LIMIT = ARENA_HALF_SIZE - PLAYER_RADIUS;
 /** Per-frame horizontal step larger than this is a teleport (blink/respawn),
  *  not locomotion — don't let it flash the run animation. */
 const TELEPORT_STEP = 2;
@@ -135,6 +140,11 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       }
       const pos = predicted.current;
       const tuning = getTuning().player;
+      // Mirror the server's bounds + obstacles for the current world, so the
+      // prediction matches (town and arena have different sizes and props).
+      const isArena = useGameStore.getState().room === 'arena';
+      const limit = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
+      const collide = isArena ? collideArenaObstacles : collideTownObstacles;
 
       const dest = getDestination();
       if (dest.active) {
@@ -150,8 +160,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           // Constant speed locked at issue time — no slowdown nearing the mark.
           const speed = dest.sprint ? tuning.sprintSpeed : tuning.walkSpeed;
           const step = Math.min(speed * delta, remaining);
-          pos.x = clamp(pos.x + ndx * step, -LIMIT, LIMIT);
-          pos.z = clamp(pos.z + ndz * step, -LIMIT, LIMIT);
+          pos.x = clamp(pos.x + ndx * step, -limit, limit);
+          pos.z = clamp(pos.z + ndz * step, -limit, limit);
           const face = Math.atan2(ndx, ndz);
           predictedRot.current = lerpAngle(
             predictedRot.current,
@@ -177,7 +187,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       }
 
       // Mirror the server's obstacle collision so prediction matches.
-      const fixed = collideArenaObstacles(pos.x, pos.z);
+      const fixed = collide(pos.x, pos.z);
       pos.x = fixed.x;
       pos.z = fixed.z;
 

@@ -129,7 +129,16 @@ export const ARENA_SPAWN_POINTS: readonly SpawnPoint[] = ACTIVE_ARENA_LAYOUT.spa
  * the authoritative server and the client predictor.
  */
 export function collideArenaObstacles(x: number, z: number): { x: number; z: number } {
-  for (const o of ARENA_OBSTACLES) {
+  return pushOutOfCircles(x, z, ARENA_OBSTACLES);
+}
+
+/** Circle-vs-circle push-out shared by the arena and town colliders. */
+function pushOutOfCircles(
+  x: number,
+  z: number,
+  circles: readonly { x: number; z: number; radius: number }[],
+): { x: number; z: number } {
+  for (const o of circles) {
     const dx = x - o.x;
     const dz = z - o.z;
     const min = o.radius + PLAYER_RADIUS;
@@ -141,6 +150,69 @@ export function collideArenaObstacles(x: number, z: number): { x: number; z: num
     }
   }
   return { x, z };
+}
+
+/**
+ * Town collision circles, one per **solid, visible** prop (buildings, walls,
+ * well, stalls, trees, rocks, the arch pillars). Radii are inscribed to the
+ * footprint so you can walk right up to a wall but never through it — and there
+ * are no colliders where there's nothing to see (no "ghost" obstacles). Keep in
+ * sync with the town layout in `apps/client/src/assets/data/maps.ts`.
+ */
+export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[] = [
+  // Castle + city walls.
+  { x: 0, z: -27, radius: 5 },
+  { x: -9, z: -29, radius: 2.5 },
+  { x: -14, z: -29, radius: 2.5 },
+  { x: -19, z: -29, radius: 2.5 },
+  { x: 9, z: -29, radius: 2.5 },
+  { x: 14, z: -29, radius: 2.5 },
+  { x: 19, z: -29, radius: 2.5 },
+  { x: -21.5, z: -25.5, radius: 2.5 },
+  { x: 21.5, z: -25.5, radius: 2.5 },
+  // Buildings.
+  { x: -13, z: 2, radius: 2.4 }, // inn
+  { x: 13, z: 6, radius: 1.7 }, // smithy
+  { x: -20, z: -16, radius: 1.5 }, // tower
+  { x: 20, z: -16, radius: 1.5 }, // tower
+  { x: 13, z: -9, radius: 1.6 },
+  { x: -13, z: -10, radius: 1.5 },
+  { x: -16, z: 15, radius: 1.6 },
+  { x: 16, z: 16, radius: 1.5 },
+  { x: 19, z: -2, radius: 1.6 },
+  { x: -19, z: -3, radius: 1.5 },
+  { x: -10, z: 23, radius: 1.6 },
+  { x: 10, z: 24, radius: 1.5 },
+  // Town centre & furniture.
+  { x: 0, z: -2, radius: 1.2 }, // well
+  { x: -1.8, z: -13.5, radius: 0.6 }, // arch pillar
+  { x: 1.8, z: -13.5, radius: 0.6 }, // arch pillar
+  { x: 5, z: 5, radius: 1.3 }, // stall
+  { x: -5, z: 6, radius: 1.3 }, // stall
+  { x: 7, z: 2, radius: 0.9 }, // cart
+  { x: -8.5, z: 4, radius: 0.5 }, // barrel
+  { x: 10, z: 7.5, radius: 0.5 }, // barrel
+  { x: 6, z: 6.5, radius: 0.5 }, // crate
+  { x: -6, z: 7.5, radius: 0.5 }, // crate
+  // Trees & rocks (trunk/boulder footprint only).
+  { x: -24, z: 10, radius: 0.5 },
+  { x: 24, z: 12, radius: 0.45 },
+  { x: 0, z: 27, radius: 0.5 },
+  { x: -9, z: 30, radius: 0.45 },
+  { x: -25, z: -8, radius: 0.45 },
+  { x: 25, z: -10, radius: 0.45 },
+  { x: -22, z: 22, radius: 0.45 },
+  { x: 22, z: 24, radius: 0.45 },
+  { x: 11, z: 30, radius: 0.45 },
+  { x: -26, z: 2, radius: 0.85 },
+  { x: 26, z: 4, radius: 1 },
+  { x: 16, z: -18, radius: 0.85 },
+  { x: -16, z: -19, radius: 1 },
+];
+
+/** Push a player center out of any town prop they overlap. Mirrors the arena. */
+export function collideTownObstacles(x: number, z: number): { x: number; z: number } {
+  return pushOutOfCircles(x, z, TOWN_OBSTACLES);
 }
 
 /** Player movement speed while sprinting, in world units per second. */
