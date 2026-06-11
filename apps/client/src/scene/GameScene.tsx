@@ -45,7 +45,7 @@ export function GameScene() {
       shadows="soft"
       dpr={[1, 2]}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, toneMappingExposure: 1.1 }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Arena: moody dark. Town: warm dusk so the lit lamps, windows, and forge
@@ -71,6 +71,19 @@ export function GameScene() {
         shadow-camera-right={shadowExtent}
         shadow-camera-top={shadowExtent}
         shadow-camera-bottom={-shadowExtent}
+      />
+      {/* Cinematic rig (both shadowless, so essentially free): a cool fill from
+          the opposite side lifts the shadowed faces out of pure black, and a
+          back/rim light separates characters from the background. */}
+      <directionalLight
+        position={isArena ? [-12, 8, -10] : [-14, 7, -6]}
+        intensity={isArena ? 0.45 : 0.4}
+        color={isArena ? '#7e95ff' : '#6f78b8'}
+      />
+      <directionalLight
+        position={isArena ? [0, 10, -16] : [-2, 11, -18]}
+        intensity={isArena ? 0.35 : 0.45}
+        color={isArena ? '#cfe0ff' : '#ffd9a8'}
       />
       {/* IBL only in the arena; the town is lit by sun + hemisphere + its lamps. */}
       {isArena && <Environment preset="night" />}
