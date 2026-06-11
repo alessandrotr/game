@@ -14,48 +14,17 @@ const warrior: CharacterDescriptor = {
   id: 'char.warrior',
   displayName: 'Warrior',
   class: 'warrior',
-  weaponId: 'weapon.sword',
-  animations: { idle: 'anim.idle', walk: 'anim.walk', attack: 'anim.attack' },
+  // Rigged GLB (Meshy AI "Wasteland Road Warrior"). ~1.62u tall, feet at origin,
+  // so no scale/offset. Idle/Walk/Run/Die clips were merged from the separate
+  // Meshy exports (see scripts/merge-clips.mjs). It carries its own gear, so no
+  // separate weapon mount.
   render: {
-    kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.4, 0.7, 8, 16],
-        position: [0, 0.75, 0],
-        color: '#b94b4b',
-        roughness: 0.6,
-      },
-      { name: 'head', shape: 'sphere', args: [0.28, 16, 16], position: [0, 1.45, 0], color: SKIN },
-      {
-        name: 'helmet',
-        shape: 'box',
-        args: [0.62, 0.22, 0.62],
-        position: [0, 1.6, 0],
-        color: STEEL,
-        metalness: 0.6,
-        roughness: 0.4,
-      },
-      {
-        name: 'pauldron.l',
-        shape: 'box',
-        args: [0.26, 0.18, 0.44],
-        position: [0.42, 1.12, 0],
-        color: STEEL,
-        metalness: 0.6,
-        roughness: 0.4,
-      },
-      {
-        name: 'pauldron.r',
-        shape: 'box',
-        args: [0.26, 0.18, 0.44],
-        position: [-0.42, 1.12, 0],
-        color: STEEL,
-        metalness: 0.6,
-        roughness: 0.4,
-      },
-    ],
+    kind: 'gltf',
+    url: '/models/characters/warrior.glb',
+    scale: 1,
+    offset: [0, 0, 0],
+    yaw: 0,
+    clips: { idle: 'Idle', walk: 'Walk', run: 'Run', die: 'Die' },
   },
 };
 
