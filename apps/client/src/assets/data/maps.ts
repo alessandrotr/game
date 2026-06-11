@@ -45,7 +45,8 @@ const arena: MapDescriptor = {
     // --- Burning barrels (atmosphere; keep in sync with scene/ArenaLights) ---
     { assetId: 'prop.arena.drum.fire', position: [8, 0, 2] },
     { assetId: 'prop.arena.drum.fire', position: [-8, 0, -2] },
-    { assetId: 'prop.arena.drum.fire', position: [13, 0, 9] },
+    { assetId: 'prop.arena.drum.fire', position: [14, 0, 10] },
+    { assetId: 'prop.arena.drum.fire', position: [-14, 0, -10] },
 
     // --- Loose drums leaning against the cover ---
     { assetId: 'prop.arena.drum', position: [12, 0, 6], rotation: [0, 0.3, 0] },

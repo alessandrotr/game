@@ -136,6 +136,12 @@ export const ARENA_LAYOUTS = {
       { x: -2, z: -4, radius: 1.2, height: 1.4 }, // scrap pile (mirror)
       { x: 0, z: 12, radius: 1.1, height: 1 }, // oil-drum cluster
       { x: 0, z: -12, radius: 1.1, height: 1 }, // oil-drum cluster (mirror)
+      { x: 8, z: 2, radius: 0.5, height: 1 }, // burning barrel
+      { x: -8, z: -2, radius: 0.5, height: 1 }, // burning barrel (mirror)
+      { x: 14, z: 10, radius: 0.5, height: 1 }, // burning barrel
+      { x: -14, z: -10, radius: 0.5, height: 1 }, // burning barrel (mirror)
+      { x: 12, z: 6, radius: 0.5, height: 1 }, // loose drum
+      { x: -12, z: -6, radius: 0.5, height: 1 }, // loose drum (mirror)
     ],
     spawnPoints: [
       { x: 0, z: 18 },

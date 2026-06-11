@@ -8,7 +8,8 @@
 const FIRE_BARRELS: [number, number, number][] = [
   [8, 1.4, 2],
   [-8, 1.4, -2],
-  [13, 1.4, 9],
+  [14, 1.4, 10],
+  [-14, 1.4, -10],
 ];
 
 export function ArenaLights() {
