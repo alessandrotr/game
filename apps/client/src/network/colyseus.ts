@@ -240,6 +240,10 @@ function wireRoom(joined: Room): void {
  *  browser stays live while the player walks around town. Strictly separate
  *  from the gameplay `room` — it has its own minimal wiring (no `wireRoom`). */
 let mmRoom: Room | null = null;
+/** Bumped on every connect/disconnect so an in-flight `joinOrCreate` that
+ *  resolves after the player has already left town can detect it's stale and
+ *  drop the orphaned connection instead of leaking it. */
+let mmGeneration = 0;
 
 /** Structural view of the runtime matchmaking state (read like the game state,
  *  through minimal shapes rather than the server schema classes). */
@@ -323,8 +327,15 @@ function wireMatchmaking(joined: Room): void {
  *  matchmaking room sees the same account/class as the player's town avatar. */
 export async function connectMatchmaking(): Promise<void> {
   if (!client || !joinOptions || mmRoom) return;
+  const generation = mmGeneration;
   try {
     const joined = await client.joinOrCreate(MATCHMAKING_ROOM, joinOptions);
+    // We left town (or reconnected) while this join was in flight — the result
+    // is stale, so drop it rather than leaking an orphaned connection.
+    if (generation !== mmGeneration) {
+      void joined.leave().catch(() => {});
+      return;
+    }
     mmRoom = joined;
     useLobbyStore.getState().setSession(joined.sessionId);
     wireMatchmaking(joined);
@@ -335,6 +346,7 @@ export async function connectMatchmaking(): Promise<void> {
 
 /** Close the lobby connection and clear the lobby UI (no-op if not connected). */
 export function disconnectMatchmaking(): void {
+  mmGeneration++; // invalidate any in-flight connectMatchmaking
   const current = mmRoom;
   mmRoom = null;
   useLobbyStore.getState().reset();
