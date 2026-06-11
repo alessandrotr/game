@@ -42,6 +42,10 @@ function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
             roughness={part.roughness ?? 0.7}
             transparent={part.opacity != null}
             opacity={part.opacity ?? 1}
+            // Faceted shading for a crisp, stylized low-poly read (hard light per
+            // face on roofs/barrels/etc.). Free: flat normals are derived in the
+            // shader, no geometry/texture cost.
+            flatShading
           />
         </mesh>
       ))}
