@@ -88,7 +88,11 @@ export function AuthScreen() {
           <Button type="submit" variant="gold" size="lg" disabled={busy} className="mt-1 tracking-[0.15em]">
             {busy ? 'PLEASE WAIT…' : isRegister ? 'CREATE ACCOUNT' : 'SIGN IN'}
           </Button>
-          {error && <div className="text-center text-[13px] text-red-400">{error}</div>}
+          {error && (
+            <div role="alert" className="text-center text-[13px] text-red-400">
+              {error}
+            </div>
+          )}
         </form>
       </div>
     </div>

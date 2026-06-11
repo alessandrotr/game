@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils';
  * accent (gold for forms, blue accent for chat); `inputSize` covers the two
  * paddings/roundings those two surfaces use.
  */
-const inputVariants = cva('border border-white/15 outline-none transition', {
+const inputVariants = cva('border border-white/15 outline-none transition focus-visible:ring-2', {
   variants: {
     tone: {
-      gold: 'focus:border-gold',
-      accent: 'focus:border-accent',
+      gold: 'focus:border-gold focus-visible:ring-gold/40',
+      accent: 'focus:border-accent focus-visible:ring-accent/40',
     },
     inputSize: {
       md: 'rounded-xl bg-black/40 px-4 py-3 text-[15px]',

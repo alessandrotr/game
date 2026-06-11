@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ChevronDown, MessageSquare } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
 import { sendChat } from '../network/colyseus';
-import { Badge, Button, Input } from './primitives';
+import { Badge, Button, IconButton, Input } from './primitives';
 
 const COLLAPSE_KEY = 'arena.chat.collapsed';
 
@@ -88,7 +89,8 @@ export function ChatPanel() {
         onClick={() => toggle(false)}
         className="pointer-events-auto absolute bottom-4 left-4 gap-1.5 rounded-lg bg-panel/80 px-3 py-2 text-[13px] backdrop-blur-sm"
       >
-        💬 Chat
+        <MessageSquare size={14} aria-hidden="true" />
+        Chat
         {messages.length > 0 && <Badge variant="accent">{messages.length}</Badge>}
       </Button>
     );
@@ -98,14 +100,15 @@ export function ChatPanel() {
     <div className="pointer-events-none absolute bottom-4 left-4 flex w-80 max-w-[60vw] flex-col gap-1">
       <div className="pointer-events-auto flex items-center justify-between px-1">
         <span className="text-[11px] uppercase tracking-wider text-muted">Chat</span>
-        <Button variant="ghost" size="icon" onClick={() => toggle(true)} aria-label="Hide chat" title="Hide chat">
-          ▾
-        </Button>
+        <IconButton icon={ChevronDown} onClick={() => toggle(true)} aria-label="Hide chat" title="Hide chat" />
       </div>
 
       {messages.length > 0 && (
         <div
           ref={logRef}
+          role="log"
+          aria-live="polite"
+          aria-label="Chat messages"
           className="pointer-events-auto max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-panel/70 px-3 py-2 text-[13px] leading-snug"
         >
           {messages.map((m, i) => (

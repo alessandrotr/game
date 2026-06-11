@@ -1,7 +1,16 @@
 import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@arena/shared';
+import { Trophy, X } from 'lucide-react';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { requestLeaderboard } from '../network/colyseus';
-import { Button, Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from './primitives';
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+  IconButton,
+} from './primitives';
 
 /** Resolve a class string to its display name + accent color (safe for unknowns). */
 function classInfo(characterClass: string): { name: string; color: string } {
@@ -62,21 +71,21 @@ export function Leaderboard() {
       <DialogTrigger asChild>
         <Button
           variant="panel"
-          className="font-display pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 bg-panel/90 text-xs"
+          className="font-display pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 gap-1.5 bg-panel/90 text-xs"
         >
-          🏆 Leaderboard
+          <Trophy size={14} aria-hidden="true" />
+          Leaderboard
         </Button>
       </DialogTrigger>
 
       <DialogContent className="w-[420px]" aria-describedby={undefined}>
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <DialogTitle className="font-display text-lg font-bold tracking-wide text-gold">
-            🏆 Leaderboard
+          <DialogTitle className="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
+            <Trophy size={18} aria-hidden="true" />
+            Leaderboard
           </DialogTitle>
           <DialogClose asChild>
-            <Button variant="ghost" size="none" aria-label="Close">
-              ✕
-            </Button>
+            <IconButton icon={X} aria-label="Close" />
           </DialogClose>
         </div>
 

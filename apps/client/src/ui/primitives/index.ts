@@ -1,4 +1,5 @@
 export { Button, buttonVariants, type ButtonProps } from './button';
+export { IconButton, type IconButtonProps } from './icon-button';
 export { Input, type InputProps } from './input';
 export { Card, type CardProps } from './card';
 export { Overlay, type OverlayProps } from './overlay';

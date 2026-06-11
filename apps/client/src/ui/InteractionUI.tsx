@@ -20,37 +20,36 @@ export function InteractionUI() {
     const last = dialogue.line >= data.lines.length - 1;
     return (
       <div className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center px-4">
-        <button
-          type="button"
-          onClick={advance}
-          className="pointer-events-auto w-full max-w-xl cursor-pointer rounded-xl border border-accent/30 bg-panel/95 px-5 py-4 text-left"
-        >
-          <div className="mb-1 text-sm font-semibold text-accent">{speaker}</div>
-          <div className="text-[15px] leading-relaxed text-[#e6e9f5]">{line?.text}</div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
-            <span>
+        <div className="pointer-events-auto relative w-full max-w-xl rounded-xl border border-accent/30 bg-panel/95 px-5 py-4">
+          {/* The text area is the advance target (click / F). */}
+          <button type="button" onClick={advance} className="block w-full text-left">
+            <div className="mb-1 text-sm font-semibold text-accent">{speaker}</div>
+            <div className="text-[15px] leading-relaxed text-text">{line?.text}</div>
+            <div className="mt-2 text-[11px] text-muted">
               Click or <kbd className="rounded bg-black/40 px-1">F</kbd>{' '}
               {last ? 'to finish' : 'to continue'}
-            </span>
-            <span
-              role="button"
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                close();
-              }}
-            >
-              <kbd className="rounded bg-black/40 px-1">Esc</kbd> close
-            </span>
-          </div>
-        </button>
+            </div>
+          </button>
+          {/* Close is a sibling control, not nested inside the advance button. */}
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close dialogue"
+            className="absolute bottom-4 right-5 text-[11px] text-muted transition hover:text-text"
+          >
+            <kbd className="rounded bg-black/40 px-1" aria-hidden="true">
+              Esc
+            </kbd>{' '}
+            close
+          </button>
+        </div>
       </div>
     );
   }
 
   if (nearbyNpcId) {
     return (
-      <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 rounded-lg border border-accent/30 bg-panel/85 px-3 py-1.5 text-sm text-[#e6e9f5]">
+      <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 rounded-lg border border-accent/30 bg-panel/85 px-3 py-1.5 text-sm text-text">
         Press <kbd className="rounded bg-black/40 px-1 font-bold">F</kbd> to talk to{' '}
         {nearbyNpcName}
       </div>

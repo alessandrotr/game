@@ -26,7 +26,11 @@ export function LevelUpToast() {
   if (level === null) return null;
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-[22%] z-40 -translate-x-1/2">
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none absolute left-1/2 top-[22%] z-40 -translate-x-1/2"
+    >
       <div
         key={shownNonce}
         className="animate-[levelup_2.6s_ease-out_forwards] flex flex-col items-center text-center"

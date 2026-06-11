@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { getClassDefinition, xpForLevel } from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
+import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
-import { Button, Card, Meter, StatTile } from './primitives';
+import { Card, IconButton, Meter, StatTile } from './primitives';
 
 /**
  * UO-style "paperdoll": click another player in town to inspect them. Shows a
@@ -52,9 +53,7 @@ export function Paperdoll() {
             Level {data.level} {def.name}
           </div>
         </div>
-        <Button variant="ghost" size="none" onClick={close} aria-label="Close">
-          ✕
-        </Button>
+        <IconButton icon={X} onClick={close} aria-label="Close" />
       </div>
 
       {/* 3D portrait */}

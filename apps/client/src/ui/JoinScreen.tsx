@@ -1,4 +1,5 @@
 import { type FormEvent } from 'react';
+import { Diamond } from 'lucide-react';
 import { getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
@@ -11,9 +12,15 @@ import { Button } from './primitives';
 /** Difficulty pips (UO-flavored). */
 function Difficulty({ level }: { level: number }) {
   return (
-    <span className="text-xs tracking-[3px] text-gold">
-      {'◆'.repeat(level)}
-      <span className="text-white/20">{'◆'.repeat(3 - level)}</span>
+    <span className="flex items-center gap-0.5" role="img" aria-label={`Difficulty ${level} of 3`}>
+      {[0, 1, 2].map((i) => (
+        <Diamond
+          key={i}
+          size={12}
+          aria-hidden="true"
+          className={i < level ? 'fill-gold text-gold' : 'text-white/20'}
+        />
+      ))}
     </span>
   );
 }
@@ -87,7 +94,11 @@ export function JoinScreen() {
               <Button type="submit" variant="gold" size="lg" disabled={connecting} className="tracking-[0.15em]">
                 {connecting ? 'ENTERING…' : 'ENTER THE WORLD'}
               </Button>
-              {error && <div className="text-center text-[13px] text-red-400">{error}</div>}
+              {error && (
+                <div role="alert" className="text-center text-[13px] text-red-400">
+                  {error}
+                </div>
+              )}
             </form>
           </section>
         </div>

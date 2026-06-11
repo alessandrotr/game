@@ -1,3 +1,4 @@
+import { Swords } from 'lucide-react';
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { sendQueue, sendUnqueue } from '../network/colyseus';
 import { Button } from './primitives';
@@ -17,9 +18,10 @@ export function QueuePanel() {
         <Button
           variant="goldOutline"
           onClick={sendUnqueue}
-          className="pointer-events-auto px-5 py-2.5"
+          className="pointer-events-auto gap-1.5 px-5 py-2.5"
         >
-          ⚔ Searching for match… {size > 1 ? `(${size} queued)` : ''} ·{' '}
+          <Swords size={15} aria-hidden="true" />
+          Searching for match… {size > 1 ? `(${size} queued)` : ''} ·{' '}
           <span className="text-muted">cancel</span>
         </Button>
       ) : (

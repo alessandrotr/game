@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react';
+import { Flame, HeartPulse, Snowflake, Sparkles, Waves, Zap, type LucideIcon } from 'lucide-react';
 import {
   ABILITIES,
   ABILITY_SLOTS,
@@ -9,14 +10,14 @@ import {
 import { useGameStore } from '../store/useGameStore';
 import { cooldownRemaining } from '../store/abilityCooldowns';
 
-/** Placeholder glyphs until real ability icons (a reserved `iconUrl`) land. */
-const ABILITY_GLYPH: Record<AbilityKind, string> = {
-  fireball: '🔥',
-  heal: '✚',
-  frost_nova: '❄️',
-  shockwave: '💥',
-  arcane_bolt: '🔷',
-  arcane_blast: '🔮',
+/** Placeholder icons until real ability art (a reserved `iconUrl`) lands. */
+const ABILITY_ICON: Record<AbilityKind, LucideIcon> = {
+  fireball: Flame,
+  heal: HeartPulse,
+  frost_nova: Snowflake,
+  shockwave: Waves,
+  arcane_bolt: Zap,
+  arcane_blast: Sparkles,
 };
 
 /**
@@ -95,6 +96,7 @@ function Slot({
   // top-down dark sweep that uncovers the icon as it comes off cooldown.
   const cooldownFrac = onCooldown ? remaining / config.cooldownMs : 0;
   const castFrac = casting ? elapsed / config.castTimeMs : 0;
+  const Icon = ABILITY_ICON[ability];
 
   return (
     <div
@@ -102,9 +104,11 @@ function Slot({
         noMana ? 'border-red-500/40' : 'border-accent/30'
       }`}
     >
-      <span className={`text-2xl ${noMana && !onCooldown ? 'opacity-40 grayscale' : ''}`}>
-        {ABILITY_GLYPH[ability]}
-      </span>
+      <Icon
+        size={26}
+        aria-hidden="true"
+        className={`text-accent ${noMana && !onCooldown ? 'opacity-40 grayscale' : ''}`}
+      />
 
       {/* Cooldown sweep (covers from the top, shrinking as it readies). */}
       {onCooldown && (

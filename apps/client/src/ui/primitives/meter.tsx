@@ -45,7 +45,14 @@ export function Meter({
 }: MeterProps) {
   const pct = (max > 0 ? clamp01(value / max) : 0) * 100;
   const track = (
-    <div className={cn('overflow-hidden rounded-full', size === 'md' ? 'h-2' : 'h-1.5', trackClassName ?? 'bg-black/50')}>
+    <div
+      role="progressbar"
+      aria-valuenow={Math.round(value)}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(max)}
+      aria-label={typeof label === 'string' ? label : undefined}
+      className={cn('overflow-hidden rounded-full', size === 'md' ? 'h-2' : 'h-1.5', trackClassName ?? 'bg-black/50')}
+    >
       <div className={cn('h-full rounded-full', fillClassName)} style={{ width: `${pct}%`, background: fill }} />
     </div>
   );

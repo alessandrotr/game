@@ -1,3 +1,4 @@
+import { RotateCcw, Users } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { leaveToCharacterSelect } from '../network/colyseus';
 import { Badge, Button } from './primitives';
@@ -23,16 +24,18 @@ export function Hud() {
           <Button
             variant="panel"
             onClick={() => void leaveToCharacterSelect()}
-            className="pointer-events-auto px-3 py-2 text-xs backdrop-blur-md"
+            className="pointer-events-auto gap-1.5 px-3 py-2 text-xs backdrop-blur-md"
           >
-            ↩ Change Character
+            <RotateCcw size={13} aria-hidden="true" />
+            Change Character
           </Button>
         )}
       </div>
 
       {/* Online count, top-right. */}
-      <Badge variant="neutral" className="pointer-events-none absolute right-4 top-4">
-        ◍ {playerIds.length} online
+      <Badge variant="neutral" className="pointer-events-none absolute right-4 top-4 gap-1.5">
+        <Users size={12} aria-hidden="true" />
+        {playerIds.length} online
       </Badge>
 
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">

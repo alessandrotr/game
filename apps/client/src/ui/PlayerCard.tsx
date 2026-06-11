@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { getClassDefinition, xpForLevel } from '@arena/shared';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
-import { Button, Card, Meter, StatTile } from './primitives';
+import { Card, IconButton, Meter, StatTile } from './primitives';
 
 const COMPACT_KEY = 'arena.playercard.compact';
 function loadCompact(): boolean {
@@ -81,16 +82,13 @@ export function PlayerCard() {
   };
 
   const ToggleButton = (
-    <Button
-      variant="ghost"
-      size="icon"
+    <IconButton
+      icon={compact ? ChevronRight : ChevronDown}
       onClick={toggle}
       aria-label={compact ? 'Expand' : 'Collapse'}
       title={compact ? 'Expand' : 'Collapse'}
       className="pointer-events-auto ml-auto"
-    >
-      {compact ? '▸' : '▾'}
-    </Button>
+    />
   );
 
   // --- Compact: a slim bar with only the essentials ---

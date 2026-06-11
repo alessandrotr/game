@@ -7,7 +7,9 @@ import { cn } from '@/lib/utils';
  * `gold` is the primary call-to-action gradient; the rest cover the panel
  * chips, outline pills, and bare icon buttons (✕ ▾ ▸) used across the HUD.
  */
-const buttonVariants = cva('inline-flex items-center justify-center transition disabled:opacity-60', {
+const buttonVariants = cva(
+  'inline-flex items-center justify-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/80 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-60',
+  {
   variants: {
     variant: {
       gold: 'font-display rounded-xl border border-gold/60 bg-linear-to-b from-gold to-gold-dark font-semibold tracking-wide text-black shadow-[0_8px_24px_rgba(200,162,74,0.25)] hover:brightness-110 disabled:cursor-progress',
