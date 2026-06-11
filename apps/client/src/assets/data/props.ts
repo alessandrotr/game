@@ -91,10 +91,13 @@ const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDe
 const house = prop('building.house', 'Cottage', [
   box([3.2, 0.4, 3.2], [0, 0.2, 0], STONE),
   box([2.9, 2, 2.9], [0, 1.4, 0], PLASTER),
-  box([0.2, 2, 0.2], [1.35, 1.4, 1.35], TIMBER, { castShadow: false }),
-  box([0.2, 2, 0.2], [-1.35, 1.4, 1.35], TIMBER, { castShadow: false }),
-  box([0.2, 2, 0.2], [1.35, 1.4, -1.35], TIMBER, { castShadow: false }),
-  box([0.2, 2, 0.2], [-1.35, 1.4, -1.35], TIMBER, { castShadow: false }),
+  // Corner posts sit PROUD of the wall (outer face ~1.6 vs the wall's 1.45) so
+  // their faces aren't coplanar with the plaster — coplanar faces z-fight and
+  // shimmer as the camera moves. Proud beams also read as Tudor framing.
+  box([0.24, 2, 0.24], [1.5, 1.4, 1.5], TIMBER, { castShadow: false }),
+  box([0.24, 2, 0.24], [-1.5, 1.4, 1.5], TIMBER, { castShadow: false }),
+  box([0.24, 2, 0.24], [1.5, 1.4, -1.5], TIMBER, { castShadow: false }),
+  box([0.24, 2, 0.24], [-1.5, 1.4, -1.5], TIMBER, { castShadow: false }),
   pyramid(2.55, 1.6, 3.2, ROOF_RED),
   box([0.75, 1.2, 0.08], [0, 0.8, 1.46], WOOD_DARK),
   box([0.55, 0.55, 0.06], [-0.85, 1.6, 1.46], WINDOW, glow()),
