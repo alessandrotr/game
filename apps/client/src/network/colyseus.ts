@@ -14,6 +14,7 @@ import {
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
+import { useSpeechStore } from '../store/useSpeechStore';
 import { useMatchmakingStore } from '../store/useMatchmakingStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
@@ -190,7 +191,10 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.Damage, onDamage);
   joined.onMessage(ServerMessage.Heal, onHeal);
   joined.onMessage(ServerMessage.LevelUp, onLevelUp);
-  joined.onMessage(ServerMessage.Chat, (msg) => useChatStore.getState().add(msg));
+  joined.onMessage(ServerMessage.Chat, (msg) => {
+    useChatStore.getState().add(msg);
+    if (msg.senderId) useSpeechStore.getState().say(msg.senderId, msg.text);
+  });
   joined.onMessage(ServerMessage.ChatHistory, (msg) => useChatStore.getState().set(msg.messages));
 
   // Matchmaking (town): queue status + the match-found seat reservation.
@@ -216,6 +220,7 @@ function wireRoom(joined: Room): void {
     room = null;
     useGameStore.getState().reset();
     useChatStore.getState().clear();
+  useSpeechStore.getState().clear();
     useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
   });
@@ -249,6 +254,7 @@ export async function connectToRoom(
   clearFloatingText();
   useLevelUpStore.getState().clear();
   useChatStore.getState().clear();
+  useSpeechStore.getState().clear();
   useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
   store.setStatus('connecting');
@@ -290,6 +296,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     clearFloatingText();
   useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
+  useSpeechStore.getState().clear();
     useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
 
@@ -326,6 +333,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     clearFloatingText();
   useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
+  useSpeechStore.getState().clear();
     useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
 

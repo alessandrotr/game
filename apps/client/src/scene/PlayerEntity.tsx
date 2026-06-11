@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
@@ -15,6 +15,7 @@ import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/loc
 import { clearDestination, getDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
+import { useSpeechStore } from '../store/useSpeechStore';
 import { sendAttack } from '../network/colyseus';
 import { getTuning } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
@@ -79,6 +80,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const player = useGameStore.getState().players.get(sessionId);
   const isLocal = useGameStore.getState().sessionId === sessionId;
   const isTargeted = useTargetStore((s) => s.targetId === sessionId);
+  const bubble = useSpeechStore((s) => s.bubbles[sessionId]);
   const descriptor = useMemo(
     () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId),
     [player?.characterClass, player?.skinId],
@@ -267,6 +269,19 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   return (
     <group ref={group}>
       <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
+
+      {/* Chat speech bubble above the head (mirrors what the player typed). */}
+      {bubble && (
+        <Html position={[0, 3.4, 0]} center distanceFactor={9} zIndexRange={[20, 0]}>
+          <div
+            key={bubble.nonce}
+            className="pointer-events-none relative max-w-[200px] -translate-y-1/2 whitespace-pre-wrap rounded-xl border border-black/10 bg-white/95 px-2.5 py-1.5 text-center text-[12px] font-medium leading-snug text-[#14151d] shadow-lg"
+          >
+            {bubble.text}
+            <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[7px] border-x-transparent border-t-white/95" />
+          </div>
+        </Html>
+      )}
 
       <AttackedBanner sessionId={sessionId} isLocal={isLocal} />
 

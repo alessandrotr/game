@@ -73,7 +73,9 @@ export class ChatLog {
     const message: ChatMessage = { from, text };
     this.history.push(message);
     if (this.history.length > CHAT_HISTORY_SIZE) this.history.shift();
-    room.broadcast(ServerMessage.Chat, message);
+    // Live broadcast carries the sender's session id for the in-world speech
+    // bubble; the stored/replayed history (above) deliberately omits it.
+    room.broadcast(ServerMessage.Chat, { ...message, senderId: key });
 
     const db = getPool();
     if (db && this.channel) {

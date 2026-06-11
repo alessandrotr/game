@@ -14,6 +14,9 @@ export interface ChatMessage {
   /** Sender display name. */
   from: string;
   text: string;
+  /** Sender's session id — present on live broadcasts (drives the in-world
+   *  speech bubble), absent on replayed history. */
+  senderId?: string;
 }
 
 /**
