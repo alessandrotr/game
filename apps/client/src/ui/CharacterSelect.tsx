@@ -1,24 +1,51 @@
+import { Heart, Droplet, Wind, Sword, type LucideIcon } from 'lucide-react';
 import { CLASS_LIST, getClassDefinition, type ClassDefinition } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { Badge, Card, LevelBadge, Meter } from './primitives';
+import { ABILITY_ICON } from './abilityIcons';
 
-// Upper bounds used to normalize the comparison bars.
-const STAT_MAX = { health: 160, mana: 150, moveSpeed: 8, attackDamage: 60 };
+/** Comparison stats, in display order: icon + label + normalizing upper bound. */
+const STATS: { stat: keyof ClassDefinition['stats']; label: string; icon: LucideIcon; max: number }[] = [
+  { stat: 'health', label: 'Health', icon: Heart, max: 160 },
+  { stat: 'mana', label: 'Mana', icon: Droplet, max: 150 },
+  { stat: 'moveSpeed', label: 'Speed', icon: Wind, max: 8 },
+  { stat: 'attackDamage', label: 'Damage', icon: Sword, max: 60 },
+];
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Title-case a snake_case ability id ("frost_nova" → "Frost Nova"). */
+const titleCase = (s: string) =>
+  s
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 
-/** A class comparison stat (Health / Mana / …) — `Meter` tuned for this screen. */
-function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+/** A small section heading with a UO-style fading gold rule. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 mt-4 flex items-center gap-2.5">
+      <span className="font-display text-[10px] uppercase tracking-[0.25em] text-gold/70">{children}</span>
+      <span className="h-px flex-1 bg-linear-to-r from-gold/25 to-transparent" />
+    </div>
+  );
+}
+
+/** One comparison stat: icon + label, normalized bar, value. */
+function StatRow({ icon: Icon, label, value, max, color }: (typeof STATS)[number] & { value: number; color: string }) {
   return (
     <Meter
       value={value}
       max={max}
       fill={color}
-      label={label}
+      label={
+        <span className="flex items-center gap-1.5">
+          <Icon size={13} aria-hidden="true" className="shrink-0 text-gold/60" />
+          {label}
+        </span>
+      }
       valueText={value}
       className="text-xs"
-      labelClassName="w-16"
+      labelClassName="w-[88px]"
       valueClassName="w-8"
     />
   );
@@ -27,24 +54,29 @@ function StatRow({ label, value, max, color }: { label: string; value: number; m
 function ClassInfo({ def }: { def: ClassDefinition }) {
   return (
     <Card variant="inset">
-      <p className="mb-3 text-[13px] leading-relaxed text-muted">{def.description}</p>
+      {/* Flavor / lore line. */}
+      <p className="border-l-2 border-gold/30 pl-3 text-[13px] italic leading-relaxed text-muted">
+        {def.description}
+      </p>
+
+      <SectionLabel>Stats</SectionLabel>
       <div className="flex flex-col gap-2">
-        <StatRow label="Health" value={def.stats.health} max={STAT_MAX.health} color={def.color} />
-        <StatRow label="Mana" value={def.stats.mana} max={STAT_MAX.mana} color={def.color} />
-        <StatRow label="Speed" value={def.stats.moveSpeed} max={STAT_MAX.moveSpeed} color={def.color} />
-        <StatRow
-          label="Damage"
-          value={def.stats.attackDamage}
-          max={STAT_MAX.attackDamage}
-          color={def.color}
-        />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {def.abilities.map((ability) => (
-          <Badge key={ability} variant="gold">
-            {capitalize(ability)}
-          </Badge>
+        {STATS.map((s) => (
+          <StatRow key={s.stat} {...s} value={def.stats[s.stat]} color={def.color} />
         ))}
+      </div>
+
+      <SectionLabel>Abilities</SectionLabel>
+      <div className="flex flex-wrap gap-2">
+        {def.abilities.map((ability) => {
+          const Icon = ABILITY_ICON[ability];
+          return (
+            <Badge key={ability} variant="gold" className="gap-1.5 normal-case">
+              <Icon size={12} aria-hidden="true" />
+              {titleCase(ability)}
+            </Badge>
+          );
+        })}
       </div>
     </Card>
   );

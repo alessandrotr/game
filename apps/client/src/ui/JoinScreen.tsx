@@ -75,7 +75,7 @@ export function JoinScreen() {
             <ClassPreview />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5">
               <div className="flex items-end justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-6">
                   <LevelBadge level={level} size="lg" />
                   <div className="min-w-0">
                     <h2

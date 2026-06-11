@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Flame, HeartPulse, Snowflake, Sparkles, Waves, Zap, type LucideIcon } from 'lucide-react';
 import {
   ABILITIES,
   ABILITY_SLOTS,
@@ -10,16 +9,7 @@ import {
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { cooldownRemaining } from '../store/abilityCooldowns';
-
-/** Placeholder icons until real ability art (a reserved `iconUrl`) lands. */
-const ABILITY_ICON: Record<AbilityKind, LucideIcon> = {
-  fireball: Flame,
-  heal: HeartPulse,
-  frost_nova: Snowflake,
-  shockwave: Waves,
-  arcane_bolt: Zap,
-  arcane_blast: Sparkles,
-};
+import { ABILITY_ICON } from './abilityIcons';
 
 /** The mutable DOM handles a slot exposes so the rAF loop can update it without React. */
 interface SlotEls {
