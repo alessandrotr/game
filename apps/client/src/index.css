@@ -82,3 +82,13 @@ canvas {
     transform: translateY(-28px) scale(1);
   }
 }
+
+/* Indeterminate loading bar: a sweep that travels across the track (LoadingScreen). */
+@keyframes loadsweep {
+  0% {
+    transform: translateX(-150%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}

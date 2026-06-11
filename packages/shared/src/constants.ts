@@ -22,7 +22,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const ARENA_HALF_SIZE = 25;
 
 /** Player movement speed in world units per second. */
-export const PLAYER_SPEED = 7.5;
+export const PLAYER_SPEED = 9;
 
 /** Player collision/visual radius in world units. */
 export const PLAYER_RADIUS = 0.5;

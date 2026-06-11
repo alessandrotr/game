@@ -10,7 +10,7 @@ import { ScreenHeader } from './ScreenHeader';
  * character-select screen; on success the auth store flips to `authed` and the
  * app reveals the game.
  */
-export function AuthScreen() {
+export function AuthScreen({ onBack }: { onBack?: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -33,6 +33,16 @@ export function AuthScreen() {
   return (
     <div className="absolute inset-0 flex items-center justify-center overflow-y-auto bg-arena-radial p-5">
       <div className="w-full max-w-sm">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="mb-4 -ml-1 text-muted hover:text-text"
+          >
+            ← Back
+          </Button>
+        )}
         <ScreenHeader
           className="mb-8"
           subtitle={isRegister ? 'Create your account' : 'Sign in to your account'}

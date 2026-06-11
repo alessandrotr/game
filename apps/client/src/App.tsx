@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
+import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
 import { useEmotes } from './hooks/useEmotes';
@@ -11,6 +12,8 @@ import { useInteractionInput } from './hooks/useInteractionInput';
 import { GameScene } from './scene/GameScene';
 import { JoinScreen } from './ui/JoinScreen';
 import { AuthScreen } from './ui/AuthScreen';
+import { LandingPage } from './ui/LandingPage';
+import { LoadingScreen } from './ui/LoadingScreen';
 import { Hud } from './ui/Hud';
 import { InteractionUI } from './ui/InteractionUI';
 import { ChatPanel } from './ui/ChatPanel';
@@ -28,6 +31,15 @@ export default function App() {
     void restore();
   }, [restore]);
 
+  // Pre-login flow: logged-out visitors see the marketing landing first, then
+  // the auth form (← back returns here). Authed users skip both.
+  const [view, setView] = useState<'landing' | 'auth'>('landing');
+  const minLoading = useMinimumDuration(1200); // floor the intro splash
+  useEffect(() => {
+    // Sign-out (authed → idle) returns the user to the landing, not the form.
+    if (authStatus === 'idle') setView('landing');
+  }, [authStatus]);
+
   // Combat input + live tuning are arena-only (the town room has no such handlers,
   // and Colyseus disconnects a client that sends an unhandled message). Movement
   // and NPC interaction apply in both worlds.
@@ -39,17 +51,18 @@ export default function App() {
   useServerStatTuning(connected && inArena);
   useInteractionInput(connected);
 
-  // Sign-in gate sits in front of everything. While restoring a saved session,
-  // show a minimal splash so we don't flash the login form for returning users.
-  if (authStatus === 'restoring') {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[#07080d]">
-        <span className="font-display text-2xl tracking-[0.35em] text-gold/70">ARENA</span>
-      </div>
-    );
+  // Branded intro: shown while restoring a saved session AND for a minimum
+  // window, so it reads as a deliberate splash even when restore is instant
+  // (and never flashes the login form for returning users).
+  if (authStatus === 'restoring' || minLoading) {
+    return <LoadingScreen />;
   }
   if (authStatus !== 'authed') {
-    return <AuthScreen />;
+    return view === 'landing' ? (
+      <LandingPage onPlay={() => setView('auth')} />
+    ) : (
+      <AuthScreen onBack={() => setView('landing')} />
+    );
   }
 
   return (
