@@ -5,6 +5,7 @@ import type { VfxAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { assets } from '../assets/registry';
 import { AssetMesh } from '../render/AssetMesh';
+import { FireballEffect } from './FireballEffect';
 
 /** Maps a projectile's source tag (ability kind or auto-attack) to its VFX. */
 const ABILITY_VFX: Record<string, VfxAssetId> = {
@@ -44,7 +45,11 @@ function ProjectileEntity({ id }: { id: string }) {
   if (!descriptor) return null;
   return (
     <group ref={group}>
-      <AssetMesh source={descriptor.render} />
+      {vfxId === 'vfx.fireball' ? (
+        <FireballEffect />
+      ) : (
+        <AssetMesh source={descriptor.render} />
+      )}
     </group>
   );
 }
