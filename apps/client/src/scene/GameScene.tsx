@@ -23,7 +23,7 @@ import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
 import { CursorTracker } from './CursorTracker';
 import { DestinationMarker } from './DestinationMarker';
-import { Obstacles } from './Obstacles';
+import { ArenaLights } from './ArenaLights';
 import { Portals } from './Portals';
 import { MapView } from '../render/MapView';
 import { MapZones } from '../render/MapZones';
@@ -90,7 +90,7 @@ export function GameScene() {
           procedural dusk environment from its own tuned sky/sun/ground colours
           (zero external asset, baked once) for realistic ambient + reflections. */}
       {isArena ? (
-        <Environment preset="night" environmentIntensity={env.envIntensity} />
+        <Environment preset="warehouse" environmentIntensity={env.envIntensity} />
       ) : (
         <Environment
           key={`${env.hemiSky}${env.sunColor}${env.hemiGround}`}
@@ -128,7 +128,7 @@ export function GameScene() {
       {isArena ? (
         <>
           <Arena />
-          <Obstacles />
+          <ArenaLights />
         </>
       ) : (
         <>

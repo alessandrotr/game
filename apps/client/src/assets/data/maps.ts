@@ -15,9 +15,83 @@ const arena: MapDescriptor = {
   id: 'map.arena',
   displayName: 'The Arena',
   halfSize: ARENA_HALF_SIZE,
-  groundColor: '#1a1f33',
-  ambient: { color: '#3a4a7a', intensity: 0.4 },
-  props: [],
+  groundColor: '#5b4f3c',
+  ambient: { color: '#5a4a38', intensity: 0.4 },
+  // A gritty, abandoned trailer park. The big pieces (trailers, burned cars,
+  // dumpsters, scrap piles, drum clusters) are cover and line up 1:1 with the
+  // collision circles in ARENA_LAYOUTS.trailerpark (packages/shared) — keep the
+  // two in sync. Everything else (trash, debris, tyres, fences, broken crates,
+  // loose/burning drums) is decorative scatter for a lived-in, chaotic feel.
+  props: [
+    // --- Cover (matches trailerpark collision circles) ---
+    { assetId: 'prop.arena.trailer', position: [10, 0, 5], rotation: [0, -0.5, 0] },
+    { assetId: 'prop.arena.trailer', position: [-10, 0, -5], rotation: [0, 2.64, 0] },
+    { assetId: 'prop.arena.trailer.teal', position: [-11, 0, 8], rotation: [0, 0.6, 0] },
+    { assetId: 'prop.arena.trailer.teal', position: [11, 0, -8], rotation: [0, -2.54, 0] },
+    { assetId: 'prop.arena.car.burned', position: [-5, 0, -9], rotation: [0, 0.4, 0] },
+    { assetId: 'prop.arena.car.burned', position: [5, 0, 9], rotation: [0, 3.54, 0] },
+    { assetId: 'prop.arena.dumpster', position: [15, 0, -2], rotation: [0, -1, 0] },
+    { assetId: 'prop.arena.dumpster', position: [-15, 0, 2], rotation: [0, 2.14, 0] },
+    { assetId: 'prop.arena.scrap', position: [2, 0, 4], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.arena.scrap', position: [-2, 0, -4], rotation: [0, 3.64, 0] },
+    // Drum clusters (each huddle sits inside one r1.1 collision circle).
+    { assetId: 'prop.arena.drum', position: [0, 0, 12] },
+    { assetId: 'prop.arena.drum', position: [0.55, 0, 12.35], rotation: [0, 0.6, 0] },
+    { assetId: 'prop.arena.drum', position: [-0.5, 0, 11.6], rotation: [0, 1.2, 0] },
+    { assetId: 'prop.arena.drum', position: [0, 0, -12] },
+    { assetId: 'prop.arena.drum', position: [-0.55, 0, -12.35], rotation: [0, 0.6, 0] },
+    { assetId: 'prop.arena.drum', position: [0.5, 0, -11.6], rotation: [0, 1.2, 0] },
+
+    // --- Burning barrels (atmosphere; keep in sync with scene/ArenaLights) ---
+    { assetId: 'prop.arena.drum.fire', position: [8, 0, 2] },
+    { assetId: 'prop.arena.drum.fire', position: [-8, 0, -2] },
+    { assetId: 'prop.arena.drum.fire', position: [13, 0, 9] },
+
+    // --- Loose drums leaning against the cover ---
+    { assetId: 'prop.arena.drum', position: [12, 0, 6], rotation: [0, 0.3, 0] },
+    { assetId: 'prop.arena.drum', position: [-12, 0, -6], rotation: [0, 0.9, 0] },
+
+    // --- Tyre stacks ---
+    { assetId: 'prop.arena.tires', position: [9, 0, -4] },
+    { assetId: 'prop.arena.tires', position: [-9, 0, 4] },
+    { assetId: 'prop.arena.tires', position: [-12, 0, 11] },
+    { assetId: 'prop.arena.tires', position: [12, 0, -11] },
+
+    // --- Trash piles ---
+    { assetId: 'prop.arena.trash', position: [12, 0, -4] },
+    { assetId: 'prop.arena.trash', position: [-12, 0, 4] },
+    { assetId: 'prop.arena.trash', position: [4, 0, 13] },
+    { assetId: 'prop.arena.trash', position: [-4, 0, -13] },
+    { assetId: 'prop.arena.trash', position: [17, 0, -6] },
+    { assetId: 'prop.arena.trash', position: [-17, 0, 6] },
+
+    // --- Broken crates ---
+    { assetId: 'prop.arena.crate.broken', position: [13, 0, 0] },
+    { assetId: 'prop.arena.crate.broken', position: [-13, 0, 0], rotation: [0, 0.8, 0] },
+    { assetId: 'prop.arena.crate.broken', position: [7, 0, 7], rotation: [0, 1.2, 0] },
+    { assetId: 'prop.arena.crate.broken', position: [-7, 0, -7], rotation: [0, -0.6, 0] },
+    { assetId: 'prop.arena.crate.broken', position: [3, 0, -6] },
+
+    // --- Scattered ground debris ---
+    { assetId: 'prop.arena.debris', position: [6, 0, -3] },
+    { assetId: 'prop.arena.debris', position: [-6, 0, 3], rotation: [0, 1.1, 0] },
+    { assetId: 'prop.arena.debris', position: [0, 0, 7], rotation: [0, 0.7, 0] },
+    { assetId: 'prop.arena.debris', position: [0, 0, -7], rotation: [0, -0.9, 0] },
+    { assetId: 'prop.arena.debris', position: [18, 0, 4], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.arena.debris', position: [-18, 0, -4], rotation: [0, -1.3, 0] },
+
+    // --- Broken yard fences (decorative runs) ---
+    { assetId: 'prop.arena.fence.rust', position: [7, 0, -12] },
+    { assetId: 'prop.arena.fence.rust', position: [9, 0, -12] },
+    { assetId: 'prop.arena.fence.rust', position: [11, 0, -11.9], rotation: [0, 0.12, 0] },
+    { assetId: 'prop.arena.fence.rust', position: [-7, 0, 12] },
+    { assetId: 'prop.arena.fence.rust', position: [-9, 0, 12] },
+    { assetId: 'prop.arena.fence.rust', position: [-11, 0, 11.9], rotation: [0, 0.12, 0] },
+    { assetId: 'prop.arena.fence.rust', position: [-17, 0, 8], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.arena.fence.rust', position: [-17, 0, 10], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.arena.fence.rust', position: [17, 0, -8], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.arena.fence.rust', position: [17, 0, -10], rotation: [0, HALF_PI, 0] },
+  ],
   zones: [
     { kind: 'portal', center: [0, 0, PORTAL_Z], radius: 2.2, label: 'Town Portal' },
     { kind: 'spawn', center: [0, 0, 18], radius: 2, label: 'Spawn' },

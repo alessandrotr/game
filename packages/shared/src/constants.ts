@@ -110,13 +110,47 @@ export const ARENA_LAYOUTS = {
       { x: -19, z: 0 },
     ],
   },
+  /**
+   * The trailer-park battleground: trailers, burned cars, dumpsters, scrap
+   * piles and drum clusters scattered as cover. Laid out with 180° rotational
+   * symmetry so neither side has an advantage, while still reading as chaotic
+   * junkyard clutter. Each circle here MUST have a matching visible prop in the
+   * arena map (apps/client/src/assets/data/maps.ts) — same circle, same prop —
+   * or you get an invisible wall (or a prop you can shoot/walk straight
+   * through). `height` is only used by the legacy pillar renderer; the visuals
+   * now come from the placed props, so it just mirrors each piece's rough mass.
+   */
+  trailerpark: {
+    id: 'trailerpark',
+    displayName: 'Trailer Park',
+    obstacles: [
+      { x: 10, z: 5, radius: 2, height: 2.8 }, // trailer
+      { x: -10, z: -5, radius: 2, height: 2.8 }, // trailer (mirror)
+      { x: -11, z: 8, radius: 2, height: 2.8 }, // trailer (teal)
+      { x: 11, z: -8, radius: 2, height: 2.8 }, // trailer (mirror)
+      { x: -5, z: -9, radius: 1.6, height: 1.7 }, // burned car
+      { x: 5, z: 9, radius: 1.6, height: 1.7 }, // burned car (mirror)
+      { x: 15, z: -2, radius: 1.3, height: 1.5 }, // dumpster
+      { x: -15, z: 2, radius: 1.3, height: 1.5 }, // dumpster (mirror)
+      { x: 2, z: 4, radius: 1.2, height: 1.4 }, // scrap pile
+      { x: -2, z: -4, radius: 1.2, height: 1.4 }, // scrap pile (mirror)
+      { x: 0, z: 12, radius: 1.1, height: 1 }, // oil-drum cluster
+      { x: 0, z: -12, radius: 1.1, height: 1 }, // oil-drum cluster (mirror)
+    ],
+    spawnPoints: [
+      { x: 0, z: 18 },
+      { x: 0, z: -18 },
+      { x: 18, z: 0 },
+      { x: -18, z: 0 },
+    ],
+  },
 } as const satisfies Record<string, ArenaLayout>;
 
 export type ArenaLayoutId = keyof typeof ARENA_LAYOUTS;
 
 /** The layout the arena currently uses. Server and client must agree, so it
  *  lives here; per-room layout selection can override it in a later phase. */
-export const ACTIVE_ARENA_LAYOUT: ArenaLayout = ARENA_LAYOUTS.pillars;
+export const ACTIVE_ARENA_LAYOUT: ArenaLayout = ARENA_LAYOUTS.trailerpark;
 
 /** Active-layout obstacles. Shared so server, client prediction, and renderer
  *  all agree on exactly the same geometry. */
