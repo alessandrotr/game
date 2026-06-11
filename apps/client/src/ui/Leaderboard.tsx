@@ -10,6 +10,12 @@ import {
   DialogTitle,
   DialogTrigger,
   IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from './primitives';
 
 /** Resolve a class string to its display name + accent color (safe for unknowns). */
@@ -27,26 +33,26 @@ function Row({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
   const cls = classInfo(entry.characterClass);
   const rankColor = RANK_COLOR[rank - 1] ?? '#8b91a8';
   return (
-    <div className="flex items-center gap-3 border-b border-white/5 py-2 text-sm last:border-b-0">
-      <span className="w-6 text-right font-bold tabular-nums" style={{ color: rankColor }}>
+    <TableRow>
+      <TableCell className="text-right font-bold tabular-nums" style={{ color: rankColor }}>
         {rank}
-      </span>
-      <span className="min-w-0 flex-1 truncate font-semibold text-text">{entry.name}</span>
-      <span className="w-14 text-xs font-medium" style={{ color: cls.color }}>
+      </TableCell>
+      <TableCell className="max-w-[150px] truncate font-semibold text-text">{entry.name}</TableCell>
+      <TableCell className="text-xs font-medium" style={{ color: cls.color }}>
         {cls.name}
-      </span>
-      <span className="w-9 text-center text-xs text-muted">Lv{entry.level}</span>
-      <span className="w-16 text-right tabular-nums" title="Kills / Deaths">
+      </TableCell>
+      <TableCell className="text-center text-xs text-muted">Lv{entry.level}</TableCell>
+      <TableCell className="text-right tabular-nums" title="Kills / Deaths">
         <span className="font-bold text-positive">{entry.kills}</span>
         <span className="text-muted">/</span>
         <span className="font-bold text-negative">{entry.deaths}</span>
-      </span>
-      <span className="w-14 text-right tabular-nums" title="Wins–Losses">
+      </TableCell>
+      <TableCell className="text-right tabular-nums" title="Wins–Losses">
         <span className="font-bold text-positive">{entry.wins}</span>
         <span className="text-muted">-</span>
         <span className="font-bold text-negative">{entry.losses}</span>
-      </span>
-    </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -101,19 +107,23 @@ export function Leaderboard() {
               No ranked matches played yet. Be the first to win one!
             </div>
           ) : (
-            <>
-              <div className="flex items-center gap-3 border-b border-white/10 pb-1.5 text-[10px] uppercase tracking-wider text-muted">
-                <span className="w-6 text-right">#</span>
-                <span className="flex-1">Player</span>
-                <span className="w-14">Class</span>
-                <span className="w-9 text-center">Lvl</span>
-                <span className="w-16 text-right">K / D</span>
-                <span className="w-14 text-right">W–L</span>
-              </div>
-              {entries.map((entry, i) => (
-                <Row key={i} entry={entry} rank={i + 1} />
-              ))}
-            </>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-8 text-right">#</TableHead>
+                  <TableHead>Player</TableHead>
+                  <TableHead className="w-14">Class</TableHead>
+                  <TableHead className="w-10 text-center">Lvl</TableHead>
+                  <TableHead className="text-right">K / D</TableHead>
+                  <TableHead className="text-right">W–L</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((entry, i) => (
+                  <Row key={i} entry={entry} rank={i + 1} />
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
       </DialogContent>

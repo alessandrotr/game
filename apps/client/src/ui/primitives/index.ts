@@ -16,3 +16,13 @@ export {
 export { Meter, type MeterProps } from './meter';
 export { StatTile, type StatTileProps } from './stat-tile';
 export { Badge, type BadgeProps } from './badge';
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from './table';
