@@ -415,14 +415,16 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   // reopened below when arriving in town).
   disconnectMatchmaking();
   try {
-    // Leave the old world without blocking — leaving and joining are independent
-    // rooms, so awaiting the close handshake just adds a round-trip to the swap
-    // (noticeable on a high-latency host). `traveling` keeps its onLeave from
-    // resetting us to the join screen.
+    // Fully leave the old world before joining the next. Awaiting the close
+    // keeps the old room's stale events (onLeave/onError/onStateChange) from
+    // bleeding into the new session — the loading screen covers the wait.
     if (room) {
-      const previous = room;
+      try {
+        await room.leave();
+      } catch {
+        /* ignore */
+      }
       room = null;
-      void previous.leave().catch(() => {});
     }
     // Clear the old world's transient state; stay 'connected' so the scene stays up.
     store.players.clear();
@@ -457,12 +459,14 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   store.setTransitioning(true, 'Entering the arena…');
   disconnectMatchmaking(); // belt-and-braces: the match-found handler already did
   try {
-    // Non-blocking leave (see travelTo): don't wait out the close handshake
-    // before consuming the seat into the arena.
+    // Fully leave the old world before consuming the seat (see travelTo).
     if (room) {
-      const previous = room;
+      try {
+        await room.leave();
+      } catch {
+        /* ignore */
+      }
       room = null;
-      void previous.leave().catch(() => {});
     }
     store.players.clear();
     store.projectiles.clear();
