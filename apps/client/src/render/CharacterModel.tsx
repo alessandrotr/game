@@ -1,7 +1,7 @@
 import { Suspense, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import type { Group, Mesh, SkinnedMesh } from 'three';
+import type { Group, Mesh, MeshStandardMaterial, SkinnedMesh } from 'three';
 import type {
   AnimationName,
   CharacterDescriptor,
@@ -114,10 +114,21 @@ function GltfCharacter({
     // bounds fall outside the shadow camera.
     clone.traverse((o) => {
       const mesh = o as Mesh;
-      if (mesh.isMesh) {
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        if ((mesh as SkinnedMesh).isSkinnedMesh) mesh.frustumCulled = false;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      if ((mesh as SkinnedMesh).isSkinnedMesh) mesh.frustumCulled = false;
+      // Meshy/AI exports often mark materials fully metallic, which kills diffuse
+      // shading (a metal surface only shows reflections, and there's no env map
+      // in town) — so they look flat and ignore lights/shadows. Force them matte
+      // so they light + receive shadows like the placeholder characters.
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of mats) {
+        const std = mat as MeshStandardMaterial;
+        if (std && 'metalness' in std) {
+          std.metalness = 0;
+          if (std.roughness < 0.5) std.roughness = 0.8;
+        }
       }
     });
     return clone;
