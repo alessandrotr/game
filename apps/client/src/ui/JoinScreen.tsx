@@ -95,7 +95,7 @@ export function JoinScreen() {
                 {connecting ? 'ENTERING…' : 'ENTER THE WORLD'}
               </Button>
               {error && (
-                <div role="alert" className="text-center text-[13px] text-red-400">
+                <div role="alert" className="text-center text-[13px] text-negative">
                   {error}
                 </div>
               )}

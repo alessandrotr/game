@@ -9,6 +9,14 @@
   --color-gold-dark: #9c7a2c;
   --color-text: #e6e9f5;
   --color-muted: #8b91a8;
+
+  /* Semantic stat colors (good/bad/resources). Mirrored in ui/theme.ts via
+     var() so the same values drive both class names and inline styles. */
+  --color-positive: #5fe08a; /* HP, kills, wins, victory */
+  --color-negative: #ff7a7a; /* deaths, losses, defeat, errors */
+  --color-mana: #60a5fa; /* MP / mana */
+  --color-cast: #fbbf24; /* ability cast-time fill */
+  --color-xp-tip: #ffffffcc; /* bright end of the XP gradient */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
 }
 

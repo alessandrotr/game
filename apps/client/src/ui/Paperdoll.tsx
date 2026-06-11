@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, Meter, StatTile } from './primitives';
+import { STAT_COLORS } from './theme';
 
 /**
  * UO-style "paperdoll": click another player in town to inspect them. Shows a
@@ -71,7 +72,7 @@ export function Paperdoll() {
           size="md"
           value={into}
           max={span}
-          fill={`linear-gradient(90deg, ${def.color}, #ffffffcc)`}
+          fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
           label="XP"
           valueText={`${into} / ${span}`}
           headerClassName="mb-1 text-[11px] text-muted"
@@ -80,9 +81,9 @@ export function Paperdoll() {
 
       {/* Record */}
       <div className="flex gap-2 px-4 py-3">
-        <StatTile variant="bordered" label="Kills" value={data.kills} color="#5fe08a" />
-        <StatTile variant="bordered" label="Deaths" value={data.deaths} color="#ff7a7a" />
-        <StatTile variant="bordered" label="K/D" value={kd} color="#e6e9f5" />
+        <StatTile variant="bordered" label="Kills" value={data.kills} color={STAT_COLORS.positive} />
+        <StatTile variant="bordered" label="Deaths" value={data.deaths} color={STAT_COLORS.negative} />
+        <StatTile variant="bordered" label="K/D" value={kd} color={STAT_COLORS.text} />
       </div>
     </Card>
   );

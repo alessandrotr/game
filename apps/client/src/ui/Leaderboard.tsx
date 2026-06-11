@@ -37,14 +37,14 @@ function Row({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
       </span>
       <span className="w-9 text-center text-xs text-muted">Lv{entry.level}</span>
       <span className="w-16 text-right tabular-nums" title="Kills / Deaths">
-        <span className="font-bold text-[#5fe08a]">{entry.kills}</span>
+        <span className="font-bold text-positive">{entry.kills}</span>
         <span className="text-muted">/</span>
-        <span className="font-bold text-[#ff7a7a]">{entry.deaths}</span>
+        <span className="font-bold text-negative">{entry.deaths}</span>
       </span>
       <span className="w-14 text-right tabular-nums" title="Wins–Losses">
-        <span className="font-bold text-[#5fe08a]">{entry.wins}</span>
+        <span className="font-bold text-positive">{entry.wins}</span>
         <span className="text-muted">-</span>
-        <span className="font-bold text-[#ff7a7a]">{entry.losses}</span>
+        <span className="font-bold text-negative">{entry.losses}</span>
       </span>
     </div>
   );

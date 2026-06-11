@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, Meter, StatTile } from './primitives';
+import { STAT_COLORS } from './theme';
 
 const COMPACT_KEY = 'arena.playercard.compact';
 function loadCompact(): boolean {
@@ -108,8 +109,8 @@ export function PlayerCard() {
         <div className="space-y-1.5 px-3 pb-2.5">
           {inArena ? (
             <>
-              <Bar label="HP" value={me.hp} max={me.maxHp} color="#4ade80" />
-              <Bar label="MP" value={me.mana} max={me.maxMana} color="#60a5fa" />
+              <Bar label="HP" value={me.hp} max={me.maxHp} color={STAT_COLORS.positive} />
+              <Bar label="MP" value={me.mana} max={me.maxMana} color={STAT_COLORS.mana} />
             </>
           ) : (
             <Bar label="XP" value={into} max={span} color={def.color} />
@@ -147,7 +148,7 @@ export function PlayerCard() {
           size="md"
           value={into}
           max={span}
-          fill={`linear-gradient(90deg, ${def.color}, #ffffffcc)`}
+          fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
           label="XP"
           valueText={`${Math.round(into)} / ${span}`}
           headerClassName="mb-1 items-baseline"
@@ -158,17 +159,17 @@ export function PlayerCard() {
         />
 
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <StatTile label="Kills" value={me.kills} color="#5fe08a" />
-          <StatTile label="Deaths" value={me.deaths} color="#ff7a7a" />
-          <StatTile label="K/D" value={kd} color="#e6e9f5" />
+          <StatTile label="Kills" value={me.kills} color={STAT_COLORS.positive} />
+          <StatTile label="Deaths" value={me.deaths} color={STAT_COLORS.negative} />
+          <StatTile label="K/D" value={kd} color={STAT_COLORS.text} />
         </div>
 
         {inArena && (
           <div className="mt-3 space-y-1.5">
-            <Bar label="HP" value={me.hp} max={me.maxHp} color="#4ade80" />
-            <Bar label="MP" value={me.mana} max={me.maxMana} color="#60a5fa" />
+            <Bar label="HP" value={me.hp} max={me.maxHp} color={STAT_COLORS.positive} />
+            <Bar label="MP" value={me.mana} max={me.maxMana} color={STAT_COLORS.mana} />
             {!me.alive && (
-              <div className="pt-0.5 text-center text-[11px] font-semibold text-red-400">
+              <div className="pt-0.5 text-center text-[11px] font-semibold text-negative">
                 Defeated — respawning…
               </div>
             )}

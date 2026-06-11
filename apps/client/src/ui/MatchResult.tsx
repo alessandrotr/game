@@ -3,6 +3,7 @@ import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useGameStore } from '../store/useGameStore';
 import { travelTo } from '../network/colyseus';
 import { Button, Card, Overlay } from './primitives';
+import { STAT_COLORS } from './theme';
 
 /** Seconds the results screen shows before auto-returning to town. */
 const AUTO_RETURN_SECONDS = 8;
@@ -37,7 +38,7 @@ export function MatchResult() {
   if (!result) return null;
 
   const won = result.winnerId === sessionId;
-  const accent = won ? '#5fe08a' : '#ff7a7a';
+  const accent = won ? STAT_COLORS.positive : STAT_COLORS.negative;
   const scores = [...result.scores].sort((a, b) => b.kills - a.kills);
 
   return (
@@ -45,11 +46,11 @@ export function MatchResult() {
       <Card variant="modal" className="w-[340px]">
         <div
           className="px-6 py-5 text-center"
-          style={{ background: `linear-gradient(180deg, ${accent}22, transparent)` }}
+          style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 13%, transparent), transparent)` }}
         >
           <div
             className="font-display text-3xl font-bold tracking-wide"
-            style={{ color: accent, textShadow: `0 0 20px ${accent}66` }}
+            style={{ color: accent, textShadow: `0 0 20px color-mix(in srgb, ${accent} 40%, transparent)` }}
           >
             {won ? 'Victory' : 'Defeat'}
           </div>

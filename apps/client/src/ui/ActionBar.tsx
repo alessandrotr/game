@@ -52,7 +52,7 @@ export function ActionBar() {
       {/* Mana bar */}
       <div className="h-1.5 w-[244px] overflow-hidden rounded-full bg-black/50">
         <div
-          className="h-full rounded-full bg-[#60a5fa] transition-[width] duration-100"
+          className="h-full rounded-full bg-mana transition-[width] duration-100"
           style={{ width: `${manaRatio * 100}%` }}
         />
       </div>
@@ -121,7 +121,7 @@ function Slot({
       {/* Cast-time fill (rises from the bottom during a channel). */}
       {casting && (
         <div
-          className="absolute inset-x-0 bottom-0 bg-[#fbbf24]/45"
+          className="absolute inset-x-0 bottom-0 bg-cast/45"
           style={{ height: `${castFrac * 100}%` }}
         />
       )}
