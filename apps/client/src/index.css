@@ -50,11 +50,14 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Custom default cursor (hotspot baked into the .cur); arrow as fallback. */
+  cursor: url('/hand-with-glove.cur'), auto;
 }
 
 canvas {
   display: block;
   touch-action: none;
+  cursor: inherit;
 }
 
 /* Level-up banner: pop in, hold, then drift up and fade out (used by LevelUpToast). */
