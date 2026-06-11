@@ -95,7 +95,7 @@ export function Leaderboard() {
           </DialogClose>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto px-5 py-2">
+        <div className="max-h-[60vh] overflow-y-auto">
           {loading ? (
             <div className="py-10 text-center text-sm text-muted">Loading…</div>
           ) : !enabled ? (
