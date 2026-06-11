@@ -1,7 +1,7 @@
-import { RotateCcw, Users } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { leaveToCharacterSelect } from '../network/colyseus';
-import { Badge, Button } from './primitives';
+import { Button } from './primitives';
 import { ActionBar } from './ActionBar';
 import { Matchmaking } from './Matchmaking';
 import { PlayerCard } from './PlayerCard';
@@ -12,7 +12,6 @@ import { Paperdoll } from './Paperdoll';
 
 /** In-game heads-up display: the player card, controls hint, and action bar. */
 export function Hud() {
-  const playerIds = useGameStore((s) => s.playerIds);
   const inArena = useGameStore((s) => s.room) === 'arena';
 
   return (
@@ -35,12 +34,6 @@ export function Hud() {
           </>
         )}
       </div>
-
-      {/* Online count, top-right. */}
-      <Badge variant="neutral" className="pointer-events-none absolute right-4 top-4 gap-1.5">
-        <Users size={12} aria-hidden="true" />
-        {playerIds.length} online
-      </Badge>
 
       <div className="pointer-events-none absolute bottom-[92px] left-1/2 -translate-x-1/2 text-xs tracking-wide text-muted">
         {inArena
