@@ -1,7 +1,7 @@
 import { CLASS_LIST, getClassDefinition, type ClassDefinition } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { Badge, Card, Meter } from './primitives';
+import { Badge, Card, LevelBadge, Meter } from './primitives';
 
 // Upper bounds used to normalize the comparison bars.
 const STAT_MAX = { health: 160, mana: 150, moveSpeed: 8, attackDamage: 60 };
@@ -90,13 +90,7 @@ export function CharacterSelect() {
                 <span className="block font-display text-sm tracking-wide text-white">{c.name}</span>
                 <span className="block truncate text-[11px] text-muted">{c.role}</span>
               </span>
-              <span
-                className="shrink-0 rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                style={{ color: c.color }}
-                title={`Level ${level} ${c.name}`}
-              >
-                Lv {level}
-              </span>
+              <LevelBadge level={level} size="xs" className="shrink-0" />
             </button>
           );
         })}
