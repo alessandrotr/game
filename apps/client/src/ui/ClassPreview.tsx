@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
@@ -42,15 +42,14 @@ function Pedestal({ color }: { color: string }) {
  * idle; drag to orbit, scroll/pinch to zoom. Its own R3F canvas, independent of
  * the game scene.
  */
-export function ClassPreview({
-  characterClass,
-  lite = false,
-}: {
+interface ClassPreviewProps {
   characterClass?: CharacterClass;
   /** Cheap auto-rotating bust for an always-on HUD: no shadows, env, contact
    *  shadows, or controls — safe to keep rendering during gameplay. */
   lite?: boolean;
-} = {}) {
+}
+
+function ClassPreviewImpl({ characterClass, lite = false }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
   const def = getClassDefinition(selected);
@@ -118,3 +117,11 @@ export function ClassPreview({
     </Canvas>
   );
 }
+
+/**
+ * Memoized so a parent that re-renders on every server tick (e.g. PlayerCard's
+ * ~20 Hz HUD) doesn't reconcile this whole `<Canvas>` subtree each time — its
+ * props (`characterClass`, `lite`) are stable, and its own auto-rotate render
+ * loop is independent of React.
+ */
+export const ClassPreview = memo(ClassPreviewImpl);
