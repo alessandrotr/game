@@ -16,8 +16,10 @@ import {
   useTuningStore,
   type CameraConfig,
 } from '../tuning';
+import { useEnvStore } from '../tuning/useEnvStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
+import { EnvPanels } from './EnvPanel';
 
 /**
  * Dev-tools root: the Leva UI plus tuning folders generated from the shared
@@ -38,6 +40,10 @@ export default function DevTools() {
     }),
     'Reset all overrides': button(() => {
       useTuningStore.getState().reset();
+      window.location.reload();
+    }),
+    'Reset environment': button(() => {
+      useEnvStore.getState().reset();
       window.location.reload();
     }),
   }));
@@ -72,6 +78,7 @@ export default function DevTools() {
         />
       ))}
 
+      <EnvPanels />
       <AbilityPanels />
     </>
   );

@@ -1,7 +1,9 @@
-import { Canvas } from '@react-three/fiber';
+import { useEffect } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
-import { ARENA_HALF_SIZE, TOWN_HALF_SIZE, type MapAssetId } from '@arena/shared';
+import { type MapAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+import { useEnvStore } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
@@ -28,63 +30,53 @@ import { Npcs } from './Npcs';
 export function GameScene() {
   const playerIds = useGameStore((s) => s.playerIds);
   const isArena = useGameStore((s) => s.room) === 'arena';
-
+  const room = isArena ? 'arena' : 'town';
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
-  const half = isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE;
-  // Tighten the shadow frustum to the area that actually has props. A smaller
-  // frustum packs the 2048² map's texels onto that area → far crisper shadows
-  // than spreading them over the whole ground. Town reaches back to the castle.
-  const shadowExtent = isArena ? half : 30;
-  // Fog: town fades the (huge) ground into the sky colour at the horizon, so the
-  // ground edge is never a hard line. Kept clear over the town core.
-  const fogNear = isArena ? half : half * 0.65;
-  const fogFar = isArena ? half * 3 : half * 1.9;
+  // Lighting / shadows / fog / tone, live-tunable per world via the dev tools
+  // (Leva → "Environment · Town/Arena"). Defaults match the hand-tuned look.
+  const env = useEnvStore((s) => s[room]);
 
   return (
     <Canvas
       shadows="soft"
       dpr={[1, 2]}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
-      gl={{ antialias: true, toneMappingExposure: 1.1 }}
+      gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Arena: moody dark. Town: warm dusk so the lit lamps, windows, and forge
-          glow read against a low-key sky. */}
-      <color attach="background" args={[isArena ? '#0b0d17' : '#4f4a66']} />
-      <fog attach="fog" args={[isArena ? '#0b0d17' : '#4f4a66', fogNear, fogFar]} />
+      <ToneExposure value={env.exposure} />
+      <color attach="background" args={[env.background]} />
+      <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
 
-      {/* Fill is kept low so the sunset sun + lamp pools read with contrast. */}
-      <ambientLight intensity={isArena ? 0.4 : 0.16} />
-      {/* Outdoor sky/ground fill — carries the town's ambient (no IBL there). */}
-      {!isArena && <hemisphereLight color="#6d72a4" groundColor="#40382a" intensity={0.5} />}
+      <ambientLight intensity={env.ambient} />
+      {/* Outdoor sky/ground fill (intensity 0 in the arena, which uses IBL). */}
+      <hemisphereLight
+        color={env.hemiSky}
+        groundColor={env.hemiGround}
+        intensity={env.hemiIntensity}
+      />
+      {/* Key light (sun) — the only shadow caster. Keyed by map size so changing
+          it from the dev tools recreates a fresh shadow map. */}
       <directionalLight
-        position={isArena ? [10, 20, 10] : [16, 15, 9]}
-        intensity={isArena ? 1.1 : 1.15}
-        color={isArena ? '#ffffff' : '#ffc078'}
+        key={env.shadowMapSize}
+        position={env.sunPosition}
+        intensity={env.sunIntensity}
+        color={env.sunColor}
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0002}
-        shadow-normalBias={0.04}
+        shadow-mapSize={[env.shadowMapSize, env.shadowMapSize]}
+        shadow-bias={env.shadowBias}
+        shadow-normalBias={env.shadowNormalBias}
         shadow-camera-near={1}
         shadow-camera-far={80}
-        shadow-camera-left={-shadowExtent}
-        shadow-camera-right={shadowExtent}
-        shadow-camera-top={shadowExtent}
-        shadow-camera-bottom={-shadowExtent}
+        shadow-camera-left={-env.shadowExtent}
+        shadow-camera-right={env.shadowExtent}
+        shadow-camera-top={env.shadowExtent}
+        shadow-camera-bottom={-env.shadowExtent}
       />
-      {/* Cinematic rig (both shadowless, so essentially free): a cool fill from
-          the opposite side lifts the shadowed faces out of pure black, and a
-          back/rim light separates characters from the background. */}
-      <directionalLight
-        position={isArena ? [-12, 8, -10] : [-14, 7, -6]}
-        intensity={isArena ? 0.45 : 0.4}
-        color={isArena ? '#7e95ff' : '#6f78b8'}
-      />
-      <directionalLight
-        position={isArena ? [0, 10, -16] : [-2, 11, -18]}
-        intensity={isArena ? 0.35 : 0.45}
-        color={isArena ? '#cfe0ff' : '#ffd9a8'}
-      />
+      {/* Shadowless cinematic fill + rim (cheap): lift shadowed faces and
+          separate silhouettes from the background. */}
+      <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
+      <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
       {/* IBL only in the arena; the town is lit by sun + hemisphere + its lamps. */}
       {isArena && <Environment preset="night" />}
 
@@ -125,4 +117,14 @@ export function GameScene() {
       <CameraRig />
     </Canvas>
   );
+}
+
+/** Applies tone-mapping exposure live, so the dev-tools slider takes effect
+ *  (the Canvas `gl` prop only sets it once, at creation). */
+function ToneExposure({ value }: { value: number }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.toneMappingExposure = value;
+  }, [gl, value]);
+  return null;
 }
