@@ -16,6 +16,10 @@ export interface EnvConfig {
   toneMapping: ToneMappingMode;
   /** Image-based-lighting (IBL) intensity from the procedural environment. */
   envIntensity: number;
+  /** Grass (town): blade wind strength + the base/tip colour gradient. */
+  grassWind: number;
+  grassDark: string;
+  grassLight: string;
   background: string;
   fogColor: string;
   fogNear: number;
@@ -43,6 +47,9 @@ export interface EnvConfig {
 const TOWN: EnvConfig = {
   toneMapping: 'aces',
   envIntensity: 0.25,
+  grassWind: 1,
+  grassDark: '#3e5a30',
+  grassLight: '#84a85e',
   background: '#4f4a66',
   fogColor: '#4f4a66',
   fogNear: TOWN_HALF_SIZE * 0.65,
@@ -70,6 +77,9 @@ const TOWN: EnvConfig = {
 const ARENA: EnvConfig = {
   toneMapping: 'aces',
   envIntensity: 1,
+  grassWind: 1, // unused in the arena (no grass), kept for a uniform config shape
+  grassDark: '#3e5a30',
+  grassLight: '#84a85e',
   background: '#0b0d17',
   fogColor: '#0b0d17',
   fogNear: ARENA_HALF_SIZE,

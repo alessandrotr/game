@@ -12,6 +12,9 @@ function buildSchema(cfg: EnvConfig): Record<string, unknown> {
   return {
     toneMapping: { value: cfg.toneMapping, options: ['aces', 'agx', 'neutral'], label: 'Tone mapping' },
     envIntensity: { value: cfg.envIntensity, min: 0, max: 2, step: 0.05, label: 'IBL intensity' },
+    grassWind: { value: cfg.grassWind, min: 0, max: 3, step: 0.05, label: 'Grass wind' },
+    grassDark: { value: cfg.grassDark, label: 'Grass dark' },
+    grassLight: { value: cfg.grassLight, label: 'Grass light' },
     background: { value: cfg.background, label: 'Background' },
     fogColor: { value: cfg.fogColor, label: 'Fog color' },
     fogNear: { value: cfg.fogNear, min: 0, max: 200, step: 1, label: 'Fog near' },

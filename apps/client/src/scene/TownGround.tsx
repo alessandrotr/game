@@ -7,7 +7,9 @@
  * physical height, so there's no z-fighting and no "swallowed feet". The grass
  * is a single huge plane that runs far past the fog, so the horizon blends.
  */
-const GRASS = '#4a6b3a';
+import { GrassGround } from './GrassGround';
+import { GrassBlades } from './GrassBlades';
+
 const STREET = '#857a66';
 const PLAZA = '#8e887b';
 const PLAZA_RIM = '#6c675b';
@@ -41,11 +43,12 @@ function GroundDecal({
 export function TownGround() {
   return (
     <group>
-      {/* Huge grass field — extends well beyond the fog so the horizon blends. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[600, 600]} />
-        <meshStandardMaterial color={GRASS} roughness={1} metalness={0} />
-      </mesh>
+      {/* Huge grass field (shader-enriched) — extends past the fog so the horizon
+          blends. Keeps PBR lighting + shadows; adds grass variation, wind, and a
+          subtle disturbance that follows the moving player. */}
+      <GrassGround />
+      {/* Real 3D blades over the active town centre for tall-grass silhouettes. */}
+      <GrassBlades />
 
       {/* Streets (flat at y=0), positioned in world space by the parent group. */}
       <group position={[0, 0, -4]}>
