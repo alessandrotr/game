@@ -103,7 +103,7 @@ export function JoinScreen() {
           <section className="flex flex-col gap-4">
             <CharacterSelect />
 
-            <form onSubmit={onSubmit} className="mt-auto flex flex-col gap-2">
+            <form onSubmit={onSubmit} className="flex flex-col gap-2">
               <Button
                 type="submit"
                 variant="gold"
