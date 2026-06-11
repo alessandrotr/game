@@ -4,9 +4,10 @@ import cors from 'cors';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
-import { ARENA_ROOM, TOWN_ROOM } from '@arena/shared';
+import { ARENA_ROOM, MATCHMAKING_ROOM, TOWN_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
 import { TownRoom } from './rooms/TownRoom.js';
+import { MatchmakingRoom } from './rooms/MatchmakingRoom.js';
 import { closeDatabase, initDatabase } from './db/database.js';
 import { registerAuthRoutes } from './authRoutes.js';
 
@@ -74,6 +75,7 @@ const gameServer = new Server({
 
 gameServer.define(TOWN_ROOM, TownRoom);
 gameServer.define(ARENA_ROOM, ArenaRoom);
+gameServer.define(MATCHMAKING_ROOM, MatchmakingRoom);
 
 // Connect persistence (if configured) before accepting players.
 await initDatabase();

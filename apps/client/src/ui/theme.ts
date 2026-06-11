@@ -14,6 +14,19 @@ export const STAT_COLORS = {
   text: 'var(--color-text)',
 } as const;
 
+/** Match-team accent colors (blue = mana, red = negative) for inline use on
+ *  lobby slots, the ready-check, and the end-of-match scoreboard. */
+export const TEAM_COLORS = {
+  blue: 'var(--color-mana)',
+  red: 'var(--color-negative)',
+} as const;
+
+/** Human-readable team names. */
+export const TEAM_LABELS = {
+  blue: 'Blue',
+  red: 'Red',
+} as const;
+
 /**
  * Inline style for a panel header tinted by a class's accent color — a faint
  * left-to-right wash that fades to transparent. `alphaHex` is the two-digit hex

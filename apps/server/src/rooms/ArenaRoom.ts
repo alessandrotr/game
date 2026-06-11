@@ -4,7 +4,11 @@ import {
   ABILITY_FIELD_META,
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
-  ARENA_SPAWN_POINTS,
+  arenaSpawnsForTeam,
+  isLobbyMode,
+  isTeam,
+  teamKillTargetFor,
+  teamSizeForMode,
   stepLocomotion,
   AUTO_ATTACKS,
   CLASS_ABILITY_OVERRIDES,
@@ -38,7 +42,9 @@ import {
   type CharacterClass,
   type ClassStats,
   type FieldMeta,
+  type LobbyMode,
   type MovementConfig,
+  type Team,
 } from '@arena/shared';
 import { ArenaState, Player, Projectile } from './schema.js';
 import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
@@ -133,8 +139,11 @@ export class ArenaRoom extends Room<ArenaState> {
   private simTime = 0;
   private projectileSeq = 0;
 
-  /** A ranked 1v1 (from matchmaking): tracks a kill target and ends decisively. */
+  /** A ranked match (from matchmaking): tracks a team kill target and ends
+   *  decisively. False for the public free-for-all arena (portal travel). */
   private ranked = false;
+  /** Combined kills a team must reach to win (set per mode in onCreate). */
+  private teamKillTarget = MATCH_KILL_TARGET;
   /** Latched once a winner is decided; freezes the sim for the results screen. */
   private matchOver = false;
   /** Win/loss verdict per session, recorded to the DB when each player leaves. */
@@ -191,12 +200,14 @@ export class ArenaRoom extends Room<ArenaState> {
     }
   }
 
-  override onCreate(options?: { match?: boolean }): void {
-    // A matchmade 1v1: cap at two players and hide from public join (only the
-    // two reserved seats get in).
-    if (options?.match) {
+  override onCreate(options?: { mode?: LobbyMode }): void {
+    // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
+    // win target by team size, and hide from public join (only reserved seats
+    // get in). Without a mode this is the public free-for-all arena (portal).
+    if (isLobbyMode(options?.mode)) {
       this.ranked = true;
-      this.maxClients = 2;
+      this.maxClients = 2 * teamSizeForMode(options.mode);
+      this.teamKillTarget = teamKillTargetFor(options.mode);
       this.setPrivate(true);
     }
     this.setState(new ArenaState());
@@ -314,7 +325,13 @@ export class ArenaRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { token?: string; name?: string; characterClass?: string; skinId?: string },
+    options?: {
+      token?: string;
+      name?: string;
+      characterClass?: string;
+      skinId?: string;
+      team?: string;
+    },
   ): void {
     const claims = verifyToken(options?.token);
     const player = new Player();
@@ -327,6 +344,9 @@ export class ArenaRoom extends Room<ArenaState> {
       ? options.characterClass
       : 'warrior';
     player.skinId = String(options?.skinId ?? '').slice(0, 64);
+    // Team comes from the matchmaking seat reservation; public arena joins
+    // (portal) carry none and default to blue.
+    player.team = isTeam(options?.team) ? options.team : 'blue';
     this.resetPlayer(player);
 
     this.state.players.set(client.sessionId, player);
@@ -707,9 +727,10 @@ export class ArenaRoom extends Room<ArenaState> {
       }
       target.deaths += 1;
 
-      // Ranked match: the first to the kill target wins, ending the match.
-      if (this.ranked && !this.matchOver && killer && killer.kills >= MATCH_KILL_TARGET) {
-        this.endMatch(killer.sessionId);
+      // Ranked match: the first team to the combined kill target wins.
+      if (this.ranked && !this.matchOver && killer) {
+        const team = killer.team === 'red' ? 'red' : 'blue';
+        if (this.teamKills(team) >= this.teamKillTarget) this.endMatch(team);
       }
     } else {
       // Flinch — unless a cast/attack pose is already playing (don't cut it).
@@ -723,19 +744,28 @@ export class ArenaRoom extends Room<ArenaState> {
     }
   }
 
-  /** Decide a ranked match: record each player's verdict, broadcast the final
-   *  scoreboard, and freeze the sim so clients can show the results screen. */
-  private endMatch(winnerId: string): void {
+  /** Combined live kills for a team (the team-aggregate win metric). */
+  private teamKills(team: Team): number {
+    let total = 0;
+    this.state.players.forEach((player) => {
+      if (player.team === team) total += player.kills;
+    });
+    return total;
+  }
+
+  /** Decide a ranked match: record each player's verdict by team, broadcast the
+   *  final scoreboard, and freeze the sim so clients can show the results screen. */
+  private endMatch(winnerTeam: Team): void {
     this.matchOver = true;
-    const scores: { id: string; name: string; kills: number; deaths: number }[] = [];
+    const scores: { id: string; name: string; team: Team; kills: number; deaths: number }[] = [];
     this.state.players.forEach((player, sessionId) => {
-      this.outcomes.set(sessionId, sessionId === winnerId ? 'win' : 'loss');
-      scores.push({ id: sessionId, name: player.name, kills: player.kills, deaths: player.deaths });
+      const team = player.team === 'red' ? 'red' : 'blue';
+      this.outcomes.set(sessionId, team === winnerTeam ? 'win' : 'loss');
+      scores.push({ id: sessionId, name: player.name, team, kills: player.kills, deaths: player.deaths });
     });
     this.broadcast(ServerMessage.MatchOver, {
-      winnerId,
-      winnerName: this.state.players.get(winnerId)?.name ?? 'Unknown',
-      target: MATCH_KILL_TARGET,
+      winnerTeam,
+      target: this.teamKillTarget,
       scores,
     });
     // Clients return to town on their own; dispose as a backstop if they linger.
@@ -912,7 +942,9 @@ export class ArenaRoom extends Room<ArenaState> {
    *  (a small random jitter avoids stacking when several share a point). */
   private resetPlayer(player: Player): void {
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-    const spawn = ARENA_SPAWN_POINTS[Math.floor(Math.random() * ARENA_SPAWN_POINTS.length)];
+    // Spawn on this player's side of the arena (blue at +Z, red at −Z).
+    const spawns = arenaSpawnsForTeam(player.team === 'red' ? 'red' : 'blue');
+    const spawn = spawns[Math.floor(Math.random() * spawns.length)];
     const jitter = () => (Math.random() * 2 - 1) * 1.5;
     if (spawn) {
       player.x = clamp(spawn.x + jitter(), -limit, limit);

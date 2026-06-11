@@ -2,20 +2,26 @@ import { Client, type Room } from 'colyseus.js';
 import {
   ABILITIES,
   ARENA_ROOM,
+  MATCHMAKING_ROOM,
   TOWN_ROOM,
   ClientMessage,
   ServerMessage,
   type AbilityKind,
   type CharacterClass,
   type ClientMessagePayloads,
+  type LobbyMode,
+  type LobbySlotView,
+  type LobbyStatus,
+  type LobbyView,
   type PlayerView,
   type ProjectileView,
   type ServerMessagePayloads,
+  type Team,
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
 import { useSpeechStore } from '../store/useSpeechStore';
-import { useMatchmakingStore } from '../store/useMatchmakingStore';
+import { useLobbyStore } from '../store/useLobbyStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
@@ -83,6 +89,7 @@ function snapshotState(state: RawState): {
       xp: player.xp,
       kills: player.kills,
       deaths: player.deaths,
+      team: player.team,
     });
   });
 
@@ -205,15 +212,8 @@ function wireRoom(joined: Room): void {
   });
   joined.onMessage(ServerMessage.ChatHistory, (msg) => useChatStore.getState().set(msg.messages));
 
-  // Matchmaking (town): queue status + the match-found seat reservation.
-  joined.onMessage(ServerMessage.QueueUpdate, (msg) =>
-    useMatchmakingStore.getState().set(msg.searching, msg.size),
-  );
-  joined.onMessage(ServerMessage.MatchFound, (msg) => {
-    useMatchmakingStore.getState().reset();
-  useMatchResultStore.getState().clear();
-    void joinByReservation(msg.reservation);
-  });
+  // Matchmaking lives on a separate connection (see wireMatchmaking); the town
+  // gameplay room only carries world state + combat/chat events.
   joined.onMessage(ServerMessage.MatchOver, (msg) => useMatchResultStore.getState().set(msg));
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
@@ -226,12 +226,119 @@ function wireRoom(joined: Room): void {
   joined.onLeave(() => {
     if (traveling) return; // an intentional room switch — keep playing
     room = null;
+    disconnectMatchmaking(); // drop the parallel lobby connection too
     useGameStore.getState().reset();
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
-    useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
   });
+}
+
+// --- Matchmaking lobby connection (parallel to the town room) ---------------
+
+/** The lobby/matchmaking connection, kept open alongside the town room so the
+ *  browser stays live while the player walks around town. Strictly separate
+ *  from the gameplay `room` — it has its own minimal wiring (no `wireRoom`). */
+let mmRoom: Room | null = null;
+
+/** Structural view of the runtime matchmaking state (read like the game state,
+ *  through minimal shapes rather than the server schema classes). */
+interface RawLobbySlot {
+  sessionId: string;
+  name: string;
+  characterClass: LobbySlotView['characterClass'];
+  team: Team;
+  index: number;
+  accepted: boolean;
+}
+interface RawLobby {
+  id: string;
+  name: string;
+  mode: LobbyMode;
+  status: LobbyStatus;
+  hostId: string;
+  readyDeadline: number;
+  blue: { forEach(cb: (slot: RawLobbySlot) => void): void };
+  red: { forEach(cb: (slot: RawLobbySlot) => void): void };
+}
+interface RawMmState {
+  lobbies: { forEach(cb: (lobby: RawLobby, key: string) => void): void };
+}
+
+function snapshotSlots(list: { forEach(cb: (slot: RawLobbySlot) => void): void }): LobbySlotView[] {
+  const slots: LobbySlotView[] = [];
+  list.forEach((slot) =>
+    slots.push({
+      sessionId: slot.sessionId,
+      name: slot.name,
+      characterClass: slot.characterClass,
+      team: slot.team,
+      index: slot.index,
+      accepted: slot.accepted,
+    }),
+  );
+  return slots.sort((a, b) => a.index - b.index);
+}
+
+function snapshotLobbies(state: RawMmState): LobbyView[] {
+  const lobbies: LobbyView[] = [];
+  state.lobbies.forEach((lobby) =>
+    lobbies.push({
+      id: lobby.id,
+      name: lobby.name,
+      mode: lobby.mode,
+      status: lobby.status,
+      hostId: lobby.hostId,
+      readyDeadline: lobby.readyDeadline,
+      blue: snapshotSlots(lobby.blue),
+      red: snapshotSlots(lobby.red),
+    }),
+  );
+  return lobbies;
+}
+
+function wireMatchmaking(joined: Room): void {
+  joined.onStateChange((state) => {
+    useLobbyStore.getState().setLobbies(snapshotLobbies(state as unknown as RawMmState));
+  });
+  joined.onMessage(ServerMessage.MatchFound, (msg) => {
+    // Tear down the lobby connection, then consume the seat into the arena.
+    disconnectMatchmaking();
+    useMatchResultStore.getState().clear();
+    void joinByReservation(msg.reservation);
+  });
+  joined.onMessage(ServerMessage.LobbyError, (msg) => {
+    useLobbyStore.getState().setError(msg.message);
+  });
+  joined.onError((code, message) => {
+    console.error(`[mm] room error ${code}: ${message ?? ''}`.trim());
+  });
+  joined.onLeave(() => {
+    if (mmRoom === joined) mmRoom = null;
+    useLobbyStore.getState().reset();
+  });
+}
+
+/** Open the lobby connection (idempotent). Reuses the town join options so the
+ *  matchmaking room sees the same account/class as the player's town avatar. */
+export async function connectMatchmaking(): Promise<void> {
+  if (!client || !joinOptions || mmRoom) return;
+  try {
+    const joined = await client.joinOrCreate(MATCHMAKING_ROOM, joinOptions);
+    mmRoom = joined;
+    useLobbyStore.getState().setSession(joined.sessionId);
+    wireMatchmaking(joined);
+  } catch (err) {
+    console.error('[mm] failed to connect to matchmaking:', err);
+  }
+}
+
+/** Close the lobby connection and clear the lobby UI (no-op if not connected). */
+export function disconnectMatchmaking(): void {
+  const current = mmRoom;
+  mmRoom = null;
+  useLobbyStore.getState().reset();
+  if (current) void current.leave().catch(() => {});
 }
 
 /** Leave the current room and return to the character-select screen (staying
@@ -240,6 +347,7 @@ function wireRoom(joined: Room): void {
 export async function leaveToCharacterSelect(): Promise<void> {
   const current = room;
   if (!current) return;
+  disconnectMatchmaking();
   try {
     await current.leave();
   } catch {
@@ -263,7 +371,6 @@ export async function connectToRoom(
   useLevelUpStore.getState().clear();
   useChatStore.getState().clear();
   useSpeechStore.getState().clear();
-  useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
   store.setStatus('connecting');
 
@@ -274,6 +381,8 @@ export async function connectToRoom(
     store.setRoom(roomType);
     store.setStatus('connected');
     wireRoom(room);
+    // Open the lobby browser connection alongside the town hub.
+    if (roomType === 'town') void connectMatchmaking();
   } catch (err) {
     room = null;
     const message = err instanceof Error ? err.message : 'Failed to connect';
@@ -288,6 +397,9 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   if (!client || !joinOptions || traveling) return;
   const store = useGameStore.getState();
   traveling = true;
+  // Matchmaking only exists in town: drop it when leaving for the arena (it's
+  // reopened below when arriving in town).
+  disconnectMatchmaking();
   try {
     if (room) {
       try {
@@ -305,7 +417,6 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
-    useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
 
     room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
@@ -313,6 +424,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
     store.setRoom(roomType);
     store.setStatus('connected');
     wireRoom(room);
+    if (roomType === 'town') void connectMatchmaking();
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
@@ -326,6 +438,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   if (!client || traveling) return;
   const store = useGameStore.getState();
   traveling = true;
+  disconnectMatchmaking(); // belt-and-braces: the match-found handler already did
   try {
     if (room) {
       try {
@@ -342,7 +455,6 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   useLevelUpStore.getState().clear();
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
-    useMatchmakingStore.getState().reset();
   useMatchResultStore.getState().clear();
 
     // The reservation shape is internal to Colyseus; consume it directly.
@@ -359,12 +471,31 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   }
 }
 
-/** Join / leave the 1v1 matchmaking queue (town only). */
-export function sendQueue(): void {
-  room?.send(ClientMessage.Queue, {});
+// --- Matchmaking intents (sent on the lobby connection) --------------------
+
+/** Create a new lobby of the given mode (the server seats you as host). */
+export function sendCreateLobby(name: string, mode: LobbyMode): void {
+  mmRoom?.send(ClientMessage.CreateLobby, { name, mode });
 }
-export function sendUnqueue(): void {
-  room?.send(ClientMessage.Unqueue, {});
+
+/** Take a specific team slot in an open lobby. */
+export function sendJoinSlot(lobbyId: string, team: Team, index: number): void {
+  mmRoom?.send(ClientMessage.JoinSlot, { lobbyId, team, index });
+}
+
+/** Leave the lobby you're currently in. */
+export function sendLeaveLobby(): void {
+  mmRoom?.send(ClientMessage.LeaveLobby, {});
+}
+
+/** Accept the ready-check for your full lobby. */
+export function sendAcceptMatch(): void {
+  mmRoom?.send(ClientMessage.AcceptMatch, {});
+}
+
+/** Decline the ready-check (returns the others to the open lobby). */
+export function sendDeclineMatch(): void {
+  mmRoom?.send(ClientMessage.DeclineMatch, {});
 }
 
 /** Play an emote (dance), replicated to everyone in the room. */

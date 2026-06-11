@@ -1,11 +1,10 @@
 import { create } from 'zustand';
-import type { MatchScore } from '@arena/shared';
+import type { MatchScore, Team } from '@arena/shared';
 
 /** The end-of-match result, set when the server broadcasts `MatchOver` and
  *  cleared when the player returns to town (or starts a new connection). */
 export interface MatchResult {
-  winnerId: string;
-  winnerName: string;
+  winnerTeam: Team;
   target: number;
   scores: MatchScore[];
 }

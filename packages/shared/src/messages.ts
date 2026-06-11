@@ -7,7 +7,7 @@
  * damage) that drive transient client feedback.
  */
 
-import type { AbilityConfig, AbilityKind } from './constants.js';
+import type { AbilityConfig, AbilityKind, LobbyMode, Team } from './constants.js';
 import type { CharacterClass } from './assets.js';
 import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
@@ -28,10 +28,16 @@ export enum ClientMessage {
   SetName = 'set_name',
   /** Send a global chat message to everyone in the room. */
   Chat = 'chat',
-  /** Join the 1v1 matchmaking queue (town only). */
-  Queue = 'queue',
-  /** Leave the matchmaking queue. */
-  Unqueue = 'unqueue',
+  /** Matchmaking: create a new lobby (name + mode). */
+  CreateLobby = 'create_lobby',
+  /** Matchmaking: take a specific team slot in an open lobby. */
+  JoinSlot = 'join_slot',
+  /** Matchmaking: leave the lobby you're currently in. */
+  LeaveLobby = 'leave_lobby',
+  /** Matchmaking: accept the ready-check for your full lobby. */
+  AcceptMatch = 'accept_match',
+  /** Matchmaking: decline the ready-check (returns others to the open lobby). */
+  DeclineMatch = 'decline_match',
   /** Dev-only: live-tune authoritative movement "feel" for the room. */
   DevTune = 'dev_tune',
   /** Dev-only: live-tune ability balance (global base and/or per-class overrides). */
@@ -58,8 +64,8 @@ export enum ServerMessage {
   Chat = 'chat',
   /** Recent chat history, sent to a client when it joins. */
   ChatHistory = 'chat_history',
-  /** Matchmaking queue status (size / whether this client is searching). */
-  QueueUpdate = 'queue_update',
+  /** A matchmaking intent was rejected (validation, race, full, etc.). */
+  LobbyError = 'lobby_error',
   /** A match was found — carries a seat reservation to consume into the arena. */
   MatchFound = 'match_found',
   /** A ranked match ended — carries the winner and final scoreboard. */
@@ -75,6 +81,8 @@ export interface MatchScore {
   /** Session id of the player (compare against the local id to find yourself). */
   id: string;
   name: string;
+  /** Side this player fought for (groups the scoreboard into Blue/Red). */
+  team: Team;
   kills: number;
   deaths: number;
 }
@@ -106,8 +114,11 @@ export interface ClientMessagePayloads {
   };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.Chat]: { text: string };
-  [ClientMessage.Queue]: Record<string, never>;
-  [ClientMessage.Unqueue]: Record<string, never>;
+  [ClientMessage.CreateLobby]: { name: string; mode: LobbyMode };
+  [ClientMessage.JoinSlot]: { lobbyId: string; team: Team; index: number };
+  [ClientMessage.LeaveLobby]: Record<string, never>;
+  [ClientMessage.AcceptMatch]: Record<string, never>;
+  [ClientMessage.DeclineMatch]: Record<string, never>;
   [ClientMessage.RequestLeaderboard]: Record<string, never>;
   [ClientMessage.Emote]: { emote: string };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
@@ -147,17 +158,16 @@ export interface ServerMessagePayloads {
   [ServerMessage.Heal]: { to: string; amount: number };
   [ServerMessage.Chat]: ChatMessage;
   [ServerMessage.ChatHistory]: { messages: ChatMessage[] };
-  [ServerMessage.QueueUpdate]: { searching: boolean; size: number };
+  [ServerMessage.LobbyError]: { code: string; message: string };
   /** `reservation` is a Colyseus seat reservation passed straight to
    *  `client.consumeSeatReservation()` — its internal shape is opaque to us. */
   [ServerMessage.MatchFound]: { reservation: unknown };
   [ServerMessage.MatchOver]: {
-    /** Session id of the winner. */
-    winnerId: string;
-    winnerName: string;
-    /** Kills that were needed to win (for "5 / 5" style display). */
+    /** Side that won the match. */
+    winnerTeam: Team;
+    /** Combined team kills that were needed to win (for "15 / 15" display). */
     target: number;
-    /** Final scoreboard for everyone in the match. */
+    /** Final scoreboard for everyone in the match (grouped by team client-side). */
     scores: MatchScore[];
   };
   [ServerMessage.Leaderboard]: {

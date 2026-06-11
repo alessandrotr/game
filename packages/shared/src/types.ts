@@ -5,6 +5,7 @@
  */
 
 import type { AnimationName, CharacterClass } from './assets.js';
+import type { LobbyMode, Team } from './constants.js';
 
 /** Replicated per-player state. Mirrors `Player` in the server schema. */
 export interface PlayerView {
@@ -27,6 +28,8 @@ export interface PlayerView {
   skinId: string;
   /** Authoritative animation state; remote clients render this directly. */
   animState: AnimationName;
+  /** Side this player fights for in a team match ('blue' in town / FFA). */
+  team: Team;
   /** Session id this player is auto-attacking, or '' — drives the attack banner. */
   attackTargetId: string;
   /** Persisted class progression for this character (defaults for a new player). */
@@ -66,6 +69,36 @@ export interface AuthResult {
   token: string;
   username: string;
   progress: ClassProgressView[];
+}
+
+/** A lobby's lifecycle stage, replicated to drive the matchmaking UI. */
+export type LobbyStatus = 'queuing' | 'ready_check' | 'playing';
+
+/** One team slot in a lobby. `sessionId === ''` means the slot is open. */
+export interface LobbySlotView {
+  /** Matchmaking-room session id of the occupant, or '' if empty. */
+  sessionId: string;
+  name: string;
+  characterClass: CharacterClass;
+  team: Team;
+  /** Position within the team column (0-based). */
+  index: number;
+  /** Whether the occupant has accepted the ready-check. */
+  accepted: boolean;
+}
+
+/** A lobby as seen by the matchmaking browser / detail / ready-check UI. */
+export interface LobbyView {
+  id: string;
+  name: string;
+  mode: LobbyMode;
+  status: LobbyStatus;
+  /** Matchmaking-room session id of the host (slot owner who created it). */
+  hostId: string;
+  /** Sim-time (ms) the ready-check expires at; 0 when not in ready_check. */
+  readyDeadline: number;
+  blue: LobbySlotView[];
+  red: LobbySlotView[];
 }
 
 /** Replicated room state. Mirrors `ArenaState` in the server schema. */

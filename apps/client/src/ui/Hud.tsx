@@ -3,7 +3,7 @@ import { useGameStore } from '../store/useGameStore';
 import { leaveToCharacterSelect } from '../network/colyseus';
 import { Badge, Button } from './primitives';
 import { ActionBar } from './ActionBar';
-import { QueuePanel } from './QueuePanel';
+import { Matchmaking } from './Matchmaking';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
 import { Leaderboard } from './Leaderboard';
@@ -48,7 +48,7 @@ export function Hud() {
           : 'Right-click move · Click a player to inspect · Space jump · 1-2 dance · Enter to chat'}
       </div>
 
-      {inArena ? <ActionBar /> : <QueuePanel />}
+      {inArena ? <ActionBar /> : <Matchmaking />}
 
       <MatchResult />
       <LevelUpToast />

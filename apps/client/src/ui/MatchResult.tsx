@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
+import type { MatchScore, Team } from '@arena/shared';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useGameStore } from '../store/useGameStore';
 import { travelTo } from '../network/colyseus';
 import { Button, Card, Overlay } from './primitives';
-import { STAT_COLORS } from './theme';
+import { STAT_COLORS, TEAM_COLORS, TEAM_LABELS } from './theme';
 
 /** Seconds the results screen shows before auto-returning to town. */
 const AUTO_RETURN_SECONDS = 8;
 
 /**
- * End-of-match overlay (ranked 1v1). Shown when the server broadcasts
- * `MatchOver`: declares Victory/Defeat for the local player, lists the final
- * scoreboard, and returns to town — on a button or after a short countdown.
+ * End-of-match overlay (ranked team match). Shown when the server broadcasts
+ * `MatchOver`: declares Victory/Defeat for the local player's team, lists the
+ * final Blue/Red scoreboard, and returns to town — on a button or after a short
+ * countdown.
  */
 export function MatchResult() {
   const result = useMatchResultStore((s) => s.result);
@@ -37,13 +39,13 @@ export function MatchResult() {
 
   if (!result) return null;
 
-  const won = result.winnerId === sessionId;
+  const myTeam = result.scores.find((s) => s.id === sessionId)?.team;
+  const won = myTeam === result.winnerTeam;
   const accent = won ? STAT_COLORS.positive : STAT_COLORS.negative;
-  const scores = [...result.scores].sort((a, b) => b.kills - a.kills);
 
   return (
     <Overlay closeOnBackdrop={false}>
-      <Card variant="modal" className="w-[340px]">
+      <Card variant="modal" className="w-[440px]">
         <div
           className="px-6 py-5 text-center"
           style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 13%, transparent), transparent)` }}
@@ -55,29 +57,16 @@ export function MatchResult() {
             {won ? 'Victory' : 'Defeat'}
           </div>
           <div className="mt-1 text-xs text-muted">
-            {result.winnerName} won · first to {result.target} kills
+            <span style={{ color: TEAM_COLORS[result.winnerTeam] }}>
+              {TEAM_LABELS[result.winnerTeam]} team
+            </span>{' '}
+            won · first to {result.target} kills
           </div>
         </div>
 
-        <div className="px-6 pb-2">
-          {scores.map((s) => {
-            const isMe = s.id === sessionId;
-            return (
-              <div
-                key={s.id}
-                className="flex items-center justify-between border-b border-white/5 py-2.5 text-sm last:border-b-0"
-              >
-                <span className={isMe ? 'font-semibold text-text' : 'text-muted'}>
-                  {s.name}
-                  {isMe && <span className="ml-1 text-[10px] text-muted">(you)</span>}
-                </span>
-                <span className="tabular-nums text-muted">
-                  <span className="font-bold text-text">{s.kills}</span> K ·{' '}
-                  <span className="font-bold text-text">{s.deaths}</span> D
-                </span>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-2 gap-3 px-6 pb-2 pt-1">
+          <TeamColumn team="blue" scores={result.scores} mySessionId={sessionId} />
+          <TeamColumn team="red" scores={result.scores} mySessionId={sessionId} />
         </div>
 
         <div className="px-6 pb-5 pt-3">
@@ -94,5 +83,42 @@ export function MatchResult() {
         </div>
       </Card>
     </Overlay>
+  );
+}
+
+/** One team's scoreboard column, sorted by kills. */
+function TeamColumn({
+  team,
+  scores,
+  mySessionId,
+}: {
+  team: Team;
+  scores: MatchScore[];
+  mySessionId: string | null;
+}) {
+  const color = TEAM_COLORS[team];
+  const rows = scores.filter((s) => s.team === team).sort((a, b) => b.kills - a.kills);
+  const total = rows.reduce((sum, s) => sum + s.kills, 0);
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: `color-mix(in srgb, ${color} 45%, transparent)` }}>
+      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+        <span>{TEAM_LABELS[team]}</span>
+        <span className="tabular-nums">{total}</span>
+      </div>
+      {rows.map((s) => {
+        const isMe = s.id === mySessionId;
+        return (
+          <div key={s.id} className="flex items-center justify-between py-1 text-sm">
+            <span className={isMe ? 'font-semibold text-text' : 'text-muted'}>
+              {s.name}
+              {isMe && <span className="ml-1 text-[10px] text-muted">(you)</span>}
+            </span>
+            <span className="tabular-nums text-muted">
+              <span className="font-bold text-text">{s.kills}</span>/<span>{s.deaths}</span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

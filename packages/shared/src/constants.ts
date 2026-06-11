@@ -8,6 +8,8 @@ import type { CharacterClass } from './assets.js';
 /** Registered Colyseus room handler names. */
 export const ARENA_ROOM = 'arena';
 export const TOWN_ROOM = 'town';
+/** Singleton lobby/matchmaking room: owns the replicated list of lobbies. */
+export const MATCHMAKING_ROOM = 'matchmaking';
 
 /** Town square half-extent in world units (matches the town map's `halfSize`). */
 export const TOWN_HALF_SIZE = 46;
@@ -239,6 +241,72 @@ export const XP_PER_KILL = 50;
 
 /** Kills needed to win a ranked 1v1 match (first to this total). */
 export const MATCH_KILL_TARGET = 5;
+
+// ---------------------------------------------------------------------------
+// Lobby matchmaking (1v1 → 5v5) — team modes, ready-check, per-team spawns.
+// ---------------------------------------------------------------------------
+
+/** The two sides every lobby/match is split into. */
+export type Team = 'blue' | 'red';
+
+/** A team id guard (rejects anything that isn't 'blue'|'red'). */
+export function isTeam(value: unknown): value is Team {
+  return value === 'blue' || value === 'red';
+}
+
+/** The match sizes a lobby can be created at, smallest first. */
+export const LOBBY_MODES = ['1v1', '2v2', '3v3', '4v4', '5v5'] as const;
+export type LobbyMode = (typeof LOBBY_MODES)[number];
+
+export function isLobbyMode(value: unknown): value is LobbyMode {
+  return typeof value === 'string' && (LOBBY_MODES as readonly string[]).includes(value);
+}
+
+/** Players per team for a mode ('3v3' → 3). The total match size is twice this. */
+export function teamSizeForMode(mode: LobbyMode): number {
+  return Number(mode.charAt(0));
+}
+
+/** Combined kills a team must reach to win, scaled so per-player pace is constant
+ *  (1v1 → 5, 3v3 → 15) — see {@link MATCH_KILL_TARGET}. */
+export function teamKillTargetFor(mode: LobbyMode): number {
+  return MATCH_KILL_TARGET * teamSizeForMode(mode);
+}
+
+/** How long every participant has to accept a full lobby's ready-check (ms). */
+export const READY_CHECK_MS = 30000;
+
+/** Maximum accepted lobby name length. */
+export const LOBBY_NAME_MAX_LENGTH = 32;
+
+/** Hard cap on concurrent lobbies (a runaway-creation backstop). */
+export const MAX_LOBBIES = 50;
+
+/**
+ * Per-team arena spawn anchors, one cluster per side (blue at +Z, red at −Z),
+ * each fanning out to five points so a full 5v5 doesn't stack. The server jitters
+ * and obstacle-resolves these, so they only need to be roughly on their side and
+ * inside the arena bounds.
+ */
+const BLUE_SPAWNS: readonly SpawnPoint[] = [
+  { x: 0, z: 18 },
+  { x: -7, z: 19 },
+  { x: 7, z: 19 },
+  { x: -13, z: 16 },
+  { x: 13, z: 16 },
+];
+const RED_SPAWNS: readonly SpawnPoint[] = [
+  { x: 0, z: -18 },
+  { x: -7, z: -19 },
+  { x: 7, z: -19 },
+  { x: -13, z: -16 },
+  { x: 13, z: -16 },
+];
+
+/** Spawn anchors for a team (blue at +Z, red at −Z). */
+export function arenaSpawnsForTeam(team: Team): readonly SpawnPoint[] {
+  return team === 'red' ? RED_SPAWNS : BLUE_SPAWNS;
+}
 
 /** How long an emote (dance) plays before returning to idle, in milliseconds. */
 export const EMOTE_MS = 5000;

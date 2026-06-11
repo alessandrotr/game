@@ -34,6 +34,9 @@ export class Player extends Schema {
   @type('number') xp = 0;
   @type('number') kills = 0;
   @type('number') deaths = 0;
+  /** Team side in a team match ('blue' in town and for unassigned joins). Kept
+   *  last so existing replicated field offsets are unchanged. */
+  @type('string') team = 'blue';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

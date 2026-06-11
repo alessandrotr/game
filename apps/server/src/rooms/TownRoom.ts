@@ -1,6 +1,5 @@
-import { Room, matchMaker, type Client } from '@colyseus/core';
+import { Room, type Client } from '@colyseus/core';
 import {
-  ARENA_ROOM,
   EMOTE_MS,
   GRAVITY,
   GROUND_Y,
@@ -48,14 +47,8 @@ export class TownRoom extends Room<ArenaState> {
   // Town is the persistent shared channel — its chat is saved to the DB so it
   // survives the room being disposed when empty (and server restarts).
   private readonly chat = new ChatLog({ channel: 'town' });
-  /** Device id per session, carried into the match arena's seat reservation. */
-  /** Session token per client, passed through to the arena seat reservation. */
-  private readonly tokens = new Map<string, string>();
   /** Active emote (dance) per player; cleared on movement or when it expires. */
   private readonly animOneShots = new Map<string, AnimOneShot>();
-  /** Session ids waiting in the 1v1 matchmaking queue, in join order. */
-  private queue: string[] = [];
-  private matching = false;
   private simTime = 0;
 
   override async onCreate(): Promise<void> {
@@ -98,17 +91,6 @@ export class TownRoom extends Room<ArenaState> {
     this.onMessage<{ text: string }>(ClientMessage.Chat, (client, message) => {
       const player = this.state.players.get(client.sessionId);
       this.chat.handle(this, client.sessionId, player?.name ?? 'Adventurer', message?.text);
-    });
-
-    this.onMessage(ClientMessage.Queue, (client) => {
-      if (!this.queue.includes(client.sessionId)) this.queue.push(client.sessionId);
-      this.sendQueueUpdate(client, true);
-      void this.tryMatch();
-    });
-
-    this.onMessage(ClientMessage.Unqueue, (client) => {
-      this.removeFromQueue(client.sessionId);
-      this.sendQueueUpdate(client, false);
     });
 
     this.onMessage<{ emote: string }>(ClientMessage.Emote, (client, message) => {
@@ -165,9 +147,6 @@ export class TownRoom extends Room<ArenaState> {
     player.y = GROUND_Y;
     reviveFull(player);
 
-    // Keep the token so matchmaking can hand the same identity to the arena.
-    this.tokens.set(client.sessionId, String(options?.token ?? ''));
-
     this.state.players.set(client.sessionId, player);
     this.verticalVelocity.set(client.sessionId, 0);
     this.grounded.set(client.sessionId, true);
@@ -207,78 +186,8 @@ export class TownRoom extends Room<ArenaState> {
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);
     this.grounded.delete(client.sessionId);
-    this.tokens.delete(client.sessionId);
     this.animOneShots.delete(client.sessionId);
-    this.removeFromQueue(client.sessionId);
     this.chat.forget(client.sessionId);
-  }
-
-  // --- Matchmaking (Phase 11) --------------------------------------------
-
-  private removeFromQueue(sessionId: string): void {
-    this.queue = this.queue.filter((id) => id !== sessionId);
-  }
-
-  private sendQueueUpdate(client: Client, searching: boolean): void {
-    client.send(ServerMessage.QueueUpdate, { searching, size: this.queue.length });
-  }
-
-  /**
-   * Pair queued players into private 1v1 arenas. Pops two at a time, creates a
-   * dedicated match room, reserves a seat for each, and hands the reservations
-   * back so the clients consume them and auto-join the same arena.
-   */
-  private async tryMatch(): Promise<void> {
-    if (this.matching) return; // serialize async room creation
-    this.matching = true;
-    try {
-      while (this.queue.length >= 2) {
-        const aId = this.queue.shift()!;
-        const bId = this.queue.shift()!;
-        const a = this.clients.find((c) => c.sessionId === aId);
-        const b = this.clients.find((c) => c.sessionId === bId);
-        // Drop anyone who vanished; requeue the survivor.
-        if (!a || !this.state.players.has(aId)) {
-          if (b && this.state.players.has(bId)) this.queue.unshift(bId);
-          continue;
-        }
-        if (!b || !this.state.players.has(bId)) {
-          this.queue.unshift(aId);
-          break;
-        }
-
-        try {
-          const room = await matchMaker.createRoom(ARENA_ROOM, { match: true });
-          const seatA = await matchMaker.reserveSeatFor(room, this.joinOptions(aId));
-          const seatB = await matchMaker.reserveSeatFor(room, this.joinOptions(bId));
-          a.send(ServerMessage.MatchFound, { reservation: seatA });
-          b.send(ServerMessage.MatchFound, { reservation: seatB });
-        } catch (err) {
-          // Room creation failed — put both back and stop trying this pass.
-          this.queue.unshift(bId, aId);
-          console.error('[town] matchmaking failed:', err);
-          break;
-        }
-      }
-    } finally {
-      this.matching = false;
-    }
-  }
-
-  /** Arena join options carried into the match room for a queued player. */
-  private joinOptions(sessionId: string): {
-    token: string;
-    name: string;
-    characterClass: string;
-    skinId: string;
-  } {
-    const p = this.state.players.get(sessionId);
-    return {
-      token: this.tokens.get(sessionId) ?? '',
-      name: p?.name ?? 'Adventurer',
-      characterClass: p?.characterClass ?? 'warrior',
-      skinId: p?.skinId ?? '',
-    };
   }
 
   private update(deltaMs: number): void {
