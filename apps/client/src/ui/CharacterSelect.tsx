@@ -73,10 +73,12 @@ export function CharacterSelect() {
               key={c.id}
               onClick={() => setSelected(c.id)}
               aria-pressed={isSelected}
-              style={isSelected ? { borderColor: 'var(--color-gold)' } : undefined}
+              // Selected card adopts the class color (border + faint tint) so the
+              // chosen class reads as one identity; gold stays for the CTA.
+              style={isSelected ? { borderColor: c.color, background: `${c.color}14` } : undefined}
               className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
                 isSelected
-                  ? 'bg-gold/10'
+                  ? ''
                   : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-black/40'
               }`}
             >

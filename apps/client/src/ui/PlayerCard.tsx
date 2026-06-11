@@ -3,7 +3,7 @@ import { getClassDefinition, xpProgress } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { usePersistentToggle } from '../hooks/usePersistentToggle';
 import { ClassPreview } from './ClassPreview';
-import { Card, IconButton, Meter, StatTile } from './primitives';
+import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS, accentHeaderStyle } from './theme';
 
 /** A compact labelled bar (HP / MP / XP) — the player card's tuning of `Meter`. */
@@ -23,21 +23,6 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
   );
 }
 
-/** Square level badge in the class colour. */
-function LevelBadge({ level, color, size }: { level: number; color: string; size: 'sm' | 'lg' }) {
-  const box = size === 'lg' ? 'h-12 w-12' : 'h-9 w-9';
-  return (
-    <div
-      className={`flex ${box} shrink-0 flex-col items-center justify-center rounded-xl border`}
-      style={{ borderColor: color, background: `${color}1f`, boxShadow: `0 0 14px ${color}55` }}
-    >
-      <span className="text-[8px] font-semibold uppercase tracking-wider text-white/60">Lvl</span>
-      <span className={`${size === 'lg' ? 'text-lg' : 'text-sm'} font-bold leading-none`} style={{ color }}>
-        {level}
-      </span>
-    </div>
-  );
-}
 
 /**
  * The local player's info HUD — styled like the player paperdoll: a 3D portrait
@@ -73,7 +58,7 @@ export function PlayerCard() {
     return (
       <Card variant="hud" className="pointer-events-none w-64">
         <div className="flex items-center gap-2.5 px-3 py-2.5">
-          <LevelBadge level={me.level} color={def.color} size="sm" />
+          <LevelBadge level={me.level} size="sm" />
           <div className="min-w-0">
             <div className="truncate font-display text-[14px] tracking-wide text-white">{me.name}</div>
             <div className="truncate text-[10px]" style={{ color: def.color }}>
@@ -100,7 +85,7 @@ export function PlayerCard() {
   return (
     <Card variant="hud" className="pointer-events-none w-64 bg-panel/90">
       <div className="flex items-center gap-3 px-3 py-2.5" style={accentHeaderStyle(def.color)}>
-        <LevelBadge level={me.level} color={def.color} size="lg" />
+        <LevelBadge level={me.level} size="md" />
         <div className="min-w-0">
           <div className="truncate font-display text-[15px] tracking-wide text-white">{me.name}</div>
           <div className="truncate text-[11px]" style={{ color: def.color }}>

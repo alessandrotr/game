@@ -16,6 +16,7 @@ export {
 export { Meter, type MeterProps } from './meter';
 export { StatTile, type StatTileProps } from './stat-tile';
 export { Badge, type BadgeProps } from './badge';
+export { LevelBadge, type LevelBadgeProps } from './level-badge';
 export {
   Table,
   TableHeader,

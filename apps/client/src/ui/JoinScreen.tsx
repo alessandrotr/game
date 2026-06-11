@@ -1,5 +1,5 @@
 import { type FormEvent } from 'react';
-import { Diamond } from 'lucide-react';
+import { Diamond, Loader2 } from 'lucide-react';
 import { getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
@@ -7,7 +7,7 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
-import { Button } from './primitives';
+import { Button, LevelBadge } from './primitives';
 import { ScreenHeader } from './ScreenHeader';
 
 /** Difficulty pips (UO-flavored). */
@@ -33,9 +33,12 @@ export function JoinScreen() {
   const selectedClass = useCharacterStore((s) => s.selectedClass);
   const username = useAuthStore((s) => s.username);
   const signOut = useAuthStore((s) => s.signOut);
+  const progress = useAuthStore((s) => s.progress);
 
   const connecting = status === 'connecting';
   const def = getClassDefinition(selectedClass);
+  // Account's level on the selected class (unplayed classes default to 1).
+  const level = progress.find((p) => p.characterClass === selectedClass)?.level ?? 1;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -66,21 +69,32 @@ export function JoinScreen() {
         </ScreenHeader>
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
-          {/* 3D model showcase */}
-          <section className="relative min-h-[42vh] overflow-hidden rounded-2xl border border-gold/25 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.5)] lg:min-h-0">
+          {/* 3D model showcase — its frame + glow track the selected class color,
+              so the hero, the chosen card, and the name read as one identity. */}
+          <section className="relative min-h-[42vh] overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45)] lg:min-h-0">
             <ClassPreview />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5">
               <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-3xl tracking-wider" style={{ color: def.color }}>
-                    {def.name}
-                  </h2>
-                  <p className="text-sm text-muted">{def.role}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <LevelBadge level={level} size="lg" />
+                  <div className="min-w-0">
+                    <h2
+                      className="font-display text-3xl leading-none tracking-wider drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                      style={{ color: def.color }}
+                    >
+                      {def.name}
+                    </h2>
+                    <span
+                      className="mt-2 block h-0.5 w-10 rounded-full"
+                      style={{ background: def.color }}
+                    />
+                    <p className="mt-2 text-sm text-muted">{def.role}</p>
+                  </div>
                 </div>
                 <Difficulty level={def.stats.difficulty} />
               </div>
             </div>
-            <div className="pointer-events-none absolute right-4 top-4 text-[10px] uppercase tracking-[0.2em] text-white/35">
+            <div className="pointer-events-none absolute right-4 top-4 rounded-full bg-black/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/45 backdrop-blur-sm">
               drag to rotate · scroll to zoom
             </div>
           </section>
@@ -89,8 +103,15 @@ export function JoinScreen() {
           <section className="flex flex-col gap-4">
             <CharacterSelect />
 
-            <form onSubmit={onSubmit} className="mt-auto flex flex-col gap-3">
-              <Button type="submit" variant="gold" size="lg" disabled={connecting} className="tracking-[0.15em]">
+            <form onSubmit={onSubmit} className="mt-auto flex flex-col gap-2">
+              <Button
+                type="submit"
+                variant="gold"
+                size="lg"
+                disabled={connecting}
+                className="gap-2 tracking-[0.15em]"
+              >
+                {connecting && <Loader2 size={18} aria-hidden="true" className="animate-spin" />}
                 {connecting ? 'ENTERING…' : 'ENTER THE WORLD'}
               </Button>
               {error && (

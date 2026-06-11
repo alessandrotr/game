@@ -4,7 +4,7 @@ import { usePaperdollStore } from '../store/usePaperdollStore';
 import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
-import { Card, IconButton, Meter, StatTile } from './primitives';
+import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS, accentHeaderStyle } from './theme';
 
 /**
@@ -43,12 +43,15 @@ export function Paperdoll() {
         className="flex items-center justify-between px-4 py-3"
         style={accentHeaderStyle(def.color, '33')}
       >
-        <div className="min-w-0">
-          <div className="truncate font-display text-lg font-bold tracking-wide text-text">
-            {data.name}
-          </div>
-          <div className="text-xs font-medium" style={{ color: def.color }}>
-            Level {data.level} {def.name}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <LevelBadge level={data.level} size="md" />
+          <div className="min-w-0">
+            <div className="truncate font-display text-lg font-bold tracking-wide text-text">
+              {data.name}
+            </div>
+            <div className="text-xs font-medium" style={{ color: def.color }}>
+              {def.name}
+            </div>
           </div>
         </div>
         <IconButton icon={X} onClick={close} aria-label="Close" />
