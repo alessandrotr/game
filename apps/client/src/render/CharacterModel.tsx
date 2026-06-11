@@ -1,7 +1,7 @@
 import { Suspense, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import type { Group } from 'three';
+import type { Group, Mesh, SkinnedMesh } from 'three';
 import type {
   AnimationName,
   CharacterDescriptor,
@@ -107,7 +107,21 @@ function GltfCharacter({
   phase: number;
 }) {
   const { scene, animations } = useGLTF(model.url);
-  const instance = useMemo(() => cloneSkinned(scene), [scene]);
+  const instance = useMemo(() => {
+    const clone = cloneSkinned(scene);
+    // GLB meshes don't cast/receive shadows unless told to. Also disable frustum
+    // culling on skinned meshes so their shadow isn't dropped when the bind-pose
+    // bounds fall outside the shadow camera.
+    clone.traverse((o) => {
+      const mesh = o as Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        if ((mesh as SkinnedMesh).isSkinnedMesh) mesh.frustumCulled = false;
+      }
+    });
+    return clone;
+  }, [scene]);
   const root = useRef<Group>(null);
   // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
   // character animates without drifting — its world position is driven by the
