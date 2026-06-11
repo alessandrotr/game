@@ -98,7 +98,7 @@ export function ChatPanel() {
           ))}
         </div>
       )}
-      <form onSubmit={onSubmit} className="pointer-events-auto">
+      <form onSubmit={onSubmit} className="pointer-events-auto relative">
         <Input
           ref={inputRef}
           tone="accent"
@@ -108,8 +108,14 @@ export function ChatPanel() {
           maxLength={CHAT_MAX_LENGTH}
           placeholder="Press Enter to chat…"
           aria-label="Chat message"
-          className="w-full"
+          className="w-full pr-12"
         />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-1 right-2 text-[10px] tabular-nums text-muted"
+        >
+          {text.length}/{CHAT_MAX_LENGTH}
+        </span>
       </form>
     </div>
   );

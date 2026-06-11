@@ -59,8 +59,8 @@ const town: MapDescriptor = {
     { assetId: 'prop.building.house', position: [-10, 0, 23], rotation: [0, Math.PI, 0] },
     { assetId: 'prop.building.cottage', position: [10, 0, 24], rotation: [0, Math.PI, 0] },
 
-    // --- Town-square centrepiece + the moongate (arena portal) ---
-    { assetId: 'prop.well', position: [0, 0, -2] },
+    // --- Town-square centrepiece: the fountain is a custom shader component
+    //     (see scene/Fountain.tsx), rendered by GameScene, not a data prop. ---
 
     // --- Market: stalls, cart, goods near the merchant ---
     { assetId: 'prop.market.stall', position: [5, 0, 5], rotation: [0, -0.5, 0] },

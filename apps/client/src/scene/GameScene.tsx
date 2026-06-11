@@ -7,6 +7,7 @@ import { useEnvStore } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
+import { Fountain } from './Fountain';
 import { PlayerEntity } from './PlayerEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
@@ -89,6 +90,7 @@ export function GameScene() {
         <>
           <TownGround />
           <TownLights />
+          <Fountain position={[0, 0, -2]} />
         </>
       )}
 
