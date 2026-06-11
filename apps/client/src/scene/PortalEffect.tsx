@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, type ShaderMaterial } from 'three';
 
@@ -70,14 +70,22 @@ interface PortalEffectProps {
 
 export function PortalEffect({ radius = 1.6, core = '#cdeeff', edge = '#1f6fe0' }: PortalEffectProps) {
   const material = useRef<ShaderMaterial>(null);
+  // Allocate the uniforms ONCE — swapping the object on a live material (which
+  // happened when colours changed) is what froze the animation. Colours are
+  // updated in place below; `uTime` advances every frame.
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uCore: { value: new Color(core) },
-      uEdge: { value: new Color(edge) },
+      uCore: { value: new Color() },
+      uEdge: { value: new Color() },
     }),
-    [core, edge],
+    [],
   );
+
+  useEffect(() => {
+    uniforms.uCore.value.set(core);
+    uniforms.uEdge.value.set(edge);
+  }, [core, edge, uniforms]);
 
   useFrame((_, delta) => {
     const u = material.current?.uniforms.uTime;

@@ -30,7 +30,10 @@ export function Portals({ mapId }: { mapId: MapAssetId }) {
       {map.zones
         .filter((z) => z.kind === 'portal')
         .map((zone, i) => (
-          <group key={i} position={zone.center}>
+          // Key by world so travel remounts a fresh portal — the Canvas persists
+          // across town↔arena, and reusing the same instance (plain index key)
+          // left the shader's animated uniforms in a stale, frozen state.
+          <group key={`${room}-${i}`} position={zone.center}>
             {/* Animated shader portal (visual). */}
             <PortalEffect radius={1.7} core={core} edge={edge} />
             {/* A soft light so the gateway casts a glow on the arch and ground. */}
