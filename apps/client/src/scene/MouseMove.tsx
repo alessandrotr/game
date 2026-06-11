@@ -19,6 +19,9 @@ const SEND_INTERVAL = 0.04;
  * Re-raycasting each frame is required because the follow-camera moves, so a
  * stationary cursor maps to a moving world point.
  *
+ * On touch devices (no right button), a one-finger tap/drag does the same thing:
+ * it feeds the same `screen`/`held` refs and reuses the per-frame raycast below.
+ *
  * Independent of abilities (separate input + messages). Walk/sprint by distance
  * and rotation are decided server-side; this only reports the target. Future
  * dash/blink/charge/knockback are server-driven displacements that compose on
@@ -62,13 +65,45 @@ export function MouseMove() {
       if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z);
     };
 
+    // Touch: a single finger steers exactly like a held right-click. Multi-touch
+    // (pinch/zoom) is ignored so it doesn't fight gestures.
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t || e.touches.length !== 1) return;
+      if (useAbilityTargeting.getState().pending) {
+        useAbilityTargeting.getState().cancel();
+        return;
+      }
+      held.current = true;
+      screen.current = { x: t.clientX, y: t.clientY };
+      sendAccum.current = SEND_INTERVAL;
+      useTargetStore.getState().setTarget(null);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) screen.current = { x: t.clientX, y: t.clientY };
+    };
+    const onTouchEnd = () => {
+      if (!held.current) return;
+      held.current = false;
+      if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z);
+    };
+
     canvas.addEventListener('mousedown', onDown);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
     return () => {
       canvas.removeEventListener('mousedown', onDown);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [gl]);
 
