@@ -22,7 +22,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const ARENA_HALF_SIZE = 25;
 
 /** Player movement speed in world units per second. */
-export const PLAYER_SPEED = 6;
+export const PLAYER_SPEED = 7.5;
 
 /** Player collision/visual radius in world units. */
 export const PLAYER_RADIUS = 0.5;
@@ -359,8 +359,8 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     castTimeMs: 0,
     range: 30,
     damage: 30,
-    projectileSpeed: 18,
-    projectileRange: 30,
+    projectileSpeed: 25,
+    projectileRange: 20,
     projectileRadius: 0.8,
     aim: 'direction',
   },
@@ -400,8 +400,8 @@ export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
     castTimeMs: 0,
     range: 40,
     damage: 24,
-    projectileSpeed: 26,
-    projectileRange: 40,
+    projectileSpeed: 25,
+    projectileRange: 20,
     projectileRadius: 0.6,
     aim: 'direction',
   },
@@ -470,7 +470,7 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
     range: 20,
     damage: 9,
     cooldownMs: 1000,
-    projectileSpeed: 22,
+    projectileSpeed: 25,
     projectileRadius: 0.5,
     projectileVfx: 'auto_bolt',
   },
@@ -479,7 +479,7 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
     range: 22,
     damage: 12,
     cooldownMs: 750,
-    projectileSpeed: 30,
+    projectileSpeed: 25,
     projectileRadius: 0.4,
     projectileVfx: 'auto_arrow',
   },
