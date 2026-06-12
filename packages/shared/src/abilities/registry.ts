@@ -168,7 +168,7 @@ export const ABILITY_REGISTRY = {
     icon: 'Wind',
     aim: 'direction',
     cooldownMs: 7000,
-    manaCost: 30,
+    manaCost: 20,
     castTimeMs: 0,
     range: 12,
     damage: 0,
