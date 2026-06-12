@@ -88,7 +88,10 @@ function snapshotState(state: RawState): {
       maxHp: player.maxHp,
       mana: player.mana,
       maxMana: player.maxMana,
-      shield: player.shield,
+      // Tolerate a server that predates the status/shield/team fields (deploy or
+      // build skew): a missing field arrives as undefined, so default it rather
+      // than throw inside the state-patch handler (which kills the whole loop).
+      shield: player.shield ?? 0,
       alive: player.alive,
       characterClass: player.characterClass,
       skinId: player.skinId,
@@ -98,9 +101,9 @@ function snapshotState(state: RawState): {
       xp: player.xp,
       kills: player.kills,
       deaths: player.deaths,
-      team: player.team,
+      team: player.team ?? 'blue',
       // Copy into a plain array (decouple from the live ArraySchema).
-      statuses: player.statuses.map((s) => ({
+      statuses: (player.statuses ?? []).map((s) => ({
         kind: s.kind,
         expiresAt: s.expiresAt,
         magnitude: s.magnitude,
