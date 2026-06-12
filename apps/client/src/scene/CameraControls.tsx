@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { addCameraYaw, resetCameraYaw } from '../store/cameraControl';
+import { addCameraYaw, addCameraPitch, resetCameraView } from '../store/cameraControl';
 
-/** Yaw rotation per pixel of horizontal middle-drag (radians). */
+/** Rotation per pixel of middle-drag (radians) — same feel for yaw and pitch. */
 const DRAG_SENSITIVITY = 0.006;
-/** Yaw rotation per second while an arrow key is held (radians/s). */
+/** Rotation per second while an arrow key is held (radians/s). */
 const KEY_SPEED = 1.8;
 /** Below this total drag (px), the middle press counts as a click → recenter. */
 const CLICK_SLOP = 4;
@@ -12,22 +12,25 @@ const CLICK_SLOP = 4;
 /**
  * Manual camera rotation, layered on the fixed follow-camera ({@link CameraRig}).
  * Two input paths so it works on any device:
- *  - **← / →** rotate the view (held = continuous); **↓** recenters.
- *  - **Middle-mouse drag** rotates; a middle-click recenters (mouse only — many
- *    laptops/trackpads have no middle button, hence the keyboard path above).
+ *  - **← / →** orbit (yaw), **↑ / ↓** tilt (pitch); all held = continuous.
+ *  - **Middle-mouse drag** orbits (horizontal) and tilts (vertical); a
+ *    middle-click recenters both (mouse only — many laptops/trackpads have no
+ *    middle button, hence the keyboard path above).
  *
- * Movement and aiming are world-space (re-raycast each frame), so rotating the
- * view never disturbs them.
+ * Tilt is clamped small (see cameraControl). Movement and aiming are world-space
+ * (re-raycast each frame), so rotating the view never disturbs them.
  */
 export function CameraControls() {
   const gl = useThree((s) => s.gl);
-  // -1 = rotating left, +1 = rotating right, 0 = idle (held arrow keys).
-  const keyDir = useRef(0);
+  // -1 / +1 / 0 for held arrow keys.
+  const yawDir = useRef(0);
+  const pitchDir = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
     let dragging = false;
     let lastX = 0;
+    let lastY = 0;
     let moved = 0;
 
     const onDown = (e: MouseEvent) => {
@@ -35,19 +38,23 @@ export function CameraControls() {
       e.preventDefault(); // suppress middle-click autoscroll
       dragging = true;
       lastX = e.clientX;
+      lastY = e.clientY;
       moved = 0;
     };
     const onMove = (e: MouseEvent) => {
       if (!dragging) return;
       const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
       lastX = e.clientX;
-      moved += Math.abs(dx);
+      lastY = e.clientY;
+      moved += Math.abs(dx) + Math.abs(dy);
       addCameraYaw(-dx * DRAG_SENSITIVITY);
+      addCameraPitch(-dy * DRAG_SENSITIVITY); // drag up → tilt toward top-down
     };
     const onUp = (e: MouseEvent) => {
       if (e.button !== 1 || !dragging) return;
       dragging = false;
-      if (moved < CLICK_SLOP) resetCameraYaw(); // a click recenters the view
+      if (moved < CLICK_SLOP) resetCameraView(); // a click recenters the view
     };
 
     const isTyping = () => {
@@ -56,15 +63,18 @@ export function CameraControls() {
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
-      if (e.code === 'ArrowLeft') keyDir.current = -1;
-      else if (e.code === 'ArrowRight') keyDir.current = 1;
-      else if (e.code === 'ArrowDown') resetCameraYaw();
+      if (e.code === 'ArrowLeft') yawDir.current = -1;
+      else if (e.code === 'ArrowRight') yawDir.current = 1;
+      else if (e.code === 'ArrowUp') pitchDir.current = 1; // tilt toward top-down
+      else if (e.code === 'ArrowDown') pitchDir.current = -1; // tilt flatter
       else return;
       e.preventDefault(); // don't scroll the page
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowLeft' && keyDir.current === -1) keyDir.current = 0;
-      else if (e.code === 'ArrowRight' && keyDir.current === 1) keyDir.current = 0;
+      if (e.code === 'ArrowLeft' && yawDir.current === -1) yawDir.current = 0;
+      else if (e.code === 'ArrowRight' && yawDir.current === 1) yawDir.current = 0;
+      else if (e.code === 'ArrowUp' && pitchDir.current === 1) pitchDir.current = 0;
+      else if (e.code === 'ArrowDown' && pitchDir.current === -1) pitchDir.current = 0;
     };
 
     canvas.addEventListener('mousedown', onDown);
@@ -81,9 +91,10 @@ export function CameraControls() {
     };
   }, [gl]);
 
-  // Smoothly rotate while an arrow key is held.
+  // Smoothly rotate/tilt while an arrow key is held (pitch self-clamps).
   useFrame((_, delta) => {
-    if (keyDir.current !== 0) addCameraYaw(keyDir.current * KEY_SPEED * delta);
+    if (yawDir.current !== 0) addCameraYaw(yawDir.current * KEY_SPEED * delta);
+    if (pitchDir.current !== 0) addCameraPitch(pitchDir.current * KEY_SPEED * delta);
   });
 
   return null;

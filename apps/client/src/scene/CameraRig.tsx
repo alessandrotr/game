@@ -2,8 +2,13 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
-import { getCameraYaw } from '../store/cameraControl';
+import { getCameraYaw, getCameraPitch } from '../store/cameraControl';
 import { getCamera } from '../tuning';
+
+/** Hard bounds on the total camera pitch (rad above horizontal) so tuning +
+ *  user tilt can never look through the floor or flip fully top-down. */
+const MIN_PITCH = 0.2;
+const MAX_PITCH = 1.45;
 
 /**
  * Fixed-angle isometric-style camera that smoothly follows the local player.
@@ -44,10 +49,16 @@ export function CameraRig() {
     // offset orbits the view on top of that.
     const baseYaw = me?.team === 'red' ? Math.PI : 0;
     const yaw = baseYaw + getCameraYaw();
+    // Tilt: orbit up/down at a constant radius from the player. The base pitch
+    // comes from the tuned height/distance; the user offset adds a small ± tilt.
+    const radius = Math.hypot(cam.distance, cam.height);
+    const basePitch = Math.atan2(cam.height, cam.distance);
+    const pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, basePitch + getCameraPitch()));
+    const horiz = radius * Math.cos(pitch);
     desired.set(
-      target.x + Math.sin(yaw) * cam.distance,
-      target.y + cam.height,
-      target.z + Math.cos(yaw) * cam.distance,
+      target.x + Math.sin(yaw) * horiz,
+      target.y + radius * Math.sin(pitch),
+      target.z + Math.cos(yaw) * horiz,
     );
     const t = 1 - Math.exp(-cam.followSmoothing * delta);
     camera.position.lerp(desired, t);
