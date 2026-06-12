@@ -18,6 +18,17 @@
   --color-cast: #fbbf24; /* ability cast-time fill */
   --color-xp-tip: #ffffffcc; /* bright end of the XP gradient */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+
+  /* Z-index scale — one ordered ladder for every stacked layer, so overlays
+     never fight. Exposed as `z-hud`, `z-modal`, … utilities. Order is what
+     matters: chrome < popover < toast < modal < loading < connection < tooltip. */
+  --z-index-hud: 10; /* base HUD chrome layer (HudLayout) */
+  --z-index-popover: 20; /* GameMenu panel and similar anchored popovers */
+  --z-index-toast: 30; /* LevelUpToast and transient feedback */
+  --z-index-modal: 40; /* in-HUD Overlay + Radix Dialog (results, leaderboard, lobby) */
+  --z-index-loading: 50; /* LoadingScreen room-swap cover */
+  --z-index-connection: 60; /* ConnectionLost critical overlay */
+  --z-index-tooltip: 70; /* AbilityTooltipCard — must beat modals */
 }
 
 /* Global base only: full-height app, dark scheme, canvas reset. No component CSS. */

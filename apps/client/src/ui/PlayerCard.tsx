@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { getClassDefinition, xpProgress } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
-import { usePersistentToggle } from '../hooks/usePersistentToggle';
+import { useHudStore } from '../store/useHudStore';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS, accentHeaderStyle } from './theme';
@@ -25,15 +25,16 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
 
 
 /**
- * The local player's info HUD — styled like the player paperdoll: a 3D portrait
- * of your champion plus level/XP and career stats (and HP/MP in the arena). A
- * toggle (▾/▸, persisted) collapses it to a slim bar showing only the essentials.
+ * The local player's info HUD (town only) — styled like the player paperdoll: a
+ * 3D portrait of your champion plus level, XP, and career stats. A toggle (▾/▸,
+ * persisted via the HUD store) collapses it to a slim identity bar. In the arena
+ * this is replaced by the unified `CombatHud`, which carries portrait + HP/MP.
  */
 export function PlayerCard() {
   const sessionId = useGameStore((s) => s.sessionId);
-  const inArena = useGameStore((s) => s.room) === 'arena';
   useGameStore((s) => s.tick); // re-render ~20×/s so stats track the server
-  const [compact, setCompact] = usePersistentToggle('arena.playercard.compact', false);
+  const compact = useHudStore((s) => s.playerCardCompact);
+  const setCompact = useHudStore((s) => s.setPlayerCardCompact);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   if (!me) return null;
 
@@ -41,19 +42,17 @@ export function PlayerCard() {
   const { span, into } = xpProgress(me.level, me.xp);
   const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
 
-  const toggle = () => setCompact(!compact);
-
   const ToggleButton = (
     <IconButton
       icon={compact ? ChevronRight : ChevronDown}
-      onClick={toggle}
+      onClick={() => setCompact(!compact)}
       aria-label={compact ? 'Expand' : 'Collapse'}
       title={compact ? 'Expand' : 'Collapse'}
       className="pointer-events-auto ml-auto"
     />
   );
 
-  // --- Compact: a slim bar with only the essentials ---
+  // --- Compact: a slim identity bar with the XP track ---
   if (compact) {
     return (
       <Card variant="hud" className="pointer-events-none w-64">
@@ -67,21 +66,14 @@ export function PlayerCard() {
           </div>
           {ToggleButton}
         </div>
-        <div className="space-y-1.5 px-3 pb-2.5">
-          {inArena ? (
-            <>
-              <Bar label="HP" value={me.hp} max={me.maxHp} color={STAT_COLORS.positive} />
-              <Bar label="MP" value={me.mana} max={me.maxMana} color={STAT_COLORS.mana} />
-            </>
-          ) : (
-            <Bar label="XP" value={into} max={span} color={def.color} />
-          )}
+        <div className="px-3 pb-2.5">
+          <Bar label="XP" value={into} max={span} color={def.color} />
         </div>
       </Card>
     );
   }
 
-  // --- Expanded: paperdoll-style with a 3D portrait ---
+  // --- Expanded: paperdoll-style with a 3D portrait + career stats ---
   return (
     <Card variant="hud" className="pointer-events-none w-64 bg-panel/90">
       <div className="flex items-center gap-3 px-3 py-2.5" style={accentHeaderStyle(def.color)}>
@@ -121,18 +113,6 @@ export function PlayerCard() {
           <StatTile label="Deaths" value={me.deaths} color={STAT_COLORS.negative} />
           <StatTile label="K/D" value={kd} color={STAT_COLORS.text} />
         </div>
-
-        {inArena && (
-          <div className="mt-3 space-y-1.5">
-            <Bar label="HP" value={me.hp} max={me.maxHp} color={STAT_COLORS.positive} />
-            <Bar label="MP" value={me.mana} max={me.maxMana} color={STAT_COLORS.mana} />
-            {!me.alive && (
-              <div className="pt-0.5 text-center text-[11px] font-semibold text-negative">
-                Defeated — respawning…
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </Card>
   );

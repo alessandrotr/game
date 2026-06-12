@@ -3,7 +3,7 @@ import { ChevronDown, MessageSquare, Users } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
 import { useGameStore } from '../store/useGameStore';
-import { usePersistentToggle } from '../hooks/usePersistentToggle';
+import { useHudStore } from '../store/useHudStore';
 import { sendChat } from '../network/colyseus';
 import { Badge, Button, IconButton, Input } from './primitives';
 
@@ -17,8 +17,10 @@ import { Badge, Button, IconButton, Input } from './primitives';
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const onlineCount = useGameStore((s) => s.playerIds.length);
+  const hidden = useHudStore((s) => s.hidden);
+  const collapsed = useHudStore((s) => s.chatCollapsed);
+  const toggle = useHudStore((s) => s.setChatCollapsed);
   const [text, setText] = useState('');
-  const [collapsed, toggle] = usePersistentToggle('arena.chat.collapsed', false);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   /** Focus the input on the next render after an Enter-triggered reopen. */
@@ -41,6 +43,7 @@ export function ChatPanel() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
+      if (hidden) return; // chat is hidden with the rest of the HUD — ignore Enter
       const el = document.activeElement;
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
       e.preventDefault();
@@ -53,7 +56,7 @@ export function ChatPanel() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [collapsed]);
+  }, [collapsed, hidden, toggle]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -62,6 +65,8 @@ export function ChatPanel() {
     setText('');
     inputRef.current?.blur();
   };
+
+  if (hidden) return null; // hidden with the rest of the HUD chrome (H key)
 
   if (collapsed) {
     return (

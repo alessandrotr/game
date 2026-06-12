@@ -29,7 +29,7 @@ export function LevelUpToast() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none absolute left-1/2 top-[22%] z-40 -translate-x-1/2"
+      className="pointer-events-none absolute left-1/2 top-[22%] z-toast -translate-x-1/2"
     >
       <div
         key={shownNonce}

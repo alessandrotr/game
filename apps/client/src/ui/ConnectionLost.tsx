@@ -11,7 +11,7 @@ import { Button } from './primitives';
  */
 export function ConnectionLost() {
   return (
-    <div className="absolute inset-0 z-70 flex flex-col items-center justify-center gap-5 bg-black/70 backdrop-blur-sm">
+    <div className="absolute inset-0 z-connection flex flex-col items-center justify-center gap-5 bg-black/70 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-panel/90 px-8 py-6 text-center shadow-xl">
         {/* Pulsing dot — reads as "trying", not a hard failure. */}
         <span className="relative flex h-3 w-3">

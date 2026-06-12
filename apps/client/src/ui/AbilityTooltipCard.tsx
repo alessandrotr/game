@@ -89,7 +89,7 @@ function AbilityTooltipCard({
   return (
     <div
       style={style}
-      className="pointer-events-none z-100 w-60 rounded-lg border border-accent/30 bg-panel/95 p-3 text-left shadow-xl backdrop-blur-sm"
+      className="pointer-events-none z-tooltip w-60 rounded-lg border border-accent/30 bg-panel/95 p-3 text-left shadow-xl backdrop-blur-sm"
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-bold text-accent">{t.name}</span>

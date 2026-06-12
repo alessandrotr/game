@@ -9,6 +9,7 @@ import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
 import { useServerStatTuning } from './hooks/useServerStatTuning';
 import { useInteractionInput } from './hooks/useInteractionInput';
+import { useHudHotkey } from './hooks/useHudHotkey';
 import { GameScene } from './scene/GameScene';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { ConnectionLost } from './ui/ConnectionLost';
@@ -59,6 +60,7 @@ export default function App() {
   useServerAbilityTuning(connected && inArena);
   useServerStatTuning(connected && inArena);
   useInteractionInput(connected);
+  useHudHotkey(connected); // H toggles HUD chrome visibility
 
   // Connection watchdog: while in-game (and not mid world-swap), if no state has
   // arrived for a while the socket has gone quiet — raise the "connection lost"

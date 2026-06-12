@@ -1,6 +1,8 @@
 import { Swords, Users } from 'lucide-react';
 import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
+import { useHudStore } from '../store/useHudStore';
 import { Button } from './primitives';
+import { HudZone } from './hud/HudLayout';
 import { MatchmakingMenu } from './MatchmakingMenu';
 import { LobbyView } from './LobbyView';
 import { ReadyCheckOverlay } from './ReadyCheckOverlay';
@@ -19,6 +21,7 @@ export function Matchmaking() {
   const selectedLobbyId = useLobbyStore((s) => s.selectedLobbyId);
   const setMenuOpen = useLobbyStore((s) => s.setMenuOpen);
 
+  const hidden = useHudStore((s) => s.hidden);
   const myLobby = findMyLobby(lobbies, mySessionId);
   // Your own lobby always wins over a browser preview selection.
   const viewLobby = myLobby ?? lobbies.find((l) => l.id === selectedLobbyId) ?? null;
@@ -31,27 +34,30 @@ export function Matchmaking() {
 
   return (
     <>
-      <div className="pointer-events-none absolute right-4 top-16 flex justify-end">
-        {myLobby ? (
-          <Button
-            variant="goldOutline"
-            onClick={() => setMenuOpen(true)}
-            className="pointer-events-auto gap-1.5 px-4 py-2.5"
-          >
-            <Users size={15} aria-hidden="true" />
-            {myLobby.name} · {filled}/{capacity}
-          </Button>
-        ) : (
-          <Button
-            variant="gold"
-            onClick={() => setMenuOpen(true)}
-            className="pointer-events-auto gap-1.5 px-5 py-2.5 shadow-[0_6px_20px_rgba(200,162,74,0.25)]"
-          >
-            <Swords size={15} aria-hidden="true" />
-            Play
-          </Button>
-        )}
-      </div>
+      {/* Trigger hides with the rest of the HUD chrome (H key). */}
+      {!hidden && (
+        <HudZone zone="top-right">
+          {myLobby ? (
+            <Button
+              variant="goldOutline"
+              onClick={() => setMenuOpen(true)}
+              className="pointer-events-auto gap-1.5 px-4 py-2.5"
+            >
+              <Users size={15} aria-hidden="true" />
+              {myLobby.name} · {filled}/{capacity}
+            </Button>
+          ) : (
+            <Button
+              variant="gold"
+              onClick={() => setMenuOpen(true)}
+              className="pointer-events-auto gap-1.5 px-5 py-2.5 shadow-[0_6px_20px_rgba(200,162,74,0.25)]"
+            >
+              <Swords size={15} aria-hidden="true" />
+              Play
+            </Button>
+          )}
+        </HudZone>
+      )}
 
       {myLobby?.status === 'ready_check' ? (
         <ReadyCheckOverlay lobby={myLobby} />

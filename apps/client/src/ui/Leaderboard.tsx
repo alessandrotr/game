@@ -1,15 +1,14 @@
+import { useEffect } from 'react';
 import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@arena/shared';
 import { Trophy, X } from 'lucide-react';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { requestLeaderboard } from '../network/colyseus';
 import {
-  Button,
   Dialog,
   DialogClose,
   DialogContent,
   DialogTitle,
-  DialogTrigger,
   IconButton,
   LevelBadge,
   Table,
@@ -210,36 +209,28 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Global leaderboard (town): a trigger button plus a modal listing the top
- * players ranked by wins. Data is fetched on open via a `RequestLeaderboard`
- * round-trip. The modal is a dense table on desktop and reflows to a stacked
- * card list on mobile so it never scrolls sideways.
+ * Global leaderboard (town): a store-controlled modal listing the top players
+ * ranked by wins. Opened from the game menu (no built-in trigger). Data is
+ * fetched on open via a `RequestLeaderboard` round-trip. The modal is a dense
+ * table on desktop and reflows to a stacked card list on mobile so it never
+ * scrolls sideways.
  */
 export function Leaderboard() {
   const { open, loading, enabled, entries, setOpen, setLoading } = useLeaderboardStore();
   const username = useAuthStore((s) => s.username);
 
-  // Fetch fresh standings each time the dialog opens; Radix drives open/close.
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (next) {
+  // Fetch fresh standings whenever the dialog opens — wherever it was opened
+  // from. Radix's onOpenChange only fires for its own close interactions, so an
+  // externally-driven `open` (the game menu) wouldn't trigger a fetch otherwise.
+  useEffect(() => {
+    if (open) {
       setLoading(true);
       requestLeaderboard();
     }
-  };
+  }, [open, setLoading]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button
-          variant="panel"
-          className="font-display pointer-events-auto gap-1.5 bg-panel/90 px-3 py-2 text-xs backdrop-blur-md"
-        >
-          <Trophy size={14} aria-hidden="true" />
-          Leaderboard
-        </Button>
-      </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-md p-0 sm:max-w-xl" aria-describedby={undefined}>
         {/* Header — title, the metric it's ranked by (transparency), close. */}
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
