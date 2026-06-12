@@ -80,4 +80,7 @@ export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type('number') tick = 0;
+  /** Per-match seed for the procedural arena layout. Clients rebuild the same
+   *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */
+  @type('number') layoutSeed = 0;
 }

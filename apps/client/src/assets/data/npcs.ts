@@ -1,5 +1,4 @@
 import type { CharacterAssetId, MapAssetId, Vec3 } from '@arena/shared';
-import { ARENA_HALF_SIZE } from '@arena/shared';
 import type { DialogueId } from './dialogues';
 
 /**
@@ -23,26 +22,7 @@ export interface NpcInstance {
 }
 
 export const MAP_NPCS: Partial<Record<MapAssetId, NpcInstance[]>> = {
-  'map.arena': [
-    {
-      id: 'npc.arena.guard.l',
-      name: 'Town Guard',
-      characterId: 'char.npc.guard',
-      position: [-2.5, 0, -ARENA_HALF_SIZE + 2.5],
-      rotation: 0.4,
-      dialogueId: 'dialogue.guard',
-      interactionRadius: 3,
-    },
-    {
-      id: 'npc.arena.guard.r',
-      name: 'Town Guard',
-      characterId: 'char.npc.guard',
-      position: [2.5, 0, -ARENA_HALF_SIZE + 2.5],
-      rotation: -0.4,
-      dialogueId: 'dialogue.guard',
-      interactionRadius: 3,
-    },
-  ],
+  'map.arena': [],
   'map.town': [],
 };
 

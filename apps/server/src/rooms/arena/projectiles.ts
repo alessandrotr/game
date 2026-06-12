@@ -1,5 +1,4 @@
 import {
-  ARENA_OBSTACLES,
   PLAYER_RADIUS,
   PROJECTILE_LIFETIME_MS,
   type AutoAttackConfig,
@@ -137,7 +136,7 @@ export class ProjectileSystem {
       }
 
       // Obstacles block projectiles (cover).
-      for (const o of ARENA_OBSTACLES) {
+      for (const o of this.ctx.obstacles) {
         const dx = projectile.x - o.x;
         const dz = projectile.z - o.z;
         const r = o.radius + meta.radius;

@@ -1,3 +1,4 @@
+import type { ArenaObstacle } from '@arena/shared';
 import type { ArenaState } from '../schema.js';
 import type { AnimOneShot } from '../../animation.js';
 import type { ArenaTuning } from './tuning.js';
@@ -19,6 +20,8 @@ export interface Displacement {
 export interface ArenaContext {
   readonly state: ArenaState;
   readonly tuning: ArenaTuning;
+  /** This match's procedural cover — the authoritative collision set. */
+  readonly obstacles: readonly ArenaObstacle[];
   /** Current simulation time in ms. */
   now(): number;
   /** Broadcast a server message to every client. */

@@ -4,16 +4,16 @@ import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
-  ARENA_OBSTACLES,
   AUTO_ATTACKS,
   TOWN_HALF_SIZE,
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
-  collideArenaObstacles,
+  collideObstacles,
   stepLocomotion,
   type AnimationName,
   type CharacterClass,
 } from '@arena/shared';
+import { useArenaLayout } from './useArenaLayout';
 import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
@@ -115,6 +115,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     };
   }, [isLocal, sessionId]);
 
+  // This match's cover — the predictor collides against the same obstacles the
+  // server generated, so prediction matches authority by construction.
+  const arenaObstacles = useArenaLayout().obstacles;
+
   useFrame((_, delta) => {
     const node = group.current;
     const latest = useGameStore.getState().players.get(sessionId);
@@ -185,7 +189,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
           pos.z = clamp(pos.z + (dz / dist) * step, -halfBounds, halfBounds);
           // Same post-move obstacle push-out the server applies to the chase path.
-          const fixed = collideArenaObstacles(pos.x, pos.z);
+          const fixed = collideObstacles(pos.x, pos.z, arenaObstacles, PLAYER_RADIUS);
           pos.x = fixed.x;
           pos.z = fixed.z;
         }
@@ -200,7 +204,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,
-            obstacles: isArena ? ARENA_OBSTACLES : TOWN_OBSTACLES,
+            obstacles: isArena ? arenaObstacles : TOWN_OBSTACLES,
           },
           delta,
         );

@@ -1,8 +1,10 @@
 import { type Client } from '@colyseus/core';
 import {
   ARENA_HALF_SIZE,
-  ARENA_OBSTACLES,
   arenaSpawnsForTeam,
+  generateArenaLayout,
+  collideObstacles,
+  type ArenaObstacle,
   isLobbyMode,
   isTeam,
   teamSizeForMode,
@@ -21,7 +23,6 @@ import {
   isStunned,
   attackSpeedMultiplier,
   moveSpeedMultiplier,
-  collideArenaObstacles,
   type AbilityDef,
   type AbilityKind,
   type CharacterClass,
@@ -89,6 +90,10 @@ export class ArenaRoom extends AvatarRoom {
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
 
+  /** This match's procedural cover, generated from `state.layoutSeed` in onCreate.
+   *  The authoritative collision set for movement and projectiles. */
+  private obstacles: readonly ArenaObstacle[] = [];
+
   /** Live-tunable balance for this room (per-room copy of the shared canon). */
   private readonly tuning = new ArenaTuning();
   // Combat systems, wired up in `onCreate` once the state + context exist.
@@ -107,6 +112,15 @@ export class ArenaRoom extends AvatarRoom {
 
   override onCreate(options?: { mode?: LobbyMode }): void {
     this.setState(new ArenaState());
+
+    // Pick a per-match seed and build this arena's procedural cover. The seed is
+    // replicated so every client rebuilds the identical layout (obstacles +
+    // props) — see `generateArenaLayout`. Done before `buildSystems` so the
+    // combat/projectile context captures this match's obstacles.
+    const seed = (1 + Math.floor(Math.random() * 0xfffffffe)) >>> 0;
+    this.state.layoutSeed = seed;
+    this.obstacles = generateArenaLayout(seed).obstacles;
+
     this.buildSystems();
 
     // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
@@ -160,6 +174,7 @@ export class ArenaRoom extends AvatarRoom {
     const ctx: ArenaContext = {
       state: this.state,
       tuning: this.tuning,
+      obstacles: this.obstacles,
       now: () => this.simTime,
       broadcast: (type, message) => this.broadcast(type, message),
       setTimeout: (handler, ms) => {
@@ -521,7 +536,7 @@ export class ArenaRoom extends AvatarRoom {
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
-            obstacles: ARENA_OBSTACLES,
+            obstacles: this.obstacles,
           },
           dt,
         );
@@ -530,7 +545,7 @@ export class ArenaRoom extends AvatarRoom {
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,
       // idle overlaps); stepMove already resolved the move path.
-      const fixed = collideArenaObstacles(player.x, player.z);
+      const fixed = collideObstacles(player.x, player.z, this.obstacles, PLAYER_RADIUS);
       player.x = fixed.x;
       player.z = fixed.z;
 

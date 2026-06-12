@@ -128,4 +128,6 @@ export interface ArenaStateView {
   projectiles: Map<string, ProjectileView>;
   /** Monotonically increasing server tick counter. */
   tick: number;
+  /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */
+  layoutSeed: number;
 }

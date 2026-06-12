@@ -57,6 +57,8 @@ interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
   tick: number;
+  /** Arena rooms only — per-match procedural layout seed (absent in town). */
+  layoutSeed?: number;
 }
 
 // Strip any trailing slash so the Colyseus client builds clean URLs even if
@@ -290,6 +292,8 @@ function wireRoom(joined: Room): void {
       const raw = state as unknown as RawState;
       const { players, projectiles } = snapshotState(raw);
       useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
+      // Arena rooms sync a layout seed; the scene rebuilds cover from it.
+      if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
       // Feed the interpolation buffer used to render remote players smoothly.
       const now = performance.now();
       recordSnapshots(players, now);

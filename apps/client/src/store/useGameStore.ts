@@ -20,6 +20,9 @@ interface GameStore {
   transitionLabel: string;
   /** Server tick of the latest applied snapshot. */
   tick: number;
+  /** Per-match procedural arena layout seed (0 until the arena state syncs it).
+   *  Reactive so the scene rebuilds cover when a new arena is joined. */
+  arenaSeed: number;
 
   /**
    * Reactive lists of ids — change only when membership changes, so React
@@ -40,6 +43,8 @@ interface GameStore {
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
   setRoom: (room: RoomType | null) => void;
+  /** Set the arena layout seed (no-op if unchanged). */
+  setArenaSeed: (seed: number) => void;
   /** Toggle the world-swap loading screen (with an optional tagline). */
   setTransitioning: (transitioning: boolean, label?: string) => void;
   /** Replace snapshot contents and refresh id lists if membership changed. */
@@ -67,6 +72,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   transitioning: false,
   transitionLabel: 'Loading the arena…',
   tick: 0,
+  arenaSeed: 0,
   playerIds: [],
   projectileIds: [],
   players: new Map<string, PlayerView>(),
@@ -75,6 +81,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
   setRoom: (room) => set({ room }),
+  setArenaSeed: (seed) => {
+    if (get().arenaSeed !== seed) set({ arenaSeed: seed });
+  },
   setTransitioning: (transitioning, label) =>
     set(label ? { transitioning, transitionLabel: label } : { transitioning }),
 
@@ -105,6 +114,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       room: null,
       transitioning: false,
       tick: 0,
+      arenaSeed: 0,
       playerIds: [],
       projectileIds: [],
     });

@@ -1,24 +1,17 @@
 /**
  * Warm point lights for the trailer park's burning barrels. Cheap (shadowless,
  * bounded distance) flickerless glows that pool firelight on the surrounding
- * junk — the gritty-night counterpart to the town's TownLights. Positions match
- * the `prop.arena.drum.fire` placements in assets/data/maps.ts; keep them in
- * sync so every flame has a light and every light a flame.
+ * junk — the gritty-night counterpart to the town's TownLights. The barrel
+ * positions come from the per-match generated layout (the `prop.arena.drum.fire`
+ * placements), so every flame tracks its barrel wherever it landed this match.
  */
-const FIRE_BARRELS: [number, number, number][] = [
-  [8, 1.4, 2],
-  [-8, 1.4, -2],
-  [14, 1.4, 10],
-  [-14, 1.4, -10],
-];
-
-export function ArenaLights() {
+export function ArenaLights({ barrels }: { barrels: [number, number, number][] }) {
   return (
     <>
-      {FIRE_BARRELS.map(([x, y, z], i) => (
+      {barrels.map(([x, , z], i) => (
         <pointLight
           key={i}
-          position={[x, y, z]}
+          position={[x, 1.4, z]}
           color="#ff7a3a"
           intensity={9}
           distance={9}
