@@ -14,6 +14,7 @@ import { GameScene } from './scene/GameScene';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { ConnectionLost } from './ui/ConnectionLost';
 import { useConnectionStore } from './store/useConnectionStore';
+import { useMatchResultStore } from './store/useMatchResultStore';
 import { disconnect, timeSinceLastPatch } from './network/colyseus';
 import { JoinScreen } from './ui/JoinScreen';
 
@@ -70,6 +71,10 @@ export default function App() {
   useEffect(() => {
     if (!connected || transitioning) return;
     const id = window.setInterval(() => {
+      // The server freezes the arena sim while the end-of-match results screen
+      // shows (then disposes the room as a backstop). A quiet socket during that
+      // window is expected — not a dropped connection — so don't false-alarm.
+      if (useMatchResultStore.getState().result) return;
       if (timeSinceLastPatch() > STALE_MS) setConnectionLost(true);
     }, 1000);
     return () => window.clearInterval(id);
