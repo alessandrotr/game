@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, type MouseEvent } from 'react';
 import { ARENA_HALF_SIZE } from '@arena/shared';
 import { useGameStore } from '../../store/useGameStore';
 import { useArenaLayout } from '../../scene/useArenaLayout';
+import { sendMoveTo } from '../../network/colyseus';
 import { Card } from '../primitives';
 
 /** On-screen size of the map, in pixels. */
@@ -53,13 +54,25 @@ export function Minimap() {
 
   const H = ARENA_HALF_SIZE;
 
+  // Right-click a spot to walk there (matches the in-scene hold-to-move button).
+  // The viewBox is the world extent, so the pixel→world map is a simple inverse.
+  const onContextMenu = (e: MouseEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * (2 * H) - H;
+    const z = ((e.clientY - rect.top) / rect.height) * (2 * H) - H;
+    sendMoveTo(clamp(x, -H, H), clamp(z, -H, H));
+  };
+
   return (
     <Card variant="hud" className="p-1.5" aria-label="Minimap">
       <svg
         width={MAP_PX}
         height={MAP_PX}
         viewBox={`${-H} ${-H} ${2 * H} ${2 * H}`}
-        className="block rounded-lg bg-black/40"
+        onContextMenu={onContextMenu}
+        className="pointer-events-auto block cursor-pointer rounded-lg bg-black/40"
       >
         {/* Cover obstacles — faint, just for orientation. */}
         {obstacles.map((o, i) => (
@@ -82,4 +95,8 @@ export function Minimap() {
       </svg>
     </Card>
   );
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
 }
