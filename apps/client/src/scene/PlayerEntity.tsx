@@ -18,6 +18,7 @@ import { clearDestination, getDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
+import { useEffectsStore } from '../store/useEffectsStore';
 import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
@@ -64,6 +65,10 @@ interface PlayerEntityProps {
 export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const group = useRef<Group>(null);
   const hpFill = useRef<Mesh>(null);
+  // The floating health bar (background + fill); hidden while dead.
+  const hpBar = useRef<Group>(null);
+  // Tracks the alive→dead edge so the death burst fires exactly once.
+  const wasAlive = useRef(true);
 
   // Class/skin/name are assigned at join and don't change — read once at mount.
   const player = useGameStore.getState().players.get(sessionId);
@@ -103,6 +108,17 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     const node = group.current;
     const latest = useGameStore.getState().players.get(sessionId);
     if (!node || !latest) return;
+
+    // The floating health bar freezes mid-frame when a player dies (the update
+    // below early-returns), so it would read full of HP. Hide it while dead.
+    if (hpBar.current) hpBar.current.visible = latest.alive;
+
+    // On the alive→dead edge, burst a death VFX at the body so the kill reads
+    // unmistakably (fires once; covers every cause — hits, dots, environment).
+    if (wasAlive.current && !latest.alive) {
+      useEffectsStore.getState().spawn('vfx.death', [node.position.x, 1.1, node.position.z]);
+    }
+    wasAlive.current = latest.alive;
 
     if (!latest.alive) {
       // A dead target is no longer attackable — drop the local highlight.
@@ -288,14 +304,16 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       {/* Name + HP bar always face the camera (billboarded), independent of
           the character's facing. */}
       <Billboard position={[0, 2.7, 0]}>
-        <mesh>
-          <planeGeometry args={[HP_BAR_WIDTH, 0.12]} />
-          <meshBasicMaterial color="#1a1f2e" />
-        </mesh>
-        <mesh ref={hpFill} position={[0, 0, 0.001]}>
-          <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
-          <meshBasicMaterial color="#4ade80" />
-        </mesh>
+        <group ref={hpBar}>
+          <mesh>
+            <planeGeometry args={[HP_BAR_WIDTH, 0.12]} />
+            <meshBasicMaterial color="#1a1f2e" />
+          </mesh>
+          <mesh ref={hpFill} position={[0, 0, 0.001]}>
+            <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
+            <meshBasicMaterial color="#4ade80" />
+          </mesh>
+        </group>
         <Text
           position={[0, 0.2, 0]}
           fontSize={0.32}

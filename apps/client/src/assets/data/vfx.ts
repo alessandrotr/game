@@ -349,6 +349,47 @@ const condemn: VfxDescriptor = {
   render: { kind: 'placeholder', parts: [{ name: 'beam', shape: 'cylinder', args: [0.3, 0.3, 3, 12], position: [0, 1.5, 0], color: '#fff0c2', emissive: '#ffcf57', emissiveIntensity: 2.6, opacity: 0.7 }] },
 };
 
+/** Death burst — a crimson soul-blast when a player is killed. A dark cloud, a
+ *  bright red flash, and a ground shockwave ring expand out from the body. */
+const death: VfxDescriptor = {
+  id: 'vfx.death',
+  displayName: 'Death',
+  behavior: 'burst',
+  durationMs: 900,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'cloud',
+        shape: 'sphere',
+        args: [0.75, 16, 16],
+        color: '#2a0810',
+        emissive: '#6a0c1a',
+        emissiveIntensity: 1.5,
+        opacity: 0.7,
+      },
+      {
+        name: 'flash',
+        shape: 'sphere',
+        args: [0.4, 16, 16],
+        color: '#ff6a6a',
+        emissive: '#ff2424',
+        emissiveIntensity: 3.2,
+        opacity: 0.85,
+      },
+      {
+        name: 'shockwave',
+        shape: 'torus',
+        args: [0.95, 0.12, 12, 36],
+        rotation: [Math.PI / 2, 0, 0],
+        color: '#ff9a9a',
+        emissive: '#ff3030',
+        emissiveIntensity: 2.6,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -367,4 +408,5 @@ export const VFX: VfxDescriptor[] = [
   groundSlam,
   dash,
   condemn,
+  death,
 ];
