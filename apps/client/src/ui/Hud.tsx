@@ -8,6 +8,7 @@ import { Leaderboard } from './Leaderboard';
 import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
 import { GameMenu } from './hud/GameMenu';
+import { Minimap } from './hud/Minimap';
 import { SettingsPanel } from './hud/SettingsPanel';
 import { HudLayout, HudZone } from './hud/HudLayout';
 
@@ -42,6 +43,11 @@ export function Hud() {
             {!inArena && (
               <HudZone zone="top-left">
                 <PlayerCard />
+              </HudZone>
+            )}
+            {inArena && (
+              <HudZone zone="top-right">
+                <Minimap />
               </HudZone>
             )}
             <HudZone zone="bottom-right">
