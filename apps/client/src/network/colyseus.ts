@@ -28,6 +28,7 @@ import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
@@ -64,6 +65,14 @@ const ENDPOINT = (import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567').repl
 
 let client: Client | null = null;
 let room: Room | null = null;
+/** `performance.now()` of the last applied state patch — the connection watchdog
+ *  reads this to detect a silent stall (state stops arriving while still joined). */
+let lastPatchAt = 0;
+
+/** Milliseconds since the last state patch was applied (Infinity if never). */
+export function timeSinceLastPatch(): number {
+  return lastPatchAt === 0 ? Infinity : performance.now() - lastPatchAt;
+}
 
 /** A per-tab session key (stable for this page load, unique per tab). Sent with
  *  every join so the server can enforce one play session per account — a newer
@@ -270,6 +279,8 @@ function guarded<T>(fn: (msg: T) => void): (msg: T) => void {
 /** Wire a freshly-joined room's state + messages into the stores. */
 function wireRoom(joined: Room): void {
   bailing = false; // fresh connection
+  lastPatchAt = performance.now(); // start the watchdog clock fresh
+  useConnectionStore.getState().setLost(false);
   clearSnapshots(); // fresh interpolation timeline per room (no cross-room bleed)
   // A teleport (portal/scene change) cancels any pending move order — arrive
   // idle and wait for the next command, rather than resuming a stale walk.
@@ -280,7 +291,11 @@ function wireRoom(joined: Room): void {
       const { players, projectiles } = snapshotState(raw);
       useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
       // Feed the interpolation buffer used to render remote players smoothly.
-      recordSnapshots(players, performance.now());
+      const now = performance.now();
+      recordSnapshots(players, now);
+      // State is flowing — note the time and clear any "connection lost" overlay.
+      lastPatchAt = now;
+      if (useConnectionStore.getState().lost) useConnectionStore.getState().setLost(false);
     } catch (err) {
       // e.g. a server/client schema skew — degrade to a clean disconnect.
       bailToJoinScreen(err);
@@ -311,7 +326,11 @@ function wireRoom(joined: Room): void {
   );
 
   joined.onError((code, message) => {
-    useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
+    // A room error doesn't necessarily close the socket — surface the
+    // "connection lost" overlay over the (now unreliable) game rather than
+    // silently leaving it frozen.
+    console.error(`[net] room error ${code}: ${message ?? ''}`);
+    useConnectionStore.getState().setLost(true);
   });
 
   joined.onLeave((code) => {
@@ -331,6 +350,7 @@ function wireRoom(joined: Room): void {
  *  from `onLeave` when the socket actually closes. */
 function teardownSession(): void {
   room = null;
+  useConnectionStore.getState().setLost(false);
   disconnectMatchmaking(); // drop the parallel lobby connection too
   useGameStore.getState().reset();
   useChatStore.getState().clear();

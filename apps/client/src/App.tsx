@@ -11,8 +11,13 @@ import { useServerStatTuning } from './hooks/useServerStatTuning';
 import { useInteractionInput } from './hooks/useInteractionInput';
 import { GameScene } from './scene/GameScene';
 import { ErrorBoundary } from './ui/ErrorBoundary';
-import { disconnect } from './network/colyseus';
+import { ConnectionLost } from './ui/ConnectionLost';
+import { useConnectionStore } from './store/useConnectionStore';
+import { disconnect, timeSinceLastPatch } from './network/colyseus';
 import { JoinScreen } from './ui/JoinScreen';
+
+/** No state for this long (server ticks ~20/s) means the socket has gone quiet. */
+const STALE_MS = 3000;
 import { AuthScreen } from './ui/AuthScreen';
 import { LandingPage } from './ui/LandingPage';
 import { LoadingScreen } from './ui/LoadingScreen';
@@ -55,6 +60,19 @@ export default function App() {
   useServerStatTuning(connected && inArena);
   useInteractionInput(connected);
 
+  // Connection watchdog: while in-game (and not mid world-swap), if no state has
+  // arrived for a while the socket has gone quiet — raise the "connection lost"
+  // overlay. The state handler clears it again the moment patches resume.
+  const connectionLost = useConnectionStore((s) => s.lost);
+  const setConnectionLost = useConnectionStore((s) => s.setLost);
+  useEffect(() => {
+    if (!connected || transitioning) return;
+    const id = window.setInterval(() => {
+      if (timeSinceLastPatch() > STALE_MS) setConnectionLost(true);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [connected, transitioning, setConnectionLost]);
+
   // Branded intro: shown while restoring a saved session AND for a minimum
   // window, so it reads as a deliberate splash even when restore is instant
   // (and never flashes the login form for returning users).
@@ -87,6 +105,7 @@ export default function App() {
           <Hud />
           <InteractionUI />
           <ChatPanel />
+          {connectionLost && <ConnectionLost />}
         </ErrorBoundary>
       ) : (
         <JoinScreen />

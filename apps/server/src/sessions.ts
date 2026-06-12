@@ -1,4 +1,4 @@
-import type { Client } from '@colyseus/core';
+import type { Client, Room } from '@colyseus/core';
 import { SESSION_SUPERSEDED_CODE } from '@arena/shared';
 
 /**
@@ -47,6 +47,31 @@ export function registerSession(pid: number, sessionKey: string, client: Client)
   const superseded = [...existing.clients];
   byPid.set(pid, { sessionKey, clients: new Set([client]) });
   return superseded;
+}
+
+/**
+ * Evict any *other* connection of the same account already in this room — there
+ * must only be one live client per account per room. This catches the ghost a
+ * cross-session supersede misses: a same-tab reconnect after a crash (the page
+ * isn't reloaded, so the `sessionKey` is unchanged) whose old, half-dead socket
+ * the server hasn't yet noticed is gone. The new join force-closes the stale one
+ * instead of leaving a duplicate "old me" standing in the world.
+ *
+ * Tag each client with its account id via {@link tagClientAccount} on join for
+ * this to work.
+ */
+export function evictRoomDuplicates(room: Room, pid: number, keep: Client): void {
+  for (const other of room.clients) {
+    if (other === keep) continue;
+    if ((other.userData as { pid?: number } | undefined)?.pid === pid) {
+      other.leave(SESSION_SUPERSEDED_CODE);
+    }
+  }
+}
+
+/** Record an account id on a client so {@link evictRoomDuplicates} can match it. */
+export function tagClientAccount(client: Client, pid: number): void {
+  client.userData = { ...(client.userData as object | undefined), pid };
 }
 
 /** Drop a connection from its account's session registry (call on every leave). */

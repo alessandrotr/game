@@ -68,7 +68,13 @@ import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { getProgress, recordResult } from '../db/players.js';
 import { verifyToken } from '../auth.js';
-import { registerSession, unregisterSession, SESSION_SUPERSEDED } from '../sessions.js';
+import {
+  evictRoomDuplicates,
+  registerSession,
+  tagClientAccount,
+  unregisterSession,
+  SESSION_SUPERSEDED,
+} from '../sessions.js';
 
 /** A player's persisted totals at join time. Live totals are tracked on the
  *  replicated `Player`; the delta (live − base) is flushed to the DB on leave. */
@@ -358,11 +364,14 @@ export class ArenaRoom extends Room<ArenaState> {
     },
   ): void {
     const claims = verifyToken(options?.token);
-    // Single-session: a newer tab for this account supersedes the older one.
+    // Single-session: a newer tab for this account supersedes the older one, and
+    // a same-account reconnect into this room evicts its own stale ghost.
     if (claims?.pid !== undefined) {
+      tagClientAccount(client, claims.pid);
       for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
         stale.leave(SESSION_SUPERSEDED);
       }
+      evictRoomDuplicates(this, claims.pid, client);
     }
     const player = new Player();
     player.sessionId = client.sessionId;

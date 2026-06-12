@@ -15,7 +15,13 @@ import {
 } from '@arena/shared';
 import { Lobby, LobbySlot, MatchmakingState } from './mmSchema.js';
 import { verifyToken } from '../auth.js';
-import { registerSession, unregisterSession, SESSION_SUPERSEDED } from '../sessions.js';
+import {
+  evictRoomDuplicates,
+  registerSession,
+  tagClientAccount,
+  unregisterSession,
+  SESSION_SUPERSEDED,
+} from '../sessions.js';
 
 /** Maximum accepted display-name length (mirrors the town/arena rooms). */
 const MAX_NAME_LENGTH = 24;
@@ -91,11 +97,14 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
   ): void {
     const claims = verifyToken(options?.token);
     const sessionKey = String(options?.sessionKey ?? '');
-    // Single-session: a newer tab for this account supersedes the older one.
+    // Single-session: a newer tab for this account supersedes the older one, and
+    // a same-account reconnect into this room evicts its own stale ghost.
     if (claims?.pid !== undefined) {
+      tagClientAccount(client, claims.pid);
       for (const stale of registerSession(claims.pid, sessionKey, client)) {
         stale.leave(SESSION_SUPERSEDED);
       }
+      evictRoomDuplicates(this, claims.pid, client);
     }
     const name =
       claims?.name?.slice(0, MAX_NAME_LENGTH) ||
