@@ -116,7 +116,7 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
       <TableCell className="border-r border-white/10 py-2.5 pl-4 pr-3">
         <RankBadge rank={rank} />
       </TableCell>
-      <TableCell className="py-2.5">
+      <TableCell className="py-2.5 pl-3">
         <div className="flex items-center gap-2.5">
           <LevelBadge level={entry.level} size="xs" />
           <div className="min-w-0">
@@ -258,7 +258,7 @@ export function Leaderboard() {
                   <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
-                      <TableHead>Player</TableHead>
+                      <TableHead className="pl-3">Player</TableHead>
                       <TableHead className="text-right">K / D</TableHead>
                       <TableHead className="pr-4 text-right">W–L</TableHead>
                     </TableRow>
