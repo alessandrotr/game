@@ -247,10 +247,7 @@ const town: MapDescriptor = {
     // --- Signpost at the spawn end of the street ---
     { assetId: 'prop.signpost', position: [3.5, 0, 14], rotation: [0, -0.5, 0] },
   ],
-  zones: [
-    { kind: 'spawn', center: [0, 0, 12], radius: 3, label: 'Spawn' },
-    { kind: 'portal', center: [0, 0, -14], radius: 2.5, label: 'Arena' },
-  ],
+  zones: [{ kind: 'portal', center: [0, 0, -14], radius: 2.5, label: 'Arena' }],
 };
 
 export const MAPS: MapDescriptor[] = [arena, town];
