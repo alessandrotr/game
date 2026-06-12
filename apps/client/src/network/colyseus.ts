@@ -18,6 +18,7 @@ import {
   type ProjectileView,
   type ServerMessagePayloads,
   type Team,
+  type VfxAssetId,
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
@@ -126,22 +127,61 @@ function snapshotState(state: RawState): {
 
 /** Map an ability cast event to a transient client-side VFX + a character
  *  animation event for the caster (so local and remote players animate alike). */
+/**
+ * Per-ability "on cast" VFX: which burst shader to spawn, where, and how it's
+ * oriented. The traveling projectile (for projectile abilities) is replicated
+ * and rendered separately by `Projectiles`; here we add the cast/impact flourish
+ * — a ground burst at the caster/impact/target, oriented to the cast direction.
+ */
+type BurstSpawn = { id: VfxAssetId; at: 'caster' | 'point' | 'unit'; y: number; oriented?: boolean };
+
+const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
+  // Mage
+  frost_nova: { id: 'vfx.frost', at: 'caster', y: 0.05 },
+  arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 },
+  // Warrior
+  cleave: { id: 'vfx.cleave', at: 'caster', y: 0.06, oriented: true },
+  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06 },
+  // Dash streak: the shader lifts itself to mid-body, so anchor at the ground.
+  charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },
+  shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05 },
+  // Archer
+  tumble: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },
+  // Priest
+  heal: { id: 'vfx.heal', at: 'caster', y: 0.1 },
+  renew: { id: 'vfx.heal', at: 'unit', y: 0.1 },
+  condemn: { id: 'vfx.condemn', at: 'unit', y: 0 },
+};
+
 function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): void {
   const spawn = useEffectsStore.getState().spawn;
+  const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
+
+  const burst = ABILITY_CAST_VFX[msg.ability];
+  if (burst) {
+    let x = msg.x;
+    let z = msg.z;
+    if (burst.at === 'point' && msg.tx !== undefined && msg.tz !== undefined) {
+      x = msg.tx;
+      z = msg.tz;
+    } else if (burst.at === 'unit' && msg.targetId) {
+      const target = useGameStore.getState().players.get(msg.targetId);
+      if (target) {
+        x = target.x;
+        z = target.z;
+      }
+    }
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1]);
+    return;
+  }
+
+  // Default (projectiles / single-target casts): a quick rune flash at the
+  // caster's feet — the projectile itself carries the rest of the visual.
   const def = ABILITIES[msg.ability];
-  // Data-driven VFX: a flash reflecting the dominant effect shape. Projectiles
-  // are replicated separately, so they only get a muzzle flash at the caster.
-  const top = def?.effects[0]?.type;
-  if (msg.ability === 'heal') {
-    spawn('vfx.heal', [msg.x, 0.1, msg.z], [0, 0, 1]);
-  } else if (top === 'aoe' || msg.tx !== undefined) {
-    // Burst at the resolved impact point (ground-target) or the caster (self AoE).
-    const tx = msg.tx ?? msg.x;
-    const tz = msg.tz ?? msg.z;
-    spawn('vfx.arcane_blast', [tx, 0.4, tz], [0, 0, 1]);
+  if (def?.effects[0]?.type === 'aoe' || msg.tx !== undefined) {
+    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1]);
   } else {
-    // Projectiles, dashes, single-target casts: a muzzle flash at the caster.
-    spawn('vfx.cast', [msg.x, msg.y, msg.z], [msg.dirX, 0, msg.dirZ]);
+    spawn('vfx.cast', [msg.x, 0.05, msg.z], dir);
   }
   // Cast poses are server-authoritative (replicated via `animState`) for remote
   // players; the local caster predicts its own in the ability hotkey.

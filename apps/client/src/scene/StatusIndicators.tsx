@@ -5,6 +5,7 @@ import type { StatusKind } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
+import { ShieldBubble } from '../render/shaders';
 
 /**
  * Over-head status indicators driven entirely by replicated state: a row of
@@ -72,10 +73,9 @@ function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
         </mesh>
       ))}
       {hasShield && (
-        <mesh position={[0, -0.6, 0]}>
-          <sphereGeometry args={[1.0, 16, 12]} />
-          <meshBasicMaterial color={STATUS_COLOR.shield} transparent opacity={0.18} depthWrite={false} />
-        </mesh>
+        <group position={[0, -0.6, 0]}>
+          <ShieldBubble color={STATUS_COLOR.shield} radius={1.0} />
+        </group>
       )}
     </group>
   );

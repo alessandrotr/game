@@ -258,6 +258,97 @@ const arcaneBlast: VfxDescriptor = {
   },
 };
 
+// --- New ability VFX (custom GLSL shaders; placeholder render is the fallback
+//     used only if a shader is ever missing for the id). ----------------------
+
+/** A glowing energy dart (archer power shot). Shader: PROJECTILE_SHADERS. */
+const powerShot: VfxDescriptor = {
+  id: 'vfx.power_shot',
+  displayName: 'Power Shot',
+  behavior: 'projectile',
+  speed: 30,
+  durationMs: 1500,
+  render: {
+    kind: 'placeholder',
+    parts: [{ name: 'core', shape: 'sphere', args: [0.16, 12, 12], color: '#d6ffe0', emissive: '#7dff9c', emissiveIntensity: 3 }],
+  },
+};
+
+/** A frigid blue dart (archer crippling shot). */
+const cripplingShot: VfxDescriptor = {
+  id: 'vfx.crippling_shot',
+  displayName: 'Crippling Shot',
+  behavior: 'projectile',
+  speed: 28,
+  durationMs: 1500,
+  render: {
+    kind: 'placeholder',
+    parts: [{ name: 'core', shape: 'sphere', args: [0.16, 12, 12], color: '#d6f2ff', emissive: '#5fc8ff', emissiveIntensity: 3 }],
+  },
+};
+
+/** A heavy crimson-gold bolt (archer pinning arrow). */
+const pinningArrow: VfxDescriptor = {
+  id: 'vfx.pinning_arrow',
+  displayName: 'Pinning Arrow',
+  behavior: 'projectile',
+  speed: 34,
+  durationMs: 1500,
+  render: {
+    kind: 'placeholder',
+    parts: [{ name: 'core', shape: 'sphere', args: [0.18, 12, 12], color: '#ffe6c2', emissive: '#ffb24a', emissiveIntensity: 3 }],
+  },
+};
+
+/** A radiant golden orb (priest smite). */
+const holyBolt: VfxDescriptor = {
+  id: 'vfx.holy_bolt',
+  displayName: 'Holy Bolt',
+  behavior: 'projectile',
+  speed: 26,
+  durationMs: 1600,
+  render: {
+    kind: 'placeholder',
+    parts: [{ name: 'core', shape: 'sphere', args: [0.18, 12, 12], color: '#fff3d0', emissive: '#ffcf57', emissiveIntensity: 3 }],
+  },
+};
+
+/** Warrior cleave — a quick steel crescent. Shader: BURST_SHADERS. */
+const cleave: VfxDescriptor = {
+  id: 'vfx.cleave',
+  displayName: 'Cleave',
+  behavior: 'burst',
+  durationMs: 420,
+  render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [0.7, 0.08, 8, 24], rotation: [Math.PI / 2, 0, 0], color: '#ffd9a0', emissive: '#ff7a1a', emissiveIntensity: 2.4 }] },
+};
+
+/** Warrior ground slam — a heavy dust shockwave. */
+const groundSlam: VfxDescriptor = {
+  id: 'vfx.ground_slam',
+  displayName: 'Ground Slam',
+  behavior: 'burst',
+  durationMs: 720,
+  render: { kind: 'placeholder', parts: [{ name: 'ring', shape: 'torus', args: [1.4, 0.18, 12, 36], rotation: [Math.PI / 2, 0, 0], color: '#ffc184', emissive: '#ff6a1a', emissiveIntensity: 2.6 }] },
+};
+
+/** A directional dash streak (warrior charge / archer tumble). */
+const dash: VfxDescriptor = {
+  id: 'vfx.dash',
+  displayName: 'Dash',
+  behavior: 'burst',
+  durationMs: 380,
+  render: { kind: 'placeholder', parts: [{ name: 'streak', shape: 'box', args: [1.6, 0.1, 0.4], color: '#cfe6ff', emissive: '#9ec5ff', emissiveIntensity: 2, opacity: 0.7 }] },
+};
+
+/** Priest condemn — a column of holy light slamming onto the target. */
+const condemn: VfxDescriptor = {
+  id: 'vfx.condemn',
+  displayName: 'Condemn',
+  behavior: 'burst',
+  durationMs: 700,
+  render: { kind: 'placeholder', parts: [{ name: 'beam', shape: 'cylinder', args: [0.3, 0.3, 3, 12], position: [0, 1.5, 0], color: '#fff0c2', emissive: '#ffcf57', emissiveIntensity: 2.6, opacity: 0.7 }] },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -268,4 +359,12 @@ export const VFX: VfxDescriptor[] = [
   shockwave,
   arcaneBolt,
   arcaneBlast,
+  powerShot,
+  cripplingShot,
+  pinningArrow,
+  holyBolt,
+  cleave,
+  groundSlam,
+  dash,
+  condemn,
 ];

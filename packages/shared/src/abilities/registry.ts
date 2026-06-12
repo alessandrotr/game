@@ -208,7 +208,7 @@ export const ABILITY_REGISTRY = {
         speed: 30,
         range: 26,
         radius: 0.5,
-        vfx: VFX_ARCANE,
+        vfx: 'power_shot',
         onHit: [{ type: 'damage', amount: 28 }],
       },
     ],
@@ -232,7 +232,7 @@ export const ABILITY_REGISTRY = {
         speed: 28,
         range: 24,
         radius: 0.5,
-        vfx: VFX_ARCANE,
+        vfx: 'crippling_shot',
         onHit: [
           { type: 'damage', amount: 16 },
           { type: 'status', status: { kind: 'slow', durationMs: 2500, magnitude: 0.45 } },
@@ -276,7 +276,7 @@ export const ABILITY_REGISTRY = {
         speed: 34,
         range: 28,
         radius: 0.5,
-        vfx: VFX_ARCANE,
+        vfx: 'pinning_arrow',
         onHit: [
           { type: 'damage', amount: 30 },
           { type: 'status', status: { kind: 'root', durationMs: 1500 } },
@@ -305,7 +305,7 @@ export const ABILITY_REGISTRY = {
         speed: 26,
         range: 22,
         radius: 0.7,
-        vfx: VFX_FIRE,
+        vfx: 'holy_bolt',
         onHit: [
           { type: 'damage', amount: 22 },
           { type: 'status', status: { kind: 'silence', durationMs: 1500 } },
