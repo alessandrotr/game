@@ -56,13 +56,25 @@ function RankBadge({ rank }: { rank: number }) {
       </span>
     );
   }
+  // Derive a polished-metal palette from the base medal hue so all three coins
+  // share the same lighting model: bright top-left, hue mid, darkened rim.
+  const light = `color-mix(in srgb, ${medal} 50%, #ffffff)`;
+  const dark = `color-mix(in srgb, ${medal} 78%, #000000)`;
+  const ink = `color-mix(in srgb, ${medal} 28%, #100b02)`;
+  const glow = `color-mix(in srgb, ${medal} 45%, transparent)`;
   return (
     <span
-      className="grid h-7 w-7 place-items-center rounded-full text-[13px] font-bold tabular-nums"
+      className="relative grid h-7 w-7 place-items-center rounded-full text-[12px] font-extrabold tabular-nums"
       style={{
-        color: medal,
-        background: `color-mix(in srgb, ${medal} 15%, transparent)`,
-        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${medal} 55%, transparent)`,
+        color: ink,
+        background: `radial-gradient(120% 120% at 32% 24%, ${light} 0%, ${medal} 42%, ${dark} 100%)`,
+        boxShadow: [
+          'inset 0 1px 1.5px rgba(255,255,255,0.6)', // top bevel highlight
+          'inset 0 -1.5px 2px rgba(0,0,0,0.4)', // bottom bevel shadow
+          `inset 0 0 0 1px color-mix(in srgb, ${dark} 70%, transparent)`, // crisp rim
+          `0 2px 5px -1px ${glow}`, // soft colored drop glow
+        ].join(', '),
+        textShadow: '0 1px 0 rgba(255,255,255,0.3)', // engraved numeral
       }}
     >
       {rank}
