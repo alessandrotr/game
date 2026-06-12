@@ -51,17 +51,25 @@ export function Minimap() {
     }));
   }, [tick, sessionId]);
 
+  // The camera's resting orientation is mirrored 180° for red (see CameraRig),
+  // so flip the map to match — "up" stays "toward the enemy" for both teams.
+  const isRed = useMemo(
+    () => useGameStore.getState().players.get(sessionId ?? '')?.team === 'red',
+    [sessionId],
+  );
+
   const H = ARENA_HALF_SIZE;
 
   // Right-click a spot to walk there (matches the in-scene hold-to-move button).
-  // Fixed north-up orientation, so the viewBox is the world extent and the
-  // pixel→world map is a simple inverse.
+  // The viewBox is the world extent, so the pixel→world map is a simple inverse;
+  // for red the map is rotated 180°, so the world point is negated to match.
   const onContextMenu = (e: MouseEvent<SVGSVGElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * (2 * H) - H;
-    const z = ((e.clientY - rect.top) / rect.height) * (2 * H) - H;
+    const sign = isRed ? -1 : 1;
+    const x = (((e.clientX - rect.left) / rect.width) * (2 * H) - H) * sign;
+    const z = (((e.clientY - rect.top) / rect.height) * (2 * H) - H) * sign;
     sendMoveTo(clamp(x, -H, H), clamp(z, -H, H));
   };
 
@@ -74,24 +82,26 @@ export function Minimap() {
         onContextMenu={onContextMenu}
         className="pointer-events-auto block cursor-pointer rounded-lg bg-black/40"
       >
-        {/* Cover obstacles — faint, just for orientation. */}
-        {obstacles.map((o, i) => (
-          <circle key={i} cx={o.x} cy={o.z} r={o.radius} fill="rgba(255,255,255,0.14)" />
-        ))}
+        <g transform={isRed ? 'rotate(180)' : undefined}>
+          {/* Cover obstacles — faint, just for orientation. */}
+          {obstacles.map((o, i) => (
+            <circle key={i} cx={o.x} cy={o.z} r={o.radius} fill="rgba(255,255,255,0.14)" />
+          ))}
 
-        {/* Players / bots. Dead are dimmed; the local player gets a white ring. */}
-        {blips.map((b) => (
-          <circle
-            key={b.id}
-            cx={b.x}
-            cy={b.z}
-            r={b.isSelf ? 1.5 : 1.1}
-            fill={b.color}
-            fillOpacity={b.alive ? 1 : 0.3}
-            stroke={b.isSelf ? '#ffffff' : 'rgba(0,0,0,0.5)'}
-            strokeWidth={b.isSelf ? 0.5 : 0.25}
-          />
-        ))}
+          {/* Players / bots. Dead are dimmed; the local player gets a white ring. */}
+          {blips.map((b) => (
+            <circle
+              key={b.id}
+              cx={b.x}
+              cy={b.z}
+              r={b.isSelf ? 1.5 : 1.1}
+              fill={b.color}
+              fillOpacity={b.alive ? 1 : 0.3}
+              stroke={b.isSelf ? '#ffffff' : 'rgba(0,0,0,0.5)'}
+              strokeWidth={b.isSelf ? 0.5 : 0.25}
+            />
+          ))}
+        </g>
       </svg>
     </Card>
   );

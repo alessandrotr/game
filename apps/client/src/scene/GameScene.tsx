@@ -19,6 +19,7 @@ import { Fountain } from './Fountain';
 import { PlayerEntity } from './PlayerEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
+import { CameraControls } from './CameraControls';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
@@ -60,7 +61,10 @@ export function GameScene() {
   return (
     <Canvas
       shadows="soft"
-      dpr={[1, 2]}
+      // Cap the render resolution at 1.5× device pixels: on a Retina display the
+      // native 2× quadruples fragment/shadow/AA work for little visible gain, and
+      // that GPU load is the main cause of system-wide lag while the tab is open.
+      dpr={[1, 1.5]}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
       gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
@@ -157,6 +161,7 @@ export function GameScene() {
       <Portals mapId={mapId} />
 
       <MouseMove />
+      <CameraControls />
       {isArena && <CursorTracker />}
       {isArena && <GroundTargeter />}
       <DestinationMarker />
