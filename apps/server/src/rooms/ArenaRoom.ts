@@ -1,119 +1,49 @@
-import { Room, type Client } from '@colyseus/core';
+import { type Client } from '@colyseus/core';
 import {
-  ABILITIES,
-  ABILITY_FIELD_META,
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
   arenaSpawnsForTeam,
   isLobbyMode,
   isTeam,
-  teamKillTargetFor,
   teamSizeForMode,
-  stepLocomotion,
   AUTO_ATTACKS,
-  CLASS_ABILITY_OVERRIDES,
-  CLASS_DEFINITIONS,
-  CLASS_STAT_FIELD_META,
-  collideArenaObstacles,
-  GRAVITY,
   GROUND_Y,
-  EMOTE_MS,
   MANA_REGEN,
-  MATCH_KILL_TARGET,
-  MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
-  MOVEMENT,
-  MOVEMENT_FIELD_META,
   PLAYER_RADIUS,
-  PROJECTILE_LIFETIME_MS,
-  RESPAWN_DELAY_MS,
   TICK_MS,
-  XP_PER_KILL,
   ClientMessage,
   type ClientMessagePayloads,
   ServerMessage,
   isAbilityKind,
-  isCharacterClass,
-  isEmote,
   isRooted,
   isSilenced,
   isStunned,
   attackSpeedMultiplier,
-  damageTakenMultiplier,
   moveSpeedMultiplier,
-  levelForXp,
-  type AbilityConfig,
+  collideArenaObstacles,
   type AbilityDef,
   type AbilityKind,
-  type AutoAttackConfig,
   type CharacterClass,
-  type ClassStats,
-  type FieldMeta,
-  type LeafEffect,
   type LobbyMode,
-  type MovementConfig,
-  type StatusSpec,
-  type Team,
 } from '@arena/shared';
-import { ArenaState, Player, Projectile, StatusEffect } from './schema.js';
-import { runCast, type CastContext, type EffectRuntime } from '../abilities/executor.js';
-import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
-import {
-  computeAnimState,
-  HIT_ONESHOT_MS,
-  INSTANT_ONESHOT_MS,
-  type AnimOneShot,
-} from '../animation.js';
+import { ArenaState, Player } from './schema.js';
+import { AvatarRoom } from './AvatarRoom.js';
+import { regenMana, reviveFull, spendMana } from '../combat.js';
+import { INSTANT_ONESHOT_MS } from '../animation.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { getProgress, recordResult } from '../db/players.js';
-import { verifyToken } from '../auth.js';
-import {
-  findRoomDuplicates,
-  registerSession,
-  tagClientAccount,
-  unregisterSession,
-  SESSION_SUPERSEDED,
-} from '../sessions.js';
+import { resolveClass, resolveName, resolveSkinId, type JoinOptions } from './util/identity.js';
+import { applyGravity, clamp, stepMove } from './util/locomotion.js';
+import { ArenaTuning } from './arena/tuning.js';
+import { ArenaMatch } from './arena/match.js';
+import { CombatSystem } from './arena/combat.js';
+import { ProjectileSystem } from './arena/projectiles.js';
+import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
+import type { ArenaContext, Displacement } from './arena/context.js';
 
-/** A player's persisted totals at join time. Live totals are tracked on the
- *  replicated `Player`; the delta (live − base) is flushed to the DB on leave. */
-interface MatchProfile {
-  playerId: number;
-  characterClass: string;
-  baseXp: number;
-  baseKills: number;
-  baseDeaths: number;
-}
-
-/** Maximum accepted display-name length. */
-const MAX_NAME_LENGTH = 24;
-/** Spawn height of a projectile above the ground. */
+/** Origin height for a cast's broadcast (matches the projectile spawn height). */
 const PROJECTILE_Y = 1;
-
-/** Server-only metadata for an in-flight projectile (not replicated). */
-interface ProjectileMeta {
-  ownerId: string;
-  /** Source tag (ability kind or auto-attack vfx) — drives the client visual. */
-  ability: string;
-  dirX: number;
-  dirZ: number;
-  speed: number;
-  range: number;
-  radius: number;
-  /** Direct damage for auto-attack projectiles (no `onHit`). */
-  damage: number;
-  /** Composable effects run against the player this projectile hits (ability
-   *  projectiles); when present they supersede the flat `damage`. */
-  onHit?: LeafEffect[];
-  traveled: number;
-  spawnedAt: number;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 
 /** A cast in its wind-up: the effect resolves at `resolveAt` (sim time, ms). */
 interface PendingCast {
@@ -132,125 +62,64 @@ interface PendingCast {
 /**
  * Authoritative arena simulation. Clients send point-and-click move targets,
  * jump and ability-cast requests; the room validates and integrates everything
- * on a fixed timestep (movement, gravity/jump, cast wind-ups, ability
- * projectiles, damage, respawn) and replicates the result via schema sync. All
- * gameplay is server-owned.
+ * on a fixed timestep and replicates the result via schema sync. Movement, jump,
+ * chat and emote handling come from {@link AvatarRoom}; this class owns the
+ * combat tick loop and wires together the balance ({@link ArenaTuning}),
+ * combat ({@link CombatSystem}), projectile ({@link ProjectileSystem}) and ranked
+ * ({@link ArenaMatch}) systems via a shared {@link ArenaContext}. All gameplay is
+ * server-owned.
  */
-export class ArenaRoom extends Room<ArenaState> {
+export class ArenaRoom extends AvatarRoom {
   override maxClients = MAX_PLAYERS;
 
-  /** Active move destination per session (cleared on arrival/death/cast). */
-  private readonly destinations = new Map<string, { x: number; z: number }>();
-  private readonly verticalVelocity = new Map<string, number>();
-  private readonly grounded = new Map<string, boolean>();
+  protected override readonly chat = new ChatLog();
+  protected override readonly halfLimit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+
+  // Arena-specific per-session state (the avatar maps live on AvatarRoom).
   private readonly cooldowns = new Map<string, Partial<Record<AbilityKind, number>>>();
   private readonly respawnAt = new Map<string, number>();
-  private readonly projectileMeta = new Map<string, ProjectileMeta>();
   /** Casts mid wind-up (castTimeMs > 0); the player is rooted until they resolve. */
   private readonly pendingCasts = new Map<string, PendingCast>();
-  /** Transient one-shot animation (cast/attack/hit) currently asserted per player. */
-  private readonly animOneShots = new Map<string, AnimOneShot>();
-  private readonly chat = new ChatLog();
-  /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
-  private readonly profiles = new Map<string, MatchProfile>();
   /** Current auto-attack target (a player session id) per attacker. */
   private readonly attackTargets = new Map<string, string>();
   /** Sim time (ms) each player's next auto-attack is ready. */
   private readonly attackReadyAt = new Map<string, number>();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
-  private readonly displacements = new Map<
-    string,
-    { vx: number; vz: number; until: number }
-  >();
+  private readonly displacements = new Map<string, Displacement>();
+  /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
+  private readonly profiles = new Map<string, MatchProfile>();
 
-  /** Accumulated simulation time in ms (used for cooldowns / respawn timers). */
-  private simTime = 0;
-  private projectileSeq = 0;
+  /** Live-tunable balance for this room (per-room copy of the shared canon). */
+  private readonly tuning = new ArenaTuning();
+  // Combat systems, wired up in `onCreate` once the state + context exist.
+  private match!: ArenaMatch;
+  private combat!: CombatSystem;
+  private projectiles!: ProjectileSystem;
 
-  /** A ranked match (from matchmaking): tracks a team kill target and ends
-   *  decisively. False for the public free-for-all arena (portal travel). */
-  private ranked = false;
-  /** Combined kills a team must reach to win (set per mode in onCreate). */
-  private teamKillTarget = MATCH_KILL_TARGET;
-  /** Latched once a winner is decided; freezes the sim for the results screen. */
-  private matchOver = false;
-  /** Win/loss verdict per session, recorded to the DB when each player leaves. */
-  private readonly outcomes = new Map<string, 'win' | 'loss'>();
-
-  /**
-   * Authoritative balance for this room, seeded from the shared canonical values
-   * and live-tunable via the dev tools (per-room copies so tuning one room never
-   * leaks into another):
-   *  - `movement`: global movement "feel" (per-class walk speed is `classStats`).
-   *  - `classStats`: per-class HP / mana / move speed / attack.
-   *  - `abilityBase`: the global ability defaults.
-   *  - `classAbilityOverrides`: per-class deltas over the base.
-   */
-  private readonly movement: MovementConfig = structuredClone(MOVEMENT);
-  private readonly classStats: Record<CharacterClass, ClassStats> = structuredClone(
-    Object.fromEntries(
-      (Object.keys(CLASS_DEFINITIONS) as CharacterClass[]).map((c) => [c, CLASS_DEFINITIONS[c].stats]),
-    ),
-  ) as Record<CharacterClass, ClassStats>;
-  private readonly abilityBase: Record<AbilityKind, AbilityDef> = structuredClone(ABILITIES);
-  private readonly classAbilityOverrides: Partial<
-    Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>
-  > = structuredClone(CLASS_ABILITY_OVERRIDES);
-
-  /** The effective ability definition for a class = global base ⊕ that class's
-   *  override (tuning only patches the flat numeric fields; `effects` carry over). */
-  private abilityFor(characterClass: string, kind: AbilityKind): AbilityDef {
-    const override = this.classAbilityOverrides[characterClass as CharacterClass]?.[kind];
-    return override ? { ...this.abilityBase[kind], ...override } : this.abilityBase[kind];
+  protected override jumpForce(): number {
+    return this.tuning.movement.jumpForce;
   }
 
-  /** Per-player walk speed (the class move-speed stat). Class is validated on
-   *  join, so the fallback only guards against an unexpected/blank class. */
-  private walkSpeedFor(characterClass: string): number {
-    return this.classStats[characterClass as CharacterClass]?.moveSpeed ?? CLASS_DEFINITIONS.warrior.stats.moveSpeed;
-  }
-
-  /**
-   * Merge a numeric override patch into a target, clamping each field to its
-   * meta range and ignoring unknown/non-numeric fields — the single validation
-   * path for every dev-tune message (ranges come from the shared field meta).
-   */
-  private mergeTuned(
-    target: Record<string, number>,
-    patch: Record<string, unknown> | undefined,
-    meta: Partial<Record<string, FieldMeta>>,
-  ): void {
-    if (!patch || typeof patch !== 'object') return;
-    for (const [field, value] of Object.entries(patch)) {
-      const m = meta[field];
-      if (m && typeof value === 'number' && Number.isFinite(value)) {
-        target[field] = clamp(value, m.min, m.max);
-      }
-    }
+  /** A manual move order cancels any auto-attack. */
+  protected override onMoveOrder(sessionId: string): void {
+    this.attackTargets.delete(sessionId);
   }
 
   override onCreate(options?: { mode?: LobbyMode }): void {
+    this.setState(new ArenaState());
+    this.buildSystems();
+
     // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
     // win target by team size, and hide from public join (only reserved seats
     // get in). Without a mode this is the public free-for-all arena (portal).
     if (isLobbyMode(options?.mode)) {
-      this.ranked = true;
       this.maxClients = 2 * teamSizeForMode(options.mode);
-      this.teamKillTarget = teamKillTargetFor(options.mode);
       this.setPrivate(true);
+      this.match.configureRanked(options.mode);
     }
-    this.setState(new ArenaState());
 
-    this.onMessage<{ x: number; z: number }>(ClientMessage.MoveTo, (client, message) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive) return;
-      const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
-      const z = Number.isFinite(message?.z) ? clamp(message.z, -limit, limit) : player.z;
-      // A manual move order cancels any auto-attack.
-      this.attackTargets.delete(client.sessionId);
-      this.destinations.set(client.sessionId, { x, z });
-    });
+    // Movement / jump / chat / emote / set-name come from AvatarRoom.
+    this.registerAvatarHandlers();
 
     this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
       const player = this.state.players.get(client.sessionId);
@@ -263,132 +132,62 @@ export class ArenaRoom extends Room<ArenaState> {
       this.destinations.delete(client.sessionId);
     });
 
-    this.onMessage(ClientMessage.Jump, (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive) return;
-      if (this.grounded.get(client.sessionId)) {
-        this.verticalVelocity.set(client.sessionId, this.movement.jumpForce);
-        this.grounded.set(client.sessionId, false);
-      }
-    });
-
-    this.onMessage<{ emote: string }>(ClientMessage.Emote, (client, message) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive || !isEmote(message?.emote)) return;
-      this.animOneShots.set(client.sessionId, {
-        name: message.emote,
-        until: this.simTime + EMOTE_MS,
-      });
-    });
-
     this.onMessage<ClientMessagePayloads[ClientMessage.CastAbility]>(
       ClientMessage.CastAbility,
       (client, message) => this.handleCast(client.sessionId, message),
     );
 
-    this.onMessage<{ name: string }>(ClientMessage.SetName, (client, message) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
-      const name = String(message?.name ?? '')
-        .trim()
-        .slice(0, MAX_NAME_LENGTH);
-      if (name.length > 0) player.name = name;
-    });
-
-    this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) => {
-      this.mergeTuned(this.movement as unknown as Record<string, number>, message, MOVEMENT_FIELD_META);
-    });
-
-    this.onMessage(ClientMessage.StopMove, (client) => {
-      this.destinations.delete(client.sessionId);
-    });
-
-    this.onMessage<{ text: string }>(ClientMessage.Chat, (client, message) => {
-      const player = this.state.players.get(client.sessionId);
-      this.chat.handle(this, client.sessionId, player?.name ?? 'Adventurer', message?.text);
-    });
-
+    this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) =>
+      this.tuning.tuneMovement(message),
+    );
     this.onMessage(
       ClientMessage.AbilityTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.AbilityTune]) => {
-        if (!message || typeof message !== 'object') return;
-        // Global base patches.
-        for (const [kind, overrides] of Object.entries(message.global ?? {})) {
-          if (!isAbilityKind(kind)) continue;
-          this.mergeTuned(
-            this.abilityBase[kind] as unknown as Record<string, number>,
-            overrides as Record<string, unknown>,
-            ABILITY_FIELD_META,
-          );
-        }
-        // Per-class delta patches.
-        for (const [cls, byKind] of Object.entries(message.perClass ?? {})) {
-          if (!isCharacterClass(cls) || !byKind) continue;
-          const classOverrides = (this.classAbilityOverrides[cls] ??= {});
-          for (const [kind, overrides] of Object.entries(byKind)) {
-            if (!isAbilityKind(kind)) continue;
-            const slot = (classOverrides[kind] ??= {});
-            this.mergeTuned(slot as Record<string, number>, overrides as Record<string, unknown>, ABILITY_FIELD_META);
-          }
-        }
-      },
+      (_client, message: ClientMessagePayloads[ClientMessage.AbilityTune]) =>
+        this.tuning.tuneAbilities(message),
     );
-
     this.onMessage(
       ClientMessage.StatTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) => {
-        if (!message || typeof message !== 'object') return;
-        for (const [cls, patch] of Object.entries(message)) {
-          if (!isCharacterClass(cls)) continue;
-          this.mergeTuned(
-            this.classStats[cls] as unknown as Record<string, number>,
-            patch as Record<string, unknown>,
-            CLASS_STAT_FIELD_META,
-          );
-        }
-      },
+      (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) =>
+        this.tuning.tuneStats(message),
     );
 
     this.setSimulationInterval((deltaMs) => this.update(deltaMs), TICK_MS);
   }
 
-  override onJoin(
-    client: Client,
-    options?: {
-      token?: string;
-      name?: string;
-      characterClass?: string;
-      skinId?: string;
-      team?: string;
-      sessionKey?: string;
-    },
-  ): void {
-    const claims = verifyToken(options?.token);
-    // Single-session: a newer tab for this account supersedes the older one, and
-    // a same-account reconnect into this room evicts its own stale ghost.
-    if (claims?.pid !== undefined) {
-      tagClientAccount(client, claims.pid);
-      // Cross-tab supersede (other rooms too): close the previous tab's sockets.
-      for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
-        stale.leave(SESSION_SUPERSEDED);
-      }
-      // In-room duplicate: remove its replicated player NOW (no lingering ghost),
-      // then close it. removeClient flushes its progression first.
-      for (const dupe of findRoomDuplicates(this, claims.pid, client)) {
-        this.removeClient(dupe);
-        dupe.leave(SESSION_SUPERSEDED);
-      }
-    }
+  /** Build the shared context and wire the combat / projectile / match systems.
+   *  Called once after `setState`, so the systems share the room's live maps. */
+  private buildSystems(): void {
+    const ctx: ArenaContext = {
+      state: this.state,
+      tuning: this.tuning,
+      now: () => this.simTime,
+      broadcast: (type, message) => this.broadcast(type, message),
+      setTimeout: (handler, ms) => {
+        this.clock.setTimeout(handler, ms);
+      },
+      disconnect: () => {
+        void this.disconnect();
+      },
+      destinations: this.destinations,
+      animOneShots: this.animOneShots,
+      attackTargets: this.attackTargets,
+      respawnAt: this.respawnAt,
+      displacements: this.displacements,
+    };
+    this.match = new ArenaMatch(ctx);
+    this.combat = new CombatSystem(ctx, this.match);
+    this.projectiles = new ProjectileSystem(ctx, this.combat);
+    this.combat.attachProjectiles(this.projectiles);
+  }
+
+  override onJoin(client: Client, options?: JoinOptions): void {
+    const claims = this.enforceSingleSession(client, options);
+
     const player = new Player();
     player.sessionId = client.sessionId;
-    player.name =
-      claims?.name?.slice(0, MAX_NAME_LENGTH) ||
-      (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) ||
-      'Adventurer';
-    player.characterClass = isCharacterClass(options?.characterClass)
-      ? options.characterClass
-      : 'warrior';
-    player.skinId = String(options?.skinId ?? '').slice(0, 64);
+    player.name = resolveName(claims, options);
+    player.characterClass = resolveClass(options);
+    player.skinId = resolveSkinId(options);
     // Team comes from the matchmaking seat reservation; public arena joins
     // (portal) carry none and default to blue.
     player.team = isTeam(options?.team) ? options.team : 'blue';
@@ -399,11 +198,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.grounded.set(client.sessionId, true);
     this.cooldowns.set(client.sessionId, {});
 
-    client.send(ServerMessage.Welcome, {
-      sessionId: client.sessionId,
-      worldSeed: this.roomId.length,
-    });
-    this.chat.sendHistory(client);
+    this.sendWelcome(client);
 
     // Load persisted progression for this account + class (async; sets the
     // replicated `level` and starts a stats accumulator). No-op without a valid
@@ -420,14 +215,8 @@ export class ArenaRoom extends Room<ArenaState> {
     const db = getPool();
     if (!db || playerId === undefined) return;
     try {
-      const progress = await getProgress(db, playerId, characterClass);
-      this.profiles.set(sessionId, {
-        playerId,
-        characterClass,
-        baseXp: progress.xp,
-        baseKills: progress.kills,
-        baseDeaths: progress.deaths,
-      });
+      const { profile, progress } = await fetchProfile(db, playerId, characterClass);
+      this.profiles.set(sessionId, profile);
       // Seed the replicated career totals so the HUD shows persisted progress.
       const player = this.state.players.get(sessionId);
       if (player) {
@@ -441,29 +230,19 @@ export class ArenaRoom extends Room<ArenaState> {
     }
   }
 
-  override onLeave(client: Client): void {
-    this.removeClient(client);
-  }
-
-  /** Tear down a client's presence (and persist its progression). Idempotent —
-   *  safe to run both when a duplicate session is evicted on join and again when
-   *  the socket finally closes (`onLeave`); `flushProfile` no-ops the second time. */
-  private removeClient(client: Client): void {
+  protected override removeClient(client: Client): void {
+    // Persist progression first — `flushProfile` reads the replicated player,
+    // which `baseRemove` then deletes.
     this.flushProfile(client.sessionId);
-    this.state.players.delete(client.sessionId);
-    this.destinations.delete(client.sessionId);
-    this.verticalVelocity.delete(client.sessionId);
-    this.grounded.delete(client.sessionId);
+    this.baseRemove(client.sessionId);
     this.cooldowns.delete(client.sessionId);
     this.respawnAt.delete(client.sessionId);
     this.pendingCasts.delete(client.sessionId);
-    this.animOneShots.delete(client.sessionId);
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
-    this.outcomes.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
-    this.chat.forget(client.sessionId);
-    unregisterSession(client);
+    this.match.forget(client.sessionId);
+    this.unregisterSession(client);
   }
 
   /** Persist this session's progression delta (live totals − loaded base) on leave. */
@@ -473,23 +252,10 @@ export class ArenaRoom extends Room<ArenaState> {
     const db = getPool();
     const player = this.state.players.get(sessionId);
     if (!db || !profile || !player) return;
-    const outcome = this.outcomes.get(sessionId);
-    const delta = {
-      xp: player.xp - profile.baseXp,
-      kills: player.kills - profile.baseKills,
-      deaths: player.deaths - profile.baseDeaths,
-      wins: outcome === 'win' ? 1 : 0,
-      losses: outcome === 'loss' ? 1 : 0,
-    };
-    if (delta.xp <= 0 && delta.kills <= 0 && delta.deaths <= 0 && !delta.wins && !delta.losses) {
-      return;
-    }
-    void recordResult(db, profile.playerId, profile.characterClass, delta).catch((err) =>
-      console.error('[arena] failed to save profile:', err),
-    );
+    persistProfileDelta(db, profile, player, this.match.outcomeFor(sessionId));
   }
 
-  // --- Abilities ---------------------------------------------------------
+  // --- Ability input -----------------------------------------------------
 
   private handleCast(
     sessionId: string,
@@ -502,7 +268,7 @@ export class ArenaRoom extends Room<ArenaState> {
     if (isStunned(player) || isSilenced(player)) return;
 
     const ability = message.ability;
-    const config = this.abilityFor(player.characterClass, ability);
+    const config = this.tuning.abilityFor(player.characterClass, ability);
     const cd = this.cooldowns.get(sessionId);
     if (!cd) return;
 
@@ -516,7 +282,11 @@ export class ArenaRoom extends Room<ArenaState> {
     let unitTargetId: string | undefined;
     if (config.aim === 'unit') {
       const t = message.targetId ? this.state.players.get(message.targetId) : undefined;
-      if (t && t.alive && Math.hypot(t.x - player.x, t.z - player.z) <= config.range + PLAYER_RADIUS) {
+      if (
+        t &&
+        t.alive &&
+        Math.hypot(t.x - player.x, t.z - player.z) <= config.range + PLAYER_RADIUS
+      ) {
         unitTargetId = t.sessionId;
       } else {
         unitTargetId = sessionId; // self-cast fallback (e.g. renew on yourself)
@@ -610,83 +380,8 @@ export class ArenaRoom extends Room<ArenaState> {
         resolveAt: this.simTime + config.castTimeMs,
       });
     } else {
-      this.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId);
+      this.combat.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId);
     }
-  }
-
-  /**
-   * Apply an ability's effects via the data-driven executor (no per-ability
-   * switch). Runs immediately for instant casts, or when a pending cast's
-   * wind-up elapses.
-   */
-  private resolveCast(
-    player: Player,
-    config: AbilityDef,
-    dirX: number,
-    dirZ: number,
-    targetX?: number,
-    targetZ?: number,
-    unitTargetId?: string,
-  ): void {
-    const unitTarget = unitTargetId ? this.state.players.get(unitTargetId) : undefined;
-    const ctx: CastContext = { caster: player, dirX, dirZ, targetX, targetZ, unitTarget };
-    runCast(config.effects, ctx, this.effectRuntime);
-  }
-
-  /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x, z).
-   *  The single AoE target-selection used by the effect executor. */
-  private forEachEnemyInRadius(
-    x: number,
-    z: number,
-    radius: number,
-    exceptId: string,
-    fn: (target: Player) => void,
-  ): void {
-    const hitSq = (radius + PLAYER_RADIUS) * (radius + PLAYER_RADIUS);
-    this.state.players.forEach((target, id) => {
-      if (id === exceptId || !target.alive) return;
-      const dx = target.x - x;
-      const dz = target.z - z;
-      if (dx * dx + dz * dz <= hitSq) fn(target);
-    });
-  }
-
-  /** Spawn an ability projectile carrying its `onHit` effects (run by the
-   *  executor against whoever it collides with). */
-  private spawnProjectile(
-    owner: Player,
-    vfx: string,
-    dirX: number,
-    dirZ: number,
-    speed: number,
-    range: number,
-    radius: number,
-    onHit: LeafEffect[],
-  ): void {
-    const id = `p${this.projectileSeq++}`;
-    const projectile = new Projectile();
-    projectile.id = id;
-    projectile.ownerId = owner.sessionId;
-    projectile.ability = vfx;
-    // Start just in front of the caster so it doesn't immediately self-collide.
-    projectile.x = owner.x + dirX * (PLAYER_RADIUS + 0.3);
-    projectile.z = owner.z + dirZ * (PLAYER_RADIUS + 0.3);
-    projectile.y = PROJECTILE_Y;
-    this.state.projectiles.set(id, projectile);
-
-    this.projectileMeta.set(id, {
-      ownerId: owner.sessionId,
-      ability: vfx,
-      dirX,
-      dirZ,
-      speed,
-      range,
-      radius,
-      damage: 0,
-      onHit,
-      traveled: 0,
-      spawnedAt: this.simTime,
-    });
   }
 
   /**
@@ -714,7 +409,8 @@ export class ArenaRoom extends Room<ArenaState> {
       // Chase: walk toward the target, stopping right at attack range (slows/
       // hastes scale the chase speed, same as locomotion).
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const speed = this.walkSpeedFor(attacker.characterClass) * moveSpeedMultiplier(attacker);
+      const speed =
+        this.tuning.walkSpeedFor(attacker.characterClass) * moveSpeedMultiplier(attacker);
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
       attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
@@ -724,228 +420,19 @@ export class ArenaRoom extends Room<ArenaState> {
     // In range: strike when the attack timer is ready (attack-speed buffs shorten
     // the interval).
     if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
-    this.attackReadyAt.set(sessionId, this.simTime + cfg.cooldownMs / attackSpeedMultiplier(attacker));
+    this.attackReadyAt.set(
+      sessionId,
+      this.simTime + cfg.cooldownMs / attackSpeedMultiplier(attacker),
+    );
     this.animOneShots.set(sessionId, {
       name: 'attack',
       until: this.simTime + Math.min(cfg.cooldownMs, 400),
     });
     if (cfg.kind === 'ranged') {
-      this.spawnAutoProjectile(attacker, ndx, ndz, cfg);
+      this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
     } else {
-      this.dealDamage(target, cfg.damage, sessionId);
+      this.combat.dealDamage(target, cfg.damage, sessionId);
     }
-  }
-
-  /** Spawn a basic-attack projectile (ranged auto-attacks). */
-  private spawnAutoProjectile(
-    owner: Player,
-    dirX: number,
-    dirZ: number,
-    cfg: AutoAttackConfig,
-  ): void {
-    const id = `p${this.projectileSeq++}`;
-    const projectile = new Projectile();
-    projectile.id = id;
-    projectile.ownerId = owner.sessionId;
-    projectile.ability = cfg.projectileVfx ?? 'fireball';
-    projectile.x = owner.x + dirX * (PLAYER_RADIUS + 0.3);
-    projectile.z = owner.z + dirZ * (PLAYER_RADIUS + 0.3);
-    projectile.y = PROJECTILE_Y;
-    this.state.projectiles.set(id, projectile);
-
-    this.projectileMeta.set(id, {
-      ownerId: owner.sessionId,
-      ability: projectile.ability,
-      dirX,
-      dirZ,
-      speed: cfg.projectileSpeed ?? 20,
-      range: cfg.range + 6,
-      radius: cfg.projectileRadius ?? 0.5,
-      damage: cfg.damage,
-      traveled: 0,
-      spawnedAt: this.simTime,
-    });
-  }
-
-  /** Resolve a hit on a player: scale by vulnerability, drain any absorb shield,
-   *  apply the remainder via the combat core, broadcast, and schedule respawn on
-   *  a kill. */
-  private dealDamage(target: Player, amount: number, fromId: string): void {
-    if (!target.alive || amount <= 0) return;
-    // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
-    let incoming = amount * damageTakenMultiplier(target);
-    if (target.shield > 0) {
-      const absorbed = Math.min(target.shield, incoming);
-      target.shield -= absorbed;
-      incoming -= absorbed;
-      // Keep the shield status' lifetime in sync so it expires when emptied.
-      if (target.shield <= 0) this.removeStatuses(target, 'shield');
-    }
-    if (incoming <= 0) return;
-
-    const { applied, lethal } = applyDamage(target, incoming);
-    if (applied <= 0) return;
-
-    this.broadcast(ServerMessage.Damage, {
-      from: fromId,
-      to: target.sessionId,
-      amount: applied,
-      lethal,
-    });
-
-    if (lethal) {
-      this.destinations.delete(target.sessionId);
-      this.respawnAt.set(target.sessionId, this.simTime + RESPAWN_DELAY_MS);
-      // Update live, replicated career totals (the HUD reads these; the DB delta
-      // is flushed on leave). `fromId === target` is self-damage — no kill credit.
-      const killer = fromId !== target.sessionId ? this.state.players.get(fromId) : undefined;
-      if (killer) {
-        const beforeLevel = killer.level;
-        killer.kills += 1;
-        killer.xp += XP_PER_KILL;
-        killer.level = levelForXp(killer.xp);
-        if (killer.level > beforeLevel) {
-          this.broadcast(ServerMessage.LevelUp, {
-            sessionId: killer.sessionId,
-            level: killer.level,
-          });
-        }
-      }
-      target.deaths += 1;
-
-      // Ranked match: the first team to the combined kill target wins.
-      if (this.ranked && !this.matchOver && killer) {
-        const team = killer.team === 'red' ? 'red' : 'blue';
-        if (this.teamKills(team) >= this.teamKillTarget) this.endMatch(team);
-      }
-    } else {
-      // Flinch — unless a cast/attack pose is already playing (don't cut it).
-      const existing = this.animOneShots.get(target.sessionId);
-      if (!existing || existing.until <= this.simTime) {
-        this.animOneShots.set(target.sessionId, {
-          name: 'hit',
-          until: this.simTime + HIT_ONESHOT_MS,
-        });
-      }
-    }
-  }
-
-  // --- Effect runtime (the executor's hooks into the world) --------------
-
-  /** Heal a target and broadcast the healing feedback. */
-  private healTarget(target: Player, amount: number): void {
-    const healed = applyHeal(target, amount);
-    if (healed > 0) this.broadcast(ServerMessage.Heal, { to: target.sessionId, amount: healed });
-  }
-
-  /** Grant (or refresh) an absorb shield. Last shield wins — simple and enough
-   *  for the current kits; a stacking model can come later. */
-  private addShield(target: Player, amount: number, durationMs: number, fromId: string): void {
-    if (amount <= 0 || !target.alive) return;
-    this.removeStatuses(target, 'shield');
-    target.shield = amount;
-    this.applyStatus(target, { kind: 'shield', durationMs, magnitude: amount }, fromId);
-  }
-
-  /** Apply (or refresh) a status on a target. A new status of the same kind
-   *  replaces the old one (re-applying refreshes its duration). */
-  private applyStatus(target: Player, spec: StatusSpec, fromId: string): void {
-    if (!target.alive || spec.durationMs <= 0) return;
-    this.removeStatuses(target, spec.kind);
-    const s = new StatusEffect();
-    s.kind = spec.kind;
-    s.expiresAt = this.simTime + spec.durationMs;
-    s.magnitude = spec.magnitude ?? 0;
-    s.tickMs = spec.tickMs ?? 0;
-    s.tickAmount = spec.tickAmount ?? 0;
-    s.nextTickAt = spec.tickMs ? this.simTime + spec.tickMs : 0;
-    s.sourceId = fromId;
-    target.statuses.push(s);
-    // A stun/root cancels in-progress movement so it reads as a hard stop.
-    if (spec.kind === 'stun' || spec.kind === 'root') this.destinations.delete(target.sessionId);
-    if (spec.kind === 'stun') this.attackTargets.delete(target.sessionId);
-  }
-
-  /** Drop every active status of `kind` from a target. */
-  private removeStatuses(target: Player, kind: StatusEffect['kind']): void {
-    for (let i = target.statuses.length - 1; i >= 0; i--) {
-      if (target.statuses[i]?.kind === kind) target.statuses.splice(i, 1);
-    }
-  }
-
-  /** Begin a forced displacement (dash / knockback): a constant-velocity slide
-   *  for `distance / speed` seconds that overrides locomotion while active. */
-  private displace(entity: Player, dirX: number, dirZ: number, distance: number, speed: number): void {
-    if (speed <= 0 || distance <= 0) return;
-    const len = Math.hypot(dirX, dirZ) || 1;
-    this.displacements.set(entity.sessionId, {
-      vx: (dirX / len) * speed,
-      vz: (dirZ / len) * speed,
-      until: this.simTime + (distance / speed) * 1000,
-    });
-    // A displacement overrides a pending move order.
-    this.destinations.delete(entity.sessionId);
-  }
-
-  /** Per-tick status processing: prune expired statuses, tick dot/hot, and clear
-   *  an emptied shield. Runs once per living player each tick. */
-  private updateStatuses(player: Player): void {
-    const list = player.statuses;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const s = list[i];
-      if (!s) continue;
-      if (this.simTime >= s.expiresAt) {
-        if (s.kind === 'shield') player.shield = 0;
-        list.splice(i, 1);
-        continue;
-      }
-      if ((s.kind === 'dot' || s.kind === 'hot') && s.tickMs > 0 && this.simTime >= s.nextTickAt) {
-        if (s.kind === 'dot') this.dealDamage(player, s.tickAmount, s.sourceId);
-        else this.healTarget(player, s.tickAmount);
-        s.nextTickAt += s.tickMs;
-      }
-    }
-  }
-
-  /** The executor's view of the world — every ability side effect funnels
-   *  through these hooks (declared once; abilities never touch this). */
-  private readonly effectRuntime: EffectRuntime = {
-    dealDamage: (t, a, f) => this.dealDamage(t, a, f),
-    heal: (t, a) => this.healTarget(t, a),
-    addShield: (t, a, d, f) => this.addShield(t, a, d, f),
-    applyStatus: (t, s, f) => this.applyStatus(t, s, f),
-    displace: (e, dx, dz, dist, sp) => this.displace(e, dx, dz, dist, sp),
-    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh) =>
-      this.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
-    forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
-  };
-
-  /** Combined live kills for a team (the team-aggregate win metric). */
-  private teamKills(team: Team): number {
-    let total = 0;
-    this.state.players.forEach((player) => {
-      if (player.team === team) total += player.kills;
-    });
-    return total;
-  }
-
-  /** Decide a ranked match: record each player's verdict by team, broadcast the
-   *  final scoreboard, and freeze the sim so clients can show the results screen. */
-  private endMatch(winnerTeam: Team): void {
-    this.matchOver = true;
-    const scores: { id: string; name: string; team: Team; kills: number; deaths: number }[] = [];
-    this.state.players.forEach((player, sessionId) => {
-      const team = player.team === 'red' ? 'red' : 'blue';
-      this.outcomes.set(sessionId, team === winnerTeam ? 'win' : 'loss');
-      scores.push({ id: sessionId, name: player.name, team, kills: player.kills, deaths: player.deaths });
-    });
-    this.broadcast(ServerMessage.MatchOver, {
-      winnerTeam,
-      target: this.teamKillTarget,
-      scores,
-    });
-    // Clients return to town on their own; dispose as a backstop if they linger.
-    this.clock.setTimeout(() => this.disconnect(), MATCH_RESULT_LINGER_MS);
   }
 
   // --- Simulation --------------------------------------------------------
@@ -954,7 +441,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.simTime += deltaMs;
     // Once a winner is decided, freeze the world — players hold their final pose
     // under the results overlay until they leave (or the room auto-disposes).
-    if (this.matchOver) return;
+    if (this.match.matchOver) return;
     const dt = deltaMs / 1000;
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
 
@@ -980,13 +467,13 @@ export class ArenaRoom extends Room<ArenaState> {
 
       regenMana(player, MANA_REGEN, dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
-      this.updateStatuses(player);
+      this.combat.updateStatuses(player);
 
       // Capture pre-move position to derive locomotion (run vs idle) below.
       const startX = player.x;
       const startZ = player.z;
 
-      const m = this.movement;
+      const m = this.tuning.movement;
 
       // Forced displacement (dash / knockback) overrides locomotion while active.
       const disp = this.displacements.get(sessionId);
@@ -996,7 +483,7 @@ export class ArenaRoom extends Room<ArenaState> {
       // Resolve a finished wind-up before this tick's movement decision.
       const pending = this.pendingCasts.get(sessionId);
       if (pending && this.simTime >= pending.resolveAt) {
-        this.resolveCast(
+        this.combat.resolveCast(
           player,
           pending.config,
           pending.dirX,
@@ -1026,11 +513,11 @@ export class ArenaRoom extends Room<ArenaState> {
         // the client predictor) walks toward the destination and slides around
         // obstacles, so client and server stay in lockstep. Slows/hastes scale
         // the walk speed.
-        const result = stepLocomotion(
-          { x: player.x, z: player.z, rotation: player.rotation },
+        const arrived = stepMove(
+          player,
           this.destinations.get(sessionId) ?? null,
           {
-            speed: this.walkSpeedFor(player.characterClass) * moveSpeedMultiplier(player),
+            speed: this.tuning.walkSpeedFor(player.characterClass) * moveSpeedMultiplier(player),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
@@ -1038,117 +525,30 @@ export class ArenaRoom extends Room<ArenaState> {
           },
           dt,
         );
-        player.x = result.x;
-        player.z = result.z;
-        player.rotation = result.rotation;
-        if (result.arrived) this.destinations.delete(sessionId);
+        if (arrived) this.destinations.delete(sessionId);
       }
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,
-      // idle overlaps); stepLocomotion already resolved the move path.
+      // idle overlaps); stepMove already resolved the move path.
       const fixed = collideArenaObstacles(player.x, player.z);
       player.x = fixed.x;
       player.z = fixed.z;
 
       // Vertical movement (gravity + jump impulse set by the Jump message).
-      let vy = this.verticalVelocity.get(sessionId) ?? 0;
-      vy -= GRAVITY * dt;
-      player.y += vy * dt;
-      if (player.y <= GROUND_Y) {
-        player.y = GROUND_Y;
-        vy = 0;
-        this.grounded.set(sessionId, true);
-      }
-      this.verticalVelocity.set(sessionId, vy);
+      const g = applyGravity(player, this.verticalVelocity.get(sessionId) ?? 0, dt);
+      this.verticalVelocity.set(sessionId, g.vy);
+      if (g.grounded) this.grounded.set(sessionId, true);
 
       // Authoritative animation: one-shots over locomotion (Run while moving).
       const moving = Math.hypot(player.x - startX, player.z - startZ) > 0.01;
-      // Moving cancels a dance (but not a combat pose like cast/attack).
-      const active = this.animOneShots.get(sessionId);
-      if (active && moving && isEmote(active.name)) this.animOneShots.delete(sessionId);
-      player.animState = computeAnimState({
-        alive: true,
-        moving,
-        oneShot: this.animOneShots.get(sessionId) ?? null,
-        now: this.simTime,
-      });
+      this.resolveAvatarAnim(player, sessionId, moving);
       // Mirror the auto-attack target into replicated state for the attack banner.
       player.attackTargetId = this.attackTargets.get(sessionId) ?? '';
     });
 
-    this.updateProjectiles(dt);
+    this.projectiles.update(dt);
     this.state.tick++;
   }
-
-  private updateProjectiles(dt: number): void {
-    const expired: string[] = [];
-
-    this.state.projectiles.forEach((projectile, id) => {
-      const meta = this.projectileMeta.get(id);
-      if (!meta) {
-        expired.push(id);
-        return;
-      }
-
-      const step = meta.speed * dt;
-      projectile.x += meta.dirX * step;
-      projectile.z += meta.dirZ * step;
-      meta.traveled += step;
-
-      if (meta.traveled >= meta.range || this.simTime - meta.spawnedAt > PROJECTILE_LIFETIME_MS) {
-        expired.push(id);
-        return;
-      }
-
-      // Obstacles block projectiles (cover).
-      for (const o of ARENA_OBSTACLES) {
-        const dx = projectile.x - o.x;
-        const dz = projectile.z - o.z;
-        const r = o.radius + meta.radius;
-        if (dx * dx + dz * dz <= r * r) {
-          expired.push(id);
-          return;
-        }
-      }
-
-      // Collide with the first eligible player (MapSchema isn't a standard
-      // iterable, so use forEach and capture the first hit).
-      const hitRadiusSq = (meta.radius + PLAYER_RADIUS) * (meta.radius + PLAYER_RADIUS);
-      let hitId: string | null = null;
-      this.state.players.forEach((target, targetId) => {
-        if (hitId || targetId === meta.ownerId || !target.alive) return;
-        const dx = target.x - projectile.x;
-        const dz = target.z - projectile.z;
-        if (dx * dx + dz * dz <= hitRadiusSq) hitId = targetId;
-      });
-      if (hitId) {
-        const target = this.state.players.get(hitId);
-        const owner = this.state.players.get(meta.ownerId);
-        if (target) {
-          if (meta.onHit && owner) {
-            // Ability projectile: run its composable on-hit effects (damage +
-            // any status/knockback) against the player it struck.
-            runCast(
-              meta.onHit,
-              { caster: owner, dirX: meta.dirX, dirZ: meta.dirZ, unitTarget: target },
-              this.effectRuntime,
-            );
-          } else {
-            // Auto-attack projectile: a plain direct hit.
-            this.dealDamage(target, meta.damage, meta.ownerId);
-          }
-        }
-        expired.push(id);
-      }
-    });
-
-    for (const id of expired) {
-      this.state.projectiles.delete(id);
-      this.projectileMeta.delete(id);
-    }
-  }
-
-  // --- Helpers -----------------------------------------------------------
 
   /** Reset a player to a full, alive state at one of the layout's spawn points
    *  (a small random jitter avoids stacking when several share a point). */
@@ -1167,7 +567,7 @@ export class ArenaRoom extends Room<ArenaState> {
       player.z = (Math.random() * 2 - 1) * range;
     }
     player.y = GROUND_Y;
-    const stats = this.classStats[player.characterClass as CharacterClass];
+    const stats = this.tuning.classStats[player.characterClass as CharacterClass];
     player.maxHp = stats.health;
     player.maxMana = stats.mana;
     player.shield = 0;
