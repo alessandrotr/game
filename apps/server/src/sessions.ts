@@ -50,23 +50,23 @@ export function registerSession(pid: number, sessionKey: string, client: Client)
 }
 
 /**
- * Evict any *other* connection of the same account already in this room — there
- * must only be one live client per account per room. This catches the ghost a
- * cross-session supersede misses: a same-tab reconnect after a crash (the page
- * isn't reloaded, so the `sessionKey` is unchanged) whose old, half-dead socket
- * the server hasn't yet noticed is gone. The new join force-closes the stale one
- * instead of leaving a duplicate "old me" standing in the world.
+ * Find every *other* connection of the same account already in this room — there
+ * must only be one live client per account per room. Catches both a second tab
+ * (different `sessionKey`) and a same-tab reconnect after a crash (same
+ * `sessionKey`, whose old half-dead socket the server hasn't noticed yet). The
+ * caller removes each one's replicated state immediately (so no duplicate "old
+ * me" lingers in the world while the dead socket times out) and closes it.
  *
  * Tag each client with its account id via {@link tagClientAccount} on join for
  * this to work.
  */
-export function evictRoomDuplicates(room: Room, pid: number, keep: Client): void {
+export function findRoomDuplicates(room: Room, pid: number, keep: Client): Client[] {
+  const dupes: Client[] = [];
   for (const other of room.clients) {
     if (other === keep) continue;
-    if ((other.userData as { pid?: number } | undefined)?.pid === pid) {
-      other.leave(SESSION_SUPERSEDED_CODE);
-    }
+    if ((other.userData as { pid?: number } | undefined)?.pid === pid) dupes.push(other);
   }
+  return dupes;
 }
 
 /** Record an account id on a client so {@link evictRoomDuplicates} can match it. */

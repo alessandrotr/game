@@ -26,7 +26,7 @@ import { getPool } from '../db/database.js';
 import { getProgress, topPlayers } from '../db/players.js';
 import { verifyToken } from '../auth.js';
 import {
-  evictRoomDuplicates,
+  findRoomDuplicates,
   registerSession,
   tagClientAccount,
   unregisterSession,
@@ -147,10 +147,17 @@ export class TownRoom extends Room<ArenaState> {
     // a same-account reconnect into this room evicts its own stale ghost.
     if (claims?.pid !== undefined) {
       tagClientAccount(client, claims.pid);
+      // Cross-tab supersede (other rooms too): close the previous tab's sockets.
       for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
         stale.leave(SESSION_SUPERSEDED);
       }
-      evictRoomDuplicates(this, claims.pid, client);
+      // In-room duplicate (a second tab or a same-tab reconnect): remove its
+      // replicated player NOW so it doesn't linger as a ghost until the old
+      // socket finally times out, then close it.
+      for (const dupe of findRoomDuplicates(this, claims.pid, client)) {
+        this.removeClient(dupe);
+        dupe.leave(SESSION_SUPERSEDED);
+      }
     }
     const player = new Player();
     player.sessionId = client.sessionId;
@@ -204,6 +211,13 @@ export class TownRoom extends Room<ArenaState> {
   }
 
   override onLeave(client: Client): void {
+    this.removeClient(client);
+  }
+
+  /** Tear down a client's presence. Idempotent, so it's safe to run both when a
+   *  duplicate session is evicted on join and again when the socket finally
+   *  closes (`onLeave`). */
+  private removeClient(client: Client): void {
     this.state.players.delete(client.sessionId);
     this.destinations.delete(client.sessionId);
     this.verticalVelocity.delete(client.sessionId);

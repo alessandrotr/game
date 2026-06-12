@@ -69,7 +69,7 @@ import { getPool } from '../db/database.js';
 import { getProgress, recordResult } from '../db/players.js';
 import { verifyToken } from '../auth.js';
 import {
-  evictRoomDuplicates,
+  findRoomDuplicates,
   registerSession,
   tagClientAccount,
   unregisterSession,
@@ -368,10 +368,16 @@ export class ArenaRoom extends Room<ArenaState> {
     // a same-account reconnect into this room evicts its own stale ghost.
     if (claims?.pid !== undefined) {
       tagClientAccount(client, claims.pid);
+      // Cross-tab supersede (other rooms too): close the previous tab's sockets.
       for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
         stale.leave(SESSION_SUPERSEDED);
       }
-      evictRoomDuplicates(this, claims.pid, client);
+      // In-room duplicate: remove its replicated player NOW (no lingering ghost),
+      // then close it. removeClient flushes its progression first.
+      for (const dupe of findRoomDuplicates(this, claims.pid, client)) {
+        this.removeClient(dupe);
+        dupe.leave(SESSION_SUPERSEDED);
+      }
     }
     const player = new Player();
     player.sessionId = client.sessionId;
@@ -436,6 +442,13 @@ export class ArenaRoom extends Room<ArenaState> {
   }
 
   override onLeave(client: Client): void {
+    this.removeClient(client);
+  }
+
+  /** Tear down a client's presence (and persist its progression). Idempotent —
+   *  safe to run both when a duplicate session is evicted on join and again when
+   *  the socket finally closes (`onLeave`); `flushProfile` no-ops the second time. */
+  private removeClient(client: Client): void {
     this.flushProfile(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.destinations.delete(client.sessionId);
@@ -448,6 +461,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
     this.outcomes.delete(client.sessionId);
+    this.displacements.delete(client.sessionId);
     this.chat.forget(client.sessionId);
     unregisterSession(client);
   }

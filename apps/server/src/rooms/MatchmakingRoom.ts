@@ -16,7 +16,7 @@ import {
 import { Lobby, LobbySlot, MatchmakingState } from './mmSchema.js';
 import { verifyToken } from '../auth.js';
 import {
-  evictRoomDuplicates,
+  findRoomDuplicates,
   registerSession,
   tagClientAccount,
   unregisterSession,
@@ -101,10 +101,15 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
     // a same-account reconnect into this room evicts its own stale ghost.
     if (claims?.pid !== undefined) {
       tagClientAccount(client, claims.pid);
+      // Cross-tab supersede (other rooms too): close the previous tab's sockets.
       for (const stale of registerSession(claims.pid, sessionKey, client)) {
         stale.leave(SESSION_SUPERSEDED);
       }
-      evictRoomDuplicates(this, claims.pid, client);
+      // In-room duplicate: drop its lobby presence NOW, then close it.
+      for (const dupe of findRoomDuplicates(this, claims.pid, client)) {
+        this.removeClient(dupe);
+        dupe.leave(SESSION_SUPERSEDED);
+      }
     }
     const name =
       claims?.name?.slice(0, MAX_NAME_LENGTH) ||
@@ -123,6 +128,12 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
   }
 
   override onLeave(client: Client): void {
+    this.removeClient(client);
+  }
+
+  /** Tear down a client's lobby presence. Idempotent — safe to run both when a
+   *  duplicate session is evicted on join and again when the socket closes. */
+  private removeClient(client: Client): void {
     this.removePlayerFromLobby(client.sessionId);
     this.identities.delete(client.sessionId);
     unregisterSession(client);
