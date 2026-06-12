@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
-import { getCameraYaw, getCameraPitch } from '../store/cameraControl';
+import { getCameraYaw, getCameraPitch, getCameraZoom } from '../store/cameraControl';
 import { getCamera } from '../tuning';
 
 /** Hard bounds on the total camera pitch (rad above horizontal) so tuning +
@@ -51,7 +51,7 @@ export function CameraRig() {
     const yaw = baseYaw + getCameraYaw();
     // Tilt: orbit up/down at a constant radius from the player. The base pitch
     // comes from the tuned height/distance; the user offset adds a small ± tilt.
-    const radius = Math.hypot(cam.distance, cam.height);
+    const radius = Math.hypot(cam.distance, cam.height) * getCameraZoom();
     const basePitch = Math.atan2(cam.height, cam.distance);
     const pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, basePitch + getCameraPitch()));
     const horiz = radius * Math.cos(pitch);

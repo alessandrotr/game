@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { addCameraYaw, addCameraPitch, resetCameraView } from '../store/cameraControl';
+import { addCameraYaw, addCameraPitch, addCameraZoom, resetCameraView } from '../store/cameraControl';
 
 /** Rotation per pixel of middle-drag (radians) — same feel for yaw and pitch. */
 const DRAG_SENSITIVITY = 0.006;
 /** Rotation per second while an arrow key is held (radians/s). */
 const KEY_SPEED = 1.8;
+/** Zoom (radius multiplier) change per unit of wheel delta. */
+const ZOOM_SENSITIVITY = 0.001;
 /** Below this total drag (px), the middle press counts as a click → recenter. */
 const CLICK_SLOP = 4;
 
@@ -57,6 +59,12 @@ export function CameraControls() {
       if (moved < CLICK_SLOP) resetCameraView(); // a click recenters the view
     };
 
+    // Wheel zooms (scroll up = closer). Clamped to a gentle range in the store.
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); // don't scroll the page
+      addCameraZoom(e.deltaY * ZOOM_SENSITIVITY);
+    };
+
     const isTyping = () => {
       const el = document.activeElement;
       return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
@@ -78,12 +86,14 @@ export function CameraControls() {
     };
 
     canvas.addEventListener('mousedown', onDown);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     return () => {
       canvas.removeEventListener('mousedown', onDown);
+      canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKeyDown);
