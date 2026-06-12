@@ -43,6 +43,7 @@ import { ArenaTuning } from './arena/tuning.js';
 import { ArenaMatch } from './arena/match.js';
 import { CombatSystem } from './arena/combat.js';
 import { ProjectileSystem } from './arena/projectiles.js';
+import { BarrelSystem } from './arena/barrels.js';
 import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
@@ -122,6 +123,7 @@ export class ArenaRoom extends AvatarRoom {
   private match!: ArenaMatch;
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
+  private barrels!: BarrelSystem;
   private botDirector!: BotDirector;
 
   protected override jumpForce(): number {
@@ -142,9 +144,11 @@ export class ArenaRoom extends AvatarRoom {
     // combat/projectile context captures this match's obstacles.
     const seed = (1 + Math.floor(Math.random() * 0xfffffffe)) >>> 0;
     this.state.layoutSeed = seed;
-    this.obstacles = generateArenaLayout(seed).obstacles;
+    const layout = generateArenaLayout(seed);
+    this.obstacles = layout.obstacles;
 
     this.buildSystems();
+    this.barrels.init(layout.barrels);
 
     // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
     // win target by team size, and hide from public join (only reserved seats
@@ -162,8 +166,11 @@ export class ArenaRoom extends AvatarRoom {
       const player = this.state.players.get(client.sessionId);
       if (!player || !player.alive) return;
       const targetId = String(message?.targetId ?? '');
+      if (targetId === client.sessionId) return;
+      // A valid target is a living enemy player or a live burning barrel.
       const target = this.state.players.get(targetId);
-      if (!target || targetId === client.sessionId || !target.alive) return;
+      const barrel = target ? undefined : this.barrels.liveBarrel(targetId);
+      if ((!target || !target.alive) && !barrel) return;
       // Attack-move toward the target; clear any plain move destination.
       this.attackTargets.set(client.sessionId, targetId);
       this.destinations.delete(client.sessionId);
@@ -220,7 +227,9 @@ export class ArenaRoom extends AvatarRoom {
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
+    this.barrels = new BarrelSystem(ctx, this.combat);
     this.combat.attachProjectiles(this.projectiles);
+    this.combat.attachBarrels(this.barrels);
     this.botDirector = new BotDirector(ctx, {
       cooldowns: this.cooldowns,
       pendingCasts: this.pendingCasts,
@@ -439,15 +448,19 @@ export class ArenaRoom extends AvatarRoom {
    */
   private updateAutoAttack(attacker: Player, sessionId: string, dt: number): void {
     const targetId = this.attackTargets.get(sessionId);
-    const target = targetId ? this.state.players.get(targetId) : undefined;
-    if (!target || !target.alive) {
+    // The target is either a living player or a live (un-triggered) barrel.
+    const targetPlayer = targetId ? this.state.players.get(targetId) : undefined;
+    const targetBarrel = targetPlayer ? undefined : targetId ? this.barrels.liveBarrel(targetId) : undefined;
+    if ((!targetPlayer || !targetPlayer.alive) && !targetBarrel) {
       this.attackTargets.delete(sessionId);
       return;
     }
+    const tx = targetPlayer ? targetPlayer.x : targetBarrel!.x;
+    const tz = targetPlayer ? targetPlayer.z : targetBarrel!.z;
 
     const cfg = AUTO_ATTACKS[attacker.characterClass as CharacterClass];
-    const dx = target.x - attacker.x;
-    const dz = target.z - attacker.z;
+    const dx = tx - attacker.x;
+    const dz = tz - attacker.z;
     const dist = Math.hypot(dx, dz);
     const ndx = dist > 1e-3 ? dx / dist : 0;
     const ndz = dist > 1e-3 ? dz / dist : 0;
@@ -477,9 +490,13 @@ export class ArenaRoom extends AvatarRoom {
       until: this.simTime + Math.min(cfg.cooldownMs, 400),
     });
     if (cfg.kind === 'ranged') {
+      // The projectile resolves the hit (player or barrel) on impact.
       this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
-    } else {
-      this.combat.dealDamage(target, cfg.damage, sessionId);
+    } else if (targetPlayer) {
+      this.combat.dealDamage(targetPlayer, cfg.damage, sessionId);
+    } else if (targetBarrel) {
+      // Melee shove: launch the barrel away from the attacker.
+      this.combat.triggerBarrel(targetBarrel, ndx, ndz, sessionId);
     }
   }
 
@@ -599,6 +616,7 @@ export class ArenaRoom extends AvatarRoom {
     });
 
     this.projectiles.update(dt);
+    this.barrels.update(dt);
     this.state.tick++;
   }
 

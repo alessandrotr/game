@@ -27,6 +27,7 @@ function recordingRuntime() {
     spawnProjectile: (o, vfx, _dx, _dz, _sp, _r, _rad, onHit) =>
       calls.projectile.push({ owner: o.sessionId, vfx, onHit }),
     forEachEnemyInRadius: (_x, _z, _r, _except, fn) => enemies.forEach(fn),
+    triggerBarrelsInRadius: () => {},
   };
   return { rt, calls, enemies };
 }

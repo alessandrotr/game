@@ -8,6 +8,7 @@ import {
   ClientMessage,
   ServerMessage,
   type AbilityKind,
+  type BarrelView,
   type CharacterClass,
   type ClientMessagePayloads,
   type LobbyMode,
@@ -53,9 +54,17 @@ const LEVELUP_COLOR = '#ffd761';
  */
 type RawPlayer = PlayerView;
 type RawProjectile = ProjectileView;
+interface RawBarrel {
+  x: number;
+  y: number;
+  z: number;
+  alive: boolean;
+}
 interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
+  /** Arena rooms only — interactive barrels (absent in town). */
+  barrels?: { forEach(cb: (barrel: RawBarrel, key: string) => void): void };
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
@@ -85,6 +94,7 @@ const TAB_SESSION =
 function snapshotState(state: RawState): {
   players: Map<string, PlayerView>;
   projectiles: Map<string, ProjectileView>;
+  barrels: Map<string, BarrelView>;
 } {
   const players = new Map<string, PlayerView>();
   state.players.forEach((player, sessionId) => {
@@ -136,7 +146,12 @@ function snapshotState(state: RawState): {
     });
   });
 
-  return { players, projectiles };
+  const barrels = new Map<string, BarrelView>();
+  state.barrels?.forEach((barrel, id) => {
+    barrels.set(id, { id, x: barrel.x, y: barrel.y, z: barrel.z, alive: barrel.alive });
+  });
+
+  return { players, projectiles, barrels };
 }
 
 /** Map an ability cast event to a transient client-side VFX + a character
@@ -301,8 +316,8 @@ function wireRoom(joined: Room): void {
   joined.onStateChange((state) => {
     try {
       const raw = state as unknown as RawState;
-      const { players, projectiles } = snapshotState(raw);
-      useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
+      const { players, projectiles, barrels } = snapshotState(raw);
+      useGameStore.getState().applySnapshot(players, projectiles, barrels, raw.tick);
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.
       if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
       // Feed the interpolation buffer used to render remote players smoothly.
@@ -339,6 +354,11 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.ProjectileImpact, (msg) =>
     useEffectsStore.getState().spawn(IMPACT_VFX[msg.ability] ?? 'vfx.cast', [msg.x, IMPACT_Y, msg.z]),
   );
+  joined.onMessage(ServerMessage.BarrelExplosion, (msg) => {
+    // A fiery ground blast + a sharper burst at barrel height.
+    useEffectsStore.getState().spawn('vfx.shockwave', [msg.x, 0.05, msg.z]);
+    useEffectsStore.getState().spawn('vfx.arcane_blast', [msg.x, 0.8, msg.z]);
+  });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
   );

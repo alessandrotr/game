@@ -81,6 +81,8 @@ export enum ServerMessage {
   LevelUp = 'level_up',
   /** A projectile struck arena cover (drives an impact burst at the wall). */
   ProjectileImpact = 'projectile_impact',
+  /** A burning barrel exploded (drives a blast burst + area-damage feedback). */
+  BarrelExplosion = 'barrel_explosion',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -197,4 +199,6 @@ export interface ServerMessagePayloads {
   [ServerMessage.LevelUp]: { sessionId: string; level: number };
   /** Source vfx tag + the world point where the projectile hit cover. */
   [ServerMessage.ProjectileImpact]: { ability: string; x: number; z: number };
+  /** World point of a barrel blast (drives the explosion VFX). */
+  [ServerMessage.BarrelExplosion]: { x: number; z: number };
 }

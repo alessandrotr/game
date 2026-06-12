@@ -46,6 +46,8 @@ export interface EffectRuntime {
     exceptId: string,
     fn: (target: EffectActor) => void,
   ): void;
+  /** Detonate any interactive barrels within `radius` of (x,z), credited to `fromId`. */
+  triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void;
 }
 
 /** Where a cast is aimed — resolved by the room before the effects run. */
@@ -150,6 +152,8 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         rt.forEachEnemyInRadius(cx, cz, effect.radius, caster.sessionId, (target) =>
           runLeaves(effect.onHit, caster, target, cx, cz, rt),
         );
+        // Barrels caught in the blast launch + detonate too.
+        rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
         break;
       }
       case 'dash':

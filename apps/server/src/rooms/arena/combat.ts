@@ -8,13 +8,14 @@ import {
   type AbilityDef,
   type StatusSpec,
 } from '@arena/shared';
-import { StatusEffect, type Player } from '../schema.js';
+import { StatusEffect, type Barrel, type Player } from '../schema.js';
 import { applyDamage, applyHeal } from '../../combat.js';
 import { HIT_ONESHOT_MS } from '../../animation.js';
 import { runCast, type CastContext, type EffectRuntime } from '../../abilities/executor.js';
 import type { ArenaContext } from './context.js';
 import type { ArenaMatch } from './match.js';
 import type { ProjectileSystem } from './projectiles.js';
+import type { BarrelSystem } from './barrels.js';
 
 /**
  * Everything that resolves an ability's or attack's effect against the world:
@@ -27,6 +28,7 @@ export class CombatSystem {
   /** Set immediately after construction (the projectile system needs this system
    *  for on-hit resolution, so the two are wired up after both exist). */
   private projectiles!: ProjectileSystem;
+  private barrels!: BarrelSystem;
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -35,6 +37,15 @@ export class CombatSystem {
 
   attachProjectiles(projectiles: ProjectileSystem): void {
     this.projectiles = projectiles;
+  }
+
+  attachBarrels(barrels: BarrelSystem): void {
+    this.barrels = barrels;
+  }
+
+  /** Launch a struck barrel away from the hit (projectile / auto-attack). */
+  triggerBarrel(barrel: Barrel, dirX: number, dirZ: number, fromId: string): void {
+    this.barrels.trigger(barrel, dirX, dirZ, fromId);
   }
 
   /**
@@ -225,5 +236,6 @@ export class CombatSystem {
     spawnProjectile: (o, v, dx, dz, sp, r, rad, oh) =>
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
+    triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
   };
 }

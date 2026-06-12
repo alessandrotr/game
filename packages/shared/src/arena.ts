@@ -17,10 +17,14 @@ import type { MapProp, PropAssetId } from './assets.js';
 /** Fallback seed for the brief moment before the server's seed has synced. */
 export const DEFAULT_ARENA_SEED = 1;
 
-/** The full generated layout: collision circles + the props that visualize them. */
+/** The full generated layout: collision circles, the props that visualize them,
+ *  and the interactive burning-barrel spawn points. */
 export interface GeneratedArenaLayout {
   obstacles: ArenaObstacle[];
   props: MapProp[];
+  /** Burning-barrel positions — the server promotes these to live, destructible
+   *  `Barrel` entities (they're NOT static obstacles or props). */
+  barrels: { x: number; z: number }[];
 }
 
 // --- Placement constraints (world units) ---
@@ -54,9 +58,13 @@ const COVER: CoverKind[] = [
   { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1 },
   { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1 },
   { assetId: 'prop.arena.drum', radius: 1.1, height: 1, count: 1, cluster: 3 },
-  { assetId: 'prop.arena.drum.fire', radius: 0.5, height: 1, count: 2 }, // burning barrels (drive the fire lights)
   { assetId: 'prop.arena.drum', radius: 0.5, height: 1, count: 2 }, // loose drums
 ];
+
+/** Burning barrels per side (mirrored) — interactive, destructible entities. */
+const BARREL_COUNT = 2;
+/** Footprint used only for placement spacing (barrels don't block movement). */
+const BARREL_FOOT = 0.6;
 
 const DECOR: DecorKind[] = [
   { assetId: 'prop.arena.tires', foot: 1.2, count: 2 },
@@ -90,6 +98,7 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   const rng = mulberry32(s);
   const obstacles: ArenaObstacle[] = [];
   const props: MapProp[] = [];
+  const barrels: { x: number; z: number }[] = [];
   /** Footprints already taken (includes mirrors) for separation checks. */
   const taken: { x: number; z: number; r: number }[] = [];
 
@@ -139,7 +148,14 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     }
   }
 
-  const layout: GeneratedArenaLayout = { obstacles, props };
+  // Burning barrels: interactive entities (no collision/props), mirrored.
+  for (let n = 0; n < BARREL_COUNT; n++) {
+    const spot = findSpot(BARREL_FOOT);
+    if (!spot) continue;
+    barrels.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
+  }
+
+  const layout: GeneratedArenaLayout = { obstacles, props, barrels };
   cache = { seed: s, layout };
   return layout;
 }

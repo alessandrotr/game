@@ -17,6 +17,7 @@ import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
 import { Fountain } from './Fountain';
 import { PlayerEntity } from './PlayerEntity';
+import { BarrelEntity } from './BarrelEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
@@ -42,17 +43,18 @@ import { Npcs } from './Npcs';
  */
 export function GameScene() {
   const playerIds = useGameStore((s) => s.playerIds);
+  const barrelIds = useGameStore((s) => s.barrelIds);
   const isArena = useGameStore((s) => s.room) === 'arena';
   const room = isArena ? 'arena' : 'town';
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
-  // The match's procedural cover. Props drive the visuals; the burning-barrel
-  // placements drive the fire lights. (Computed always; only used in the arena.)
+  // The match's procedural cover (static props). Burning barrels are NOT here —
+  // they're live, destructible entities rendered from replicated state below.
   const arenaLayout = useArenaLayout();
-  const fireBarrels = useMemo(
-    () =>
-      arenaLayout.props
-        .filter((p) => p.assetId === 'prop.arena.drum.fire')
-        .map((p) => p.position),
+  // Fixed barrel roster (b0…bN-1) for the match — drives a stable fire-light pool
+  // so detonations don't change the scene's light count (which would recompile
+  // every material and hitch the frame).
+  const barrelRoster = useMemo(
+    () => arenaLayout.barrels.map((_, i) => `b${i}`),
     [arenaLayout],
   );
   // Lighting / shadows / fog / tone, live-tunable per world via the dev tools
@@ -150,7 +152,7 @@ export function GameScene() {
       {isArena ? (
         <>
           <Arena />
-          <ArenaLights barrels={fireBarrels} />
+          <ArenaLights barrelIds={barrelRoster} />
         </>
       ) : (
         <>
@@ -175,6 +177,9 @@ export function GameScene() {
       {playerIds.map((id) => (
         <PlayerEntity key={id} sessionId={id} />
       ))}
+
+      {isArena &&
+        barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
 
       <VfxLayer />
       {isArena && (

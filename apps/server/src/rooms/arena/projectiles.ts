@@ -7,6 +7,7 @@ import {
 } from '@arena/shared';
 import { Projectile, type Player } from '../schema.js';
 import { runCast } from '../../abilities/executor.js';
+import { BARREL_RADIUS } from './barrels.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
 
@@ -132,6 +133,24 @@ export class ProjectileSystem {
       meta.traveled += step;
 
       if (meta.traveled >= meta.range || now - meta.spawnedAt > PROJECTILE_LIFETIME_MS) {
+        expired.push(id);
+        return;
+      }
+
+      // Barrels: a projectile that strikes one launches + detonates it (and is
+      // consumed). Checked before cover so a barrel in front of a wall reacts.
+      let hitBarrel = false;
+      this.ctx.state.barrels.forEach((barrel) => {
+        if (hitBarrel || !barrel.alive) return;
+        const dx = barrel.x - projectile.x;
+        const dz = barrel.z - projectile.z;
+        const r = meta.radius + BARREL_RADIUS;
+        if (dx * dx + dz * dz <= r * r) {
+          this.combat.triggerBarrel(barrel, meta.dirX, meta.dirZ, meta.ownerId);
+          hitBarrel = true;
+        }
+      });
+      if (hitBarrel) {
         expired.push(id);
         return;
       }

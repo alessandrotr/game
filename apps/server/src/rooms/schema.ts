@@ -76,9 +76,20 @@ export class Projectile extends Schema {
 }
 
 /** Authoritative arena room state, mirrors `ArenaStateView` in `@arena/shared`. */
+/** A destructible burning barrel: idle until hit, then launched (server-driven
+ *  arc, replicated x/y/z), then removed on explosion. */
+export class Barrel extends Schema {
+  @type('string') id = '';
+  @type('number') x = 0;
+  @type('number') y = 0;
+  @type('number') z = 0;
+  @type('boolean') alive = true;
+}
+
 export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
+  @type({ map: Barrel }) barrels = new MapSchema<Barrel>();
   @type('number') tick = 0;
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */

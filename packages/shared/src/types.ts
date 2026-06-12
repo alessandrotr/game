@@ -58,6 +58,17 @@ export interface PlayerView {
   statuses: StatusView[];
 }
 
+/** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded
+ *  barrel is removed from the collection (so `alive` is effectively always true
+ *  for a present barrel, but kept for clarity / a one-frame death pose). */
+export interface BarrelView {
+  readonly id: string;
+  x: number;
+  y: number;
+  z: number;
+  alive: boolean;
+}
+
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
 export interface ProjectileView {
   readonly id: string;
@@ -150,6 +161,8 @@ export interface ArenaStateView {
   players: Map<string, PlayerView>;
   /** Keyed by projectile id. */
   projectiles: Map<string, ProjectileView>;
+  /** Keyed by barrel id. */
+  barrels: Map<string, BarrelView>;
   /** Monotonically increasing server tick counter. */
   tick: number;
   /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */
