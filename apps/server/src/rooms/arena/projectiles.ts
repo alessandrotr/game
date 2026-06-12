@@ -1,6 +1,7 @@
 import {
   PLAYER_RADIUS,
   PROJECTILE_LIFETIME_MS,
+  ServerMessage,
   type AutoAttackConfig,
   type LeafEffect,
 } from '@arena/shared';
@@ -135,12 +136,18 @@ export class ProjectileSystem {
         return;
       }
 
-      // Obstacles block projectiles (cover).
+      // Obstacles block projectiles (cover) — burst an impact at the wall so the
+      // block reads, instead of the projectile silently vanishing.
       for (const o of this.ctx.obstacles) {
         const dx = projectile.x - o.x;
         const dz = projectile.z - o.z;
         const r = o.radius + meta.radius;
         if (dx * dx + dz * dz <= r * r) {
+          this.ctx.broadcast(ServerMessage.ProjectileImpact, {
+            ability: meta.ability,
+            x: projectile.x,
+            z: projectile.z,
+          });
           expired.push(id);
           return;
         }

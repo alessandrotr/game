@@ -167,6 +167,17 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   condemn: { id: 'vfx.condemn', at: 'unit', y: 0 },
 };
 
+/** Impact burst spawned when a projectile is blocked by cover, keyed by the
+ *  projectile's source vfx tag. Magic pops with an arcane burst; physical shots
+ *  get a neutral spark flash. */
+const IMPACT_VFX: Record<string, VfxAssetId> = {
+  fireball: 'vfx.arcane_blast',
+  arcane_bolt: 'vfx.arcane_blast',
+  holy_bolt: 'vfx.arcane_blast',
+};
+/** Height of a projectile impact burst (matches the projectile flight height). */
+const IMPACT_Y = 1;
+
 function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): void {
   const spawn = useEffectsStore.getState().spawn;
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
@@ -325,6 +336,9 @@ function wireRoom(joined: Room): void {
   // Matchmaking lives on a separate connection (see wireMatchmaking); the town
   // gameplay room only carries world state + combat/chat events.
   joined.onMessage(ServerMessage.MatchOver, (msg) => useMatchResultStore.getState().set(msg));
+  joined.onMessage(ServerMessage.ProjectileImpact, (msg) =>
+    useEffectsStore.getState().spawn(IMPACT_VFX[msg.ability] ?? 'vfx.cast', [msg.x, IMPACT_Y, msg.z]),
+  );
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
   );

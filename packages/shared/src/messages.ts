@@ -79,6 +79,8 @@ export enum ServerMessage {
   Leaderboard = 'leaderboard',
   /** A player gained a level (drives the level-up flourish + HUD toast). */
   LevelUp = 'level_up',
+  /** A projectile struck arena cover (drives an impact burst at the wall). */
+  ProjectileImpact = 'projectile_impact',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -193,4 +195,6 @@ export interface ServerMessagePayloads {
     entries: LeaderboardEntry[];
   };
   [ServerMessage.LevelUp]: { sessionId: string; level: number };
+  /** Source vfx tag + the world point where the projectile hit cover. */
+  [ServerMessage.ProjectileImpact]: { ability: string; x: number; z: number };
 }
