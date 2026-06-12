@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu, RotateCcw, Settings, Trophy, type LucideIcon } from 'lucide-react';
+import { Keyboard, Menu, RotateCcw, Settings, Trophy, type LucideIcon } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
 import { useLeaderboardStore } from '../../store/useLeaderboardStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useControlsStore } from '../../store/useControlsStore';
 import { leaveToCharacterSelect } from '../../network/colyseus';
 import { Button, Card, IconButton } from '../primitives';
 
@@ -32,6 +33,7 @@ export function GameMenu() {
   const inArena = useGameStore((s) => s.room) === 'arena';
   const openLeaderboard = () => useLeaderboardStore.getState().setOpen(true);
   const openSettings = () => useSettingsStore.getState().setOpen(true);
+  const openControls = () => useControlsStore.getState().setOpen(true);
 
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -72,6 +74,7 @@ export function GameMenu() {
         >
           <MenuItem icon={RotateCcw} label="Change Character" onSelect={run(leaveToCharacterSelect)} />
           <MenuItem icon={Trophy} label="Leaderboard" onSelect={run(openLeaderboard)} />
+          <MenuItem icon={Keyboard} label="Controls" onSelect={run(openControls)} />
           <MenuItem icon={Settings} label="Settings" onSelect={run(openSettings)} />
         </Card>
       )}

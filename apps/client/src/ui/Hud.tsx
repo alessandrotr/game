@@ -11,6 +11,7 @@ import { GameMenu } from './hud/GameMenu';
 import { Minimap } from './hud/Minimap';
 import { PerfOverlay } from './hud/PerfOverlay';
 import { SettingsPanel } from './hud/SettingsPanel';
+import { ControlsHelp } from './hud/ControlsHelp';
 import { HudLayout, HudZone } from './hud/HudLayout';
 
 /**
@@ -71,6 +72,7 @@ export function Hud() {
       <Paperdoll />
       <Leaderboard />
       <SettingsPanel />
+      <ControlsHelp />
     </>
   );
 }
