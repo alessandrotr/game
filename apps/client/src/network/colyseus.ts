@@ -179,7 +179,7 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 }, // ground impact — stays
   // Warrior
   cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true, follow: true },
-  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06 }, // crater — stays where it hit
+  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06, follow: true },
   // Dash streak: the shader lifts itself to mid-body, so anchor at the ground.
   charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },
   shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05, follow: true },
