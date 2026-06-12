@@ -27,6 +27,9 @@ const WATER = '#3f7fb0';
 const WINDOW = '#ffe1a0';
 const LANTERN = '#ffd27a';
 const CLOTH = '#a23b3b';
+// Team accents for the left (blue) / right (red) sides of town.
+const TEAM_BLUE = '#3f72c4';
+const TEAM_RED = '#c43f3f';
 
 // --- Trailer-park / arena junk palette (gritty, weathered, post-apocalyptic) -
 const RUST = '#7c4a2f';
@@ -175,6 +178,35 @@ const tower = prop('building.tower', 'Watchtower', [
   box([0.9, 0.5, 0.04], [0.5, 8.7, 0], CLOTH, { castShadow: false }),
 ]);
 
+/**
+ * Team-coloured building variants for the two sides of town: clone a building's
+ * parts and swap its `swap` colours (a roof, or the tower's banner) for the side
+ * accent — blue on the left, red on the right. Everything else is unchanged, so
+ * the homes/towers read as belonging to a team without re-modelling them.
+ */
+function teamVariant(base: PropDescriptor, side: 'blue' | 'red', swap: string[]): PropDescriptor {
+  const accent = side === 'blue' ? TEAM_BLUE : TEAM_RED;
+  const parts =
+    base.render.kind === 'placeholder'
+      ? base.render.parts.map((p) => (swap.includes(p.color) ? { ...p, color: accent } : p))
+      : [];
+  return {
+    id: `${base.id}.${side}`,
+    displayName: `${base.displayName} (${side})`,
+    render: { kind: 'placeholder', parts },
+  };
+}
+
+// Tower banner + conical roof take the team colour; every house/building roof does too.
+const towerBlue = teamVariant(tower, 'blue', [CLOTH, ROOF_SLATE]);
+const towerRed = teamVariant(tower, 'red', [CLOTH, ROOF_SLATE]);
+const houseBlue = teamVariant(house, 'blue', [ROOF_RED]);
+const houseRed = teamVariant(house, 'red', [ROOF_RED]);
+const cottageBlue = teamVariant(cottage, 'blue', [ROOF_BROWN]);
+const cottageRed = teamVariant(cottage, 'red', [ROOF_BROWN]);
+const innBlue = teamVariant(inn, 'blue', [ROOF_BROWN]); // inn sits on the left
+const smithyRed = teamVariant(smithy, 'red', [ROOF_SLATE]); // smithy sits on the right
+
 // --- Town centre & furniture ----------------------------------------------
 
 /** Stone well with a little roof — a natural town-square centrepiece. */
@@ -241,6 +273,10 @@ const stall = prop('market.stall', 'Market Stall', [
   sph(0.18, [0, 1.2, 0.1], '#d8607f', { castShadow: false }),
   sph(0.18, [0.5, 1.2, -0.1], '#e8c34a', { castShadow: false }),
 ]);
+
+// Team-coloured awnings for the market stalls (blue left, red right).
+const stallBlue = teamVariant(stall, 'blue', [CLOTH]);
+const stallRed = teamVariant(stall, 'red', [CLOTH]);
 
 /** Wooden barrel. */
 const barrel = prop('barrel', 'Barrel', [
@@ -567,6 +603,16 @@ export const PROPS: PropDescriptor[] = [
   inn,
   smithy,
   tower,
+  towerBlue,
+  towerRed,
+  houseBlue,
+  houseRed,
+  cottageBlue,
+  cottageRed,
+  innBlue,
+  smithyRed,
+  stallBlue,
+  stallRed,
   well,
   lamp,
   fence,

@@ -121,25 +121,26 @@ const town: MapDescriptor = {
     { assetId: 'prop.wall', position: [21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
 
     // --- Buildings lining the streets, facing inward ---
-    { assetId: 'prop.building.inn', position: [-13, 0, 2], rotation: [0, HALF_PI, 0] },
-    { assetId: 'prop.building.smithy', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
-    { assetId: 'prop.building.tower', position: [-20, 0, -16], rotation: [0, 0.5, 0] },
-    { assetId: 'prop.building.tower', position: [20, 0, -16], rotation: [0, -0.5, 0] },
-    { assetId: 'prop.building.house', position: [13, 0, -9], rotation: [0, -1.9, 0] },
-    { assetId: 'prop.building.cottage', position: [-13, 0, -10], rotation: [0, 1.9, 0] },
-    { assetId: 'prop.building.house', position: [-16, 0, 15], rotation: [0, 2.3, 0] },
-    { assetId: 'prop.building.cottage', position: [16, 0, 16], rotation: [0, -2.3, 0] },
-    { assetId: 'prop.building.house', position: [19, 0, -2], rotation: [0, -HALF_PI, 0] },
-    { assetId: 'prop.building.cottage', position: [-19, 0, -3], rotation: [0, HALF_PI, 0] },
-    { assetId: 'prop.building.house', position: [-10, 0, 23], rotation: [0, Math.PI, 0] },
-    { assetId: 'prop.building.cottage', position: [10, 0, 24], rotation: [0, Math.PI, 0] },
+    { assetId: 'prop.building.inn.blue', position: [-13, 0, 2], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.building.smithy.red', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
+    // Team-themed by side: blue on the left (x < 0), red on the right (x > 0).
+    { assetId: 'prop.building.tower.blue', position: [-20, 0, -16], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.building.tower.red', position: [20, 0, -16], rotation: [0, -0.5, 0] },
+    { assetId: 'prop.building.house.red', position: [13, 0, -9], rotation: [0, -1.9, 0] },
+    { assetId: 'prop.building.cottage.blue', position: [-13, 0, -10], rotation: [0, 1.9, 0] },
+    { assetId: 'prop.building.house.blue', position: [-16, 0, 15], rotation: [0, 2.3, 0] },
+    { assetId: 'prop.building.cottage.red', position: [16, 0, 16], rotation: [0, -2.3, 0] },
+    { assetId: 'prop.building.house.red', position: [19, 0, -2], rotation: [0, -HALF_PI, 0] },
+    { assetId: 'prop.building.cottage.blue', position: [-19, 0, -3], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.building.house.blue', position: [-10, 0, 23], rotation: [0, Math.PI, 0] },
+    { assetId: 'prop.building.cottage.red', position: [10, 0, 24], rotation: [0, Math.PI, 0] },
 
     // --- Town-square centrepiece: the fountain is a custom shader component
     //     (see scene/Fountain.tsx), rendered by GameScene, not a data prop. ---
 
     // --- Market: stalls, cart, goods near the merchant ---
-    { assetId: 'prop.market.stall', position: [5, 0, 5], rotation: [0, -0.5, 0] },
-    { assetId: 'prop.market.stall', position: [-5, 0, 6], rotation: [0, 0.5, 0] },
+    { assetId: 'prop.market.stall.red', position: [5, 0, 5], rotation: [0, -0.5, 0] },
+    { assetId: 'prop.market.stall.blue', position: [-5, 0, 6], rotation: [0, 0.5, 0] },
     { assetId: 'prop.cart', position: [7, 0, 2], rotation: [0, 0.4, 0] },
     { assetId: 'prop.crate', position: [6, 0, 6.5] },
     { assetId: 'prop.crate', position: [-6, 0, 7.5], rotation: [0, 0.7, 0] },
