@@ -113,7 +113,7 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
       className={me ? 'bg-gold/[0.07] hover:bg-gold/10' : undefined}
       style={me ? { boxShadow: 'inset 2px 0 0 0 var(--color-gold)' } : undefined}
     >
-      <TableCell className="py-2.5 pl-4">
+      <TableCell className="border-r border-white/10 py-2.5 pl-4 pr-3">
         <RankBadge rank={rank} />
       </TableCell>
       <TableCell className="py-2.5">
@@ -257,7 +257,7 @@ export function Leaderboard() {
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-14 pl-4">#</TableHead>
+                      <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
                       <TableHead>Player</TableHead>
                       <TableHead className="text-right">K / D</TableHead>
                       <TableHead className="pr-4 text-right">W–L</TableHead>
