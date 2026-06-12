@@ -56,16 +56,24 @@ const archer: CharacterDescriptor = {
   id: 'char.archer',
   displayName: 'Archer',
   class: 'archer',
-  // Rigged Mixamo GLB (~180u tall in cm → scale 0.01, feet at origin). It ships
-  // with a single run clip ('mixamo.com'); the renderer plays it for every state
-  // until idle/attack/death clips are added.
+  // Rigged GLB (Meshy AI). ~1.66u-tall skeleton; scaled to match the warrior's
+  // on-screen height. Idle/Walk/Run/Die + two dances were merged from the
+  // separate single-clip Meshy exports (see scripts/merge-clips.mjs) onto one
+  // shared skeleton.
   render: {
     kind: 'gltf',
     url: '/models/characters/archer.glb',
-    scale: 0.0135,
+    scale: 1.29,
     offset: [0, 0, 0],
     yaw: 0,
-    clips: { run: 'mixamo.com' },
+    clips: {
+      idle: 'Idle',
+      walk: 'Walk',
+      run: 'Run',
+      die: 'Die',
+      dance1: 'Dance1',
+      dance2: 'Dance2',
+    },
   },
 };
 
