@@ -3,12 +3,11 @@ import { ARENA_HALF_SIZE } from '@arena/shared';
 import { useGameStore } from '../../store/useGameStore';
 import { useArenaLayout } from '../../scene/useArenaLayout';
 import { sendMoveTo } from '../../network/colyseus';
+import { TEAM_COLORS } from '../../lib/teamColors';
 import { Card } from '../primitives';
 
 /** On-screen size of the map, in pixels. */
 const MAP_PX = 152;
-/** Team dot colors. */
-const TEAM_COLOR = { blue: '#5b8cff', red: '#ff6b6b' } as const;
 
 /** A single blip plotted on the map (world-space, drawn directly via the SVG
  *  viewBox so no manual scaling is needed). */
@@ -46,7 +45,7 @@ export function Minimap() {
       id: p.sessionId,
       x: p.x,
       z: p.z,
-      color: TEAM_COLOR[p.team] ?? TEAM_COLOR.blue,
+      color: TEAM_COLORS[p.team] ?? TEAM_COLORS.blue,
       alive: p.alive,
       isSelf: p.sessionId === sessionId,
     }));

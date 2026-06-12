@@ -14,6 +14,7 @@ import {
   type CharacterClass,
 } from '@arena/shared';
 import { useArenaLayout } from './useArenaLayout';
+import { TEAM_COLORS } from '../lib/teamColors';
 import { useGameStore } from '../store/useGameStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
@@ -85,6 +86,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const player = useGameStore.getState().players.get(sessionId);
   const isLocal = useGameStore.getState().sessionId === sessionId;
   const isTargeted = useTargetStore((s) => s.targetId === sessionId);
+  // Team halo only reads as meaningful in the arena (town is teamless/FFA).
+  const inArena = useGameStore((s) => s.room === 'arena');
+  const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
   // Max HP is constant per class, so this selector only re-renders on a class
   // change — it drives how many segment ticks the floating bar is divided into.
   const maxHp = useGameStore((s) => s.players.get(sessionId)?.maxHp ?? 0);
@@ -353,11 +357,22 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         </mesh>
       )}
 
-      {/* Local-player marker ring on the ground. */}
+      {/* Team halo on the ground — blue vs red, matching the minimap. Arena only
+          (town is teamless), and an outer ring so the "you" / target rings still
+          read on top of it. */}
+      {inArena && (
+        <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.82, 0.98, 40]} />
+          <meshBasicMaterial color={teamColor} transparent opacity={0.6} depthWrite={false} />
+        </mesh>
+      )}
+
+      {/* Local-player marker ring on the ground — white so "you" stays distinct
+          from the blue team color. */}
       {isLocal && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.55, 0.7, 32]} />
-          <meshBasicMaterial color="#6c8cff" transparent opacity={0.8} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.85} />
         </mesh>
       )}
 
