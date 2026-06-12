@@ -16,6 +16,7 @@ import {
 import { useArenaLayout } from './useArenaLayout';
 import { TEAM_COLORS } from '../lib/teamColors';
 import { useGameStore } from '../store/useGameStore';
+import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
@@ -309,6 +310,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     e.stopPropagation();
     if (useGameStore.getState().room === 'arena') {
       if (!latest.alive) return;
+      // Auto-attacks are a feature flag (off by default — abilities-only combat);
+      // when disabled, clicking an enemy does nothing.
+      if (!useCombatFlagsStore.getState().autoAttack) return;
       // Issuing an attack cancels any pending move order (mirrors the server):
       // the chase below owns movement now — otherwise a stale destination would
       // fight the chase and rubber-band the player.

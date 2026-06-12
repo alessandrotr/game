@@ -112,6 +112,9 @@ export class ArenaRoom extends AvatarRoom {
   private readonly bots = new Map<string, BotProfile>();
   /** Monotonic counter for synthetic bot session ids. */
   private botSeq = 0;
+  /** Auto-attack feature flag (off by default — abilities-only combat). Toggled
+   *  at runtime via {@link ClientMessage.SetAutoAttack}. */
+  private autoAttackEnabled = false;
 
   /** This match's procedural cover, generated from `state.layoutSeed` in onCreate.
    *  The authoritative collision set for movement and projectiles. */
@@ -163,6 +166,7 @@ export class ArenaRoom extends AvatarRoom {
     this.registerAvatarHandlers();
 
     this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
+      if (!this.autoAttackEnabled) return; // feature flag off — abilities-only combat
       const player = this.state.players.get(client.sessionId);
       if (!player || !player.alive) return;
       const targetId = String(message?.targetId ?? '');
@@ -198,6 +202,11 @@ export class ArenaRoom extends AvatarRoom {
       ClientMessage.BotControl,
       (_client, message: ClientMessagePayloads[ClientMessage.BotControl]) =>
         this.setBotPopulation(message),
+    );
+    this.onMessage(
+      ClientMessage.SetAutoAttack,
+      (_client, message: ClientMessagePayloads[ClientMessage.SetAutoAttack]) =>
+        this.setAutoAttackEnabled(!!message?.enabled),
     );
 
     this.setSimulationInterval((deltaMs) => this.update(deltaMs), TICK_MS);
@@ -574,7 +583,7 @@ export class ArenaRoom extends AvatarRoom {
         // Hard CC: no movement. A stun also drops the move order and auto-attack.
         this.destinations.delete(sessionId);
         if (isStunned(player)) this.attackTargets.delete(sessionId);
-      } else if (this.attackTargets.has(sessionId)) {
+      } else if (this.autoAttackEnabled && this.attackTargets.has(sessionId)) {
         // Auto-attack: chase the target into range, then strike on a timer.
         this.updateAutoAttack(player, sessionId, dt);
       } else {
@@ -619,6 +628,16 @@ export class ArenaRoom extends AvatarRoom {
     this.projectiles.update(dt);
     this.barrels.update(dt);
     this.state.tick++;
+  }
+
+  /** Toggle the auto-attack feature flag. Disabling clears any in-progress
+   *  attack orders so nothing keeps swinging after the flag flips off. */
+  private setAutoAttackEnabled(enabled: boolean): void {
+    this.autoAttackEnabled = enabled;
+    if (!enabled) {
+      this.attackTargets.clear();
+      this.attackReadyAt.clear();
+    }
   }
 
   /** Reset a player to a full, alive state at one of the layout's spawn points

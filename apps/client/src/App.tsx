@@ -9,6 +9,7 @@ import { useEmotes } from './hooks/useEmotes';
 import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
 import { useServerStatTuning } from './hooks/useServerStatTuning';
+import { useServerCombatFlags } from './hooks/useServerCombatFlags';
 import { useInteractionInput } from './hooks/useInteractionInput';
 import { useHudHotkey } from './hooks/useHudHotkey';
 import { GameScene } from './scene/GameScene';
@@ -66,6 +67,7 @@ export default function App() {
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);
   useServerStatTuning(connected && inArena);
+  useServerCombatFlags(connected && inArena); // sync the auto-attack feature flag
   useInteractionInput(connected);
   useHudHotkey(connected); // H toggles HUD chrome visibility
 

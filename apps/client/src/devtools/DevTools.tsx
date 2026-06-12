@@ -18,6 +18,7 @@ import {
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
 import { sendBotControl } from '../network/colyseus';
+import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
 import { EnvPanels } from './EnvPanel';
@@ -66,6 +67,15 @@ export default function DevTools() {
         characterClass: (get('Bots.characterClass') as CharacterClass | '') || undefined,
       }),
     ),
+  }));
+
+  // Combat feature flags. Auto-attacks are off by default (abilities-only); flip
+  // this to re-enable left-click auto-attacks for the room.
+  useControls('Combat', () => ({
+    'Auto-attacks': {
+      value: useCombatFlagsStore.getState().autoAttack,
+      onChange: (v: boolean) => useCombatFlagsStore.getState().setAutoAttack(v),
+    },
   }));
 
   const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];

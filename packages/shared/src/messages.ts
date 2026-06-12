@@ -49,6 +49,8 @@ export enum ClientMessage {
   StatTune = 'stat_tune',
   /** Dev-only: set the arena's practice-bot population and AI difficulty. */
   BotControl = 'bot_control',
+  /** Feature flag: enable/disable auto-attacks for the room (off by default). */
+  SetAutoAttack = 'set_auto_attack',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
@@ -155,6 +157,8 @@ export interface ClientMessagePayloads {
     difficulty: BotDifficulty;
     characterClass?: CharacterClass;
   };
+  /** Toggle the auto-attack feature flag for the room. */
+  [ClientMessage.SetAutoAttack]: { enabled: boolean };
 }
 
 /** Payload map for {@link ServerMessage}. */

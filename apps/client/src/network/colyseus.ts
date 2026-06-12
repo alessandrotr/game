@@ -754,6 +754,11 @@ export function sendBotControl(values: ClientMessagePayloads[ClientMessage.BotCo
   room?.send(ClientMessage.BotControl, values);
 }
 
+/** Toggle the auto-attack feature flag for the current room. */
+export function sendSetAutoAttack(enabled: boolean): void {
+  room?.send(ClientMessage.SetAutoAttack, { enabled });
+}
+
 /** Leave the current room, if any. */
 export function disconnect(): void {
   room?.leave(true);
