@@ -12,6 +12,9 @@ import type { CharacterClass } from './assets.js';
 import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
 
+/** AI skill level for practice bots, from sloppy auto-attacker to full kit. */
+export type BotDifficulty = 'easy' | 'medium' | 'hard';
+
 /** Message identifiers sent from client to server. */
 export enum ClientMessage {
   /** Set/update the world-space point to move toward (hold-to-move). */
@@ -44,6 +47,8 @@ export enum ClientMessage {
   AbilityTune = 'ability_tune',
   /** Dev-only: live-tune per-class stats (HP / mana / move speed / attack). */
   StatTune = 'stat_tune',
+  /** Dev-only: set the arena's practice-bot population and AI difficulty. */
+  BotControl = 'bot_control',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
@@ -139,6 +144,13 @@ export interface ClientMessagePayloads {
   };
   /** Per-class stat overrides (HP / mana / move speed / attack). */
   [ClientMessage.StatTune]: Partial<Record<CharacterClass, Partial<ClassStats>>>;
+  /** Reconcile the arena's practice-bot population to `count` at `difficulty`.
+   *  `characterClass` pins every bot to one class (else each rolls a random one). */
+  [ClientMessage.BotControl]: {
+    count: number;
+    difficulty: BotDifficulty;
+    characterClass?: CharacterClass;
+  };
 }
 
 /** Payload map for {@link ServerMessage}. */

@@ -715,6 +715,11 @@ export function sendStatTune(values: ClientMessagePayloads[ClientMessage.StatTun
   room?.send(ClientMessage.StatTune, values);
 }
 
+/** Dev-only: set the arena's practice-bot population and AI difficulty. */
+export function sendBotControl(values: ClientMessagePayloads[ClientMessage.BotControl]): void {
+  room?.send(ClientMessage.BotControl, values);
+}
+
 /** Leave the current room, if any. */
 export function disconnect(): void {
   room?.leave(true);

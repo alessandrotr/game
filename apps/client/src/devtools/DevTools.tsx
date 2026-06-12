@@ -17,6 +17,7 @@ import {
   type CameraConfig,
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
+import { sendBotControl } from '../network/colyseus';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
 import { EnvPanels } from './EnvPanel';
@@ -46,6 +47,25 @@ export default function DevTools() {
       useEnvStore.getState().reset();
       window.location.reload();
     }),
+  }));
+
+  // Practice bots (arena only — the town has no handler, so Apply is a no-op
+  // there). "Apply" reconciles the live bot population to these settings.
+  useControls('Bots', () => ({
+    count: { value: 0, min: 0, max: 8, step: 1, label: 'Count' },
+    difficulty: { value: 'medium', options: ['easy', 'medium', 'hard'], label: 'Difficulty' },
+    characterClass: {
+      label: 'Class',
+      value: '',
+      options: { Random: '', Warrior: 'warrior', Mage: 'mage', Archer: 'archer', Priest: 'priest' },
+    },
+    Apply: button((get) =>
+      sendBotControl({
+        count: get('Bots.count') as number,
+        difficulty: get('Bots.difficulty') as 'easy' | 'medium' | 'hard',
+        characterClass: (get('Bots.characterClass') as CharacterClass | '') || undefined,
+      }),
+    ),
   }));
 
   const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];

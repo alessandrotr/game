@@ -23,8 +23,11 @@ import {
   isStunned,
   attackSpeedMultiplier,
   moveSpeedMultiplier,
+  CHARACTER_CLASSES,
+  isCharacterClass,
   type AbilityDef,
   type AbilityKind,
+  type BotDifficulty,
   type CharacterClass,
   type LobbyMode,
 } from '@arena/shared';
@@ -40,8 +43,23 @@ import { ArenaTuning } from './arena/tuning.js';
 import { ArenaMatch } from './arena/match.js';
 import { CombatSystem } from './arena/combat.js';
 import { ProjectileSystem } from './arena/projectiles.js';
+import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
+
+/** Upper bound on practice bots a room will host at once. */
+const MAX_BOTS = 8;
+/** Display names cycled through as bots spawn. */
+const BOT_NAMES = [
+  'Bot Kratos',
+  'Bot Vex',
+  'Bot Nyx',
+  'Bot Rook',
+  'Bot Onyx',
+  'Bot Saber',
+  'Bot Wraith',
+  'Bot Zane',
+];
 
 /** Origin height for a cast's broadcast (matches the projectile spawn height). */
 const PROJECTILE_Y = 1;
@@ -89,6 +107,10 @@ export class ArenaRoom extends AvatarRoom {
   private readonly displacements = new Map<string, Displacement>();
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
+  /** AI-controlled practice bots in this room, by synthetic session id. */
+  private readonly bots = new Map<string, BotProfile>();
+  /** Monotonic counter for synthetic bot session ids. */
+  private botSeq = 0;
 
   /** This match's procedural cover, generated from `state.layoutSeed` in onCreate.
    *  The authoritative collision set for movement and projectiles. */
@@ -100,6 +122,7 @@ export class ArenaRoom extends AvatarRoom {
   private match!: ArenaMatch;
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
+  private botDirector!: BotDirector;
 
   protected override jumpForce(): number {
     return this.tuning.movement.jumpForce;
@@ -164,6 +187,11 @@ export class ArenaRoom extends AvatarRoom {
       (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) =>
         this.tuning.tuneStats(message),
     );
+    this.onMessage(
+      ClientMessage.BotControl,
+      (_client, message: ClientMessagePayloads[ClientMessage.BotControl]) =>
+        this.setBotPopulation(message),
+    );
 
     this.setSimulationInterval((deltaMs) => this.update(deltaMs), TICK_MS);
   }
@@ -193,6 +221,11 @@ export class ArenaRoom extends AvatarRoom {
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
     this.combat.attachProjectiles(this.projectiles);
+    this.botDirector = new BotDirector(ctx, {
+      cooldowns: this.cooldowns,
+      pendingCasts: this.pendingCasts,
+      cast: (botId, message) => this.handleCast(botId, message),
+    });
   }
 
   override onJoin(client: Client, options?: JoinOptions): void {
@@ -460,6 +493,10 @@ export class ArenaRoom extends AvatarRoom {
     const dt = deltaMs / 1000;
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
 
+    // AI bots decide their intent first — they write the same `destinations` /
+    // `attackTargets` / cast seams human input does, consumed by the loop below.
+    if (this.bots.size > 0) this.botDirector.update(this.simTime, this.bots);
+
     this.state.players.forEach((player, sessionId) => {
       if (!player.alive) {
         player.animState = 'die';
@@ -589,5 +626,68 @@ export class ArenaRoom extends AvatarRoom {
     if (player.statuses.length > 0) player.statuses.clear();
     this.displacements.delete(player.sessionId);
     reviveFull(player);
+  }
+
+  // --- Practice bots -----------------------------------------------------
+
+  /** Reconcile the bot population to the requested count + difficulty. Ignored in
+   *  ranked matches so bots can never pollute matchmade scoring. Each bot is a
+   *  full {@link Player} the existing simulation drives; only the AI decisions
+   *  (in {@link BotDirector}) and this lifecycle are bot-specific. */
+  private setBotPopulation(message: ClientMessagePayloads[ClientMessage.BotControl]): void {
+    if (this.match.ranked) return;
+    const count = clamp(Math.floor(Number(message?.count) || 0), 0, MAX_BOTS);
+    const difficulty: BotDifficulty =
+      message?.difficulty === 'easy' || message?.difficulty === 'hard'
+        ? message.difficulty
+        : 'medium';
+    const characterClass = isCharacterClass(message?.characterClass)
+      ? message.characterClass
+      : undefined;
+
+    // Retune any existing bots to the new difficulty.
+    for (const profile of this.bots.values()) Object.assign(profile, makeBotProfile(difficulty));
+
+    // Grow or shrink toward the target.
+    while (this.bots.size < count) this.spawnBot(difficulty, characterClass);
+    while (this.bots.size > count) {
+      const id = this.bots.keys().next().value;
+      if (id === undefined) break;
+      this.removeBot(id);
+    }
+  }
+
+  /** Add one AI bot: a red-team {@link Player} with synthetic ids, spawned via the
+   *  shared {@link resetPlayer}. Mirrors `onJoin` minus the client/session/DB work. */
+  private spawnBot(difficulty: BotDifficulty, characterClass?: CharacterClass): void {
+    const id = `bot-${++this.botSeq}`;
+    const player = new Player();
+    player.sessionId = id;
+    player.name = BOT_NAMES[(this.botSeq - 1) % BOT_NAMES.length] ?? 'Bot';
+    player.characterClass =
+      characterClass ??
+      CHARACTER_CLASSES[Math.floor(Math.random() * CHARACTER_CLASSES.length)] ??
+      'warrior';
+    player.team = 'red';
+    this.resetPlayer(player);
+
+    this.state.players.set(id, player);
+    this.verticalVelocity.set(id, 0);
+    this.grounded.set(id, true);
+    this.cooldowns.set(id, {});
+    this.bots.set(id, makeBotProfile(difficulty));
+  }
+
+  /** Remove a bot and clear all of its per-session simulation state (the same
+   *  set `removeClient` clears, minus the client/profile/session bookkeeping). */
+  private removeBot(id: string): void {
+    this.baseRemove(id);
+    this.cooldowns.delete(id);
+    this.respawnAt.delete(id);
+    this.pendingCasts.delete(id);
+    this.attackTargets.delete(id);
+    this.attackReadyAt.delete(id);
+    this.displacements.delete(id);
+    this.bots.delete(id);
   }
 }
