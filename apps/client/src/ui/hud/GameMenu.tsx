@@ -53,6 +53,9 @@ export function GameMenu() {
     };
   }, [open]);
 
+  // The game menu is a town-only HUD affordance — hidden entirely in the arena.
+  if (inArena) return null;
+
   /** Run an action and dismiss the menu. */
   const run = (fn: () => void) => () => {
     setOpen(false);
@@ -67,9 +70,7 @@ export function GameMenu() {
           role="menu"
           className="absolute bottom-full right-0 z-popover mb-2 w-52 p-1.5"
         >
-          {!inArena && (
-            <MenuItem icon={RotateCcw} label="Change Character" onSelect={run(leaveToCharacterSelect)} />
-          )}
+          <MenuItem icon={RotateCcw} label="Change Character" onSelect={run(leaveToCharacterSelect)} />
           <MenuItem icon={Trophy} label="Leaderboard" onSelect={run(openLeaderboard)} />
           <MenuItem icon={Settings} label="Settings" onSelect={run(openSettings)} />
         </Card>
