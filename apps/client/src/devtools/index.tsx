@@ -3,12 +3,11 @@ import { Suspense, lazy } from 'react';
 /**
  * Entry for the developer tools.
  *
- * TEMP(playtest): dev tools are enabled in production too, so we can live-tune
- * during friend playtests on the deployed build. To restore zero production
- * impact, set this back to `import.meta.env.DEV` — that statically resolves to
- * `null` in prod and tree-shakes DevTools (and Leva) out entirely.
+ * Dev-only: `import.meta.env.DEV` statically resolves to `null` in production
+ * builds, so DevTools (and Leva) tree-shake out entirely — zero runtime cost in
+ * the shipped/playtest build. Run `pnpm dev` to get the live-tuning panel.
  */
-const SHOW_DEVTOOLS = true; // was: import.meta.env.DEV
+const SHOW_DEVTOOLS = import.meta.env.DEV;
 const DevTools = SHOW_DEVTOOLS ? lazy(() => import('./DevTools')) : null;
 
 export function DevToolsGate() {

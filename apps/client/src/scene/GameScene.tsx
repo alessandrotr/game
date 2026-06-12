@@ -20,6 +20,7 @@ import { PlayerEntity } from './PlayerEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
+import { FpsCap } from './FpsCap';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
@@ -60,11 +61,15 @@ export function GameScene() {
 
   return (
     <Canvas
-      shadows="soft"
+      // PCF (not the more expensive PCFSoft) — lighter shadow filtering.
+      shadows="percentage"
       // Cap the render resolution at 1.5× device pixels: on a Retina display the
       // native 2× quadruples fragment/shadow/AA work for little visible gain, and
       // that GPU load is the main cause of system-wide lag while the tab is open.
       dpr={[1, 1.5]}
+      // Render on demand and drive it at a capped frame rate (see FpsCap) instead
+      // of an unbounded 60fps, to keep CPU/GPU load (and system lag) down.
+      frameloop="demand"
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
       gl={{ antialias: true }}
       onContextMenu={(e) => e.preventDefault()}
@@ -160,6 +165,7 @@ export function GameScene() {
       <Npcs mapId={mapId} />
       <Portals mapId={mapId} />
 
+      <FpsCap />
       <MouseMove />
       <CameraControls />
       {isArena && <CursorTracker />}
