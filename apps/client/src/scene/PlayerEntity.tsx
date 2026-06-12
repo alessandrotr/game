@@ -19,6 +19,7 @@ import { useGameStore } from '../store/useGameStore';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { clearDestination, getDestination } from '../store/destinationState';
+import { clearLocalDash, getLocalDash } from '../store/dashState';
 import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
@@ -186,7 +187,22 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       }
       const attacking = !!target && target.alive;
 
-      if (attacking && target) {
+      // Predicted dash (charge / tumble): a constant-velocity slide that mirrors
+      // the server's displacement and overrides locomotion while active — so the
+      // dash is smooth even mid-run instead of snapping.
+      const dashState = getLocalDash();
+      const dashing = dashState.active && performance.now() < dashState.until;
+
+      if (dashing) {
+        pos.x = clamp(pos.x + dashState.vx * delta, -halfBounds, halfBounds);
+        pos.z = clamp(pos.z + dashState.vz * delta, -halfBounds, halfBounds);
+        // Dashes only happen in the arena (abilities are arena-only), so collide
+        // against the match's cover like the auto-attack chase does.
+        const fixed = collideObstacles(pos.x, pos.z, arenaObstacles, PLAYER_RADIUS);
+        pos.x = fixed.x;
+        pos.z = fixed.z;
+        predictedRot.current = Math.atan2(dashState.dirX, dashState.dirZ);
+      } else if (attacking && target) {
         // Mirror the server's auto-attack movement so prediction matches by
         // construction: face the target, close to attack range, then HOLD and
         // strike in place (no rubber-banding, stops dead like LoL).
@@ -227,6 +243,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           arrivedAt.current = performance.now();
         }
       }
+      if (dashState.active && !dashing) clearLocalDash();
 
       // Reconcile: snap on a true reposition (respawn/knockback/blink); while
       // actively moving (toward a destination OR chasing a target) trust the
@@ -236,7 +253,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       if (err > TELEPORT_SNAP) {
         pos.set(latest.x, 0, latest.z);
         arrivedAt.current = 0;
-      } else if (!dest.active && !attacking) {
+      } else if (!dest.active && !attacking && !dashing) {
         // Just arrived: hold our deterministic stop point and let the server land
         // on it (avoids the backward settle / bounce). Ends as soon as the server
         // converges, or after a short safety window if it genuinely diverged.

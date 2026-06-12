@@ -5,6 +5,7 @@ import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
 import { sendCast } from '../network/colyseus';
 import { clearDestination } from '../store/destinationState';
+import { setLocalDash } from '../store/dashState';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { useAbilityTargeting } from '../store/abilityTargeting';
@@ -117,6 +118,15 @@ export function useAbilityHotkeys(enabled: boolean): void {
         sendCast(ability, dx, dz, cur.x, cur.z);
       } else {
         sendCast(ability, dx, dz);
+      }
+      // Predict a dash locally (charge / tumble) so it slides smoothly in the
+      // aim direction — even mid-run — instead of fighting the move prediction.
+      for (const e of config.effects) {
+        if (e.type === 'dash') {
+          setLocalDash(dx, dz, e.distance, e.speed);
+          clearDestination();
+          break;
+        }
       }
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');
