@@ -45,7 +45,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Melee Bruiser',
     description: 'A durable frontliner who wades in and erupts with shockwaves.',
     stats: { health: 140, mana: 60, moveSpeed: 9, attackDamage: 45, difficulty: 1 },
-    abilities: ['shockwave'],
+    abilities: ['cleave', 'charge', 'shield_wall', 'ground_slam'],
     color: '#b94b4b',
   },
   mage: {
@@ -64,7 +64,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Ranged Skirmisher',
     description: 'Mobile damage dealer who kites from a distance.',
     stats: { health: 100, mana: 90, moveSpeed: 9, attackDamage: 40, difficulty: 2 },
-    abilities: ['fireball'],
+    abilities: ['power_shot', 'crippling_shot', 'tumble', 'pinning_arrow'],
     color: '#3f9d56',
   },
   priest: {
@@ -73,7 +73,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Support Healer',
     description: 'Sustains allies with heals while contributing steady damage.',
     stats: { health: 110, mana: 130, moveSpeed: 9, attackDamage: 25, difficulty: 2 },
-    abilities: ['heal'],
+    abilities: ['smite', 'heal', 'renew', 'condemn'],
     color: '#e8c45a',
   },
 };

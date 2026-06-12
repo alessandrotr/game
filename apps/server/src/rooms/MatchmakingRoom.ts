@@ -15,6 +15,7 @@ import {
 } from '@arena/shared';
 import { Lobby, LobbySlot, MatchmakingState } from './mmSchema.js';
 import { verifyToken } from '../auth.js';
+import { registerSession, unregisterSession, SESSION_SUPERSEDED } from '../sessions.js';
 
 /** Maximum accepted display-name length (mirrors the town/arena rooms). */
 const MAX_NAME_LENGTH = 24;
@@ -26,6 +27,8 @@ interface Identity {
   name: string;
   characterClass: string;
   skinId: string;
+  /** The tab/session key, carried into the arena seat reservation. */
+  sessionKey: string;
 }
 
 /**
@@ -78,9 +81,22 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
 
   override onJoin(
     client: Client,
-    options?: { token?: string; name?: string; characterClass?: string; skinId?: string },
+    options?: {
+      token?: string;
+      name?: string;
+      characterClass?: string;
+      skinId?: string;
+      sessionKey?: string;
+    },
   ): void {
     const claims = verifyToken(options?.token);
+    const sessionKey = String(options?.sessionKey ?? '');
+    // Single-session: a newer tab for this account supersedes the older one.
+    if (claims?.pid !== undefined) {
+      for (const stale of registerSession(claims.pid, sessionKey, client)) {
+        stale.leave(SESSION_SUPERSEDED);
+      }
+    }
     const name =
       claims?.name?.slice(0, MAX_NAME_LENGTH) ||
       (options?.name ?? '').trim().slice(0, MAX_NAME_LENGTH) ||
@@ -93,12 +109,14 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
       name,
       characterClass,
       skinId: String(options?.skinId ?? '').slice(0, 64),
+      sessionKey,
     });
   }
 
   override onLeave(client: Client): void {
     this.removePlayerFromLobby(client.sessionId);
     this.identities.delete(client.sessionId);
+    unregisterSession(client);
   }
 
   // --- Intents -----------------------------------------------------------
@@ -304,6 +322,7 @@ export class MatchmakingRoom extends Room<MatchmakingState> {
           characterClass: slot.characterClass,
           skinId: identity?.skinId ?? '',
           team: slot.team,
+          sessionKey: identity?.sessionKey ?? '',
         });
         seats.push({ sessionId: slot.sessionId, reservation });
       }

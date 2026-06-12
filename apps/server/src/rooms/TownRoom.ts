@@ -25,6 +25,7 @@ import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { getProgress, topPlayers } from '../db/players.js';
 import { verifyToken } from '../auth.js';
+import { registerSession, unregisterSession, SESSION_SUPERSEDED } from '../sessions.js';
 
 const MAX_NAME_LENGTH = 24;
 /** Where players appear when entering town (matches the town map's spawn zone). */
@@ -127,9 +128,21 @@ export class TownRoom extends Room<ArenaState> {
 
   override onJoin(
     client: Client,
-    options?: { token?: string; name?: string; characterClass?: string; skinId?: string },
+    options?: {
+      token?: string;
+      name?: string;
+      characterClass?: string;
+      skinId?: string;
+      sessionKey?: string;
+    },
   ): void {
     const claims = verifyToken(options?.token);
+    // Single-session: a newer tab for this account supersedes the older one.
+    if (claims?.pid !== undefined) {
+      for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
+        stale.leave(SESSION_SUPERSEDED);
+      }
+    }
     const player = new Player();
     player.sessionId = client.sessionId;
     // The display name is taken from the (authoritative) account token; fall
@@ -188,6 +201,7 @@ export class TownRoom extends Room<ArenaState> {
     this.grounded.delete(client.sessionId);
     this.animOneShots.delete(client.sessionId);
     this.chat.forget(client.sessionId);
+    unregisterSession(client);
   }
 
   private update(deltaMs: number): void {

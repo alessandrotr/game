@@ -35,18 +35,28 @@ import {
   isAbilityKind,
   isCharacterClass,
   isEmote,
+  isRooted,
+  isSilenced,
+  isStunned,
+  attackSpeedMultiplier,
+  damageTakenMultiplier,
+  moveSpeedMultiplier,
   levelForXp,
   type AbilityConfig,
+  type AbilityDef,
   type AbilityKind,
   type AutoAttackConfig,
   type CharacterClass,
   type ClassStats,
   type FieldMeta,
+  type LeafEffect,
   type LobbyMode,
   type MovementConfig,
+  type StatusSpec,
   type Team,
 } from '@arena/shared';
-import { ArenaState, Player, Projectile } from './schema.js';
+import { ArenaState, Player, Projectile, StatusEffect } from './schema.js';
+import { runCast, type CastContext, type EffectRuntime } from '../abilities/executor.js';
 import { applyDamage, applyHeal, regenMana, reviveFull, spendMana } from '../combat.js';
 import {
   computeAnimState,
@@ -58,6 +68,7 @@ import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { getProgress, recordResult } from '../db/players.js';
 import { verifyToken } from '../auth.js';
+import { registerSession, unregisterSession, SESSION_SUPERSEDED } from '../sessions.js';
 
 /** A player's persisted totals at join time. Live totals are tracked on the
  *  replicated `Player`; the delta (live − base) is flushed to the DB on leave. */
@@ -84,7 +95,11 @@ interface ProjectileMeta {
   speed: number;
   range: number;
   radius: number;
+  /** Direct damage for auto-attack projectiles (no `onHit`). */
   damage: number;
+  /** Composable effects run against the player this projectile hits (ability
+   *  projectiles); when present they supersede the flat `damage`. */
+  onHit?: LeafEffect[];
   traveled: number;
   spawnedAt: number;
 }
@@ -97,12 +112,14 @@ function clamp(value: number, min: number, max: number): number {
 /** A cast in its wind-up: the effect resolves at `resolveAt` (sim time, ms). */
 interface PendingCast {
   ability: AbilityKind;
-  config: AbilityConfig;
+  config: AbilityDef;
   dirX: number;
   dirZ: number;
   /** Ground-target impact point (ground-targeted abilities only). */
   targetX?: number;
   targetZ?: number;
+  /** Locked target's session id (unit-targeted abilities only). */
+  unitTargetId?: string;
   resolveAt: number;
 }
 
@@ -134,6 +151,11 @@ export class ArenaRoom extends Room<ArenaState> {
   private readonly attackTargets = new Map<string, string>();
   /** Sim time (ms) each player's next auto-attack is ready. */
   private readonly attackReadyAt = new Map<string, number>();
+  /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
+  private readonly displacements = new Map<
+    string,
+    { vx: number; vz: number; until: number }
+  >();
 
   /** Accumulated simulation time in ms (used for cooldowns / respawn timers). */
   private simTime = 0;
@@ -164,13 +186,14 @@ export class ArenaRoom extends Room<ArenaState> {
       (Object.keys(CLASS_DEFINITIONS) as CharacterClass[]).map((c) => [c, CLASS_DEFINITIONS[c].stats]),
     ),
   ) as Record<CharacterClass, ClassStats>;
-  private readonly abilityBase: Record<AbilityKind, AbilityConfig> = structuredClone(ABILITIES);
+  private readonly abilityBase: Record<AbilityKind, AbilityDef> = structuredClone(ABILITIES);
   private readonly classAbilityOverrides: Partial<
     Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>
   > = structuredClone(CLASS_ABILITY_OVERRIDES);
 
-  /** The effective ability config for a class = global base ⊕ that class's override. */
-  private abilityFor(characterClass: string, kind: AbilityKind): AbilityConfig {
+  /** The effective ability definition for a class = global base ⊕ that class's
+   *  override (tuning only patches the flat numeric fields; `effects` carry over). */
+  private abilityFor(characterClass: string, kind: AbilityKind): AbilityDef {
     const override = this.classAbilityOverrides[characterClass as CharacterClass]?.[kind];
     return override ? { ...this.abilityBase[kind], ...override } : this.abilityBase[kind];
   }
@@ -252,7 +275,7 @@ export class ArenaRoom extends Room<ArenaState> {
       });
     });
 
-    this.onMessage<{ ability: AbilityKind; dirX: number; dirZ: number; tx?: number; tz?: number }>(
+    this.onMessage<ClientMessagePayloads[ClientMessage.CastAbility]>(
       ClientMessage.CastAbility,
       (client, message) => this.handleCast(client.sessionId, message),
     );
@@ -331,9 +354,16 @@ export class ArenaRoom extends Room<ArenaState> {
       characterClass?: string;
       skinId?: string;
       team?: string;
+      sessionKey?: string;
     },
   ): void {
     const claims = verifyToken(options?.token);
+    // Single-session: a newer tab for this account supersedes the older one.
+    if (claims?.pid !== undefined) {
+      for (const stale of registerSession(claims.pid, String(options?.sessionKey ?? ''), client)) {
+        stale.leave(SESSION_SUPERSEDED);
+      }
+    }
     const player = new Player();
     player.sessionId = client.sessionId;
     player.name =
@@ -410,6 +440,7 @@ export class ArenaRoom extends Room<ArenaState> {
     this.attackReadyAt.delete(client.sessionId);
     this.outcomes.delete(client.sessionId);
     this.chat.forget(client.sessionId);
+    unregisterSession(client);
   }
 
   /** Persist this session's progression delta (live totals − loaded base) on leave. */
@@ -439,10 +470,13 @@ export class ArenaRoom extends Room<ArenaState> {
 
   private handleCast(
     sessionId: string,
-    message: { ability: AbilityKind; dirX: number; dirZ: number; tx?: number; tz?: number },
+    message: ClientMessagePayloads[ClientMessage.CastAbility],
   ): void {
     const player = this.state.players.get(sessionId);
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
+
+    // Crowd control: a stun blocks everything; a silence blocks casting.
+    if (isStunned(player) || isSilenced(player)) return;
 
     const ability = message.ability;
     const config = this.abilityFor(player.characterClass, ability);
@@ -453,6 +487,18 @@ export class ArenaRoom extends Room<ArenaState> {
     if ((cd[ability] ?? 0) > this.simTime) return;
     if (player.mana < config.manaCost) return;
     if (this.pendingCasts.has(sessionId)) return;
+
+    // Unit-targeted abilities lock onto a player by id (must be alive and in
+    // range); fall back to self if the target is gone/out of range.
+    let unitTargetId: string | undefined;
+    if (config.aim === 'unit') {
+      const t = message.targetId ? this.state.players.get(message.targetId) : undefined;
+      if (t && t.alive && Math.hypot(t.x - player.x, t.z - player.z) <= config.range + PLAYER_RADIUS) {
+        unitTargetId = t.sessionId;
+      } else {
+        unitTargetId = sessionId; // self-cast fallback (e.g. renew on yourself)
+      }
+    }
 
     // Direction: use the requested vector, falling back to the facing direction.
     let dirX = Number.isFinite(message.dirX) ? message.dirX : 0;
@@ -487,6 +533,19 @@ export class ArenaRoom extends Room<ArenaState> {
       }
     }
 
+    // Unit-targeted: face the locked target (when it isn't yourself).
+    if (unitTargetId && unitTargetId !== sessionId) {
+      const t = this.state.players.get(unitTargetId);
+      if (t) {
+        const tx = t.x - player.x;
+        const tz = t.z - player.z;
+        if (Math.hypot(tx, tz) > 1e-3) {
+          dirX = tx / Math.hypot(tx, tz);
+          dirZ = tz / Math.hypot(tx, tz);
+        }
+      }
+    }
+
     // Commit cost + cooldown at cast start, then face the cast direction.
     spendMana(player, config.manaCost);
     cd[ability] = this.simTime + config.cooldownMs;
@@ -504,12 +563,13 @@ export class ArenaRoom extends Room<ArenaState> {
       dirZ,
       tx: targetX,
       tz: targetZ,
+      targetId: unitTargetId,
     });
 
-    // Assert the authoritative cast/attack pose for the wind-up (or a brief
-    // window for instant abilities). `shockwave` reads as a physical swing.
+    // Assert the authoritative cast pose for the wind-up (or a brief window for
+    // instant abilities).
     this.animOneShots.set(sessionId, {
-      name: ability === 'shockwave' ? 'attack' : 'cast',
+      name: 'cast',
       until: this.simTime + Math.max(config.castTimeMs, INSTANT_ONESHOT_MS),
     });
 
@@ -523,82 +583,68 @@ export class ArenaRoom extends Room<ArenaState> {
         dirZ,
         targetX,
         targetZ,
+        unitTargetId,
         resolveAt: this.simTime + config.castTimeMs,
       });
     } else {
-      this.resolveCast(player, ability, config, dirX, dirZ, targetX, targetZ);
+      this.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId);
     }
   }
 
-  /** Apply an ability's effect. Runs immediately for instant casts, or when a
-   *  pending cast's wind-up elapses. */
+  /**
+   * Apply an ability's effects via the data-driven executor (no per-ability
+   * switch). Runs immediately for instant casts, or when a pending cast's
+   * wind-up elapses.
+   */
   private resolveCast(
     player: Player,
-    ability: AbilityKind,
-    config: AbilityConfig,
+    config: AbilityDef,
     dirX: number,
     dirZ: number,
     targetX?: number,
     targetZ?: number,
+    unitTargetId?: string,
   ): void {
-    switch (ability) {
-      case 'fireball':
-      case 'arcane_bolt':
-        this.spawnProjectile(player, ability, config, dirX, dirZ);
-        break;
-      case 'heal': {
-        const healed = applyHeal(player, config.healAmount ?? 0);
-        if (healed > 0) {
-          this.broadcast(ServerMessage.Heal, { to: player.sessionId, amount: healed });
-        }
-        break;
-      }
-      case 'frost_nova':
-      case 'shockwave':
-        // Point-blank burst around the caster.
-        this.applyAoeDamage(player.x, player.z, config.aoeRadius ?? 4, config.damage, player.sessionId);
-        break;
-      case 'arcane_blast': {
-        // Burst at the clicked point (falls back to a point ahead if untargeted).
-        const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-        const ix = targetX ?? clamp(player.x + dirX * config.range, -limit, limit);
-        const iz = targetZ ?? clamp(player.z + dirZ * config.range, -limit, limit);
-        this.applyAoeDamage(ix, iz, config.aoeRadius ?? 3, config.damage, player.sessionId);
-        break;
-      }
-    }
+    const unitTarget = unitTargetId ? this.state.players.get(unitTargetId) : undefined;
+    const ctx: CastContext = { caster: player, dirX, dirZ, targetX, targetZ, unitTarget };
+    runCast(config.effects, ctx, this.effectRuntime);
   }
 
-  /** Damage every living player (except `exceptId`) within `radius` of (x, z). */
-  private applyAoeDamage(
+  /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x, z).
+   *  The single AoE target-selection used by the effect executor. */
+  private forEachEnemyInRadius(
     x: number,
     z: number,
     radius: number,
-    damage: number,
     exceptId: string,
+    fn: (target: Player) => void,
   ): void {
-    if (damage <= 0) return;
     const hitSq = (radius + PLAYER_RADIUS) * (radius + PLAYER_RADIUS);
     this.state.players.forEach((target, id) => {
       if (id === exceptId || !target.alive) return;
       const dx = target.x - x;
       const dz = target.z - z;
-      if (dx * dx + dz * dz <= hitSq) this.dealDamage(target, damage, exceptId);
+      if (dx * dx + dz * dz <= hitSq) fn(target);
     });
   }
 
+  /** Spawn an ability projectile carrying its `onHit` effects (run by the
+   *  executor against whoever it collides with). */
   private spawnProjectile(
     owner: Player,
-    ability: AbilityKind,
-    config: (typeof ABILITIES)[AbilityKind],
+    vfx: string,
     dirX: number,
     dirZ: number,
+    speed: number,
+    range: number,
+    radius: number,
+    onHit: LeafEffect[],
   ): void {
     const id = `p${this.projectileSeq++}`;
     const projectile = new Projectile();
     projectile.id = id;
     projectile.ownerId = owner.sessionId;
-    projectile.ability = ability;
+    projectile.ability = vfx;
     // Start just in front of the caster so it doesn't immediately self-collide.
     projectile.x = owner.x + dirX * (PLAYER_RADIUS + 0.3);
     projectile.z = owner.z + dirZ * (PLAYER_RADIUS + 0.3);
@@ -607,13 +653,14 @@ export class ArenaRoom extends Room<ArenaState> {
 
     this.projectileMeta.set(id, {
       ownerId: owner.sessionId,
-      ability,
+      ability: vfx,
       dirX,
       dirZ,
-      speed: config.projectileSpeed ?? 15,
-      range: config.projectileRange ?? 25,
-      radius: config.projectileRadius ?? 0.6,
-      damage: config.damage,
+      speed,
+      range,
+      radius,
+      damage: 0,
+      onHit,
       traveled: 0,
       spawnedAt: this.simTime,
     });
@@ -641,17 +688,20 @@ export class ArenaRoom extends Room<ArenaState> {
     if (dist > 1e-3) attacker.rotation = Math.atan2(ndx, ndz);
 
     if (dist > cfg.range) {
-      // Chase: walk toward the target, stopping right at attack range.
+      // Chase: walk toward the target, stopping right at attack range (slows/
+      // hastes scale the chase speed, same as locomotion).
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const step = Math.min(this.walkSpeedFor(attacker.characterClass) * dt, dist - cfg.range + 0.01);
+      const speed = this.walkSpeedFor(attacker.characterClass) * moveSpeedMultiplier(attacker);
+      const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
       attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
       return;
     }
 
-    // In range: strike when the attack timer is ready.
+    // In range: strike when the attack timer is ready (attack-speed buffs shorten
+    // the interval).
     if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
-    this.attackReadyAt.set(sessionId, this.simTime + cfg.cooldownMs);
+    this.attackReadyAt.set(sessionId, this.simTime + cfg.cooldownMs / attackSpeedMultiplier(attacker));
     this.animOneShots.set(sessionId, {
       name: 'attack',
       until: this.simTime + Math.min(cfg.cooldownMs, 400),
@@ -694,10 +744,23 @@ export class ArenaRoom extends Room<ArenaState> {
     });
   }
 
-  /** Resolve a hit on a player: apply the damage via the combat core, broadcast
-   *  the result, and schedule respawn on a kill. */
+  /** Resolve a hit on a player: scale by vulnerability, drain any absorb shield,
+   *  apply the remainder via the combat core, broadcast, and schedule respawn on
+   *  a kill. */
   private dealDamage(target: Player, amount: number, fromId: string): void {
-    const { applied, lethal } = applyDamage(target, amount);
+    if (!target.alive || amount <= 0) return;
+    // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
+    let incoming = amount * damageTakenMultiplier(target);
+    if (target.shield > 0) {
+      const absorbed = Math.min(target.shield, incoming);
+      target.shield -= absorbed;
+      incoming -= absorbed;
+      // Keep the shield status' lifetime in sync so it expires when emptied.
+      if (target.shield <= 0) this.removeStatuses(target, 'shield');
+    }
+    if (incoming <= 0) return;
+
+    const { applied, lethal } = applyDamage(target, incoming);
     if (applied <= 0) return;
 
     this.broadcast(ServerMessage.Damage, {
@@ -744,6 +807,96 @@ export class ArenaRoom extends Room<ArenaState> {
     }
   }
 
+  // --- Effect runtime (the executor's hooks into the world) --------------
+
+  /** Heal a target and broadcast the healing feedback. */
+  private healTarget(target: Player, amount: number): void {
+    const healed = applyHeal(target, amount);
+    if (healed > 0) this.broadcast(ServerMessage.Heal, { to: target.sessionId, amount: healed });
+  }
+
+  /** Grant (or refresh) an absorb shield. Last shield wins — simple and enough
+   *  for the current kits; a stacking model can come later. */
+  private addShield(target: Player, amount: number, durationMs: number, fromId: string): void {
+    if (amount <= 0 || !target.alive) return;
+    this.removeStatuses(target, 'shield');
+    target.shield = amount;
+    this.applyStatus(target, { kind: 'shield', durationMs, magnitude: amount }, fromId);
+  }
+
+  /** Apply (or refresh) a status on a target. A new status of the same kind
+   *  replaces the old one (re-applying refreshes its duration). */
+  private applyStatus(target: Player, spec: StatusSpec, fromId: string): void {
+    if (!target.alive || spec.durationMs <= 0) return;
+    this.removeStatuses(target, spec.kind);
+    const s = new StatusEffect();
+    s.kind = spec.kind;
+    s.expiresAt = this.simTime + spec.durationMs;
+    s.magnitude = spec.magnitude ?? 0;
+    s.tickMs = spec.tickMs ?? 0;
+    s.tickAmount = spec.tickAmount ?? 0;
+    s.nextTickAt = spec.tickMs ? this.simTime + spec.tickMs : 0;
+    s.sourceId = fromId;
+    target.statuses.push(s);
+    // A stun/root cancels in-progress movement so it reads as a hard stop.
+    if (spec.kind === 'stun' || spec.kind === 'root') this.destinations.delete(target.sessionId);
+    if (spec.kind === 'stun') this.attackTargets.delete(target.sessionId);
+  }
+
+  /** Drop every active status of `kind` from a target. */
+  private removeStatuses(target: Player, kind: StatusEffect['kind']): void {
+    for (let i = target.statuses.length - 1; i >= 0; i--) {
+      if (target.statuses[i]?.kind === kind) target.statuses.splice(i, 1);
+    }
+  }
+
+  /** Begin a forced displacement (dash / knockback): a constant-velocity slide
+   *  for `distance / speed` seconds that overrides locomotion while active. */
+  private displace(entity: Player, dirX: number, dirZ: number, distance: number, speed: number): void {
+    if (speed <= 0 || distance <= 0) return;
+    const len = Math.hypot(dirX, dirZ) || 1;
+    this.displacements.set(entity.sessionId, {
+      vx: (dirX / len) * speed,
+      vz: (dirZ / len) * speed,
+      until: this.simTime + (distance / speed) * 1000,
+    });
+    // A displacement overrides a pending move order.
+    this.destinations.delete(entity.sessionId);
+  }
+
+  /** Per-tick status processing: prune expired statuses, tick dot/hot, and clear
+   *  an emptied shield. Runs once per living player each tick. */
+  private updateStatuses(player: Player): void {
+    const list = player.statuses;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      if (!s) continue;
+      if (this.simTime >= s.expiresAt) {
+        if (s.kind === 'shield') player.shield = 0;
+        list.splice(i, 1);
+        continue;
+      }
+      if ((s.kind === 'dot' || s.kind === 'hot') && s.tickMs > 0 && this.simTime >= s.nextTickAt) {
+        if (s.kind === 'dot') this.dealDamage(player, s.tickAmount, s.sourceId);
+        else this.healTarget(player, s.tickAmount);
+        s.nextTickAt += s.tickMs;
+      }
+    }
+  }
+
+  /** The executor's view of the world — every ability side effect funnels
+   *  through these hooks (declared once; abilities never touch this). */
+  private readonly effectRuntime: EffectRuntime = {
+    dealDamage: (t, a, f) => this.dealDamage(t, a, f),
+    heal: (t, a) => this.healTarget(t, a),
+    addShield: (t, a, d, f) => this.addShield(t, a, d, f),
+    applyStatus: (t, s, f) => this.applyStatus(t, s, f),
+    displace: (e, dx, dz, dist, sp) => this.displace(e, dx, dz, dist, sp),
+    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh) =>
+      this.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
+    forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
+  };
+
   /** Combined live kills for a team (the team-aggregate win metric). */
   private teamKills(team: Team): number {
     let total = 0;
@@ -789,6 +942,9 @@ export class ArenaRoom extends Room<ArenaState> {
         this.pendingCasts.delete(sessionId);
         this.animOneShots.delete(sessionId);
         this.attackTargets.delete(sessionId);
+        this.displacements.delete(sessionId);
+        if (player.statuses.length > 0) player.statuses.clear();
+        player.shield = 0;
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -800,39 +956,58 @@ export class ArenaRoom extends Room<ArenaState> {
       }
 
       regenMana(player, MANA_REGEN, dt);
+      // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
+      this.updateStatuses(player);
 
       // Capture pre-move position to derive locomotion (run vs idle) below.
       const startX = player.x;
       const startZ = player.z;
 
       const m = this.movement;
+
+      // Forced displacement (dash / knockback) overrides locomotion while active.
+      const disp = this.displacements.get(sessionId);
+      const displacing = !!disp && this.simTime < disp.until;
+      if (disp && !displacing) this.displacements.delete(sessionId);
+
+      // Resolve a finished wind-up before this tick's movement decision.
       const pending = this.pendingCasts.get(sessionId);
-      if (pending) {
-        // Rooted wind-up: resolve when the timer elapses, no movement meanwhile.
-        if (this.simTime >= pending.resolveAt) {
-          this.resolveCast(
-            player,
-            pending.ability,
-            pending.config,
-            pending.dirX,
-            pending.dirZ,
-            pending.targetX,
-            pending.targetZ,
-          );
-          this.pendingCasts.delete(sessionId);
-        }
+      if (pending && this.simTime >= pending.resolveAt) {
+        this.resolveCast(
+          player,
+          pending.config,
+          pending.dirX,
+          pending.dirZ,
+          pending.targetX,
+          pending.targetZ,
+          pending.unitTargetId,
+        );
+        this.pendingCasts.delete(sessionId);
+      }
+
+      if (displacing && disp) {
+        // Slide along the displacement velocity (clamped to the arena).
+        player.x = clamp(player.x + disp.vx * dt, -limit, limit);
+        player.z = clamp(player.z + disp.vz * dt, -limit, limit);
+      } else if (pending) {
+        // Rooted wind-up: no movement while casting.
+      } else if (isStunned(player) || isRooted(player)) {
+        // Hard CC: no movement. A stun also drops the move order and auto-attack.
+        this.destinations.delete(sessionId);
+        if (isStunned(player)) this.attackTargets.delete(sessionId);
       } else if (this.attackTargets.has(sessionId)) {
         // Auto-attack: chase the target into range, then strike on a timer.
         this.updateAutoAttack(player, sessionId, dt);
       } else {
         // Point-and-click movement: the shared deterministic step (also run by
         // the client predictor) walks toward the destination and slides around
-        // obstacles, so client and server stay in lockstep.
+        // obstacles, so client and server stay in lockstep. Slows/hastes scale
+        // the walk speed.
         const result = stepLocomotion(
           { x: player.x, z: player.z, rotation: player.rotation },
           this.destinations.get(sessionId) ?? null,
           {
-            speed: this.walkSpeedFor(player.characterClass),
+            speed: this.walkSpeedFor(player.characterClass) * moveSpeedMultiplier(player),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
@@ -925,7 +1100,21 @@ export class ArenaRoom extends Room<ArenaState> {
       });
       if (hitId) {
         const target = this.state.players.get(hitId);
-        if (target) this.dealDamage(target, meta.damage, meta.ownerId);
+        const owner = this.state.players.get(meta.ownerId);
+        if (target) {
+          if (meta.onHit && owner) {
+            // Ability projectile: run its composable on-hit effects (damage +
+            // any status/knockback) against the player it struck.
+            runCast(
+              meta.onHit,
+              { caster: owner, dirX: meta.dirX, dirZ: meta.dirZ, unitTarget: target },
+              this.effectRuntime,
+            );
+          } else {
+            // Auto-attack projectile: a plain direct hit.
+            this.dealDamage(target, meta.damage, meta.ownerId);
+          }
+        }
         expired.push(id);
       }
     });
@@ -958,6 +1147,9 @@ export class ArenaRoom extends Room<ArenaState> {
     const stats = this.classStats[player.characterClass as CharacterClass];
     player.maxHp = stats.health;
     player.maxMana = stats.mana;
+    player.shield = 0;
+    if (player.statuses.length > 0) player.statuses.clear();
+    this.displacements.delete(player.sessionId);
     reviveFull(player);
   }
 }

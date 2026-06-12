@@ -21,6 +21,7 @@ import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
+import { StatusIndicators } from './StatusIndicators';
 import { CursorTracker } from './CursorTracker';
 import { DestinationMarker } from './DestinationMarker';
 import { ArenaLights } from './ArenaLights';
@@ -156,6 +157,7 @@ export function GameScene() {
       {isArena && (
         <>
           <Projectiles />
+          <StatusIndicators />
           <FloatingCombatText />
         </>
       )}

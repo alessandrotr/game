@@ -1,5 +1,27 @@
-import { Schema, MapSchema, type } from '@colyseus/schema';
-import { PLAYER_MAX_HP, PLAYER_MAX_MANA } from '@arena/shared';
+import { Schema, MapSchema, ArraySchema, type } from '@colyseus/schema';
+import { PLAYER_MAX_HP, PLAYER_MAX_MANA, type StatusKind } from '@arena/shared';
+
+/**
+ * One active status effect on a player (crowd control / buff / debuff / dot-hot
+ * / shield-lifetime). Replicated so every client can render over-head
+ * indicators without a bespoke message. Mirrors `StatusView` in `@arena/shared`.
+ */
+export class StatusEffect extends Schema {
+  /** Stored as a string for replication; it's a `StatusKind` by construction. */
+  @type('string') kind: StatusKind = 'stun';
+  /** Sim-time (ms) the status ends. The server prunes it past this. */
+  @type('number') expiresAt = 0;
+  /** Stat scalar (slow/haste/attack_speed/damage_amp) or shield absorb; 0 if unused. */
+  @type('number') magnitude = 0;
+  /** Sim-time (ms) of the next dot/hot tick; 0 for non-ticking statuses. */
+  @type('number') nextTickAt = 0;
+  /** HP changed per tick for dot/hot. */
+  @type('number') tickAmount = 0;
+  /** Tick interval (ms) for dot/hot. */
+  @type('number') tickMs = 0;
+  /** Session id of the applier ('' if environmental). */
+  @type('string') sourceId = '';
+}
 
 /**
  * Authoritative per-player state. Field order and types must stay in sync with
@@ -16,7 +38,11 @@ export class Player extends Schema {
   @type('number') maxHp = PLAYER_MAX_HP;
   @type('number') mana = PLAYER_MAX_MANA;
   @type('number') maxMana = PLAYER_MAX_MANA;
+  /** Remaining absorb shield (drained before HP). Mirrors `PlayerView.shield`. */
+  @type('number') shield = 0;
   @type('boolean') alive = true;
+  /** Active status effects (CC / buffs / debuffs / dot-hot). */
+  @type([StatusEffect]) statuses = new ArraySchema<StatusEffect>();
   /** Playable class id; the client maps this to a character asset. */
   @type('string') characterClass = 'warrior';
   /** Optional skin asset id layered on top of the class appearance. */

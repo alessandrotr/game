@@ -10,6 +10,7 @@ import {
 import { useGameStore } from '../store/useGameStore';
 import { cooldownRemaining } from '../store/abilityCooldowns';
 import { ABILITY_ICON } from './abilityIcons';
+import { AbilityHover } from './AbilityTooltipCard';
 
 /** The mutable DOM handles a slot exposes so the rAF loop can update it without React. */
 interface SlotEls {
@@ -169,22 +170,27 @@ function Slot({
 
   const Icon = ABILITY_ICON[ability];
   return (
-    <div
-      ref={root}
-      className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-accent/30 bg-panel/80"
-    >
-      <Icon ref={icon} size={26} aria-hidden="true" className="text-accent" />
-      {/* Cooldown sweep (covers from the top, shrinking as it readies). */}
-      <div ref={sweep} className="absolute inset-x-0 top-0 bg-black/65" style={{ display: 'none' }} />
-      {/* Cast-time fill (rises from the bottom during a channel). */}
-      <div ref={cast} className="absolute inset-x-0 bottom-0 bg-cast/45" style={{ display: 'none' }} />
-      {/* Cooldown seconds remaining. */}
-      <span
-        ref={secs}
-        className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white tabular-nums"
-        style={{ display: 'none' }}
-      />
-      <span className="absolute bottom-0.5 right-1 text-[10px] font-bold text-white/80">{slot}</span>
-    </div>
+    // Portal-based tooltip on hover (never clipped by the HUD); pointer-events
+    // re-enabled so the otherwise pass-through bar receives the hover.
+    <AbilityHover ability={ability} slot={slot} className="pointer-events-auto relative">
+      <div
+        ref={root}
+        className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-accent/30 bg-panel/80"
+      >
+        <Icon ref={icon} size={26} aria-hidden="true" className="text-accent" />
+        {/* Cooldown sweep (covers from the top, shrinking as it readies). */}
+        <div ref={sweep} className="absolute inset-x-0 top-0 bg-black/65" style={{ display: 'none' }} />
+        {/* Cast-time fill (rises from the bottom during a channel). */}
+        <div ref={cast} className="absolute inset-x-0 bottom-0 bg-cast/45" style={{ display: 'none' }} />
+        {/* Cooldown seconds remaining. */}
+        <span
+          ref={secs}
+          className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white tabular-nums"
+          style={{ display: 'none' }}
+        />
+        <span className="absolute bottom-0.5 right-1 text-[10px] font-bold text-white/80">{slot}</span>
+      </div>
+    </AbilityHover>
   );
 }
+

@@ -323,6 +323,14 @@ export const LOBBY_NAME_MAX_LENGTH = 32;
 export const MAX_LOBBIES = 50;
 
 /**
+ * WebSocket close code the server uses when a newer session for the same account
+ * supersedes this connection ("newest wins"). In the app-defined range (≥4000)
+ * so the client can recognise it and show a friendly notice instead of a generic
+ * disconnect.
+ */
+export const SESSION_SUPERSEDED_CODE = 4001;
+
+/**
  * Per-team arena spawn anchors, one cluster per side (blue at +Z, red at −Z),
  * each fanning out to five points so a full 5v5 doesn't stack. The server jitters
  * and obstacle-resolves these, so they only need to be roughly on their side and
@@ -400,153 +408,35 @@ export const CLICK_ROTATION_SPEED = 10;
 /** Mouse-move: cursor distance (world units) beyond which the player sprints. */
 export const CLICK_SPRINT_THRESHOLD = 1.5;
 
-/** The abilities players can cast. */
-export type AbilityKind =
-  | 'fireball'
-  | 'heal'
-  | 'frost_nova'
-  | 'shockwave'
-  | 'arcane_bolt'
-  | 'arcane_blast';
-
-export const ABILITY_KINDS: readonly AbilityKind[] = [
-  'fireball',
-  'heal',
-  'frost_nova',
-  'shockwave',
-  'arcane_bolt',
-  'arcane_blast',
-];
-
-export function isAbilityKind(value: unknown): value is AbilityKind {
-  return typeof value === 'string' && (ABILITY_KINDS as readonly string[]).includes(value);
-}
-
-/** Authoritative balance values for one ability (server is the source of truth). */
-export interface AbilityConfig {
-  /** Cooldown between casts, in milliseconds. */
-  cooldownMs: number;
-  /** Mana spent per cast. */
-  manaCost: number;
-  /**
-   * Wind-up before the effect resolves, in milliseconds. While casting, the
-   * player is rooted; the effect is applied when the timer elapses. `0` resolves
-   * instantly on the same tick the cast is requested.
-   */
-  castTimeMs: number;
-  /**
-   * Effective reach in world units (projectile travel, dash distance, or 0 for
-   * self-targeted). Used for UI display and range-based decisions.
-   */
-  range: number;
-  /** Damage dealt on hit (0 for non-damaging abilities). */
-  damage: number;
-  /** Projectile travel speed, world units/second (projectile abilities). */
-  projectileSpeed?: number;
-  /** Maximum projectile travel distance (projectile abilities). */
-  projectileRange?: number;
-  /** Projectile collision radius (projectile abilities). */
-  projectileRadius?: number;
-  /** Health restored (heal abilities). */
-  healAmount?: number;
-  /** Area-of-effect radius (frost nova around the caster, blast at impact). */
-  aoeRadius?: number;
-  /**
-   * How the ability is aimed (LoL-style). Omitted = instant self/point-blank
-   * cast (heal, novas). `'direction'` = a skillshot aimed along the cursor
-   * (projectiles). `'point'` = a ground-targeted spot under the cursor (blast).
-   * Aimed abilities hold-to-aim with a ground indicator and fire on release.
-   */
-  aim?: 'direction' | 'point';
-}
-
-export const ABILITIES: Record<AbilityKind, AbilityConfig> = {
-  fireball: {
-    cooldownMs: 1500,
-    manaCost: 20,
-    castTimeMs: 0,
-    range: 30,
-    damage: 30,
-    projectileSpeed: 25,
-    projectileRange: 20,
-    projectileRadius: 0.8,
-    aim: 'direction',
-  },
-  shockwave: {
-    // Instant burst around the caster — damages every enemy within `aoeRadius`.
-    cooldownMs: 6000,
-    manaCost: 25,
-    castTimeMs: 0,
-    range: 5,
-    damage: 24,
-    aoeRadius: 5,
-  },
-  heal: {
-    // A short channel — proves the cast-time machinery (rooted wind-up, cast
-    // bar) end to end; the other abilities resolve instantly (castTimeMs: 0).
-    cooldownMs: 10000,
-    manaCost: 40,
-    castTimeMs: 600,
-    range: 0,
-    damage: 0,
-    healAmount: 40,
-  },
-  // --- Mage kit (Phase 6) ---
-  frost_nova: {
-    // Instant point-blank burst: damages every enemy within `aoeRadius`.
-    cooldownMs: 5000,
-    manaCost: 30,
-    castTimeMs: 0,
-    range: 5,
-    damage: 22,
-    aoeRadius: 5,
-  },
-  arcane_bolt: {
-    // A second projectile — longer range and faster than the fireball.
-    cooldownMs: 3000,
-    manaCost: 22,
-    castTimeMs: 0,
-    range: 40,
-    damage: 24,
-    projectileSpeed: 25,
-    projectileRange: 20,
-    projectileRadius: 0.6,
-    aim: 'direction',
-  },
-  arcane_blast: {
-    // Ground-targeted: the player aims a spot under the cursor, and a heavy burst
-    // lands there (clamped to `range` from the caster).
-    cooldownMs: 9000,
-    manaCost: 50,
-    castTimeMs: 0,
-    range: 16,
-    damage: 55,
-    aoeRadius: 4,
-    aim: 'point',
-  },
-};
-
 // ---------------------------------------------------------------------------
-// Ability slots & per-class loadouts — the QWER input contract.
+// Abilities — the system now lives in `./abilities/`. The composable effect
+// vocabulary + ability shape are in `abilities/effects.ts`; the catalog, ids,
+// slots and per-class loadouts are in `abilities/registry.ts`. Re-exported here
+// so existing imports (`@arena/shared`) keep resolving these names unchanged.
 // ---------------------------------------------------------------------------
 
-/** The four MOBA ability input slots. */
-export type AbilitySlot = 'Q' | 'W' | 'E' | 'R';
+export type {
+  AbilityAim,
+  AbilityConfig,
+  AbilityDef,
+  Effect,
+  LeafEffect,
+  StatusKind,
+  StatusSpec,
+} from './abilities/effects.js';
+export { STATUS_KINDS } from './abilities/effects.js';
+export type { AbilityTooltip } from './abilities/describe.js';
+export { describeAbility } from './abilities/describe.js';
 
-export const ABILITY_SLOTS: readonly AbilitySlot[] = ['Q', 'W', 'E', 'R'];
-
-/**
- * Which ability each class binds to each QWER slot. Empty slots (e.g. `R`) are
- * intentionally unbound until per-class kits land — the action bar renders them
- * as disabled. Data-driven so a class kit is a single edit here.
- */
-export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, AbilityKind>>> = {
-  warrior: { Q: 'fireball', W: 'shockwave', E: 'heal' },
-  // Phase 6: the Mage is the first fully-realized kit.
-  mage: { Q: 'fireball', W: 'frost_nova', E: 'arcane_bolt', R: 'arcane_blast' },
-  archer: { Q: 'fireball', W: 'shockwave', E: 'heal' },
-  priest: { Q: 'fireball', W: 'shockwave', E: 'heal' },
-};
+export type { AbilityId, AbilityKind, AbilitySlot } from './abilities/registry.js';
+export {
+  ABILITIES,
+  ABILITY_KINDS,
+  ABILITY_REGISTRY,
+  ABILITY_SLOTS,
+  CLASS_LOADOUTS,
+  isAbilityKind,
+} from './abilities/registry.js';
 
 // ---------------------------------------------------------------------------
 // Auto-attacks — click an enemy to attack-move and strike on a timer.

@@ -111,6 +111,8 @@ export interface ClientMessagePayloads {
     /** Ground-target point (ground-targeted abilities only). */
     tx?: number;
     tz?: number;
+    /** Locked target's session id (unit-targeted abilities only). */
+    targetId?: string;
   };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.Chat]: { text: string };
@@ -153,6 +155,8 @@ export interface ServerMessagePayloads {
     /** Resolved impact point for ground-targeted abilities (else absent). */
     tx?: number;
     tz?: number;
+    /** Locked target's session id for unit-targeted abilities (else absent). */
+    targetId?: string;
   };
   [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean };
   [ServerMessage.Heal]: { to: string; amount: number };

@@ -1,16 +1,64 @@
-import { Flame, HeartPulse, Snowflake, Sparkles, Waves, Zap, type LucideIcon } from 'lucide-react';
-import type { AbilityKind } from '@arena/shared';
+import {
+  Bomb,
+  Crosshair,
+  Flame,
+  Footprints,
+  Heart,
+  HeartPulse,
+  Shield,
+  Skull,
+  Snail,
+  Snowflake,
+  Sparkles,
+  Sun,
+  Swords,
+  Target,
+  Waves,
+  Wind,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
+import { ABILITIES, type AbilityKind } from '@arena/shared';
 
 /**
- * Placeholder ability glyphs, shared by the action bar and the character-select
- * panel so an ability reads the same in combat and on the select screen. Swap
- * for real art (a reserved `iconUrl`) in one place when it lands.
+ * Lucide glyphs by name. Each ability declares its `icon` (a key here) in the
+ * registry, so adding an ability needs no edit here unless it introduces a new
+ * glyph — add that one line and you're done. Shared by the action bar and the
+ * character-select panel so an ability reads the same everywhere.
  */
-export const ABILITY_ICON: Record<AbilityKind, LucideIcon> = {
-  fireball: Flame,
-  heal: HeartPulse,
-  frost_nova: Snowflake,
-  shockwave: Waves,
-  arcane_bolt: Zap,
-  arcane_blast: Sparkles,
+const ICON_BY_NAME: Record<string, LucideIcon> = {
+  Flame,
+  HeartPulse,
+  Snowflake,
+  Sparkles,
+  Waves,
+  Zap,
+  Swords,
+  Wind,
+  Shield,
+  Bomb,
+  Crosshair,
+  Snail,
+  Footprints,
+  Target,
+  Sun,
+  Heart,
+  Skull,
 };
+
+/** A safe fallback when an ability's icon name isn't mapped yet. */
+const FALLBACK_ICON: LucideIcon = Sparkles;
+
+/** Resolve the glyph for an ability via its registry `icon` name. */
+export function abilityIcon(kind: AbilityKind): LucideIcon {
+  return ICON_BY_NAME[ABILITIES[kind]?.icon ?? ''] ?? FALLBACK_ICON;
+}
+
+/**
+ * Back-compat icon map keyed by ability id (built from the registry). Existing
+ * consumers (`ABILITY_ICON[kind]`) keep working; new abilities appear here
+ * automatically.
+ */
+export const ABILITY_ICON: Record<AbilityKind, LucideIcon> = Object.fromEntries(
+  (Object.keys(ABILITIES) as AbilityKind[]).map((kind) => [kind, abilityIcon(kind)]),
+) as Record<AbilityKind, LucideIcon>;

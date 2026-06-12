@@ -52,7 +52,46 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const rotation = local.active ? local.rotation : 0;
       sendCast(ability, Math.sin(rotation), Math.cos(rotation));
       triggerCooldown(ability, config.cooldownMs);
-      pushAnimationEvent(fromId, ability === 'shockwave' ? 'attack' : 'cast');
+      pushAnimationEvent(fromId, 'cast');
+    };
+
+    /** Nearest living player to the cursor (within a small pick radius), for
+     *  unit-targeted abilities. Includes yourself (so a friendly cast can target
+     *  self by hovering over your own character). */
+    const pickUnitTarget = (): { id: string; x: number; z: number } | null => {
+      const cur = getCursorGround();
+      const { players } = useGameStore.getState();
+      let best: { id: string; x: number; z: number } | null = null;
+      let bestD = 2.5 * 2.5; // pick radius²
+      players.forEach((p, id) => {
+        if (!p.alive) return;
+        const d = (p.x - cur.x) * (p.x - cur.x) + (p.z - cur.z) * (p.z - cur.z);
+        if (d < bestD) {
+          bestD = d;
+          best = { id, x: p.x, z: p.z };
+        }
+      });
+      return best;
+    };
+
+    /** Cast a unit-targeted ability at the player under the cursor (server
+     *  validates range and falls back to self when no valid target). */
+    const castUnit = (ability: AbilityKind, fromId: string) => {
+      const config = ABILITIES[ability];
+      const target = pickUnitTarget();
+      const me = getLocalRenderTransform();
+      let dx = 0;
+      let dz = 1;
+      if (target) {
+        dx = target.x - me.x;
+        dz = target.z - me.z;
+        const len = Math.hypot(dx, dz) || 1;
+        dx /= len;
+        dz /= len;
+      }
+      sendCast(ability, dx, dz, undefined, undefined, target?.id);
+      triggerCooldown(ability, config.cooldownMs);
+      pushAnimationEvent(fromId, 'cast');
     };
 
     /** Fire an aimed ability toward the cursor (called on key release). */
@@ -99,11 +138,15 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const config = ABILITIES[ability];
       if (isOnCooldown(ability) || me.mana < config.manaCost) return;
 
-      if (config.aim) {
+      if (config.aim === 'direction' || config.aim === 'point') {
         // Hold to aim; the matching keyup fires toward the cursor.
         useAbilityTargeting.getState().begin(ability);
         aimingCode.current = e.code;
+      } else if (config.aim === 'unit') {
+        // Instant cast on the player under the cursor.
+        castUnit(ability, me.sessionId);
       } else {
+        // 'self' / unspecified: instant self / point-blank cast.
         castInstant(ability, me.sessionId);
       }
     };

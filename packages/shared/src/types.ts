@@ -6,6 +6,21 @@
 
 import type { AnimationName, CharacterClass } from './assets.js';
 import type { LobbyMode, Team } from './constants.js';
+import type { StatusKind } from './abilities/effects.js';
+
+/** Replicated active status effect. Mirrors `StatusEffect` in the server schema. */
+export interface StatusView {
+  /** What the status does (crowd control / buff / debuff / dot-hot / shield). */
+  kind: StatusKind;
+  /** Sim-time (ms) the status ends — the client can render a countdown. */
+  expiresAt: number;
+  /** Stat scalar (slow/haste/attack_speed/damage_amp) or shield absorb; 0 if unused. */
+  magnitude: number;
+  /** Sim-time (ms) of the next dot/hot tick; 0 for non-ticking statuses. */
+  nextTickAt: number;
+  /** Session id of the player who applied it ('' if environmental). */
+  sourceId: string;
+}
 
 /** Replicated per-player state. Mirrors `Player` in the server schema. */
 export interface PlayerView {
@@ -21,6 +36,8 @@ export interface PlayerView {
   maxHp: number;
   mana: number;
   maxMana: number;
+  /** Remaining absorb shield (drained before HP). Drives the shield bubble VFX. */
+  shield: number;
   alive: boolean;
   /** Playable class — drives which character asset the client renders. */
   characterClass: CharacterClass;
@@ -37,6 +54,8 @@ export interface PlayerView {
   xp: number;
   kills: number;
   deaths: number;
+  /** Active status effects (CC / buffs / debuffs). Drives over-head indicators. */
+  statuses: StatusView[];
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */

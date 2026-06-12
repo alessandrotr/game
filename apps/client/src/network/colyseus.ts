@@ -3,6 +3,7 @@ import {
   ABILITIES,
   ARENA_ROOM,
   MATCHMAKING_ROOM,
+  SESSION_SUPERSEDED_CODE,
   TOWN_ROOM,
   ClientMessage,
   ServerMessage,
@@ -63,6 +64,12 @@ const ENDPOINT = (import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567').repl
 let client: Client | null = null;
 let room: Room | null = null;
 
+/** A per-tab session key (stable for this page load, unique per tab). Sent with
+ *  every join so the server can enforce one play session per account — a newer
+ *  tab supersedes an older one ("newest wins"). */
+const TAB_SESSION =
+  globalThis.crypto?.randomUUID?.() ?? `tab_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+
 function snapshotState(state: RawState): {
   players: Map<string, PlayerView>;
   projectiles: Map<string, ProjectileView>;
@@ -80,6 +87,7 @@ function snapshotState(state: RawState): {
       maxHp: player.maxHp,
       mana: player.mana,
       maxMana: player.maxMana,
+      shield: player.shield,
       alive: player.alive,
       characterClass: player.characterClass,
       skinId: player.skinId,
@@ -90,6 +98,14 @@ function snapshotState(state: RawState): {
       kills: player.kills,
       deaths: player.deaths,
       team: player.team,
+      // Copy into a plain array (decouple from the live ArraySchema).
+      statuses: player.statuses.map((s) => ({
+        kind: s.kind,
+        expiresAt: s.expiresAt,
+        magnitude: s.magnitude,
+        nextTickAt: s.nextTickAt,
+        sourceId: s.sourceId,
+      })),
     });
   });
 
@@ -112,34 +128,23 @@ function snapshotState(state: RawState): {
  *  animation event for the caster (so local and remote players animate alike). */
 function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): void {
   const spawn = useEffectsStore.getState().spawn;
-  switch (msg.ability) {
-    case 'fireball':
-      // The traveling projectile is replicated; show a muzzle flash at the caster.
-      spawn('vfx.cast', [msg.x, msg.y, msg.z], [msg.dirX, 0, msg.dirZ]);
-      break;
-    case 'heal':
-      spawn('vfx.heal', [msg.x, 0.1, msg.z], [0, 0, 1]);
-      break;
-    case 'arcane_bolt':
-      // Long-range bolt: replicated projectile + a muzzle flash at the caster.
-      spawn('vfx.cast', [msg.x, msg.y, msg.z], [msg.dirX, 0, msg.dirZ]);
-      break;
-    case 'shockwave':
-      spawn('vfx.shockwave', [msg.x, 0.2, msg.z], [0, 0, 1]);
-      break;
-    case 'frost_nova':
-      spawn('vfx.frost', [msg.x, 0.2, msg.z], [0, 0, 1]);
-      break;
-    case 'arcane_blast': {
-      // Burst at the server-resolved impact point (the clicked target).
-      const tx = msg.tx ?? msg.x + msg.dirX * ABILITIES.arcane_blast.range;
-      const tz = msg.tz ?? msg.z + msg.dirZ * ABILITIES.arcane_blast.range;
-      spawn('vfx.arcane_blast', [tx, 0.4, tz], [0, 0, 1]);
-      break;
-    }
+  const def = ABILITIES[msg.ability];
+  // Data-driven VFX: a flash reflecting the dominant effect shape. Projectiles
+  // are replicated separately, so they only get a muzzle flash at the caster.
+  const top = def?.effects[0]?.type;
+  if (msg.ability === 'heal') {
+    spawn('vfx.heal', [msg.x, 0.1, msg.z], [0, 0, 1]);
+  } else if (top === 'aoe' || msg.tx !== undefined) {
+    // Burst at the resolved impact point (ground-target) or the caster (self AoE).
+    const tx = msg.tx ?? msg.x;
+    const tz = msg.tz ?? msg.z;
+    spawn('vfx.arcane_blast', [tx, 0.4, tz], [0, 0, 1]);
+  } else {
+    // Projectiles, dashes, single-target casts: a muzzle flash at the caster.
+    spawn('vfx.cast', [msg.x, msg.y, msg.z], [msg.dirX, 0, msg.dirZ]);
   }
-  // Cast/attack poses are server-authoritative (replicated via `animState`) for
-  // remote players; the local caster predicts its own in the ability hotkey.
+  // Cast poses are server-authoritative (replicated via `animState`) for remote
+  // players; the local caster predicts its own in the ability hotkey.
 }
 
 /** Show a hit spark + damage number at the damaged player, and play a flinch.
@@ -178,6 +183,7 @@ let joinOptions: {
   name: string;
   characterClass: CharacterClass;
   skinId?: string;
+  sessionKey: string;
 } | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
  *  join screen. */
@@ -223,7 +229,7 @@ function wireRoom(joined: Room): void {
     useGameStore.getState().setStatus('error', `Room error ${code}: ${message ?? ''}`.trim());
   });
 
-  joined.onLeave(() => {
+  joined.onLeave((code) => {
     if (traveling) return; // an intentional room switch — keep playing
     room = null;
     disconnectMatchmaking(); // drop the parallel lobby connection too
@@ -231,6 +237,11 @@ function wireRoom(joined: Room): void {
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
+    // Distinguish a deliberate "newest session wins" kick from a random drop so
+    // the join screen explains why, rather than looking like a crash.
+    if (code === SESSION_SUPERSEDED_CODE) {
+      useGameStore.getState().setStatus('error', 'You signed in on another tab or device.');
+    }
   });
 }
 
@@ -375,7 +386,13 @@ export async function connectToRoom(
   skinId?: string,
 ): Promise<void> {
   const { token, username } = useAuthStore.getState();
-  joinOptions = { token: token ?? '', name: username ?? 'Adventurer', characterClass, skinId };
+  joinOptions = {
+    token: token ?? '',
+    name: username ?? 'Adventurer',
+    characterClass,
+    skinId,
+    sessionKey: TAB_SESSION,
+  };
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();
@@ -548,15 +565,17 @@ export function sendAttack(targetId: string): void {
   room?.send(ClientMessage.Attack, { targetId });
 }
 
-/** Request to cast an ability in a direction (with an optional ground target). */
+/** Request to cast an ability in a direction (with an optional ground target or
+ *  locked unit target). */
 export function sendCast(
   ability: AbilityKind,
   dirX: number,
   dirZ: number,
   tx?: number,
   tz?: number,
+  targetId?: string,
 ): void {
-  room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ, tx, tz });
+  room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ, tx, tz, targetId });
 }
 
 /** Send a global chat message to the current room. */

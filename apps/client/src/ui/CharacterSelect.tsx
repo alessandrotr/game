@@ -1,9 +1,10 @@
 import { Heart, Droplet, Wind, Sword, type LucideIcon } from 'lucide-react';
-import { CLASS_LIST, getClassDefinition, type ClassDefinition } from '@arena/shared';
+import { CLASS_LIST, getClassDefinition, type AbilityKind, type ClassDefinition } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { Badge, Card, LevelBadge, Meter } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
+import { AbilityHover } from './AbilityTooltipCard';
 
 /** Comparison stats, in display order: icon + label + normalizing upper bound. */
 const STATS: { stat: keyof ClassDefinition['stats']; label: string; icon: LucideIcon; max: number }[] = [
@@ -68,17 +69,24 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
 
       <SectionLabel>Abilities</SectionLabel>
       <div className="flex flex-wrap gap-2">
-        {def.abilities.map((ability) => {
-          const Icon = ABILITY_ICON[ability];
-          return (
-            <Badge key={ability} variant="gold" className="gap-1.5 normal-case">
-              <Icon size={12} aria-hidden="true" />
-              {titleCase(ability)}
-            </Badge>
-          );
-        })}
+        {def.abilities.map((ability) => (
+          <AbilityBadge key={ability} ability={ability} />
+        ))}
       </div>
     </Card>
+  );
+}
+
+/** An ability chip that reveals its full tooltip (effects + values) on hover. */
+function AbilityBadge({ ability }: { ability: AbilityKind }) {
+  const Icon = ABILITY_ICON[ability];
+  return (
+    <AbilityHover ability={ability}>
+      <Badge variant="gold" className="gap-1.5 normal-case">
+        <Icon size={12} aria-hidden="true" />
+        {titleCase(ability)}
+      </Badge>
+    </AbilityHover>
   );
 }
 

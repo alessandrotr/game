@@ -132,9 +132,11 @@ export const abilityConfigSchema = z
     projectileRadius: num(ABILITY_FIELD_META.projectileRadius).optional(),
     healAmount: num(ABILITY_FIELD_META.healAmount).optional(),
     aoeRadius: num(ABILITY_FIELD_META.aoeRadius).optional(),
-    aim: z.enum(['direction', 'point']).optional(),
+    aim: z.enum(['self', 'direction', 'point', 'unit']).optional(),
   })
-  .strict();
+  // passthrough (not strict): an `AbilityDef` also carries id/name/icon/effects;
+  // this schema validates only the tunable flat fields and ignores the rest.
+  .passthrough();
 
 /** A partial ability config — for per-class overrides and live tuning patches. */
 export const abilityOverrideSchema = abilityConfigSchema.partial();
