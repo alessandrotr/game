@@ -313,13 +313,13 @@ const holyBolt: VfxDescriptor = {
   },
 };
 
-/** Warrior cleave — a quick steel crescent. Shader: BURST_SHADERS. */
+/** Warrior cleave — a steel blade-trail sweeping a full circle. Shader: BURST_SHADERS. */
 const cleave: VfxDescriptor = {
   id: 'vfx.cleave',
   displayName: 'Cleave',
   behavior: 'burst',
-  durationMs: 460,
-  render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [1.5, 0.16, 10, 32], rotation: [Math.PI / 2, 0, 0], color: '#ffe2b0', emissive: '#ff7a1a', emissiveIntensity: 3.2 }] },
+  durationMs: 560,
+  render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [2.8, 0.18, 10, 40], rotation: [Math.PI / 2, 0, 0], color: '#ffe2b0', emissive: '#ff7a1a', emissiveIntensity: 3.2 }] },
 };
 
 /** Warrior ground slam — a heavy dust shockwave. */

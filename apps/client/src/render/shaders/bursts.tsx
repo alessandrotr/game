@@ -138,27 +138,39 @@ const groundSlamFrag = /* glsl */ `
 `;
 export const GroundSlamEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={13} frag={groundSlamFrag} />;
 
-// --- Cleave: a fast steel crescent sweeping in front of the warrior. ---------
+// --- Cleave: a steel blade-trail that sweeps a full circle from the front. ----
 
 const cleaveFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime, uProgress;
   void main(){
+    const float TAU = 6.28318530718;
     vec2 p = vUv - 0.5;
-    float r = length(p) * 2.0;
-    // Angle measured from "forward" (+y of the oriented quad).
-    float a = atan(p.x, p.y);
-    float arc = smoothstep(0.14, 0.0, abs(r - 0.7));        // a thin crescent band
-    float spread = smoothstep(1.1, 0.2, abs(a));            // only in front (~±60°)
-    // The blade sweeps from one side to the other over the cast.
-    float sweep = smoothstep(0.5, 0.0, abs(a - (uProgress - 0.5) * 1.8));
-    float v = arc * spread * (0.4 + 0.6 * sweep);
-    vec3 col = mix(vec3(1.0, 0.55, 0.2), vec3(1.0, 0.95, 0.85), sweep);
-    gl_FragColor = vec4(col * v * 2.2, v * (1.0 - uProgress));
+    float r = length(p) * 2.0;                        // 0 centre → 1 edge
+    // Angle from "forward" (+y of the oriented quad), 0..1 going clockwise:
+    // 0 = front, .25 = right, .5 = behind, .75 = left.
+    float na = fract(atan(p.x, p.y) / TAU + 1.0);
+    // The blade tip sweeps a full turn over the cast, starting in front.
+    float lead = uProgress;
+    float delta = lead - na;                          // >=0 → already carved
+    float swept = step(0.0, delta);
+    // The circular band the sword carves (a ring around the warrior).
+    float band = smoothstep(0.30, 0.0, abs(r - 0.78));
+    // Comet trail: brightest at the tip, fading back along the swept arc.
+    float trail = swept * smoothstep(0.95, 0.0, delta);
+    // Hot leading edge — the steel glint at the blade tip.
+    float tip = smoothstep(0.06, 0.0, abs(delta)) * swept;
+    // Faint full ring so the reach reads even before the sweep reaches it.
+    float ring = band * 0.10;
+    float v = band * (trail * 0.7 + tip * 1.9) + ring;
+    vec3 col = mix(vec3(1.0, 0.45, 0.12), vec3(1.0, 0.97, 0.9), clamp(tip + trail * 0.3, 0.0, 1.0));
+    // Hold, then fade out over the last third of the lifetime.
+    float life = 1.0 - smoothstep(0.65, 1.0, uProgress);
+    gl_FragColor = vec4(col * v * 2.6, v * life);
   }
 `;
-export const CleaveEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={6} frag={cleaveFrag} />;
+export const CleaveEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={8} frag={cleaveFrag} />;
 
 // --- Cast Rune: a quick neutral double-ring + glyph (generic cast flash). -----
 
