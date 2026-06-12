@@ -240,23 +240,53 @@ export const CondemnEffect = (p: BurstShaderProps) => (
   <BillboardBurst {...p} width={2.4} height={3.4} frag={condemnFrag} y={1.5} />
 );
 
-// --- Dash: a directional motion-blur streak (warrior charge / archer tumble).
+// --- Dash: rushing-air streaks behind the dasher (warrior charge / archer tumble).
 
-const dashFrag = /* glsl */ `
+const dashWindFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime, uProgress;
   ${GLSL_NOISE}
   void main(){
     vec2 uv = vUv;
-    // Horizontal streaks that smear along travel, brightest at the trailing edge.
-    float band = smoothstep(0.5, 0.0, abs(uv.y - 0.5));
-    float streak = smoothstep(0.4, 0.9, noise(vec2(uv.x * 3.0 - uTime * 4.0, uv.y * 18.0)));
-    float trail = smoothstep(1.0, 0.0, uv.x);            // fades toward the front
-    float v = band * (0.3 + streak) * trail;
-    vec3 col = mix(vec3(0.7, 0.85, 1.0), vec3(1.0), streak);
-    float fade = 1.0 - uProgress;
-    gl_FragColor = vec4(col * v * 2.0, v * fade);
+    // Body-height band — soft top/bottom so it reads as air at the player's back.
+    float band = smoothstep(0.5, 0.05, abs(uv.y - 0.5));
+    // Crisp horizontal speed-lines scrolling sideways (the rush of air).
+    float lines = smoothstep(0.55, 0.95, noise(vec2(uv.x * 5.0 - uTime * 7.0, uv.y * 13.0)));
+    // Localized gust: taper at both horizontal ends.
+    float taper = smoothstep(0.0, 0.22, uv.x) * smoothstep(1.0, 0.55, uv.x);
+    float v = band * (0.25 + lines) * taper;
+    vec3 col = vec3(0.82, 0.9, 1.0);                       // airy white-blue
+    // Snap in, ease out over the dash.
+    float fade = smoothstep(0.0, 0.12, uProgress) * (1.0 - smoothstep(0.55, 1.0, uProgress));
+    gl_FragColor = vec4(col * v * 1.8, v * fade);
   }
 `;
-export const DashEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={7} frag={dashFrag} y={0.7} />;
+
+/** A camera-facing gust of speed-lines, positioned at body height just behind
+ *  the dasher (offset opposite the travel direction). */
+function DashWind({ durationMs, onComplete, direction }: BurstShaderProps) {
+  const { matRef, seed } = useBurstClock(durationMs, onComplete);
+  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  const [dx, , dz] = direction ?? [0, 0, 1];
+  const len = Math.hypot(dx, dz) || 1;
+  const back = 1.1; // sit ~1.1 units behind the player, at chest height
+  const pos: [number, number, number] = [(-dx / len) * back, 1.1, (-dz / len) * back];
+  return (
+    <Billboard position={pos}>
+      <mesh>
+        <planeGeometry args={[2.6, 1.7]} />
+        <shaderMaterial
+          ref={matRef}
+          vertexShader={UV_VERTEX}
+          fragmentShader={dashWindFrag}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+    </Billboard>
+  );
+}
+export const DashEffect = (p: BurstShaderProps) => <DashWind {...p} />;
