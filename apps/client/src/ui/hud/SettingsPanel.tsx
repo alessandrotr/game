@@ -61,6 +61,8 @@ export function SettingsPanel() {
   const setChatCollapsed = useHudStore((s) => s.setChatCollapsed);
   const playerCardCompact = useHudStore((s) => s.playerCardCompact);
   const setPlayerCardCompact = useHudStore((s) => s.setPlayerCardCompact);
+  const showPerf = useHudStore((s) => s.showPerf);
+  const setShowPerf = useHudStore((s) => s.setShowPerf);
 
   const camera = useCameraPrefsStore((s) => s.prefs);
   const setLock = useCameraPrefsStore((s) => s.setLock);
@@ -88,6 +90,12 @@ export function SettingsPanel() {
             hint="Press H in-game to toggle"
             checked={hidden}
             onChange={setHidden}
+          />
+          <ToggleRow
+            label="Show performance stats"
+            hint="FPS / frame time / draw calls (top-right)"
+            checked={showPerf}
+            onChange={setShowPerf}
           />
 
           {/* Camera — lock manual rotate/tilt/zoom. Synced to your account. */}

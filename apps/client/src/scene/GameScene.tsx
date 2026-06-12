@@ -21,6 +21,7 @@ import { BarrelEntity } from './BarrelEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
+import { PerfMeter } from './PerfMeter';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
@@ -163,6 +164,7 @@ export function GameScene() {
       <Npcs mapId={mapId} />
       <Portals mapId={mapId} />
 
+      <PerfMeter />
       <MouseMove />
       <CameraControls />
       {isArena && <CursorTracker />}

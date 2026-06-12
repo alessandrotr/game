@@ -17,6 +17,7 @@ import { create } from 'zustand';
 const KEY = {
   chatCollapsed: 'hud.chat.collapsed',
   playerCardCompact: 'hud.playercard.compact',
+  showPerf: 'hud.perf.show',
 } as const;
 
 /** Read a persisted boolean ("1"/"0"), falling back when unset/unavailable. */
@@ -49,6 +50,9 @@ interface HudStore {
   setChatCollapsed: (v: boolean) => void;
   playerCardCompact: boolean;
   setPlayerCardCompact: (v: boolean) => void;
+  /** Show the FPS / render-stats overlay (top-right). */
+  showPerf: boolean;
+  setShowPerf: (v: boolean) => void;
 }
 
 export const useHudStore = create<HudStore>((set) => ({
@@ -66,5 +70,11 @@ export const useHudStore = create<HudStore>((set) => ({
   setPlayerCardCompact: (v) => {
     save(KEY.playerCardCompact, v);
     set({ playerCardCompact: v });
+  },
+
+  showPerf: load(KEY.showPerf, true),
+  setShowPerf: (v) => {
+    save(KEY.showPerf, v);
+    set({ showPerf: v });
   },
 }));

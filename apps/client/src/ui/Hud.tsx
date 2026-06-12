@@ -9,6 +9,7 @@ import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
 import { GameMenu } from './hud/GameMenu';
 import { Minimap } from './hud/Minimap';
+import { PerfOverlay } from './hud/PerfOverlay';
 import { SettingsPanel } from './hud/SettingsPanel';
 import { HudLayout, HudZone } from './hud/HudLayout';
 
@@ -60,6 +61,9 @@ export function Hud() {
       {/* Town matchmaking — self-positions its top-right trigger (hidden with the
           HUD) and renders its own critical modals (ready-check) unconditionally. */}
       {!inArena && <Matchmaking />}
+
+      {/* Perf stats overlay (top-right) — self-gates on the setting. */}
+      <PerfOverlay />
 
       {/* Transient / critical overlays — always rendered, above the hide gate. */}
       <MatchResult />
