@@ -169,7 +169,7 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   frost_nova: { id: 'vfx.frost', at: 'caster', y: 0.05 },
   arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 },
   // Warrior
-  cleave: { id: 'vfx.cleave', at: 'caster', y: 0.06, oriented: true },
+  cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true },
   ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06 },
   // Dash streak: the shader lifts itself to mid-body, so anchor at the ground.
   charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },

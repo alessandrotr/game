@@ -147,7 +147,21 @@ export const ABILITY_REGISTRY = {
     castTimeMs: 0,
     range: 10,
     damage: 0,
-    effects: [{ type: 'dash', distance: 10, speed: 30 }],
+    // A committed lunge that crashes into the landing point: faster than a sprint
+    // so it reads as a charge, and it slams nearby enemies (damage + knockback) —
+    // an engage, not just movement, so it's worth using mid-run.
+    effects: [
+      {
+        type: 'dash',
+        distance: 9,
+        speed: 34,
+        impactRadius: 2.8,
+        onLand: [
+          { type: 'damage', amount: 45 },
+          { type: 'knockback', distance: 4, speed: 18 },
+        ],
+      },
+    ],
   },
   shield_wall: {
     id: 'shield_wall',

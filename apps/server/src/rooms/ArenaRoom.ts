@@ -615,6 +615,7 @@ export class ArenaRoom extends AvatarRoom {
       player.attackTargetId = this.attackTargets.get(sessionId) ?? '';
     });
 
+    this.combat.processDashImpacts();
     this.projectiles.update(dt);
     this.barrels.update(dt);
     this.state.tick++;

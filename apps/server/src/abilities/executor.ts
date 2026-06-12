@@ -48,6 +48,9 @@ export interface EffectRuntime {
   ): void;
   /** Detonate any interactive barrels within `radius` of (x,z), credited to `fromId`. */
   triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void;
+  /** After `delayMs` (the dash's travel time), resolve `onLand` as an AoE around
+   *  the caster's landing position — a charge's slam. */
+  scheduleDashImpact(caster: EffectActor, delayMs: number, radius: number, onLand: LeafEffect[]): void;
 }
 
 /** Where a cast is aimed — resolved by the room before the effects run. */
@@ -158,6 +161,12 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
       }
       case 'dash':
         rt.displace(caster, ctx.dirX, ctx.dirZ, effect.distance, effect.speed);
+        // A charge-style lunge slams where it lands: resolve the onLand effects
+        // as an AoE once the dash completes (so it's centred on the end point).
+        if (effect.onLand && effect.onLand.length) {
+          const delayMs = (effect.distance / effect.speed) * 1000;
+          rt.scheduleDashImpact(caster, delayMs, effect.impactRadius ?? 2.5, effect.onLand);
+        }
         break;
       default:
         // A bare leaf: apply to the locked target (unit aim) or the caster.

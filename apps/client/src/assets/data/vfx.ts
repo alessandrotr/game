@@ -318,8 +318,8 @@ const cleave: VfxDescriptor = {
   id: 'vfx.cleave',
   displayName: 'Cleave',
   behavior: 'burst',
-  durationMs: 420,
-  render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [0.7, 0.08, 8, 24], rotation: [Math.PI / 2, 0, 0], color: '#ffd9a0', emissive: '#ff7a1a', emissiveIntensity: 2.4 }] },
+  durationMs: 460,
+  render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [1.5, 0.16, 10, 32], rotation: [Math.PI / 2, 0, 0], color: '#ffe2b0', emissive: '#ff7a1a', emissiveIntensity: 3.2 }] },
 };
 
 /** Warrior ground slam — a heavy dust shockwave. */

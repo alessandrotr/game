@@ -73,8 +73,10 @@ function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
         </mesh>
       ))}
       {hasShield && (
-        <group position={[0, -0.6, 0]}>
-          <ShieldBubble color={STATUS_COLOR.shield} radius={1.0} />
+        // The badge anchors above the head (PIP_Y); drop the bubble down so it
+        // sits centred on the body (~y 1.1) and actually wraps the player.
+        <group position={[0, -1.55, 0]}>
+          <ShieldBubble color={STATUS_COLOR.shield} radius={1.1} />
         </group>
       )}
     </group>

@@ -115,7 +115,16 @@ export type Effect =
       /** Effects applied to every enemy inside `radius`. */
       onHit: LeafEffect[];
     }
-  | { type: 'dash'; distance: number; speed: number }
+  | {
+      type: 'dash';
+      distance: number;
+      speed: number;
+      /** Radius of the slam resolved at the landing point (needs `onLand`). */
+      impactRadius?: number;
+      /** Effects applied to every enemy near where the dash ends (e.g. a charge
+       *  that crashes in for damage + knockback). Runs once the lunge completes. */
+      onLand?: LeafEffect[];
+    }
   | LeafEffect;
 
 // ---------------------------------------------------------------------------

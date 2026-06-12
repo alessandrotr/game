@@ -6,6 +6,7 @@ import {
   damageTakenMultiplier,
   levelForXp,
   type AbilityDef,
+  type LeafEffect,
   type StatusSpec,
 } from '@arena/shared';
 import { StatusEffect, type Barrel, type Player } from '../schema.js';
@@ -29,6 +30,11 @@ export class CombatSystem {
    *  for on-hit resolution, so the two are wired up after both exist). */
   private projectiles!: ProjectileSystem;
   private barrels!: BarrelSystem;
+  /** Pending charge-slam impacts: session id → when (sim ms) + the AoE to apply. */
+  private readonly dashImpacts = new Map<
+    string,
+    { at: number; radius: number; onLand: LeafEffect[] }
+  >();
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -46,6 +52,28 @@ export class CombatSystem {
   /** Launch a struck barrel away from the hit (projectile / auto-attack). */
   triggerBarrel(barrel: Barrel, dirX: number, dirZ: number, fromId: string): void {
     this.barrels.trigger(barrel, dirX, dirZ, fromId);
+  }
+
+  /** Queue a dash's landing slam to resolve after its travel time elapses. */
+  scheduleDashImpact(caster: Player, delayMs: number, radius: number, onLand: LeafEffect[]): void {
+    this.dashImpacts.set(caster.sessionId, { at: this.ctx.now() + delayMs, radius, onLand });
+  }
+
+  /** Resolve any due dash slams as an AoE around the caster's (now landed)
+   *  position. Called once per tick by the room. */
+  processDashImpacts(): void {
+    const now = this.ctx.now();
+    this.dashImpacts.forEach((imp, sessionId) => {
+      if (now < imp.at) return;
+      this.dashImpacts.delete(sessionId);
+      const caster = this.ctx.state.players.get(sessionId);
+      if (!caster || !caster.alive) return;
+      runCast(
+        [{ type: 'aoe', at: 'caster', radius: imp.radius, onHit: imp.onLand }],
+        { caster, dirX: 0, dirZ: 0 },
+        this.effectRuntime,
+      );
+    });
   }
 
   /**
@@ -237,5 +265,6 @@ export class CombatSystem {
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
+    scheduleDashImpact: (c, d, r, onLand) => this.scheduleDashImpact(c, d, r, onLand),
   };
 }
