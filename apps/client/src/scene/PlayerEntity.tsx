@@ -53,6 +53,8 @@ const TELEPORT_SNAP = 6;
  *  not locomotion — don't let it flash the run animation. */
 const TELEPORT_STEP = 2;
 const HP_BAR_WIDTH = 1;
+/** Health per segment tick on the floating bar (LoL-style chunks). */
+const HP_PER_CHUNK = 100;
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -83,6 +85,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const player = useGameStore.getState().players.get(sessionId);
   const isLocal = useGameStore.getState().sessionId === sessionId;
   const isTargeted = useTargetStore((s) => s.targetId === sessionId);
+  // Max HP is constant per class, so this selector only re-renders on a class
+  // change — it drives how many segment ticks the floating bar is divided into.
+  const maxHp = useGameStore((s) => s.players.get(sessionId)?.maxHp ?? 0);
+  const chunkCount = Math.max(1, Math.round(maxHp / HP_PER_CHUNK));
   const bubble = useSpeechStore((s) => s.bubbles[sessionId]);
   const descriptor = useMemo(
     () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId),
@@ -375,6 +381,17 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
             <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
             <meshBasicMaterial color="#4ade80" />
           </mesh>
+          {/* LoL-style segment ticks: one divider per HP_PER_CHUNK of max health,
+              drawn over the fill so the bar reads as discrete chunks. */}
+          {Array.from({ length: chunkCount - 1 }, (_, i) => (
+            <mesh
+              key={i}
+              position={[-HP_BAR_WIDTH / 2 + (HP_BAR_WIDTH * (i + 1)) / chunkCount, 0, 0.002]}
+            >
+              <planeGeometry args={[0.02, 0.12]} />
+              <meshBasicMaterial color="#0b0e16" />
+            </mesh>
+          ))}
         </group>
         <Text
           position={[0, 0.2, 0]}

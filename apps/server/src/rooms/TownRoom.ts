@@ -89,6 +89,11 @@ export class TownRoom extends AvatarRoom {
     player.name = resolveName(claims, options);
     player.characterClass = resolveClass(options);
     player.skinId = resolveSkinId(options);
+    // Seed max HP/mana from the class so the floating bar (and its chunk ticks)
+    // looks identical to the arena, even though town is non-combat.
+    const stats = getClassDefinition(player.characterClass as CharacterClass).stats;
+    player.maxHp = stats.health;
+    player.maxMana = stats.mana;
     player.x = TOWN_SPAWN.x + (Math.random() * 2 - 1) * 2;
     player.z = TOWN_SPAWN.z + (Math.random() * 2 - 1) * 2;
     player.y = GROUND_Y;
