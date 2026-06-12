@@ -36,6 +36,13 @@ const REMOTE_SMOOTHING = 14;
  *  any sub-unit residual seamlessly. */
 const SETTLE_RATE = 10;
 /**
+ * After arriving at a destination, briefly hold the (deterministic) stop point
+ * and let the authoritative server — a few frames behind — converge onto it,
+ * rather than settling backward toward its still-in-transit position. That
+ * backward settle was the small "bounce-back" felt on arrival.
+ */
+const ARRIVE_HOLD_MS = 350;
+/**
  * Divergence (world units) that counts as a true reposition (respawn/knockback/
  * blink) and hard-snaps the local player. Above the lag-induced lead: the client
  * legitimately runs ~one round-trip ahead while moving (≈ speed × RTT), and the
@@ -85,6 +92,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);
   const predictedRot = useRef(player?.rotation ?? 0);
+  // Timestamp (ms) of the last destination arrival, for the post-arrival hold.
+  const arrivedAt = useRef(0);
 
   // Animation: a state machine fed each frame, exposed to the model via a stable
   // getter so the character animates without per-frame React re-renders.
@@ -198,7 +207,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         pos.x = result.x;
         pos.z = result.z;
         predictedRot.current = result.rotation;
-        if (result.arrived) clearDestination();
+        if (result.arrived) {
+          clearDestination();
+          arrivedAt.current = performance.now();
+        }
       }
 
       // Reconcile: snap on a true reposition (respawn/knockback/blink); while
@@ -208,10 +220,19 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const err = Math.hypot(pos.x - latest.x, pos.z - latest.z);
       if (err > TELEPORT_SNAP) {
         pos.set(latest.x, 0, latest.z);
+        arrivedAt.current = 0;
       } else if (!dest.active && !attacking) {
-        const t = 1 - Math.exp(-SETTLE_RATE * delta);
-        pos.x = MathUtils.lerp(pos.x, latest.x, t);
-        pos.z = MathUtils.lerp(pos.z, latest.z, t);
+        // Just arrived: hold our deterministic stop point and let the server land
+        // on it (avoids the backward settle / bounce). Ends as soon as the server
+        // converges, or after a short safety window if it genuinely diverged.
+        const holding =
+          arrivedAt.current > 0 && performance.now() - arrivedAt.current < ARRIVE_HOLD_MS && err > 0.05;
+        if (!holding) {
+          arrivedAt.current = 0;
+          const t = 1 - Math.exp(-SETTLE_RATE * delta);
+          pos.x = MathUtils.lerp(pos.x, latest.x, t);
+          pos.z = MathUtils.lerp(pos.z, latest.z, t);
+        }
       }
 
       node.position.x = pos.x;
