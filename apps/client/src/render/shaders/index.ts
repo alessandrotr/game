@@ -17,6 +17,7 @@ import {
   FrostNovaEffect,
   GroundSlamEffect,
   HealEffect,
+  SmashEffect,
 } from './bursts';
 import type { BurstShaderProps } from './common';
 
@@ -46,6 +47,7 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.arcane_blast': ArcaneBlastEffect,
   'vfx.ground_slam': GroundSlamEffect,
   'vfx.cleave': CleaveEffect,
+  'vfx.smash': SmashEffect,
   'vfx.cast': CastRuneEffect,
   'vfx.heal': HealEffect,
   'vfx.condemn': CondemnEffect,

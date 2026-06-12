@@ -172,6 +172,48 @@ const cleaveFrag = /* glsl */ `
 `;
 export const CleaveEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={8} frag={cleaveFrag} />;
 
+// --- Smash: a Syndra-style dark sphere — a violet energy orb that materializes
+//     in front, crackles with arcane filaments, then disperses in a shockwave. --
+
+const smashFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;            // 0 centre → 1 edge
+    float ang = atan(p.y, p.x);
+
+    // Materialize fast, hold, then scatter + fade over the back half.
+    float grow = smoothstep(0.0, 0.30, uProgress);
+    float fade = 1.0 - smoothstep(0.55, 1.0, uProgress);
+    float rs = 0.46 * grow;               // orb radius
+
+    // Glowing violet shell of the dark sphere (bright rim, hollow void core —
+    // the dark centre reads as transparent under additive blending).
+    float shell = smoothstep(0.12, 0.0, abs(r - rs)) * step(r, rs + 0.12);
+    // Swirling arcane filaments coiling around the orb.
+    float swirl = noise(vec2(ang * 2.0 + uTime * 3.0, r * 6.0 - uTime * 4.0));
+    float arcs = pow(max(0.0, sin(ang * 7.0 + uTime * 7.0 + swirl * 6.2)), 6.0)
+                 * smoothstep(rs + 0.30, rs - 0.04, r) * smoothstep(0.10, rs, r);
+    // Hot implosion flash at the moment it forms.
+    float core = smoothstep(rs, 0.0, r) * (1.0 - smoothstep(0.0, 0.32, uProgress)) * 0.7;
+    // Dispersal shockwave scattering outward as the orb breaks.
+    float ringEdge = mix(rs, 1.0, smoothstep(0.25, 1.0, uProgress));
+    float ring = smoothstep(0.07, 0.0, abs(r - ringEdge)) * smoothstep(0.45, 1.0, uProgress);
+
+    float v = shell * 1.7 + arcs * 1.2 + core + ring * 1.3;
+    vec3 violet = vec3(0.42, 0.13, 0.96);             // deep arcane purple
+    vec3 hot = vec3(0.98, 0.62, 1.0);                 // magenta-white highlight
+    vec3 col = mix(violet, hot, clamp(shell + arcs + core, 0.0, 1.0));
+    gl_FragColor = vec4(col * v * 2.1, v * fade);
+  }
+`;
+export const SmashEffect = (p: BurstShaderProps) => (
+  <BillboardBurst {...p} width={2.4} height={2.4} frag={smashFrag} y={0.9} />
+);
+
 // --- Cast Rune: a quick neutral double-ring + glyph (generic cast flash). -----
 
 const castRuneFrag = /* glsl */ `

@@ -4,13 +4,17 @@
  * arrow keys adjust them; a middle-click recenters. Plain mutable singleton read
  * each frame by `CameraRig` — no React re-renders.
  */
-let yawOffset = 0;
-let pitchOffset = 0;
-let zoom = 1;
-
 /** Max up/down tilt the user can add, in radians (~14° — deliberately small so
  *  the view never goes flat or fully top-down). */
 const MAX_PITCH_OFFSET = 0.25;
+
+/** Tilt is fixed for now at the lowest position (flattest, lowest camera Y); the
+ *  in-game tilt controls and the Settings lock toggles are disabled. */
+const FIXED_PITCH_OFFSET = -MAX_PITCH_OFFSET;
+
+let yawOffset = 0;
+let pitchOffset = FIXED_PITCH_OFFSET;
+let zoom = 1;
 /** Zoom is a radius multiplier, kept to a gentle range. */
 const MIN_ZOOM = 0.7;
 const MAX_ZOOM = 1.4;
@@ -27,9 +31,9 @@ export function addCameraYaw(delta: number): void {
   yawOffset += delta;
 }
 
-/** Adjust the up/down tilt, clamped to ±{@link MAX_PITCH_OFFSET}. */
-export function addCameraPitch(delta: number): void {
-  pitchOffset = Math.min(MAX_PITCH_OFFSET, Math.max(-MAX_PITCH_OFFSET, pitchOffset + delta));
+/** Tilt is fixed at the lowest position for now — this is a no-op. */
+export function addCameraPitch(_delta: number): void {
+  /* disabled: camera tilt is locked to the lowest Y */
 }
 
 export function getCameraZoom(): number {
@@ -41,10 +45,10 @@ export function addCameraZoom(delta: number): void {
   zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom + delta));
 }
 
-/** Snap back to the default (per-team) orientation, tilt and zoom. */
+/** Snap back to the default (per-team) orientation and zoom; tilt stays fixed. */
 export function resetCameraView(): void {
   yawOffset = 0;
-  pitchOffset = 0;
+  pitchOffset = FIXED_PITCH_OFFSET;
   zoom = 1;
 }
 
@@ -56,9 +60,7 @@ export function resetCameraZoom(): void {
   zoom = 1;
 }
 
-/** Clamp the current tilt to the directions still allowed by the locks (used
- *  when a tilt lock is enabled so the view snaps out of the now-forbidden side). */
-export function clampCameraPitch(allowUp: boolean, allowDown: boolean): void {
-  if (!allowUp && pitchOffset > 0) pitchOffset = 0;
-  if (!allowDown && pitchOffset < 0) pitchOffset = 0;
+/** No-op while tilt is fixed at the lowest position (the lock prefs don't apply). */
+export function clampCameraPitch(_allowUp: boolean, _allowDown: boolean): void {
+  /* disabled: camera tilt is locked to the lowest Y */
 }

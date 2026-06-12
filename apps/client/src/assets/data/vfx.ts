@@ -331,6 +331,22 @@ const groundSlam: VfxDescriptor = {
   render: { kind: 'placeholder', parts: [{ name: 'ring', shape: 'torus', args: [1.4, 0.18, 12, 36], rotation: [Math.PI / 2, 0, 0], color: '#ffc184', emissive: '#ff6a1a', emissiveIntensity: 2.6 }] },
 };
 
+/** Warrior smash — a Syndra-style dark-sphere energy burst cast in front of the
+ *  swing. Rendered by a custom shader (BURST_SHADERS['vfx.smash']); the
+ *  placeholder parts are only a fallback if that shader is ever unregistered. */
+const smash: VfxDescriptor = {
+  id: 'vfx.smash',
+  displayName: 'Smash',
+  behavior: 'burst',
+  durationMs: 520,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      { name: 'orb', shape: 'sphere', args: [0.5, 16, 14], position: [0, 0.9, 0], color: '#2a0a4d', emissive: '#7a3cff', emissiveIntensity: 3, opacity: 0.9 },
+    ],
+  },
+};
+
 /** A directional dash streak (warrior charge / archer tumble). */
 const dash: VfxDescriptor = {
   id: 'vfx.dash',
@@ -405,6 +421,7 @@ export const VFX: VfxDescriptor[] = [
   pinningArrow,
   holyBolt,
   cleave,
+  smash,
   groundSlam,
   dash,
   condemn,

@@ -29,18 +29,18 @@ export const ABILITY_REGISTRY = {
     manaCost: 20,
     castTimeMs: 0,
     range: 30,
-    damage: 30,
+    damage: 20,
     projectileSpeed: 25,
-    projectileRange: 20,
+    projectileRange: 30,
     projectileRadius: 0.8,
     effects: [
       {
         type: 'projectile',
         speed: 25,
-        range: 20,
+        range: 30,
         radius: 0.8,
         vfx: VFX_FIRE,
-        onHit: [{ type: 'damage', amount: 30 }],
+        onHit: [{ type: 'damage', amount: 20 }],
       },
     ],
   },
@@ -50,10 +50,10 @@ export const ABILITY_REGISTRY = {
     icon: 'Snowflake',
     aim: 'self',
     cooldownMs: 5000,
-    manaCost: 30,
+    manaCost: 60,
     castTimeMs: 0,
     range: 5,
-    damage: 22,
+    damage: 20,
     aoeRadius: 5,
     effects: [
       {
@@ -61,8 +61,10 @@ export const ABILITY_REGISTRY = {
         at: 'caster',
         radius: 5,
         onHit: [
-          { type: 'damage', amount: 22 },
-          { type: 'status', status: { kind: 'slow', durationMs: 2000, magnitude: 0.5 } },
+          { type: 'damage', amount: 20 },
+          // Freezes the enemy on the spot (root) and slows for the same window.
+          { type: 'status', status: { kind: 'root', durationMs: 1500 } },
+          { type: 'status', status: { kind: 'slow', durationMs: 1500, magnitude: 0.5 } },
         ],
       },
     ],
@@ -73,21 +75,22 @@ export const ABILITY_REGISTRY = {
     icon: 'Zap',
     aim: 'direction',
     cooldownMs: 3000,
-    manaCost: 22,
+    manaCost: 40,
     castTimeMs: 0,
-    range: 40,
-    damage: 24,
-    projectileSpeed: 25,
-    projectileRange: 20,
+    range: 50,
+    damage: 30,
+    // A long-range, fast "sniper" bolt.
+    projectileSpeed: 45,
+    projectileRange: 50,
     projectileRadius: 0.6,
     effects: [
       {
         type: 'projectile',
-        speed: 25,
-        range: 20,
+        speed: 45,
+        range: 50,
         radius: 0.6,
         vfx: VFX_ARCANE,
-        onHit: [{ type: 'damage', amount: 24 }],
+        onHit: [{ type: 'damage', amount: 30 }],
       },
     ],
   },
@@ -96,9 +99,9 @@ export const ABILITY_REGISTRY = {
     name: 'Arcane Blast',
     icon: 'Sparkles',
     aim: 'point',
-    cooldownMs: 9000,
-    manaCost: 50,
-    castTimeMs: 0,
+    cooldownMs: 10000,
+    manaCost: 100,
+    castTimeMs: 1000,
     range: 16,
     damage: 55,
     aoeRadius: 4,
@@ -137,31 +140,40 @@ export const ABILITY_REGISTRY = {
       },
     ],
   },
+  // Warrior basic strike (Q) — a fast frontal burst. Replaces `cleave` in the
+  // kit, but `cleave` is kept in the catalog (saved) for reuse / future swaps.
+  smash: {
+    id: 'smash',
+    name: 'Smash',
+    icon: 'Swords',
+    aim: 'self',
+    cooldownMs: 1000,
+    manaCost: 10,
+    castTimeMs: 0,
+    range: 2,
+    damage: 20,
+    aoeRadius: 2,
+    effects: [
+      {
+        type: 'aoe',
+        at: 'caster',
+        radius: 2,
+        onHit: [{ type: 'damage', amount: 20 }],
+      },
+    ],
+  },
   charge: {
     id: 'charge',
     name: 'Charge',
     icon: 'Wind',
     aim: 'direction',
     cooldownMs: 7000,
-    manaCost: 25,
+    manaCost: 30,
     castTimeMs: 0,
-    range: 10,
+    range: 12,
     damage: 0,
-    // A committed lunge that crashes into the landing point: faster than a sprint
-    // so it reads as a charge, and it slams nearby enemies (damage + knockback) —
-    // an engage, not just movement, so it's worth using mid-run.
-    effects: [
-      {
-        type: 'dash',
-        distance: 9,
-        speed: 34,
-        impactRadius: 2.8,
-        onLand: [
-          { type: 'damage', amount: 45 },
-          { type: 'knockback', distance: 4, speed: 18 },
-        ],
-      },
-    ],
+    // A fast gap-closing lunge (faster than a sprint), no impact.
+    effects: [{ type: 'dash', distance: 12, speed: 34 }],
   },
   shield_wall: {
     id: 'shield_wall',
@@ -169,7 +181,7 @@ export const ABILITY_REGISTRY = {
     icon: 'Shield',
     aim: 'self',
     cooldownMs: 12000,
-    manaCost: 30,
+    manaCost: 40,
     castTimeMs: 0,
     range: 0,
     damage: 0,
@@ -180,11 +192,11 @@ export const ABILITY_REGISTRY = {
     name: 'Ground Slam',
     icon: 'Bomb',
     aim: 'self',
-    cooldownMs: 16000,
-    manaCost: 50,
+    cooldownMs: 14000,
+    manaCost: 60,
     castTimeMs: 400,
     range: 5,
-    damage: 40,
+    damage: 60,
     aoeRadius: 5,
     effects: [
       {
@@ -192,11 +204,8 @@ export const ABILITY_REGISTRY = {
         at: 'caster',
         radius: 5,
         onHit: [
-          { type: 'damage', amount: 40 },
+          { type: 'damage', amount: 60 },
           { type: 'knockback', distance: 4, speed: 24 },
-          { type: 'status', status: { kind: 'stun', durationMs: 1200 } },
-          // Leaves the survivors vulnerable for a follow-up.
-          { type: 'status', status: { kind: 'damage_amp', durationMs: 4000, magnitude: 1.2 } },
         ],
       },
     ],
@@ -410,7 +419,7 @@ export const ABILITY_SLOTS: readonly AbilitySlot[] = ['Q', 'W', 'E', 'R'];
  * server resolution) is driven off this map.
  */
 export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, AbilityKind>>> = {
-  warrior: { Q: 'cleave', W: 'charge', E: 'shield_wall', R: 'ground_slam' },
+  warrior: { Q: 'smash', W: 'charge', E: 'shield_wall', R: 'ground_slam' },
   mage: { Q: 'fireball', W: 'frost_nova', E: 'arcane_bolt', R: 'arcane_blast' },
   archer: { Q: 'power_shot', W: 'crippling_shot', E: 'tumble', R: 'pinning_arrow' },
   priest: { Q: 'smite', W: 'heal', E: 'renew', R: 'condemn' },
