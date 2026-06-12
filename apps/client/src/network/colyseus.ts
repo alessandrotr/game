@@ -317,18 +317,25 @@ function wireRoom(joined: Room): void {
   joined.onLeave((code) => {
     bailing = false;
     if (traveling) return; // an intentional room switch — keep playing
-    room = null;
-    disconnectMatchmaking(); // drop the parallel lobby connection too
-    useGameStore.getState().reset();
-    useChatStore.getState().clear();
-  useSpeechStore.getState().clear();
-  useMatchResultStore.getState().clear();
+    teardownSession();
     // Distinguish a deliberate "newest session wins" kick from a random drop so
     // the join screen explains why, rather than looking like a crash.
     if (code === SESSION_SUPERSEDED_CODE) {
       useGameStore.getState().setStatus('error', 'You signed in on another tab or device.');
     }
   });
+}
+
+/** Drop the gameplay session and clear its stores so the app falls back to the
+ *  JoinScreen. Idempotent — safe to call locally (Change Character) and again
+ *  from `onLeave` when the socket actually closes. */
+function teardownSession(): void {
+  room = null;
+  disconnectMatchmaking(); // drop the parallel lobby connection too
+  useGameStore.getState().reset();
+  useChatStore.getState().clear();
+  useSpeechStore.getState().clear();
+  useMatchResultStore.getState().clear();
 }
 
 // --- Matchmaking lobby connection (parallel to the town room) ---------------
@@ -450,18 +457,18 @@ export function disconnectMatchmaking(): void {
   if (current) void current.leave().catch(() => {});
 }
 
-/** Leave the current room and return to the character-select screen (staying
- *  signed in). The room's `onLeave` resets the game store, so the app falls back
- *  to the JoinScreen. Used by the town's "Change Character" control. */
-export async function leaveToCharacterSelect(): Promise<void> {
+/** Return to the character-select screen (staying signed in). Tears the session
+ *  down LOCALLY and immediately so the UI snaps to the JoinScreen without waiting
+ *  on the server's leave/close handshake (which can stall if the room is wedged);
+ *  the network `leave()` is fired in the background. Used by the town's "Change
+ *  Character" control. */
+export function leaveToCharacterSelect(): void {
   const current = room;
   if (!current) return;
-  disconnectMatchmaking();
-  try {
-    await current.leave();
-  } catch {
-    /* already gone — onLeave will have cleaned up */
-  }
+  teardownSession(); // nulls `room`, resets stores → App renders JoinScreen now
+  void current.leave().catch(() => {
+    /* already gone — the local teardown already returned us to the JoinScreen */
+  });
 }
 
 /** Join a world for the first time (from the character-select screen). Identity
