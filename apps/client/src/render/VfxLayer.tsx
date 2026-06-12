@@ -24,16 +24,21 @@ function EffectAnchor({ effect, children }: { effect: ActiveEffect; children: Re
     const id = effect.followId;
     if (!g || !id) return;
 
+    // Optional forward offset so a frontal effect stays ahead of the runner.
+    const off = effect.offset ?? 0;
+    const ox = effect.direction[0] * off;
+    const oz = effect.direction[2] * off;
+
     const local = getLocalRenderTransform();
     if (local.active && useGameStore.getState().sessionId === id) {
-      g.position.set(local.x, effect.origin[1], local.z);
+      g.position.set(local.x + ox, effect.origin[1], local.z + oz);
       return;
     }
     const s = sampleTransform(id, performance.now() - INTERP_DELAY_MS);
-    if (s) g.position.set(s.x, effect.origin[1], s.z);
+    if (s) g.position.set(s.x + ox, effect.origin[1], s.z + oz);
     else {
       const p = useGameStore.getState().players.get(id);
-      if (p) g.position.set(p.x, effect.origin[1], p.z);
+      if (p) g.position.set(p.x + ox, effect.origin[1], p.z + oz);
     }
   });
 

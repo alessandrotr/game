@@ -182,7 +182,7 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 }, // ground impact — stays
   // Warrior
   cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true, follow: true },
-  smash: { id: 'vfx.smash', at: 'caster', y: 0, oriented: true, forward: 1.6 },
+  smash: { id: 'vfx.smash', at: 'caster', y: 0, oriented: true, follow: true, forward: 1.6 },
   ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06, follow: true },
   // Dash streak: follows the dasher so the swoosh trails their back (the shader
   // fades toward the front, leaving the streak behind), oriented to travel.
@@ -230,12 +230,18 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     } else if (burst.at === 'caster' && burst.follow) {
       followId = msg.casterId;
     }
-    // Offset in front of the caster along the cast direction (frontal bursts).
+    // Frontal offset along the cast direction. When the burst follows the caster
+    // it's applied live each frame (stays ahead while running); otherwise it's
+    // baked into the spawn point (a fixed spot in front).
+    let offset: number | undefined;
     if (burst.forward) {
-      x += msg.dirX * burst.forward;
-      z += msg.dirZ * burst.forward;
+      if (followId) offset = burst.forward;
+      else {
+        x += msg.dirX * burst.forward;
+        z += msg.dirZ * burst.forward;
+      }
     }
-    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId);
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset);
     return;
   }
 

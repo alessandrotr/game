@@ -10,11 +10,14 @@ export interface ActiveEffect {
    *  casts like cleave/nova/heal follow the caster); undefined = pinned to
    *  `origin` (ground impacts stay where they landed). */
   followId?: string;
+  /** When following, keep the effect this many units in front of the tracked
+   *  entity along `direction` (e.g. a frontal smash that stays ahead while you run). */
+  offset?: number;
 }
 
 interface EffectsStore {
   effects: ActiveEffect[];
-  spawn: (vfxId: VfxAssetId, origin: Vec3, direction?: Vec3, followId?: string) => void;
+  spawn: (vfxId: VfxAssetId, origin: Vec3, direction?: Vec3, followId?: string, offset?: number) => void;
   remove: (key: number) => void;
 }
 
@@ -26,7 +29,7 @@ let nextKey = 1;
  */
 export const useEffectsStore = create<EffectsStore>((set) => ({
   effects: [],
-  spawn: (vfxId, origin, direction = [0, 0, 1], followId) =>
-    set((s) => ({ effects: [...s.effects, { key: nextKey++, vfxId, origin, direction, followId }] })),
+  spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset) =>
+    set((s) => ({ effects: [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset }] })),
   remove: (key) => set((s) => ({ effects: s.effects.filter((e) => e.key !== key) })),
 }));
