@@ -22,16 +22,27 @@ const NOISE_GLSL = /* glsl */ `
     return mix(mix(gHash(i), gHash(i + vec2(1.0, 0.0)), u.x),
                mix(gHash(i + vec2(0.0, 1.0)), gHash(i + vec2(1.0, 1.0)), u.x), u.y);
   }
+  // Fractal noise — layered octaves give organic detail instead of one blobby scale.
+  float gFbm(vec2 p){
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++){ v += a * gNoise(p); p = p * 2.02 + 7.3; a *= 0.5; }
+    return v;
+  }
 `;
 
 const ALBEDO_GLSL = /* glsl */ `
   {
     vec2 gp = vGrassWorld.xz;
-    float n = gNoise(gp * 0.6) * 0.6 + gNoise(gp * 2.3) * 0.3 + gNoise(gp * 9.0) * 0.1;
-    vec3 mid = mix(uGrassDark, uGrassLight, 0.55);
-    vec3 grass = mix(uGrassDark, mid, smoothstep(0.0, 0.5, n));
-    grass = mix(grass, uGrassLight, smoothstep(0.45, 0.9, n));
-    grass *= 0.92 + 0.08 * gNoise(vec2(gp.x * 26.0, gp.y * 26.0)); // subtle grain
+
+    // A calm lawn: gentle large-scale tone + a little finer detail, blended into a
+    // NARROW band around the mid green so it never reads as busy or high-contrast.
+    float macro = gFbm(gp * 0.06);
+    float detail = gFbm(gp * 0.7);
+    float t = 0.4 + clamp(macro * 0.6 + detail * 0.4, 0.0, 1.0) * 0.35; // ~0.4..0.75
+    vec3 grass = mix(uGrassDark, uGrassLight, t);
+
+    // Whisper of fine speckle, just enough to avoid a dead-flat slab.
+    grass *= 0.98 + 0.02 * gNoise(gp * 9.0);
     diffuseColor.rgb = grass;
   }
 `;
@@ -65,7 +76,7 @@ export function GrassGround() {
 
       uniforms.current = shader.uniforms;
     };
-    m.customProgramCacheKey = () => 'grass-ground-static';
+    m.customProgramCacheKey = () => 'grass-ground-v3';
     return m;
   }, []);
 
