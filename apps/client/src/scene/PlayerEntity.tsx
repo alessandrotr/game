@@ -5,9 +5,11 @@ import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
   ARENA_OBSTACLES,
+  AUTO_ATTACKS,
   TOWN_HALF_SIZE,
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
+  collideArenaObstacles,
   stepLocomotion,
   type AnimationName,
   type CharacterClass,
@@ -148,34 +150,65 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const pos = predicted.current;
       const mv = getLocalMovement(latest.characterClass as CharacterClass);
       const isArena = useGameStore.getState().room === 'arena';
+      const halfBounds = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
       const dest = getDestination();
 
-      // The SAME deterministic step the server runs → prediction matches by
-      // construction (single speed, slides around obstacles, clamps to bounds).
-      const result = stepLocomotion(
-        { x: pos.x, z: pos.z, rotation: predictedRot.current },
-        dest.active ? { x: dest.x, z: dest.z } : null,
-        {
-          speed: mv.speed,
-          rotationSpeed: mv.rotationSpeed,
-          stoppingDistance: mv.stoppingDistance,
-          halfBounds: (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS,
-          obstacles: isArena ? ARENA_OBSTACLES : TOWN_OBSTACLES,
-        },
-        delta,
-      );
-      pos.x = result.x;
-      pos.z = result.z;
-      predictedRot.current = result.rotation;
-      if (result.arrived) clearDestination();
+      // Auto-attack chase intent (arena only). Drop it the moment the target dies
+      // so we stop chasing a corpse (the server clears its attack-target too).
+      const attackId = isArena ? useTargetStore.getState().targetId : null;
+      const target = attackId ? useGameStore.getState().players.get(attackId) : undefined;
+      if (target && !target.alive) {
+        useTargetStore.getState().setTarget(null);
+      }
+      const attacking = !!target && target.alive;
 
-      // Reconcile: snap on a true reposition (respawn/knockback); while idle,
-      // gently settle onto the server (already aligned, so this is invisible);
-      // while moving, trust prediction — it legitimately leads by ~latency.
+      if (attacking && target) {
+        // Mirror the server's auto-attack movement so prediction matches by
+        // construction: face the target, close to attack range, then HOLD and
+        // strike in place (no rubber-banding, stops dead like LoL).
+        const cfg = AUTO_ATTACKS[latest.characterClass as CharacterClass];
+        const dx = target.x - pos.x;
+        const dz = target.z - pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 1e-3) predictedRot.current = Math.atan2(dx / dist, dz / dist);
+        if (dist > cfg.range) {
+          const step = Math.min(mv.speed * delta, dist - cfg.range + 0.01);
+          pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
+          pos.z = clamp(pos.z + (dz / dist) * step, -halfBounds, halfBounds);
+          // Same post-move obstacle push-out the server applies to the chase path.
+          const fixed = collideArenaObstacles(pos.x, pos.z);
+          pos.x = fixed.x;
+          pos.z = fixed.z;
+        }
+      } else {
+        // The SAME deterministic step the server runs → prediction matches by
+        // construction (single speed, slides around obstacles, clamps to bounds).
+        const result = stepLocomotion(
+          { x: pos.x, z: pos.z, rotation: predictedRot.current },
+          dest.active ? { x: dest.x, z: dest.z } : null,
+          {
+            speed: mv.speed,
+            rotationSpeed: mv.rotationSpeed,
+            stoppingDistance: mv.stoppingDistance,
+            halfBounds,
+            obstacles: isArena ? ARENA_OBSTACLES : TOWN_OBSTACLES,
+          },
+          delta,
+        );
+        pos.x = result.x;
+        pos.z = result.z;
+        predictedRot.current = result.rotation;
+        if (result.arrived) clearDestination();
+      }
+
+      // Reconcile: snap on a true reposition (respawn/knockback/blink); while
+      // actively moving (toward a destination OR chasing a target) trust the
+      // prediction — it matches the server by construction; only when idle settle
+      // gently onto the server.
       const err = Math.hypot(pos.x - latest.x, pos.z - latest.z);
       if (err > TELEPORT_SNAP) {
         pos.set(latest.x, 0, latest.z);
-      } else if (!dest.active) {
+      } else if (!dest.active && !attacking) {
         const t = 1 - Math.exp(-SETTLE_RATE * delta);
         pos.x = MathUtils.lerp(pos.x, latest.x, t);
         pos.z = MathUtils.lerp(pos.z, latest.z, t);
@@ -242,6 +275,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     e.stopPropagation();
     if (useGameStore.getState().room === 'arena') {
       if (!latest.alive) return;
+      // Issuing an attack cancels any pending move order (mirrors the server):
+      // the chase below owns movement now — otherwise a stale destination would
+      // fight the chase and rubber-band the player.
+      clearDestination();
       sendAttack(sessionId);
       useTargetStore.getState().setTarget(sessionId);
     } else {

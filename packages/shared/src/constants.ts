@@ -465,7 +465,7 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
   priest: { kind: 'melee', range: 2.6, damage: 7, cooldownMs: 900 },
   mage: {
     kind: 'ranged',
-    range: 20,
+    range: 7,
     damage: 9,
     cooldownMs: 1000,
     projectileSpeed: 25,
@@ -474,7 +474,7 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
   },
   archer: {
     kind: 'ranged',
-    range: 22,
+    range: 8,
     damage: 12,
     cooldownMs: 750,
     projectileSpeed: 25,
