@@ -18,8 +18,10 @@ import { HudLayout, HudZone } from './hud/HudLayout';
  *   level, abilities, HP/MP). Town shows the rich `PlayerCard` top-left.
  * - The consolidated `GameMenu` (Change Character, Leaderboard, Settings) lives
  *   bottom-right in both rooms.
- * - The whole chrome layer hides on the `H` key (`useHudStore.hidden`); transient
- *   and critical overlays render outside that gate so they always show.
+ * - The `H` key hides the HUD chrome (`useHudStore.hidden`). The arena CombatHud
+ *   is combat-critical and stays visible regardless; only the menu, player card,
+ *   matchmaking trigger, and chat hide. Transient/critical overlays render outside
+ *   the gate so they always show.
  */
 export function Hud() {
   const inArena = useGameStore((s) => s.room) === 'arena';
@@ -27,23 +29,27 @@ export function Hud() {
 
   return (
     <>
-      {!hudHidden && (
-        <HudLayout>
-          {inArena ? (
-            <HudZone zone="bottom-center">
-              <CombatHud />
-            </HudZone>
-          ) : (
-            <HudZone zone="top-left">
-              <PlayerCard />
-            </HudZone>
-          )}
-
-          <HudZone zone="bottom-right">
-            <GameMenu />
+      <HudLayout>
+        {/* Arena combat HUD (portrait, abilities, HP/MP) — never hidden by H. */}
+        {inArena && (
+          <HudZone zone="bottom-center">
+            <CombatHud />
           </HudZone>
-        </HudLayout>
-      )}
+        )}
+
+        {!hudHidden && (
+          <>
+            {!inArena && (
+              <HudZone zone="top-left">
+                <PlayerCard />
+              </HudZone>
+            )}
+            <HudZone zone="bottom-right">
+              <GameMenu />
+            </HudZone>
+          </>
+        )}
+      </HudLayout>
 
       {/* Town matchmaking — self-positions its top-right trigger (hidden with the
           HUD) and renders its own critical modals (ready-check) unconditionally. */}

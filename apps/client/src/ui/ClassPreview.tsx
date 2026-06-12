@@ -44,18 +44,29 @@ function Pedestal({ color }: { color: string }) {
  */
 interface ClassPreviewProps {
   characterClass?: CharacterClass;
-  /** Cheap auto-rotating bust for an always-on HUD: no shadows, env, contact
-   *  shadows, or controls — safe to keep rendering during gameplay. */
+  /** Cheap bust for an always-on HUD: no shadows, env, contact shadows, or
+   *  controls — safe to keep rendering during gameplay. */
   lite?: boolean;
+  /** Auto-rotate the lite bust about Y. Defaults on; pass false for a still pose
+   *  (e.g. the combat HUD portrait, where a spinning model is distracting). */
+  spin?: boolean;
 }
 
-function ClassPreviewImpl({ characterClass, lite = false }: ClassPreviewProps) {
+function ClassPreviewImpl({ characterClass, lite = false, spin = true }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
   const def = getClassDefinition(selected);
   const descriptor = useMemo(() => resolveCharacter(selected), [selected]);
 
   if (lite) {
+    const bust = (
+      <>
+        <group key={selected}>
+          <CharacterModel descriptor={descriptor} />
+        </group>
+        <Pedestal color={def.color} />
+      </>
+    );
     return (
       <Canvas
         dpr={[1, 1.5]}
@@ -65,12 +76,7 @@ function ClassPreviewImpl({ characterClass, lite = false }: ClassPreviewProps) {
         <ambientLight intensity={0.85} />
         <directionalLight position={[2, 4, 3]} intensity={1.4} color="#fff1d4" />
         <directionalLight position={[-3, 2, -2]} intensity={0.5} color="#8ea8ff" />
-        <Spin>
-          <group key={selected}>
-            <CharacterModel descriptor={descriptor} />
-          </group>
-          <Pedestal color={def.color} />
-        </Spin>
+        {spin ? <Spin>{bust}</Spin> : bust}
       </Canvas>
     );
   }

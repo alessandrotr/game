@@ -129,7 +129,7 @@ export function CombatHud() {
           ref={portrait}
           className="h-full w-full overflow-hidden rounded-full border-2 border-gold/70 bg-black/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-[filter,opacity] duration-300"
         >
-          <ClassPreview characterClass={characterClass} lite />
+          <ClassPreview characterClass={characterClass} lite spin={false} />
         </div>
         {/* Level disc, LoL-style, riding the portrait's lower edge. */}
         <div className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border border-gold/70 bg-linear-to-b from-panel to-bg shadow-md">
