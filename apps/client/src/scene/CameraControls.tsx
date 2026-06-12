@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { addCameraYaw, addCameraPitch, addCameraZoom, resetCameraView } from '../store/cameraControl';
+import { useCameraPrefsStore } from '../store/useCameraPrefsStore';
 
 /** Rotation per pixel of middle-drag (radians) — same feel for yaw and pitch. */
 const DRAG_SENSITIVITY = 0.006;
@@ -50,8 +51,12 @@ export function CameraControls() {
       lastX = e.clientX;
       lastY = e.clientY;
       moved += Math.abs(dx) + Math.abs(dy);
-      addCameraYaw(-dx * DRAG_SENSITIVITY);
-      addCameraPitch(-dy * DRAG_SENSITIVITY); // drag up → tilt toward top-down
+      const prefs = useCameraPrefsStore.getState().prefs;
+      if (!prefs.lockRotation) addCameraYaw(-dx * DRAG_SENSITIVITY);
+      const pitchDelta = -dy * DRAG_SENSITIVITY; // drag up (>0) → tilt toward top-down
+      if ((pitchDelta > 0 && !prefs.lockTiltUp) || (pitchDelta < 0 && !prefs.lockTiltDown)) {
+        addCameraPitch(pitchDelta);
+      }
     };
     const onUp = (e: MouseEvent) => {
       if (e.button !== 1 || !dragging) return;
@@ -62,6 +67,7 @@ export function CameraControls() {
     // Wheel zooms (scroll up = closer). Clamped to a gentle range in the store.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault(); // don't scroll the page
+      if (useCameraPrefsStore.getState().prefs.lockZoom) return;
       addCameraZoom(e.deltaY * ZOOM_SENSITIVITY);
     };
 
@@ -101,10 +107,15 @@ export function CameraControls() {
     };
   }, [gl]);
 
-  // Smoothly rotate/tilt while an arrow key is held (pitch self-clamps).
+  // Smoothly rotate/tilt while an arrow key is held (pitch self-clamps), subject
+  // to the account's camera locks.
   useFrame((_, delta) => {
-    if (yawDir.current !== 0) addCameraYaw(yawDir.current * KEY_SPEED * delta);
-    if (pitchDir.current !== 0) addCameraPitch(pitchDir.current * KEY_SPEED * delta);
+    const prefs = useCameraPrefsStore.getState().prefs;
+    if (yawDir.current !== 0 && !prefs.lockRotation) {
+      addCameraYaw(yawDir.current * KEY_SPEED * delta);
+    }
+    if (pitchDir.current > 0 && !prefs.lockTiltUp) addCameraPitch(KEY_SPEED * delta);
+    else if (pitchDir.current < 0 && !prefs.lockTiltDown) addCameraPitch(-KEY_SPEED * delta);
   });
 
   return null;

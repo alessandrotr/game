@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useHudStore } from '../../store/useHudStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useCameraPrefsStore } from '../../store/useCameraPrefsStore';
 import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +62,9 @@ export function SettingsPanel() {
   const playerCardCompact = useHudStore((s) => s.playerCardCompact);
   const setPlayerCardCompact = useHudStore((s) => s.setPlayerCardCompact);
 
+  const camera = useCameraPrefsStore((s) => s.prefs);
+  const setLock = useCameraPrefsStore((s) => s.setLock);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm p-0" aria-describedby={undefined}>
@@ -84,6 +88,35 @@ export function SettingsPanel() {
             hint="Press H in-game to toggle"
             checked={hidden}
             onChange={setHidden}
+          />
+
+          {/* Camera — lock manual rotate/tilt/zoom. Synced to your account. */}
+          <div className="mt-1 px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            Camera
+          </div>
+          <ToggleRow
+            label="Lock tilt up"
+            hint="Prevent tilting toward top-down"
+            checked={camera.lockTiltUp}
+            onChange={(v) => setLock('lockTiltUp', v)}
+          />
+          <ToggleRow
+            label="Lock tilt down"
+            hint="Prevent tilting to a flatter angle"
+            checked={camera.lockTiltDown}
+            onChange={(v) => setLock('lockTiltDown', v)}
+          />
+          <ToggleRow
+            label="Lock rotation"
+            hint="Disable left/right orbiting"
+            checked={camera.lockRotation}
+            onChange={(v) => setLock('lockRotation', v)}
+          />
+          <ToggleRow
+            label="Lock zoom"
+            hint="Disable mouse-wheel zoom"
+            checked={camera.lockZoom}
+            onChange={(v) => setLock('lockZoom', v)}
           />
         </div>
       </DialogContent>

@@ -10,7 +10,7 @@ import {
   type InstancedMesh,
   type IUniform,
 } from 'three';
-import { TOWN_OBSTACLES } from '@arena/shared';
+import { TOWN_HALF_SIZE, TOWN_OBSTACLES } from '@arena/shared';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { useEnvStore } from '../tuning/useEnvStore';
 
@@ -23,23 +23,19 @@ import { useEnvStore } from '../tuning/useEnvStore';
  * everything else; `onBeforeCompile` adds the wind sway (top bends most, phase
  * varies by world position) and a base→tip colour gradient. Town-only.
  *
- * A fixed patch around the active town centre (spawn / plaza / market). It can be
- * made player-following later to cover the whole map; this keeps it simple.
+ * Placement is a dense square ring hugging the town's outer edge — a "wall" of
+ * tall grass that frames the play area rather than a carpet scattered through the
+ * interior. Blades rise toward the boundary so the band reads as a bank.
  */
 
-const COUNT = 14000;
-const RADIUS = 26;
+const COUNT = 26000;
 const BLADE_H = 0.32;
 /** Margin (world units) kept clear around every non-grass surface. */
 const MARGIN = 0.4;
-/** Paved plaza (kept clear). */
-const PLAZA = { x: 0, z: -2, r: 8.8 };
-/** Street strips — must mirror the decals in TownGround.tsx (axis-aligned). */
-const STREETS: { cx: number; cz: number; hx: number; hz: number }[] = [
-  { cx: 0, cz: -4, hx: 2.5, hz: 22 },
-  { cx: 8, cz: 5, hx: 9, hz: 2 },
-  { cx: -8, cz: 2, hx: 9, hz: 2 },
-];
+/** The grass wall is a square ring from BAND_INNER out to the town edge — a
+ *  narrow, dense band so it reads as a tall hedge, not a meadow. */
+const BAND_INNER = 39;
+const BAND_OUTER = TOWN_HALF_SIZE - 1; // just inside the boundary
 
 // --- Low-frequency value noise (JS), for natural clumping of density + height ---
 const nHash = (x: number, z: number): number => {
@@ -63,15 +59,9 @@ const nNoise = (x: number, z: number): number => {
 const lushness = (x: number, z: number): number =>
   nNoise(x * 0.06, z * 0.06) * 0.65 + nNoise(x * 0.15, z * 0.15) * 0.35;
 
-/** True only where grass belongs: not on the plaza, streets, or any prop/building
- *  footprint (the obstacle circles already cover houses, stalls, the fountain, …). */
+/** True where a wall blade may stand: clear of any prop/building footprint (the
+ *  obstacle circles cover houses, towers, the castle/walls, stalls, the well, …). */
 function onGrass(x: number, z: number): boolean {
-  const pdx = x - PLAZA.x;
-  const pdz = z - PLAZA.z;
-  if (pdx * pdx + pdz * pdz < PLAZA.r * PLAZA.r) return false;
-  for (const s of STREETS) {
-    if (Math.abs(x - s.cx) < s.hx + MARGIN && Math.abs(z - s.cz) < s.hz + MARGIN) return false;
-  }
   for (const o of TOWN_OBSTACLES) {
     const dx = x - o.x;
     const dz = z - o.z;
@@ -183,24 +173,26 @@ export function GrassBlades() {
     if (!mesh) return;
     const o = new Object3D();
     let placed = 0;
-    // Sample candidates and accept by lushness → clumped patches + bald spots,
-    // not an even carpet. Bounded attempts so dense areas still fill in.
-    for (let attempt = 0; attempt < COUNT * 3 && placed < COUNT; attempt++) {
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * RADIUS;
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
-      if (!onGrass(x, z)) continue; // never on plaza / streets / props
+    // Fill the perimeter ring: sample the town square, keep only the outer band,
+    // and thin it by lushness so the wall clumps naturally instead of reading as
+    // a solid hedge. Bounded attempts (the interior is rejected, ~half the square).
+    for (let attempt = 0; attempt < COUNT * 8 && placed < COUNT; attempt++) {
+      const x = (Math.random() * 2 - 1) * BAND_OUTER;
+      const z = (Math.random() * 2 - 1) * BAND_OUTER;
+      const edge = Math.max(Math.abs(x), Math.abs(z));
+      if (edge < BAND_INNER) continue; // interior stays clear — wall only
+      if (!onGrass(x, z)) continue; // never on a prop footprint
 
       const lush = lushness(x, z); // 0..1
-      // Density: sparse areas keep a thin floor (~15%), lush patches fill in.
-      if (Math.random() > 0.15 + lush * lush) continue;
+      // Near-solid fill (only the odd gap), so the band reads as a dense wall.
+      if (Math.random() > 0.85 + lush * 0.15) continue;
 
+      // 0..1 outward across the band → blades rise toward the town's edge (a bank).
+      const t = (edge - BAND_INNER) / (BAND_OUTER - BAND_INNER);
       o.position.set(x, 0, z);
       o.rotation.set(0, Math.random() * Math.PI, 0);
-      // Height by region (taller in lush patches) × per-blade variation; width varies too.
-      const region = 0.6 + lush * 0.8;
-      o.scale.set(0.65 + Math.random() * 0.8, (0.5 + Math.random() * 0.9) * region, 1);
+      const tall = 3.5 + t * 4.5; // tall at the inner lip, towering against the wall
+      o.scale.set(0.7 + Math.random() * 0.7, tall * (0.85 + Math.random() * 0.3), 1);
       o.updateMatrix();
       mesh.setMatrixAt(placed++, o.matrix);
     }

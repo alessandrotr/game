@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
+import { useCameraPrefsStore } from './store/useCameraPrefsStore';
 import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
@@ -41,6 +42,11 @@ export default function App() {
   useEffect(() => {
     void restore();
   }, [restore]);
+
+  // Pull the account's saved camera-lock prefs once signed in.
+  useEffect(() => {
+    if (authStatus === 'authed') void useCameraPrefsStore.getState().loadForAccount();
+  }, [authStatus]);
 
   // Pre-login flow: logged-out visitors see the marketing landing first, then
   // the auth form (← back returns here). Authed users skip both.

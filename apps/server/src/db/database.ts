@@ -32,6 +32,7 @@ export const SCHEMA: readonly string[] = [
      email TEXT NOT NULL UNIQUE,
      username TEXT NOT NULL,
      password_hash TEXT NOT NULL,
+     camera_prefs JSONB,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
@@ -75,6 +76,8 @@ const LEGACY_MIGRATIONS: readonly string[] = [
   `ALTER TABLE players DROP CONSTRAINT IF EXISTS players_device_id_key`,
   `DROP INDEX IF EXISTS players_device_id_key`,
   `CREATE UNIQUE INDEX IF NOT EXISTS players_email_key ON players(lower(email)) WHERE email IS NOT NULL`,
+  // Per-account UI prefs (camera locks). Added to existing account tables.
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS camera_prefs JSONB`,
 ];
 
 /** Create the tables if they don't exist, then apply legacy fixups. */

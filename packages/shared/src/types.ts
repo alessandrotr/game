@@ -90,6 +90,30 @@ export interface AuthResult {
   progress: ClassProgressView[];
 }
 
+/**
+ * Per-account camera preference locks, synced to the server. When a lock is on,
+ * that manual camera control is disabled and the view is snapped back to its
+ * neutral for that axis.
+ */
+export interface CameraPrefs {
+  /** Disallow tilting the view up (toward top-down). */
+  lockTiltUp: boolean;
+  /** Disallow tilting the view down (flatter / more horizontal). */
+  lockTiltDown: boolean;
+  /** Disallow left/right orbiting — yaw stays at the per-team default. */
+  lockRotation: boolean;
+  /** Disallow zoom — the camera stays at its default distance. */
+  lockZoom: boolean;
+}
+
+/** All locks off — the default for a fresh account / when persistence is off. */
+export const DEFAULT_CAMERA_PREFS: CameraPrefs = {
+  lockTiltUp: false,
+  lockTiltDown: false,
+  lockRotation: false,
+  lockZoom: false,
+};
+
 /** A lobby's lifecycle stage, replicated to drive the matchmaking UI. */
 export type LobbyStatus = 'queuing' | 'ready_check' | 'playing';
 

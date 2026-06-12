@@ -47,3 +47,18 @@ export function resetCameraView(): void {
   pitchOffset = 0;
   zoom = 1;
 }
+
+export function resetCameraYaw(): void {
+  yawOffset = 0;
+}
+
+export function resetCameraZoom(): void {
+  zoom = 1;
+}
+
+/** Clamp the current tilt to the directions still allowed by the locks (used
+ *  when a tilt lock is enabled so the view snaps out of the now-forbidden side). */
+export function clampCameraPitch(allowUp: boolean, allowDown: boolean): void {
+  if (!allowUp && pitchOffset > 0) pitchOffset = 0;
+  if (!allowDown && pitchOffset < 0) pitchOffset = 0;
+}
