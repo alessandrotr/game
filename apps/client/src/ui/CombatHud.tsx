@@ -177,8 +177,8 @@ function ResourceBar({
   textRef,
   fillClass,
 }: {
-  fillRef: React.RefObject<HTMLDivElement | null>;
-  textRef: React.RefObject<HTMLSpanElement | null>;
+  fillRef: React.RefObject<HTMLDivElement>;
+  textRef: React.RefObject<HTMLSpanElement>;
   fillClass: string;
 }) {
   return (
