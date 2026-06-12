@@ -6,11 +6,15 @@ export interface ActiveEffect {
   vfxId: VfxAssetId;
   origin: Vec3;
   direction: Vec3;
+  /** Session id of an entity this effect tracks over its lifetime (body-centered
+   *  casts like cleave/nova/heal follow the caster); undefined = pinned to
+   *  `origin` (ground impacts stay where they landed). */
+  followId?: string;
 }
 
 interface EffectsStore {
   effects: ActiveEffect[];
-  spawn: (vfxId: VfxAssetId, origin: Vec3, direction?: Vec3) => void;
+  spawn: (vfxId: VfxAssetId, origin: Vec3, direction?: Vec3, followId?: string) => void;
   remove: (key: number) => void;
 }
 
@@ -22,7 +26,7 @@ let nextKey = 1;
  */
 export const useEffectsStore = create<EffectsStore>((set) => ({
   effects: [],
-  spawn: (vfxId, origin, direction = [0, 0, 1]) =>
-    set((s) => ({ effects: [...s.effects, { key: nextKey++, vfxId, origin, direction }] })),
+  spawn: (vfxId, origin, direction = [0, 0, 1], followId) =>
+    set((s) => ({ effects: [...s.effects, { key: nextKey++, vfxId, origin, direction, followId }] })),
   remove: (key) => set((s) => ({ effects: s.effects.filter((e) => e.key !== key) })),
 }));

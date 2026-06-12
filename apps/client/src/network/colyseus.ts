@@ -162,23 +162,32 @@ function snapshotState(state: RawState): {
  * and rendered separately by `Projectiles`; here we add the cast/impact flourish
  * — a ground burst at the caster/impact/target, oriented to the cast direction.
  */
-type BurstSpawn = { id: VfxAssetId; at: 'caster' | 'point' | 'unit'; y: number; oriented?: boolean };
+type BurstSpawn = {
+  id: VfxAssetId;
+  at: 'caster' | 'point' | 'unit';
+  y: number;
+  oriented?: boolean;
+  /** Track the anchor entity (caster/target) over the effect's lifetime, instead
+   *  of pinning to the cast-time position. Use for body-centered swings/auras
+   *  (cleave, nova, heal); leave off for ground impacts that should stay put. */
+  follow?: boolean;
+};
 
 const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   // Mage
-  frost_nova: { id: 'vfx.frost', at: 'caster', y: 0.05 },
-  arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 },
+  frost_nova: { id: 'vfx.frost', at: 'caster', y: 0.05, follow: true },
+  arcane_blast: { id: 'vfx.arcane_blast', at: 'point', y: 0.05 }, // ground impact — stays
   // Warrior
-  cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true },
-  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06 },
+  cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true, follow: true },
+  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06 }, // crater — stays where it hit
   // Dash streak: the shader lifts itself to mid-body, so anchor at the ground.
   charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },
-  shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05 },
+  shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05, follow: true },
   // Archer
   tumble: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true },
   // Priest
-  heal: { id: 'vfx.heal', at: 'caster', y: 0.1 },
-  renew: { id: 'vfx.heal', at: 'unit', y: 0.1 },
+  heal: { id: 'vfx.heal', at: 'caster', y: 0.1, follow: true },
+  renew: { id: 'vfx.heal', at: 'unit', y: 0.1, follow: true }, // sticks to the healed target
   condemn: { id: 'vfx.condemn', at: 'unit', y: 0 },
 };
 
@@ -201,6 +210,8 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   if (burst) {
     let x = msg.x;
     let z = msg.z;
+    // Entity this effect tracks over its lifetime (body-centered casts only).
+    let followId: string | undefined;
     if (burst.at === 'point' && msg.tx !== undefined && msg.tz !== undefined) {
       x = msg.tx;
       z = msg.tz;
@@ -210,8 +221,11 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
         x = target.x;
         z = target.z;
       }
+      if (burst.follow) followId = msg.targetId;
+    } else if (burst.at === 'caster' && burst.follow) {
+      followId = msg.casterId;
     }
-    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1]);
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId);
     return;
   }
 
