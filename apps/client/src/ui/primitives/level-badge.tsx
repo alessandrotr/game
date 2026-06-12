@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 
 /** Box + number sizing per scale. */
 const SIZES = {
+  xxs: { box: 'h-6 w-6', text: 'text-[10px]' },
   xs: { box: 'h-7 w-7', text: 'text-[11px]' },
   sm: { box: 'h-9 w-9', text: 'text-[13px]' },
   md: { box: 'h-12 w-12', text: 'text-lg' },

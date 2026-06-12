@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
   IconButton,
+  LevelBadge,
   Table,
   TableBody,
   TableCell,
@@ -116,13 +117,17 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
         <RankBadge rank={rank} />
       </TableCell>
       <TableCell className="py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
-          {me && <YouTag />}
-        </div>
-        <div className="mt-0.5 truncate text-[11px]" style={{ color: cls.color }}>
-          {cls.name}
-          <span className="text-muted"> · Lv {entry.level}</span>
+        <div className="flex items-center gap-2.5">
+          <LevelBadge level={entry.level} size="xs" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
+              {me && <YouTag />}
+            </div>
+            <div className="mt-0.5 truncate text-[11px]" style={{ color: cls.color }}>
+              {cls.name}
+            </div>
+          </div>
         </div>
       </TableCell>
       <TableCell className="py-2.5 text-right text-sm">
@@ -144,6 +149,7 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
       style={me ? { boxShadow: 'inset 2px 0 0 0 var(--color-gold)' } : undefined}
     >
       <RankBadge rank={rank} />
+      <LevelBadge level={entry.level} size="xxs" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate font-semibold text-text">{entry.name}</span>
@@ -151,7 +157,6 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
         </div>
         <div className="truncate text-[11px]" style={{ color: cls.color }}>
           {cls.name}
-          <span className="text-muted"> · Lv {entry.level}</span>
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5 text-sm">
