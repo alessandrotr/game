@@ -5,7 +5,7 @@
  */
 
 /** Max characters in a single chat message after sanitization. */
-export const CHAT_MAX_LENGTH = 20;
+export const CHAT_MAX_LENGTH = 45;
 /** How many recent messages a room retains and replays to joiners. */
 export const CHAT_HISTORY_SIZE = 50;
 

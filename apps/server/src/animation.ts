@@ -46,12 +46,16 @@ export const INSTANT_ONESHOT_MS = 350;
 export const HIT_ONESHOT_MS = 300;
 
 /**
- * Resolve the animation state. Death wins outright; otherwise an unexpired
- * one-shot (cast/attack/hit) plays; otherwise locomotion — Run while moving
- * (single move speed, LoL-style), else Idle.
+ * Resolve the animation state. Death wins outright. Locomotion then takes
+ * priority over transient combat poses *while moving*: an instant cast or a
+ * flinch taken mid-run keeps the Run animation rather than freezing into a pose
+ * that visually "slides" across the ground. Rooted casts (castTimeMs > 0) stop
+ * the player, so `moving` is false and their pose shows. Otherwise an unexpired
+ * one-shot (cast/attack/hit/emote) plays; else Idle.
  */
 export function computeAnimState(inputs: AnimInputs): AnimState {
   if (!inputs.alive) return 'die';
+  if (inputs.moving) return 'run';
   if (inputs.oneShot && inputs.now < inputs.oneShot.until) return inputs.oneShot.name;
-  return inputs.moving ? 'run' : 'idle';
+  return 'idle';
 }

@@ -19,13 +19,25 @@ describe('createCharacterFSM', () => {
     expect(fsm.step({ speed: 0.7, alive: true, event: null }, FRAME)).toBe('run');
   });
 
-  it('plays a one-shot event then falls back to locomotion', () => {
+  it('plays a one-shot while still, then falls back to locomotion', () => {
     const fsm = createCharacterFSM();
-    expect(fsm.step({ ...moving, event: 'cast' }, FRAME)).toBe('cast');
-    // Still within the cast duration → keeps casting even while moving.
-    expect(fsm.step(moving, FRAME)).toBe('cast');
-    // Advance past the one-shot duration → back to run (still moving).
-    expect(fsm.step(moving, 1000)).toBe('run');
+    expect(fsm.step({ ...still, event: 'cast' }, FRAME)).toBe('cast');
+    // Still within the cast duration → keeps casting while stationary.
+    expect(fsm.step(still, FRAME)).toBe('cast');
+    // Advance past the one-shot duration → back to idle.
+    expect(fsm.step(still, 1000)).toBe('idle');
+  });
+
+  it('lets movement override a transient pose (no sliding cast/hit while running)', () => {
+    const fsm = createCharacterFSM();
+    // Casting while moving keeps Run — the pose would otherwise freeze and slide.
+    expect(fsm.step({ ...moving, event: 'cast' }, FRAME)).toBe('run');
+    // Getting hit mid-run likewise stays Run.
+    expect(fsm.step({ ...moving, event: 'hit' }, FRAME)).toBe('run');
+    // Starting to move mid-cast cancels the pose.
+    const fsm2 = createCharacterFSM();
+    expect(fsm2.step({ ...still, event: 'cast' }, FRAME)).toBe('cast');
+    expect(fsm2.step(moving, FRAME)).toBe('run');
   });
 
   it('lets a newer event interrupt an in-progress one-shot', () => {

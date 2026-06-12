@@ -282,12 +282,11 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         delta * 1000,
       );
       // Surface server-driven one-shots the client can't predict (auto-attacks),
-      // but only when our own prediction is just locomotion — never override a
-      // predicted cast/hit.
+      // but only while we're standing still — never override locomotion, or a
+      // pose taken mid-run would freeze the body and slide across the ground.
       const sv = latest.animState;
       animName.current =
-        (predicted === 'idle' || predicted === 'walk' || predicted === 'run') &&
-        (sv === 'attack' || sv === 'cast' || sv === 'hit')
+        predicted === 'idle' && (sv === 'attack' || sv === 'cast' || sv === 'hit')
           ? sv
           : predicted;
     } else {

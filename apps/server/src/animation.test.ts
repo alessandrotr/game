@@ -7,19 +7,30 @@ describe('computeAnimState', () => {
       computeAnimState({
         alive: false,
         moving: true,
-        sprinting: true,
         oneShot: { name: 'cast', until: 1000 },
         now: 0,
       }),
     ).toBe('die');
   });
 
-  it('plays an unexpired one-shot over locomotion', () => {
+  it('keeps locomotion when moving, overriding a transient one-shot', () => {
+    // The fix for the "cast/hit while running freezes the pose and slides" bug:
+    // movement wins, so an instant cast taken mid-run stays Run.
     expect(
       computeAnimState({
         alive: true,
         moving: true,
-        sprinting: true,
+        oneShot: { name: 'cast', until: 500 },
+        now: 200,
+      }),
+    ).toBe('run');
+  });
+
+  it('plays an unexpired one-shot while stationary', () => {
+    expect(
+      computeAnimState({
+        alive: true,
+        moving: false,
         oneShot: { name: 'cast', until: 500 },
         now: 200,
       }),
@@ -30,27 +41,24 @@ describe('computeAnimState', () => {
     expect(
       computeAnimState({
         alive: true,
-        moving: true,
-        sprinting: true,
-        oneShot: { name: 'cast', until: 500 },
-        now: 600,
-      }),
-    ).toBe('run');
-    expect(
-      computeAnimState({
-        alive: true,
         moving: false,
-        sprinting: false,
         oneShot: { name: 'hit', until: 500 },
         now: 600,
       }),
     ).toBe('idle');
+    expect(
+      computeAnimState({
+        alive: true,
+        moving: true,
+        oneShot: { name: 'hit', until: 500 },
+        now: 600,
+      }),
+    ).toBe('run');
   });
 
-  it('chooses run (sprint) / walk / idle by movement', () => {
+  it('chooses run / idle by movement when there is no one-shot', () => {
     const base = { alive: true, oneShot: null, now: 0 };
-    expect(computeAnimState({ ...base, moving: true, sprinting: true })).toBe('run');
-    expect(computeAnimState({ ...base, moving: true, sprinting: false })).toBe('walk');
-    expect(computeAnimState({ ...base, moving: false, sprinting: false })).toBe('idle');
+    expect(computeAnimState({ ...base, moving: true })).toBe('run');
+    expect(computeAnimState({ ...base, moving: false })).toBe('idle');
   });
 });

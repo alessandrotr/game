@@ -1,4 +1,4 @@
-import { EMOTE_MS, isEmote, type AnimationName } from '@arena/shared';
+import { EMOTE_MS, type AnimationName } from '@arena/shared';
 
 /**
  * A character animation state machine — the Phase 4.2 deliverable.
@@ -74,18 +74,19 @@ export function createCharacterFSM(): CharacterFSM {
         return current;
       }
 
-      // A fresh event starts (or restarts) a one-shot, interrupting any other.
-      if (inputs.event) {
-        oneShot = { name: inputs.event, remaining: ONESHOT_MS[inputs.event] };
-        current = inputs.event;
-        return current;
-      }
+      const moving = inputs.speed >= MOVE_SPEED_THRESHOLD;
 
-      // Continue an in-progress one-shot until its time runs out. A dance is
-      // also cancelled the moment the player starts moving (combat poses aren't).
+      // A fresh event arms a one-shot (its timer starts now), interrupting any
+      // other.
+      if (inputs.event) oneShot = { name: inputs.event, remaining: ONESHOT_MS[inputs.event] };
+
+      // Movement takes priority over any transient pose: casting, attacking or
+      // getting hit while running keeps the Run animation instead of freezing
+      // into a pose that slides across the ground. (Emotes were already
+      // movement-cancelled; now combat poses are too.) Rooted casts stop the
+      // player first, so `moving` is false and their pose plays normally.
       if (oneShot) {
-        const moving = inputs.speed >= MOVE_SPEED_THRESHOLD;
-        if (isEmote(oneShot.name) && moving) {
+        if (moving) {
           oneShot = null;
         } else {
           oneShot.remaining -= dtMs;

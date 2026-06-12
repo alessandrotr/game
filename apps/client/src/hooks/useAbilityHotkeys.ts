@@ -4,6 +4,7 @@ import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
 import { sendCast } from '../network/colyseus';
+import { clearDestination } from '../store/destinationState';
 import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { useAbilityTargeting } from '../store/abilityTargeting';
@@ -53,6 +54,10 @@ export function useAbilityHotkeys(enabled: boolean): void {
       sendCast(ability, Math.sin(rotation), Math.cos(rotation));
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');
+      // A rooted cast (wind-up) stops the player server-side; mirror that locally
+      // so they hold still for the cast pose instead of sliding toward a stale
+      // destination. Instant casts keep their destination and keep moving.
+      if (config.castTimeMs > 0) clearDestination();
     };
 
     /** Nearest living player to the cursor (within a small pick radius), for
@@ -92,6 +97,10 @@ export function useAbilityHotkeys(enabled: boolean): void {
       sendCast(ability, dx, dz, undefined, undefined, target?.id);
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');
+      // A rooted cast (wind-up) stops the player server-side; mirror that locally
+      // so they hold still for the cast pose instead of sliding toward a stale
+      // destination. Instant casts keep their destination and keep moving.
+      if (config.castTimeMs > 0) clearDestination();
     };
 
     /** Fire an aimed ability toward the cursor (called on key release). */
@@ -111,6 +120,10 @@ export function useAbilityHotkeys(enabled: boolean): void {
       }
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');
+      // A rooted cast (wind-up) stops the player server-side; mirror that locally
+      // so they hold still for the cast pose instead of sliding toward a stale
+      // destination. Instant casts keep their destination and keep moving.
+      if (config.castTimeMs > 0) clearDestination();
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
