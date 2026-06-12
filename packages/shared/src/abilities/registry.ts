@@ -62,9 +62,8 @@ export const ABILITY_REGISTRY = {
         radius: 5,
         onHit: [
           { type: 'damage', amount: 20 },
-          // Freezes the enemy on the spot (root) and slows for the same window.
-          { type: 'status', status: { kind: 'root', durationMs: 1500 } },
-          { type: 'status', status: { kind: 'slow', durationMs: 1500, magnitude: 0.5 } },
+          // Freezes the enemy solid — a full stun for 2s.
+          { type: 'status', status: { kind: 'stun', durationMs: 2000 } },
         ],
       },
     ],
@@ -101,7 +100,7 @@ export const ABILITY_REGISTRY = {
     aim: 'point',
     cooldownMs: 10000,
     manaCost: 100,
-    castTimeMs: 1000,
+    castTimeMs: 500,
     range: 16,
     damage: 55,
     aoeRadius: 4,

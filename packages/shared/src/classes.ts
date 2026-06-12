@@ -54,7 +54,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Ranged Burst',
     description:
       'Glass-cannon caster: fireballs, a frost burst, arcane bolts, and a targeted blast.',
-    stats: { health: 280, mana: 140, moveSpeed: 9, attackDamage: 55, difficulty: 3 },
+    stats: { health: 280, mana: 200, moveSpeed: 9, attackDamage: 55, difficulty: 3 },
     abilities: ['fireball', 'frost_nova', 'arcane_bolt', 'arcane_blast'],
     color: '#3a57d6',
   },
