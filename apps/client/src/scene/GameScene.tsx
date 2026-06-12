@@ -55,6 +55,7 @@ export function GameScene() {
       onContextMenu={(e) => e.preventDefault()}
     >
       <ToneMap mode={env.toneMapping} exposure={env.exposure} />
+      <ContextGuard />
       <color attach="background" args={[env.background]} />
       <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
 
@@ -172,6 +173,36 @@ const TONE_MAPPING: Record<ToneMappingMode, ToneMapping> = {
   agx: AgXToneMapping,
   neutral: NeutralToneMapping,
 };
+
+/**
+ * Survive a WebGL context loss instead of letting it cascade into a disconnect.
+ *
+ * When the GPU drops the context (driver reset, a long frame tripping the
+ * watchdog, the tab being backgrounded), the browser fires `webglcontextlost`.
+ * If nothing calls `preventDefault()`, the loss is treated as PERMANENT — the
+ * renderer then errors on its next frame, the error boundary catches it, and the
+ * session tears down to the join screen. Calling `preventDefault()` instead tells
+ * the browser we'll recover, so it fires `webglcontextrestored`; Three.js
+ * re-initializes the GL state and rendering resumes in place.
+ */
+function ContextGuard() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('[gl] WebGL context lost — awaiting restore');
+    };
+    const onRestored = () => console.warn('[gl] WebGL context restored');
+    canvas.addEventListener('webglcontextlost', onLost, false);
+    canvas.addEventListener('webglcontextrestored', onRestored, false);
+    return () => {
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
+    };
+  }, [gl]);
+  return null;
+}
 
 /** Applies the tone-mapping operator + exposure live (the Canvas `gl` prop only
  *  sets these once, at creation). Changing the operator recompiles materials,
