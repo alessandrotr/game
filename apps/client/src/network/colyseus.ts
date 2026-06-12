@@ -232,18 +232,59 @@ let joinOptions: {
  *  join screen. */
 let traveling = false;
 
+/** Latched once we've started bailing out of a wedged connection, so repeated
+ *  state patches on the dying room don't each trigger another leave. Cleared
+ *  when a fresh room is wired or we fully leave. */
+let bailing = false;
+
+/**
+ * A state patch (or a malformed one from a skewed server build) must never take
+ * down the app: leave the room cleanly so `onLeave` resets us to the JoinScreen,
+ * with a message explaining the drop, instead of throwing inside Colyseus's
+ * decode loop.
+ */
+function bailToJoinScreen(reason: unknown): void {
+  if (bailing) return;
+  bailing = true;
+  console.error('[net] dropping connection after a fatal sync error:', reason);
+  const current = room;
+  room = null;
+  disconnectMatchmaking();
+  useGameStore.getState().reset();
+  useGameStore.getState().setStatus('error', 'Lost sync with the server — please rejoin.');
+  if (current) void current.leave().catch(() => {});
+}
+
+/** Wrap a discrete message handler so a bug in cosmetic feedback (a VFX, a
+ *  floating number) is logged and swallowed rather than thrown into Colyseus. */
+function guarded<T>(fn: (msg: T) => void): (msg: T) => void {
+  return (msg) => {
+    try {
+      fn(msg);
+    } catch (err) {
+      console.error('[net] message handler error (ignored):', err);
+    }
+  };
+}
+
 /** Wire a freshly-joined room's state + messages into the stores. */
 function wireRoom(joined: Room): void {
+  bailing = false; // fresh connection
   clearSnapshots(); // fresh interpolation timeline per room (no cross-room bleed)
   // A teleport (portal/scene change) cancels any pending move order — arrive
   // idle and wait for the next command, rather than resuming a stale walk.
   clearDestination();
   joined.onStateChange((state) => {
-    const raw = state as unknown as RawState;
-    const { players, projectiles } = snapshotState(raw);
-    useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
-    // Feed the interpolation buffer used to render remote players smoothly.
-    recordSnapshots(players, performance.now());
+    try {
+      const raw = state as unknown as RawState;
+      const { players, projectiles } = snapshotState(raw);
+      useGameStore.getState().applySnapshot(players, projectiles, raw.tick);
+      // Feed the interpolation buffer used to render remote players smoothly.
+      recordSnapshots(players, performance.now());
+    } catch (err) {
+      // e.g. a server/client schema skew — degrade to a clean disconnect.
+      bailToJoinScreen(err);
+    }
   });
 
   // Identity is read from `room.sessionId`; the Welcome message is acknowledged
@@ -251,10 +292,11 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.Welcome, () => {});
 
   // Combat events only fire in the arena; harmless to listen for everywhere.
-  joined.onMessage(ServerMessage.AbilityCast, onAbilityCast);
-  joined.onMessage(ServerMessage.Damage, onDamage);
-  joined.onMessage(ServerMessage.Heal, onHeal);
-  joined.onMessage(ServerMessage.LevelUp, onLevelUp);
+  // Guarded so a bug in a VFX/feedback handler can't crash the connection.
+  joined.onMessage(ServerMessage.AbilityCast, guarded(onAbilityCast));
+  joined.onMessage(ServerMessage.Damage, guarded(onDamage));
+  joined.onMessage(ServerMessage.Heal, guarded(onHeal));
+  joined.onMessage(ServerMessage.LevelUp, guarded(onLevelUp));
   joined.onMessage(ServerMessage.Chat, (msg) => {
     useChatStore.getState().add(msg);
     if (msg.senderId) useSpeechStore.getState().say(msg.senderId, msg.text);
@@ -273,6 +315,7 @@ function wireRoom(joined: Room): void {
   });
 
   joined.onLeave((code) => {
+    bailing = false;
     if (traveling) return; // an intentional room switch — keep playing
     room = null;
     disconnectMatchmaking(); // drop the parallel lobby connection too

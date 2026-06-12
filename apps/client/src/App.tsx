@@ -10,6 +10,8 @@ import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
 import { useServerStatTuning } from './hooks/useServerStatTuning';
 import { useInteractionInput } from './hooks/useInteractionInput';
 import { GameScene } from './scene/GameScene';
+import { ErrorBoundary } from './ui/ErrorBoundary';
+import { disconnect } from './network/colyseus';
 import { JoinScreen } from './ui/JoinScreen';
 import { AuthScreen } from './ui/AuthScreen';
 import { LandingPage } from './ui/LandingPage';
@@ -73,12 +75,19 @@ export default function App() {
       <DevToolsGate />
 
       {connected ? (
-        <>
+        <ErrorBoundary
+          onError={() => {
+            // A render crash tears down the session → App falls back to JoinScreen,
+            // the same as a clean disconnect (rather than a white screen).
+            disconnect();
+            useGameStore.getState().reset();
+          }}
+        >
           <GameScene />
           <Hud />
           <InteractionUI />
           <ChatPanel />
-        </>
+        </ErrorBoundary>
       ) : (
         <JoinScreen />
       )}
