@@ -11,17 +11,22 @@ import { Color, DoubleSide, type ShaderMaterial } from 'three';
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
+  varying vec3 vWorldPos;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
 
 const fragmentShader = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
+  varying vec3 vWorldPos;
   uniform float uTime;
   uniform vec3 uColor;
+  uniform vec3 uColorR; // right-side (red team) tint
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
@@ -49,7 +54,9 @@ const fragmentShader = /* glsl */ `
     float vert = smoothstep(0.0, 0.1, vUv.y) * (0.5 + 0.5 * vUv.y);
 
     float alpha = (0.16 * sheet + threads * 0.6) * vert;
-    vec3 col = uColor + threads * 0.4;
+    // Split blue (left) / red (right) by world X, matching the pools below.
+    vec3 tint = mix(uColor, uColorR, smoothstep(-0.4, 0.4, vWorldPos.x));
+    vec3 col = tint + threads * 0.4;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
   }
 `;
@@ -60,6 +67,8 @@ interface WaterStreamProps {
   height: number;
   position?: [number, number, number];
   color?: string;
+  /** Right-side (red team) tint. Defaults to `color` (no split). */
+  colorRight?: string;
 }
 
 export function WaterStream({
@@ -68,13 +77,18 @@ export function WaterStream({
   height,
   position = [0, 0, 0],
   color = '#bfe9ff',
+  colorRight,
 }: WaterStreamProps) {
   const material = useRef<ShaderMaterial>(null);
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new Color() } }), []);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: 0 }, uColor: { value: new Color() }, uColorR: { value: new Color() } }),
+    [],
+  );
 
   useEffect(() => {
     uniforms.uColor.value.set(color);
-  }, [color, uniforms]);
+    uniforms.uColorR.value.set(colorRight ?? color);
+  }, [color, colorRight, uniforms]);
 
   useFrame((_, delta) => {
     const u = material.current?.uniforms.uTime;

@@ -17,6 +17,12 @@ const STONE = '#8d8880';
 const STONE_DARK = '#5f5b54';
 const STONE_BASIN = '#6b665e';
 
+// Team-split water: blue on the left (x<0), red on the right (x>0). The fountain
+// sits at the town centre (x=0), so the seam lands exactly on the divide.
+const RED_DEEP = '#4d1216';
+const RED_SHALLOW = '#c43f3f';
+const STREAM_RIGHT = '#ffb3b3';
+
 export function Fountain({ position = [0, 0, 0] }: { position?: [number, number, number] }) {
   return (
     <group position={position}>
@@ -39,7 +45,7 @@ export function Fountain({ position = [0, 0, 0] }: { position?: [number, number,
         <cylinderGeometry args={[2.95, 2.95, 0.1, 56]} />
         <meshStandardMaterial color={STONE_BASIN} roughness={1} metalness={0} />
       </mesh>
-      <WaterSurface radius={2.85} position={[0, 0.82, 0]} />
+      <WaterSurface radius={2.85} position={[0, 0.82, 0]} redDeep={RED_DEEP} redShallow={RED_SHALLOW} />
 
       {/* Central column. */}
       <mesh position={[0, 1.42, 0]} receiveShadow castShadow>
@@ -60,7 +66,7 @@ export function Fountain({ position = [0, 0, 0] }: { position?: [number, number,
         <cylinderGeometry args={[1.04, 1.04, 0.06, 36]} />
         <meshStandardMaterial color={STONE_BASIN} roughness={1} metalness={0} />
       </mesh>
-      <WaterSurface radius={1.0} position={[0, 2.08, 0]} />
+      <WaterSurface radius={1.0} position={[0, 2.08, 0]} redDeep={RED_DEEP} redShallow={RED_SHALLOW} />
 
       {/* Finial stem + cap. */}
       <mesh position={[0, 2.4, 0]} castShadow>
@@ -74,7 +80,13 @@ export function Fountain({ position = [0, 0, 0] }: { position?: [number, number,
 
       {/* Falling water spilling from the raised bowl rim down into the pool —
           an animated veil that breaks into downward-flowing streams. */}
-      <WaterStream radiusTop={1.04} radiusBottom={1.16} height={1.16} position={[0, 1.42, 0]} />
+      <WaterStream
+        radiusTop={1.04}
+        radiusBottom={1.16}
+        height={1.16}
+        position={[0, 1.42, 0]}
+        colorRight={STREAM_RIGHT}
+      />
     </group>
   );
 }

@@ -31,6 +31,8 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform vec3 uDeep;
   uniform vec3 uShallow;
+  uniform vec3 uDeepR;     // right-side (red team) deep/shallow
+  uniform vec3 uShallowR;
   uniform vec3 uSky;
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -55,9 +57,15 @@ const fragmentShader = /* glsl */ `
     vec3 viewDir = normalize(vViewDir);
     float fres = pow(clamp(1.0 - dot(viewDir, n), 0.0, 1.0), 3.0);
 
+    // Team-split the water by world X: left side (x<0) keeps the blue palette,
+    // right side (x>0) the red one, with a soft seam at the fountain's centre.
+    float side = smoothstep(-0.6, 0.6, vWorldPos.x);
+    vec3 deepCol = mix(uDeep, uDeepR, side);
+    vec3 shallowCol = mix(uShallow, uShallowR, side);
+
     // Deeper toward the centre, shallower toward the rim.
     float r = length(vUv - 0.5) * 2.0;
-    vec3 base = mix(uDeep, uShallow, smoothstep(0.2, 1.0, r) * 0.6 + 0.2);
+    vec3 base = mix(deepCol, shallowCol, smoothstep(0.2, 1.0, r) * 0.6 + 0.2);
     vec3 col = mix(base, uSky, fres * 0.65);
 
     // Sun specular (Blinn-Phong) + glinting sparkle.
@@ -77,6 +85,9 @@ interface WaterSurfaceProps {
   deep?: string;
   shallow?: string;
   sky?: string;
+  /** Right-side (red team) palette. Defaults to the left palette (no split). */
+  redDeep?: string;
+  redShallow?: string;
 }
 
 export function WaterSurface({
@@ -86,6 +97,8 @@ export function WaterSurface({
   deep = '#0c3a4d',
   shallow = '#2f93b3',
   sky = '#cdeeff',
+  redDeep,
+  redShallow,
 }: WaterSurfaceProps) {
   const material = useRef<ShaderMaterial>(null);
   // Allocate uniforms ONCE (swapping the object on a live material freezes it);
@@ -95,6 +108,8 @@ export function WaterSurface({
       uTime: { value: 0 },
       uDeep: { value: new Color() },
       uShallow: { value: new Color() },
+      uDeepR: { value: new Color() },
+      uShallowR: { value: new Color() },
       uSky: { value: new Color() },
     }),
     [],
@@ -103,8 +118,10 @@ export function WaterSurface({
   useEffect(() => {
     uniforms.uDeep.value.set(deep);
     uniforms.uShallow.value.set(shallow);
+    uniforms.uDeepR.value.set(redDeep ?? deep);
+    uniforms.uShallowR.value.set(redShallow ?? shallow);
     uniforms.uSky.value.set(sky);
-  }, [deep, shallow, sky, uniforms]);
+  }, [deep, shallow, sky, redDeep, redShallow, uniforms]);
 
   useFrame((_, delta) => {
     const u = material.current?.uniforms.uTime;
