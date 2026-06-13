@@ -7,6 +7,11 @@ import { useCameraPrefsStore } from '../store/useCameraPrefsStore';
 const DRAG_SENSITIVITY = 0.006;
 /** Rotation per second while an arrow key is held (radians/s). */
 const KEY_SPEED = 1.8;
+/** Peak A/D orbit speed — 30% faster than the arrow keys, approached via easing. */
+const AD_KEY_SPEED = KEY_SPEED * 1.3;
+/** Easing rate (1/s) for A/D yaw: the angular velocity eases toward its target
+ *  (ease-in on press) and back to 0 (ease-out on release) at this rate. */
+const AD_EASE = 6;
 /** Zoom (radius multiplier) change per unit of wheel delta. */
 const ZOOM_SENSITIVITY = 0.001;
 /** Below this total drag (px), the middle press counts as a click → recenter. */
@@ -15,7 +20,8 @@ const CLICK_SLOP = 4;
 /**
  * Manual camera rotation, layered on the fixed follow-camera ({@link CameraRig}).
  * Two input paths so it works on any device:
- *  - **← / →** (or **A / D**) orbit (yaw), **↑ / ↓** tilt (pitch); held = continuous.
+ *  - **← / →** orbit (yaw) at a constant rate; **A / D** orbit (yaw) too but
+ *    inverted and eased (ramps in/out); **↑ / ↓** tilt (pitch). Held = continuous.
  *  - **Middle-mouse drag** orbits (horizontal) and tilts (vertical); a
  *    middle-click recenters both (mouse only — many laptops/trackpads have no
  *    middle button, hence the keyboard path above).
@@ -25,9 +31,12 @@ const CLICK_SLOP = 4;
  */
 export function CameraControls() {
   const gl = useThree((s) => s.gl);
-  // -1 / +1 / 0 for held yaw keys (← / → and A / D).
+  // -1 / +1 / 0 for held arrow keys (constant-rate yaw / pitch).
   const yawDir = useRef(0);
   const pitchDir = useRef(0);
+  // A/D held direction (inverted vs the arrows) and its eased angular velocity.
+  const adDir = useRef(0);
+  const adVel = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -77,17 +86,20 @@ export function CameraControls() {
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') yawDir.current = -1; // orbit left
-      else if (e.code === 'ArrowRight' || e.code === 'KeyD') yawDir.current = 1; // orbit right
+      if (e.code === 'ArrowLeft') yawDir.current = -1; // orbit left
+      else if (e.code === 'ArrowRight') yawDir.current = 1; // orbit right
+      else if (e.code === 'KeyA') adDir.current = 1; // A → orbit right (inverted)
+      else if (e.code === 'KeyD') adDir.current = -1; // D → orbit left (inverted)
       else if (e.code === 'ArrowUp') pitchDir.current = 1; // tilt toward top-down
       else if (e.code === 'ArrowDown') pitchDir.current = -1; // tilt flatter
       else return;
       e.preventDefault(); // don't scroll the page
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && yawDir.current === -1) yawDir.current = 0;
-      else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && yawDir.current === 1)
-        yawDir.current = 0;
+      if (e.code === 'ArrowLeft' && yawDir.current === -1) yawDir.current = 0;
+      else if (e.code === 'ArrowRight' && yawDir.current === 1) yawDir.current = 0;
+      else if (e.code === 'KeyA' && adDir.current === 1) adDir.current = 0;
+      else if (e.code === 'KeyD' && adDir.current === -1) adDir.current = 0;
       else if (e.code === 'ArrowUp' && pitchDir.current === 1) pitchDir.current = 0;
       else if (e.code === 'ArrowDown' && pitchDir.current === -1) pitchDir.current = 0;
     };
@@ -108,8 +120,8 @@ export function CameraControls() {
     };
   }, [gl]);
 
-  // Smoothly rotate/tilt while an arrow key is held (pitch self-clamps), subject
-  // to the account's camera locks.
+  // Rotate/tilt while a key is held (pitch self-clamps), subject to the
+  // account's camera locks. Arrows are constant-rate; A/D are eased.
   useFrame((_, delta) => {
     const prefs = useCameraPrefsStore.getState().prefs;
     if (yawDir.current !== 0 && !prefs.lockRotation) {
@@ -117,6 +129,14 @@ export function CameraControls() {
     }
     if (pitchDir.current > 0 && !prefs.lockTiltUp) addCameraPitch(KEY_SPEED * delta);
     else if (pitchDir.current < 0 && !prefs.lockTiltDown) addCameraPitch(-KEY_SPEED * delta);
+
+    // A/D yaw: ease the angular velocity toward the held direction's peak speed
+    // (ease-in on press) and back to 0 on release (ease-out). Exponential
+    // smoothing keeps the curve frame-rate-independent; lockRotation eases it to
+    // a standstill rather than cutting abruptly.
+    const adTarget = prefs.lockRotation ? 0 : adDir.current * AD_KEY_SPEED;
+    adVel.current += (adTarget - adVel.current) * (1 - Math.exp(-AD_EASE * delta));
+    if (Math.abs(adVel.current) > 1e-4) addCameraYaw(adVel.current * delta);
   });
 
   return null;
