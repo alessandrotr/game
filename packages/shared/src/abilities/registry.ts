@@ -25,18 +25,18 @@ export const ABILITY_REGISTRY = {
     name: 'Fireball',
     icon: 'Flame',
     aim: 'direction',
-    cooldownMs: 1500,
+    cooldownMs: 500,
     manaCost: 20,
     castTimeMs: 0,
     range: 30,
     damage: 20,
-    projectileSpeed: 25,
+    projectileSpeed: 35,
     projectileRange: 30,
     projectileRadius: 0.8,
     effects: [
       {
         type: 'projectile',
-        speed: 25,
+        speed: 35,
         range: 30,
         radius: 0.8,
         vfx: VFX_FIRE,
@@ -52,14 +52,14 @@ export const ABILITY_REGISTRY = {
     cooldownMs: 5000,
     manaCost: 60,
     castTimeMs: 0,
-    range: 5,
+    range: 7,
     damage: 20,
-    aoeRadius: 5,
+    aoeRadius: 7,
     effects: [
       {
         type: 'aoe',
         at: 'caster',
-        radius: 5,
+        radius: 7,
         onHit: [
           { type: 'damage', amount: 20 },
           // Freezes the enemy solid — a full stun for 2s.
@@ -79,13 +79,13 @@ export const ABILITY_REGISTRY = {
     range: 50,
     damage: 30,
     // A long-range, fast "sniper" bolt.
-    projectileSpeed: 45,
+    projectileSpeed: 50,
     projectileRange: 50,
     projectileRadius: 0.6,
     effects: [
       {
         type: 'projectile',
-        speed: 45,
+        speed: 50,
         range: 50,
         radius: 0.6,
         vfx: VFX_ARCANE,
