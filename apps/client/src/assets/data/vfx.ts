@@ -327,7 +327,8 @@ const groundSlam: VfxDescriptor = {
   id: 'vfx.ground_slam',
   displayName: 'Ground Slam',
   behavior: 'burst',
-  durationMs: 720,
+  // ~50% faster than its old 720ms so the shockwave snaps out.
+  durationMs: 480,
   render: { kind: 'placeholder', parts: [{ name: 'ring', shape: 'torus', args: [1.4, 0.18, 12, 36], rotation: [Math.PI / 2, 0, 0], color: '#ffc184', emissive: '#ff6a1a', emissiveIntensity: 2.6 }] },
 };
 

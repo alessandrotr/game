@@ -136,7 +136,9 @@ const groundSlamFrag = /* glsl */ `
     gl_FragColor = vec4(col * v * 2.0, v * (1.0 - uProgress * 0.85));
   }
 `;
-export const GroundSlamEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={13} frag={groundSlamFrag} />;
+// Sized so the shockwave ring (which expands to r=0.95 of the quad's half-width)
+// lands exactly on Ground Slam's 5-unit damage radius: 5 / 0.475 ≈ 10.5.
+export const GroundSlamEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={10.5} frag={groundSlamFrag} />;
 
 // --- Cleave: a steel blade-trail that sweeps the 180° arc in FRONT of the player.
 

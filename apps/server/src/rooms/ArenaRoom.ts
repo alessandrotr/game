@@ -69,6 +69,10 @@ const BOT_NAMES = [
 /** Origin height for a cast's broadcast (matches the projectile spawn height). */
 const PROJECTILE_Y = 1;
 
+/** Contact radius for a damaging dash (Charge) colliding with props — sized so a
+ *  fast slide doesn't tunnel between ticks before it bumps a barrel/drum/tire. */
+const DASH_IMPACT_RADIUS = 1.2;
+
 /** Cooldown leniency (ms) on casts: a client whose optimistic cooldown just
  *  expired shouldn't have its cast rejected by round-trip / tick jitter (which
  *  wastes the press and desyncs the cooldown display). Absorbs typical latency. */
@@ -633,7 +637,9 @@ export class ArenaRoom extends AvatarRoom {
         // Slide along the displacement velocity (clamped to the arena).
         player.x = clamp(player.x + disp.vx * dt, -limit, limit);
         player.z = clamp(player.z + disp.vz * dt, -limit, limit);
-        // Damaging dash (e.g. Charge): hit each enemy swept through once.
+        // Damaging dash (e.g. Charge): hit each enemy swept through once, and
+        // physically collide with the props in the dash lane — launch burning
+        // barrels and shove/scatter oil drums and tires it ploughs into.
         if (disp.damage && disp.hit) {
           const hitR = PLAYER_RADIUS * 2;
           const dmg = disp.damage;
@@ -648,6 +654,10 @@ export class ArenaRoom extends AvatarRoom {
               this.combat.dealDamage(other, dmg, fromId);
             }
           });
+          // Props: barrels launch (idempotent once armed); drums/tires get shoved
+          // (drums are rate-limited, tires scatter once) — a pure physical bump.
+          this.barrels.triggerInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
+          this.destructibles.pushInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
         }
       } else if (pending) {
         // Rooted wind-up: no movement while casting.

@@ -290,13 +290,13 @@ export const ABILITY_REGISTRY = {
     damage: 80,
     projectileSpeed: 85,
     projectileRange: 65,
-    projectileRadius: 0.4,
+    projectileRadius: 0.6,
     effects: [
       {
         type: 'projectile',
         speed: 85,
         range: 65,
-        radius: 0.4,
+        radius: 0.6,
         vfx: 'pinning_arrow',
         onHit: [{ type: 'damage', amount: 80 }],
       },
