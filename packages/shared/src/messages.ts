@@ -91,6 +91,9 @@ export enum ServerMessage {
   /** A cover structure (trailer/car/dumpster) lost all its HP and crumbled
    *  (drives a dust/debris burst; the structure also becomes uncollidable). */
   StructureCrumbled = 'structure_crumbled',
+  /** A car ran out of HP and detonated (drives the fireball explosion VFX; the
+   *  server has already applied its area damage). */
+  CarExplosion = 'car_explosion',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -217,4 +220,6 @@ export interface ServerMessagePayloads {
   /** World point + footprint radius of a structure that just crumbled (drives a
    *  dust/debris burst sized to the structure). */
   [ServerMessage.StructureCrumbled]: { x: number; z: number; radius: number };
+  /** World point + blast radius of a car that detonated (drives the fireball). */
+  [ServerMessage.CarExplosion]: { x: number; z: number; radius: number };
 }

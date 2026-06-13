@@ -1,6 +1,16 @@
-import { ServerMessage, type ArenaObstacle, type CoverStructureSpec } from '@arena/shared';
+import { PLAYER_RADIUS, ServerMessage, type ArenaObstacle, type CoverStructureSpec } from '@arena/shared';
 import { CoverStructure } from '../schema.js';
 import type { ArenaContext } from './context.js';
+import type { CombatSystem } from './combat.js';
+
+/** A car detonates on destruction: 100 damage to everything within 5 units. */
+const CAR_EXPLOSION_DAMAGE = 100;
+const CAR_EXPLOSION_RADIUS = 5;
+
+/** True for car cover (the only structure that explodes when destroyed). */
+function isCar(assetId: string): boolean {
+  return assetId.includes('car');
+}
 
 /**
  * Destructible cover structures — trailers (the arena's "houses"), burned cars
@@ -23,6 +33,8 @@ export class CoverSystem {
     /** The room's live collision set — structure circles are pushed in here and
      *  spliced out on crumble, so movement/projectiles see the change at once. */
     private readonly collision: ArenaObstacle[],
+    /** Combat, for the area damage a car deals when it detonates on death. */
+    private readonly combat: CombatSystem,
   ) {}
 
   /** Spawn the match's HP-bearing cover from the generated layout. */
@@ -91,7 +103,8 @@ export class CoverSystem {
     });
   }
 
-  /** Crumble: mark destroyed, pull its collision circle, and burst dust/debris. */
+  /** Crumble: mark destroyed, pull its collision circle, burst dust/debris, and
+   *  — for cars — detonate, dealing area damage to nearby players. */
   private crumble(s: CoverStructure): void {
     s.destroyed = true;
     const circle = this.circles.get(s.id);
@@ -101,5 +114,26 @@ export class CoverSystem {
       this.circles.delete(s.id);
     }
     this.ctx.broadcast(ServerMessage.StructureCrumbled, { x: s.x, z: s.z, radius: s.radius });
+    if (isCar(s.assetId)) this.detonate(s);
+  }
+
+  /** A destroyed car explodes: flat area damage to every player in the blast
+   *  (caught attackers included — it's a neutral hazard, credited to no one). */
+  private detonate(s: CoverStructure): void {
+    const reach = CAR_EXPLOSION_RADIUS + PLAYER_RADIUS;
+    const reachSq = reach * reach;
+    this.ctx.state.players.forEach((target) => {
+      if (!target.alive) return;
+      const dx = target.x - s.x;
+      const dz = target.z - s.z;
+      if (dx * dx + dz * dz <= reachSq) {
+        this.combat.dealDamage(target, CAR_EXPLOSION_DAMAGE, s.id);
+      }
+    });
+    this.ctx.broadcast(ServerMessage.CarExplosion, {
+      x: s.x,
+      z: s.z,
+      radius: CAR_EXPLOSION_RADIUS,
+    });
   }
 }

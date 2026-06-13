@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import type { AssetId } from '@arena/shared';
@@ -8,6 +8,10 @@ import { useTargetStore } from '../store/targetState';
 import { clearDestination } from '../store/destinationState';
 import { sendAttack } from '../network/colyseus';
 import { AssetInstance } from '../render/AssetInstance';
+import { CarSmoke, CarFire } from '../render/shaders';
+
+/** Cars (and only cars) smoke as they're worn down and burn near death. */
+type DamageStage = 'none' | 'smoke' | 'fire';
 
 /**
  * A destructible cover structure (trailer="house" / car / dumpster) rendered
@@ -32,6 +36,13 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
   // Bar width scales with the structure's footprint (bigger cover, wider bar).
   const barWidth = s ? Math.min(2.4, Math.max(0.9, s.radius * 1.3)) : 1;
 
+  // Cars accrue smoke (< 50% HP) then fire (< 20% HP). Tracked in a ref and
+  // promoted to state only when the band changes, so a worn-down car re-renders
+  // once per transition rather than every tick.
+  const isCar = !!s && s.assetId.includes('car');
+  const [stage, setStage] = useState<DamageStage>('none');
+  const stageRef = useRef<DamageStage>('none');
+
   useFrame(() => {
     const cur = useGameStore.getState().structures.get(structureId);
     if (!cur || !hpBar.current) return;
@@ -42,6 +53,15 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
       const ratio = Math.min(1, Math.max(0, cur.hp / cur.maxHp));
       hpFill.current.scale.x = Math.max(0.001, ratio);
       hpFill.current.position.x = -(barWidth * (1 - ratio)) / 2;
+    }
+    if (isCar) {
+      const ratio = cur.hp / cur.maxHp;
+      const next: DamageStage =
+        cur.destroyed || cur.hp <= 0 ? 'none' : ratio <= 0.2 ? 'fire' : ratio <= 0.5 ? 'smoke' : 'none';
+      if (next !== stageRef.current) {
+        stageRef.current = next;
+        setStage(next);
+      }
     }
   });
 
@@ -62,6 +82,8 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
       scale={[1, s.destroyed ? 0.18 : 1, 1]}
     >
       <AssetInstance id={s.assetId as AssetId} />
+      {isCar && stage === 'smoke' && <CarSmoke height={s.height} radius={s.radius} />}
+      {isCar && stage === 'fire' && <CarFire height={s.height} radius={s.radius} />}
       {!s.destroyed && (
         <mesh position={[0, s.height / 2, 0]} onPointerDown={onAttack}>
           <cylinderGeometry args={[s.radius, s.radius, s.height, 12]} />

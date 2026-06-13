@@ -464,6 +464,11 @@ function wireRoom(joined: Room): void {
     // server already applied it; this is just the crumble feedback).
     useEffectsStore.getState().spawn('vfx.shockwave', [msg.x, 0.05, msg.z]);
   });
+  joined.onMessage(ServerMessage.CarExplosion, (msg) => {
+    // A car detonated: a fireball + ground shock (the server already dealt the
+    // 100-damage area blast — this is the explosion VFX).
+    useEffectsStore.getState().spawn('vfx.car_explosion', [msg.x, 0, msg.z]);
+  });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
   );
