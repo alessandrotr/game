@@ -29,6 +29,7 @@ function recordingRuntime() {
     forEachEnemyInRadius: (_x, _z, _r, _except, fn) => enemies.forEach(fn),
     triggerBarrelsInRadius: () => {},
     pushDestructiblesInRadius: () => {},
+    damageStructuresInRadius: () => {},
     scheduleDashImpact: () => {},
   };
   return { rt, calls, enemies };

@@ -103,6 +103,28 @@ export interface DestructibleView {
   active: boolean;
 }
 
+/**
+ * Replicated destructible cover structure (trailer="house" / car / dumpster).
+ * Mirrors `CoverStructure` in the server schema. Blocks movement + projectiles
+ * while alive; when its HP hits 0 it `destroyed` → crumbles and stops colliding.
+ */
+export interface CoverStructureView {
+  readonly id: string;
+  /** Prop asset to render (e.g. 'prop.arena.trailer'). */
+  assetId: string;
+  x: number;
+  z: number;
+  /** Yaw (radians). */
+  rotation: number;
+  /** Collision footprint radius + visual height. */
+  radius: number;
+  height: number;
+  hp: number;
+  maxHp: number;
+  /** True once crumbled — uncollidable, rendered as flattened rubble. */
+  destroyed: boolean;
+}
+
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
 export interface ProjectileView {
   readonly id: string;
@@ -199,6 +221,8 @@ export interface ArenaStateView {
   barrels: Map<string, BarrelView>;
   /** Keyed by destructible id (tires / barrels / building parts). */
   destructibles: Map<string, DestructibleView>;
+  /** Keyed by cover-structure id (trailers / cars / dumpsters with HP). */
+  structures: Map<string, CoverStructureView>;
   /** Monotonically increasing server tick counter. */
   tick: number;
   /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */

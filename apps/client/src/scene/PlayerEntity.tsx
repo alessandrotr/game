@@ -128,8 +128,15 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   }, [isLocal, sessionId]);
 
   // This match's cover — the predictor collides against the same obstacles the
-  // server generated, so prediction matches authority by construction.
-  const arenaObstacles = useArenaLayout().obstacles;
+  // server generated, so prediction matches authority by construction. Static
+  // cover comes from the layout; alive (un-crumbled) HP structures are merged in
+  // from replicated state and drop out the instant one is destroyed.
+  const layoutObstacles = useArenaLayout().obstacles;
+  const structureObstacles = useGameStore((s) => s.structureObstacles);
+  const arenaObstacles = useMemo(
+    () => [...layoutObstacles, ...structureObstacles],
+    [layoutObstacles, structureObstacles],
+  );
 
   useFrame((_, delta) => {
     const node = group.current;

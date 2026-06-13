@@ -18,6 +18,7 @@ import type { ArenaMatch } from './match.js';
 import type { ProjectileSystem } from './projectiles.js';
 import type { BarrelSystem } from './barrels.js';
 import type { DestructibleSystem } from './destructibles.js';
+import type { CoverSystem } from './cover.js';
 
 /**
  * Everything that resolves an ability's or attack's effect against the world:
@@ -32,6 +33,7 @@ export class CombatSystem {
   private projectiles!: ProjectileSystem;
   private barrels!: BarrelSystem;
   private destructibles!: DestructibleSystem;
+  private cover!: CoverSystem;
   /** Pending charge-slam impacts: session id → when (sim ms) + the AoE to apply. */
   private readonly dashImpacts = new Map<
     string,
@@ -53,6 +55,21 @@ export class CombatSystem {
 
   attachDestructibles(destructibles: DestructibleSystem): void {
     this.destructibles = destructibles;
+  }
+
+  attachCover(cover: CoverSystem): void {
+    this.cover = cover;
+  }
+
+  /** Damage a cover structure by id (auto-attack / melee). */
+  damageStructure(id: string, amount: number): void {
+    this.cover.damage(id, amount);
+  }
+
+  /** Damage the first alive cover structure a projectile at (x,z) overlaps.
+   *  Returns true if one was hit (the caller consumes the projectile). */
+  hitStructure(x: number, z: number, projR: number, amount: number): boolean {
+    return this.cover.hitProjectile(x, z, projR, amount);
   }
 
   /** Launch a struck barrel away from the hit (projectile / auto-attack). */
@@ -285,6 +302,7 @@ export class CombatSystem {
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
     pushDestructiblesInRadius: (x, z, r, from) => this.destructibles.pushInRadius(x, z, r, from),
+    damageStructuresInRadius: (x, z, r, amount) => this.cover.damageInRadius(x, z, r, amount),
     scheduleDashImpact: (c, d, r, onLand) => this.scheduleDashImpact(c, d, r, onLand),
   };
 }

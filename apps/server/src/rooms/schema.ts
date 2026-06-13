@@ -121,11 +121,31 @@ export class DestructibleObject extends Schema {
   @type('boolean') active = false;
 }
 
+/**
+ * A destructible cover structure (trailer="house" / car / dumpster), mirrors
+ * `CoverStructureView` in `@arena/shared`. Has HP; blocks movement + projectiles
+ * while alive; when `destroyed` it crumbles and stops colliding. */
+export class CoverStructure extends Schema {
+  @type('string') id = '';
+  /** Prop asset id the client renders (e.g. 'prop.arena.trailer'). */
+  @type('string') assetId = '';
+  @type('number') x = 0;
+  @type('number') z = 0;
+  /** Yaw (radians). */
+  @type('number') rotation = 0;
+  @type('number') radius = 1;
+  @type('number') height = 1;
+  @type('number') hp = 100;
+  @type('number') maxHp = 100;
+  @type('boolean') destroyed = false;
+}
+
 export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type({ map: Barrel }) barrels = new MapSchema<Barrel>();
   @type({ map: DestructibleObject }) destructibles = new MapSchema<DestructibleObject>();
+  @type({ map: CoverStructure }) structures = new MapSchema<CoverStructure>();
   @type('number') tick = 0;
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */

@@ -46,6 +46,7 @@ import { ProjectileSystem } from './arena/projectiles.js';
 import { BarrelSystem } from './arena/barrels.js';
 import { DestructibleSystem } from './arena/destructibles.js';
 import { ArenaPhysics } from './arena/physics.js';
+import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
@@ -118,9 +119,10 @@ export class ArenaRoom extends AvatarRoom {
    *  at runtime via {@link ClientMessage.SetAutoAttack}. */
   private autoAttackEnabled = false;
 
-  /** This match's procedural cover, generated from `state.layoutSeed` in onCreate.
-   *  The authoritative collision set for movement and projectiles. */
-  private obstacles: readonly ArenaObstacle[] = [];
+  /** This match's live collision set for movement and projectiles: static cover
+   *  (scrap) plus a circle for every alive destructible structure. Mutated by the
+   *  cover system — a crumbled structure's circle is removed so it stops blocking. */
+  private obstacles: ArenaObstacle[] = [];
 
   /** Live-tunable balance for this room (per-room copy of the shared canon). */
   private readonly tuning = new ArenaTuning();
@@ -130,6 +132,8 @@ export class ArenaRoom extends AvatarRoom {
   private projectiles!: ProjectileSystem;
   private barrels!: BarrelSystem;
   private destructibles!: DestructibleSystem;
+  /** HP-bearing cover structures (trailers/cars/dumpsters) that crumble. */
+  private cover!: CoverSystem;
   /** Shared Rapier world for the destructible props + launched barrels. */
   private physics!: ArenaPhysics;
   private botDirector!: BotDirector;
@@ -153,11 +157,14 @@ export class ArenaRoom extends AvatarRoom {
     const seed = (1 + Math.floor(Math.random() * 0xfffffffe)) >>> 0;
     this.state.layoutSeed = seed;
     const layout = generateArenaLayout(seed);
-    this.obstacles = layout.obstacles;
+    // A mutable copy: the cover system pushes alive structure circles in here and
+    // splices them out when a structure crumbles (so it becomes uncollidable).
+    this.obstacles = [...layout.obstacles];
 
     this.buildSystems();
     this.barrels.init(layout.barrels);
     this.destructibles.init(layout.drums, layout.tireStacks);
+    this.cover.init(layout.structures);
 
     // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
     // win target by team size, and hide from public join (only reserved seats
@@ -177,10 +184,12 @@ export class ArenaRoom extends AvatarRoom {
       if (!player || !player.alive) return;
       const targetId = String(message?.targetId ?? '');
       if (targetId === client.sessionId) return;
-      // A valid target is a living enemy player or a live burning barrel.
+      // A valid target is a living enemy player, a live burning barrel, or a
+      // standing (un-crumbled) cover structure.
       const target = this.state.players.get(targetId);
       const barrel = target ? undefined : this.barrels.liveBarrel(targetId);
-      if ((!target || !target.alive) && !barrel) return;
+      const structure = target || barrel ? undefined : this.cover.liveStructure(targetId);
+      if ((!target || !target.alive) && !barrel && !structure) return;
       // Attack-move toward the target; clear any plain move destination.
       this.attackTargets.set(client.sessionId, targetId);
       this.destinations.delete(client.sessionId);
@@ -245,9 +254,11 @@ export class ArenaRoom extends AvatarRoom {
     this.physics = new ArenaPhysics(this.obstacles);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
+    this.cover = new CoverSystem(ctx, this.obstacles);
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);
+    this.combat.attachCover(this.cover);
     this.botDirector = new BotDirector(ctx, {
       cooldowns: this.cooldowns,
       pendingCasts: this.pendingCasts,
@@ -466,15 +477,17 @@ export class ArenaRoom extends AvatarRoom {
    */
   private updateAutoAttack(attacker: Player, sessionId: string, dt: number): void {
     const targetId = this.attackTargets.get(sessionId);
-    // The target is either a living player or a live (un-triggered) barrel.
+    // The target is a living player, a live barrel, or a standing cover structure.
     const targetPlayer = targetId ? this.state.players.get(targetId) : undefined;
     const targetBarrel = targetPlayer ? undefined : targetId ? this.barrels.liveBarrel(targetId) : undefined;
-    if ((!targetPlayer || !targetPlayer.alive) && !targetBarrel) {
+    const targetStructure =
+      targetPlayer || targetBarrel ? undefined : targetId ? this.cover.liveStructure(targetId) : undefined;
+    if ((!targetPlayer || !targetPlayer.alive) && !targetBarrel && !targetStructure) {
       this.attackTargets.delete(sessionId);
       return;
     }
-    const tx = targetPlayer ? targetPlayer.x : targetBarrel!.x;
-    const tz = targetPlayer ? targetPlayer.z : targetBarrel!.z;
+    const tx = targetPlayer ? targetPlayer.x : targetBarrel ? targetBarrel.x : targetStructure!.x;
+    const tz = targetPlayer ? targetPlayer.z : targetBarrel ? targetBarrel.z : targetStructure!.z;
 
     const cfg = AUTO_ATTACKS[attacker.characterClass as CharacterClass];
     const dx = tx - attacker.x;
@@ -508,13 +521,16 @@ export class ArenaRoom extends AvatarRoom {
       until: this.simTime + Math.min(cfg.cooldownMs, 400),
     });
     if (cfg.kind === 'ranged') {
-      // The projectile resolves the hit (player or barrel) on impact.
+      // The projectile resolves the hit (player / barrel / structure) on impact.
       this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
     } else if (targetPlayer) {
       this.combat.dealDamage(targetPlayer, cfg.damage, sessionId);
     } else if (targetBarrel) {
       // Melee shove: launch the barrel away from the attacker.
       this.combat.triggerBarrel(targetBarrel, ndx, ndz, sessionId);
+    } else if (targetStructure) {
+      // Melee strike: chip the structure's HP (crumbles at 0).
+      this.combat.damageStructure(targetStructure.id, cfg.damage);
     }
   }
 

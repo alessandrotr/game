@@ -51,6 +51,9 @@ export interface EffectRuntime {
   /** Physically shove any destructibles (tires/barrels/building parts) within
    *  `radius` of (x,z) outward, credited to `fromId`. No explosion — just a push. */
   pushDestructiblesInRadius(x: number, z: number, radius: number, fromId: string): void;
+  /** Damage any HP-bearing cover structures (trailers/cars/dumpsters) within
+   *  `radius` of (x,z) — an AoE chips away at / crumbles them. */
+  damageStructuresInRadius(x: number, z: number, radius: number, amount: number): void;
   /** After `delayMs` (the dash's travel time), resolve `onLand` as an AoE around
    *  the caster's landing position — a charge's slam. */
   scheduleDashImpact(caster: EffectActor, delayMs: number, radius: number, onLand: LeafEffect[]): void;
@@ -116,6 +119,13 @@ function runLeaf(effect: LeafEffect, frame: LeafFrame, rt: EffectRuntime): void 
   }
 }
 
+/** Total direct damage in a leaf list — what an AoE chips off cover structures. */
+function sumLeafDamage(effects: LeafEffect[]): number {
+  let total = 0;
+  for (const e of effects) if (e.type === 'damage') total += e.amount;
+  return total;
+}
+
 /** Run a list of leaf effects against a single target from a shared origin. */
 function runLeaves(
   effects: LeafEffect[],
@@ -174,6 +184,8 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
         // Destructibles in range get a physical shove (tires/barrels/wreckage).
         rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId);
+        // Cover structures (trailers/cars/dumpsters) take the blast's damage.
+        rt.damageStructuresInRadius(cx, cz, effect.radius, sumLeafDamage(effect.onHit));
         break;
       }
       case 'dash':

@@ -14,6 +14,15 @@ import type { CombatSystem } from './combat.js';
 /** Spawn height of a projectile above the ground. */
 const PROJECTILE_Y = 1;
 
+/** Total direct damage in an on-hit effect list — what a projectile chips off a
+ *  cover structure it strikes (ability projectiles carry `onHit` damage leaves). */
+function sumDamage(onHit: LeafEffect[] | undefined): number {
+  if (!onHit) return 0;
+  let total = 0;
+  for (const e of onHit) if (e.type === 'damage') total += e.amount;
+  return total;
+}
+
 /** Server-only metadata for an in-flight projectile (not replicated). */
 interface ProjectileMeta {
   ownerId: string;
@@ -167,6 +176,19 @@ export class ProjectileSystem {
           meta.ownerId,
         )
       ) {
+        expired.push(id);
+        return;
+      }
+
+      // Cover structures (trailers/cars/dumpsters): a projectile that strikes a
+      // live one deals its damage (chipping toward a crumble) and is consumed.
+      const structDmg = meta.damage > 0 ? meta.damage : sumDamage(meta.onHit);
+      if (structDmg > 0 && this.combat.hitStructure(projectile.x, projectile.z, meta.radius, structDmg)) {
+        this.ctx.broadcast(ServerMessage.ProjectileImpact, {
+          ability: meta.ability,
+          x: projectile.x,
+          z: projectile.z,
+        });
         expired.push(id);
         return;
       }

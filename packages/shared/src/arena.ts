@@ -31,6 +31,36 @@ export interface GeneratedArenaLayout {
   /** Tire-stack centers — the server spawns a destructible 3-tire pile at each
    *  (separate physical tires; NOT static props). */
   tireStacks: { x: number; z: number }[];
+  /** HP-bearing cover structures (trailers="houses", cars, dumpsters). The
+   *  server promotes these to replicated `CoverStructure` entities with HP that
+   *  crumble (and become uncollidable) when destroyed. NOT static obstacles/props. */
+  structures: CoverStructureSpec[];
+}
+
+/** A destructible cover structure's spawn descriptor (placed by the layout, then
+ *  promoted to a replicated entity by the server). */
+export interface CoverStructureSpec {
+  assetId: PropAssetId;
+  x: number;
+  z: number;
+  /** Yaw (radians) the prop is rendered at. */
+  rotation: number;
+  /** Collision footprint radius + visual height (also drive the size→HP scale). */
+  radius: number;
+  height: number;
+  maxHp: number;
+}
+
+/** The largest cover ("house"/trailer) caps out here; everything else scales
+ *  down by footprint volume (radius²·height). */
+export const STRUCTURE_MAX_HP = 500;
+/** Reference volume (the trailer) that maps to {@link STRUCTURE_MAX_HP}. */
+const STRUCTURE_REF_VOLUME = 2 * 2 * 2.8;
+
+/** HP for a cover structure, scaled by its size (volume) and capped at the max. */
+export function structureHp(radius: number, height: number): number {
+  const vol = radius * radius * height;
+  return Math.max(20, Math.round(Math.min(STRUCTURE_MAX_HP, (STRUCTURE_MAX_HP * vol) / STRUCTURE_REF_VOLUME)));
 }
 
 // --- Placement constraints (world units) ---
@@ -48,6 +78,9 @@ interface CoverKind {
   height: number;
   count: number; // per side (doubled by the mirror)
   cluster?: number; // emit N props huddled in one circle (drum piles)
+  /** HP-bearing: becomes a destructible `CoverStructure` (crumbles when killed)
+   *  instead of a static obstacle+prop. HP is scaled from radius/height. */
+  destructible?: boolean;
 }
 
 /** A decorative kind: placed for flavor, no collision (footprint is spacing only). */
@@ -58,10 +91,13 @@ interface DecorKind {
 }
 
 const COVER: CoverKind[] = [
-  { assetId: 'prop.arena.trailer', radius: 2, height: 2.8, count: 2 },
-  { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, count: 1 },
-  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1 },
-  { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1 },
+  // Destructible HP structures: trailers are the "houses" (largest → 500 HP);
+  // cars and dumpsters scale down by size. These crumble when their HP is gone.
+  { assetId: 'prop.arena.trailer', radius: 2, height: 2.8, count: 2, destructible: true },
+  { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, count: 1, destructible: true },
+  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1, destructible: true },
+  { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1, destructible: true },
+  // Static cover (no HP — never destructible).
   { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1 },
 ];
 
@@ -121,6 +157,7 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   const barrels: { x: number; z: number }[] = [];
   const drums: { x: number; z: number }[] = [];
   const tireStacks: { x: number; z: number }[] = [];
+  const structures: CoverStructureSpec[] = [];
   /** Footprints already taken (includes mirrors) for separation checks. */
   const taken: { x: number; z: number; r: number }[] = [];
 
@@ -148,14 +185,24 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     return null;
   }
 
-  // Cover: collidable props, mirrored for fairness.
+  // Cover: collidable props, mirrored for fairness. Destructible kinds become
+  // HP-bearing structure specs (the server replicates them); static kinds become
+  // plain obstacle+prop pairs.
   for (const kind of COVER) {
     for (let n = 0; n < kind.count; n++) {
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
-      placeCover(props, obstacles, kind, spot.x, spot.z, rot, rng);
-      placeCover(props, obstacles, kind, -spot.x, -spot.z, rot + Math.PI, rng);
+      if (kind.destructible) {
+        const maxHp = structureHp(kind.radius, kind.height);
+        structures.push(
+          { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp },
+          { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp },
+        );
+      } else {
+        placeCover(props, obstacles, kind, spot.x, spot.z, rot, rng);
+        placeCover(props, obstacles, kind, -spot.x, -spot.z, rot + Math.PI, rng);
+      }
     }
   }
 
@@ -204,7 +251,7 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     tireStacks.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
 
-  const layout: GeneratedArenaLayout = { obstacles, props, barrels, drums, tireStacks };
+  const layout: GeneratedArenaLayout = { obstacles, props, barrels, drums, tireStacks, structures };
   cache = { seed: s, layout };
   return layout;
 }

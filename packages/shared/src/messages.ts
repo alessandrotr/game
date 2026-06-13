@@ -88,6 +88,9 @@ export enum ServerMessage {
   /** A destructible object was struck by a spell (drives a small dust/impact
    *  puff — NOT an explosion; the object just reacts physically). */
   DestructibleHit = 'destructible_hit',
+  /** A cover structure (trailer/car/dumpster) lost all its HP and crumbled
+   *  (drives a dust/debris burst; the structure also becomes uncollidable). */
+  StructureCrumbled = 'structure_crumbled',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -211,4 +214,7 @@ export interface ServerMessagePayloads {
   /** World point + category of a destructible spell impact (drives a small
    *  dust puff). `category` is 'tire' | 'barrel' | 'buildingPart'. */
   [ServerMessage.DestructibleHit]: { x: number; y: number; z: number; category: string };
+  /** World point + footprint radius of a structure that just crumbled (drives a
+   *  dust/debris burst sized to the structure). */
+  [ServerMessage.StructureCrumbled]: { x: number; z: number; radius: number };
 }

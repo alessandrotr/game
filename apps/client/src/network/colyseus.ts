@@ -10,6 +10,7 @@ import {
   type AbilityKind,
   type BarrelView,
   type CharacterClass,
+  type CoverStructureView,
   type DestructibleView,
   type ClientMessagePayloads,
   type LobbyMode,
@@ -66,6 +67,7 @@ interface RawBarrel {
   alive: boolean;
 }
 type RawDestructible = DestructibleView;
+type RawStructure = CoverStructureView;
 interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
@@ -73,6 +75,8 @@ interface RawState {
   barrels?: { forEach(cb: (barrel: RawBarrel, key: string) => void): void };
   /** Arena rooms only — destructible objects (absent in town). */
   destructibles?: { forEach(cb: (d: RawDestructible, key: string) => void): void };
+  /** Arena rooms only — HP-bearing cover structures (absent in town). */
+  structures?: { forEach(cb: (s: RawStructure, key: string) => void): void };
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
@@ -104,6 +108,7 @@ function snapshotState(state: RawState): {
   projectiles: Map<string, ProjectileView>;
   barrels: Map<string, BarrelView>;
   destructibles: Map<string, DestructibleView>;
+  structures: Map<string, CoverStructureView>;
 } {
   const players = new Map<string, PlayerView>();
   state.players.forEach((player, sessionId) => {
@@ -190,7 +195,23 @@ function snapshotState(state: RawState): {
     });
   });
 
-  return { players, projectiles, barrels, destructibles };
+  const structures = new Map<string, CoverStructureView>();
+  state.structures?.forEach((s, id) => {
+    structures.set(id, {
+      id,
+      assetId: s.assetId,
+      x: s.x,
+      z: s.z,
+      rotation: s.rotation,
+      radius: s.radius,
+      height: s.height,
+      hp: s.hp,
+      maxHp: s.maxHp,
+      destroyed: s.destroyed,
+    });
+  });
+
+  return { players, projectiles, barrels, destructibles, structures };
 }
 
 /** Map an ability cast event to a transient client-side VFX + a character
@@ -385,8 +406,10 @@ function wireRoom(joined: Room): void {
   joined.onStateChange((state) => {
     try {
       const raw = state as unknown as RawState;
-      const { players, projectiles, barrels, destructibles } = snapshotState(raw);
-      useGameStore.getState().applySnapshot(players, projectiles, barrels, destructibles, raw.tick);
+      const { players, projectiles, barrels, destructibles, structures } = snapshotState(raw);
+      useGameStore
+        .getState()
+        .applySnapshot(players, projectiles, barrels, destructibles, structures, raw.tick);
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.
       if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
       // Feed the interpolation buffer used to render remote players smoothly.
@@ -431,6 +454,11 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.DestructibleHit, (msg) => {
     // A small impact puff where a spell struck a destructible — NOT a blast.
     useEffectsStore.getState().spawn('vfx.cast', [msg.x, msg.y, msg.z]);
+  });
+  joined.onMessage(ServerMessage.StructureCrumbled, (msg) => {
+    // A dust/debris burst where a cover structure collapsed (no damage — the
+    // server already applied it; this is just the crumble feedback).
+    useEffectsStore.getState().spawn('vfx.shockwave', [msg.x, 0.05, msg.z]);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
