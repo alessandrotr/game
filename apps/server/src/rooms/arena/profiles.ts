@@ -1,5 +1,6 @@
 import type { Player } from '../schema.js';
 import { getProgress, recordResult, type Progress } from '../../db/players.js';
+import { captureServerError } from '../../observability.js';
 
 /** A database handle (a pool or transaction), as accepted by the player queries. */
 type Db = Parameters<typeof getProgress>[0];
@@ -54,6 +55,11 @@ export function persistProfileDelta(
     return;
   }
   void recordResult(db, profile.playerId, profile.characterClass, delta).catch((err) =>
-    console.error('[arena] failed to save profile:', err),
+    // Silent failure here means a player loses earned progression — surface it.
+    captureServerError(err, {
+      message: '[arena] failed to save profile:',
+      tags: { where: 'arena.persistProfile', characterClass: profile.characterClass },
+      extra: { playerId: profile.playerId, delta },
+    }),
   );
 }

@@ -192,6 +192,8 @@ function snapshotState(state: RawState): {
       sx: d.sx,
       sy: d.sy,
       sz: d.sz,
+      hp: d.hp ?? 0,
+      maxHp: d.maxHp ?? 0,
       active: d.active,
     });
   });
@@ -597,8 +599,11 @@ function wireMatchmaking(joined: Room): void {
   });
   joined.onError((code, message) => {
     console.error(`[mm] room error ${code}: ${message ?? ''}`.trim());
+    reportClientError('matchmaking-error', { message: message ?? `mm room error ${code}`, code });
   });
   joined.onLeave(() => {
+    // No report here: the lobby connection is dropped intentionally on every
+    // match transition (and on leaving town), so a leave isn't a fault.
     if (mmRoom === joined) mmRoom = null;
     useLobbyStore.getState().reset();
   });
@@ -622,6 +627,10 @@ export async function connectMatchmaking(): Promise<void> {
     wireMatchmaking(joined);
   } catch (err) {
     console.error('[mm] failed to connect to matchmaking:', err);
+    reportClientError('matchmaking-error', {
+      message: 'failed to connect to matchmaking',
+      reason: err,
+    });
   }
 }
 
@@ -686,6 +695,7 @@ export async function connectToRoom(
     room = null;
     const message = err instanceof Error ? err.message : 'Failed to connect';
     store.setStatus('error', message);
+    reportClientError('join-failed', { message: `failed to join ${roomType}`, reason: err });
     throw err;
   }
 }
@@ -732,6 +742,7 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
+    reportClientError('join-failed', { message: `failed to travel to ${roomType}`, reason: err });
   } finally {
     traveling = false;
     store.setTransitioning(false);
@@ -773,6 +784,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to join match');
+    reportClientError('join-failed', { message: 'failed to consume arena reservation', reason: err });
   } finally {
     traveling = false;
     store.setTransitioning(false);

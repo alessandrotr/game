@@ -66,6 +66,18 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
   }
 
   override onJoin(client: Client, options?: JoinOptions): void {
+    try {
+      this.setupMatchmakingJoin(client, options);
+    } catch (err) {
+      captureServerError(err, {
+        message: '[matchmaking] onJoin failed:',
+        tags: { where: 'matchmaking.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+      });
+      throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
+    }
+  }
+
+  private setupMatchmakingJoin(client: Client, options?: JoinOptions): void {
     const claims = this.enforceSingleSession(client, options);
     this.lobbies.setIdentity(client.sessionId, {
       token: String(options?.token ?? ''),

@@ -1,4 +1,5 @@
 import { MUSIC, SFX, type MusicTrackId, type SfxId } from './assets';
+import { reportClientError } from '../network/telemetry';
 
 /** Crossfade / fade-out window for music swaps. */
 const MUSIC_FADE_MS = 600;
@@ -196,6 +197,7 @@ class AudioEngine {
       })
       .catch((err) => {
         console.warn(`[audio] Failed to load sfx "${String(id)}".`, err);
+        reportClientError('audio-load', { message: `failed to load sfx: ${String(id)}`, reason: err });
         this.sfxLoading.delete(id);
         return null;
       });

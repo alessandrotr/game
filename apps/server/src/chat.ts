@@ -2,6 +2,7 @@ import type { Client, Room } from '@colyseus/core';
 import { CHAT_HISTORY_SIZE, sanitizeChat, ServerMessage, type ChatMessage } from '@arena/shared';
 import { getPool } from './db/database.js';
 import { loadRecentChat, saveChatMessage } from './db/chat.js';
+import { captureServerError } from './observability.js';
 
 /** Sliding-window rate limit: at most this many messages per sender per window. */
 export const CHAT_RATE_MAX = 5;
@@ -50,7 +51,10 @@ export class ChatLog {
     try {
       this.history = await loadRecentChat(db, this.channel, CHAT_HISTORY_SIZE);
     } catch (err) {
-      console.error('[chat] failed to load history:', err);
+      captureServerError(err, {
+        message: '[chat] failed to load history:',
+        tags: { where: 'chat.load', channel: this.channel },
+      });
     }
   }
 
@@ -80,7 +84,10 @@ export class ChatLog {
     const db = getPool();
     if (db && this.channel) {
       void saveChatMessage(db, this.channel, from, text).catch((err) =>
-        console.error('[chat] failed to save message:', err),
+        captureServerError(err, {
+          message: '[chat] failed to save message:',
+          tags: { where: 'chat.save', channel: this.channel ?? 'unknown' },
+        }),
       );
     }
   }

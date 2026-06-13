@@ -18,20 +18,29 @@ export type ClientErrorKind =
   | 'room-error'
   | 'sync-error'
   | 'message-handler'
+  | 'join-failed'
+  | 'matchmaking-error'
+  | 'asset-load'
+  | 'audio-load'
   | 'render-crash'
   | 'window-error'
   | 'unhandled-rejection';
 
 // Kinds that Sentry's browser SDK does NOT see on its own — swallowed message
-// handlers, clean socket closes, app-level sync failures. We forward these to
-// Sentry explicitly. The others (render-crash, window-error, unhandled-rejection)
-// are already captured by Sentry directly (the ErrorBoundary + global handlers),
-// so forwarding them here would create duplicate events.
+// handlers, clean socket closes, app-level sync/join failures. We forward these
+// to Sentry explicitly. The others (render-crash, window-error,
+// unhandled-rejection) are already captured by Sentry directly (the
+// ErrorBoundary + global handlers), so forwarding them would duplicate events.
+// `audio-load` is intentionally excluded: a missing sound effect is cosmetic and
+// would just burn the event quota — it still lands in the self-hosted sink.
 const SENTRY_FORWARD: ReadonlySet<ClientErrorKind> = new Set([
   'disconnect',
   'room-error',
   'sync-error',
   'message-handler',
+  'join-failed',
+  'matchmaking-error',
+  'asset-load',
 ]);
 
 export interface ClientErrorReport {

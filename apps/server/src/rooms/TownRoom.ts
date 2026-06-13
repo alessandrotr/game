@@ -93,6 +93,18 @@ export class TownRoom extends AvatarRoom {
   }
 
   override onJoin(client: Client, options?: JoinOptions): void {
+    try {
+      this.setupTownJoin(client, options);
+    } catch (err) {
+      captureServerError(err, {
+        message: '[town] onJoin failed:',
+        tags: { where: 'town.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+      });
+      throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
+    }
+  }
+
+  private setupTownJoin(client: Client, options?: JoinOptions): void {
     const claims = this.enforceSingleSession(client, options);
 
     const player = new Player();

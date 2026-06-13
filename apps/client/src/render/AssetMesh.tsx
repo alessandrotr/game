@@ -3,6 +3,7 @@ import { useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GltfModel, PlaceholderModel, RenderSource } from '@arena/shared';
 import { PrimitiveGeometry } from './geometry';
+import { AssetErrorBoundary } from './AssetErrorBoundary';
 
 /**
  * The single rendering seam for every asset. Given a `RenderSource` it draws
@@ -13,9 +14,11 @@ import { PrimitiveGeometry } from './geometry';
 export function AssetMesh({ source }: { source: RenderSource }) {
   if (source.kind === 'gltf') {
     return (
-      <Suspense fallback={null}>
-        <GltfMesh model={source} />
-      </Suspense>
+      <AssetErrorBoundary label={source.url}>
+        <Suspense fallback={null}>
+          <GltfMesh model={source} />
+        </Suspense>
+      </AssetErrorBoundary>
     );
   }
   return <PlaceholderMesh model={source} />;

@@ -117,6 +117,9 @@ export class DestructibleObject extends Schema {
   @type('number') sx = 0.5;
   @type('number') sy = 0.5;
   @type('number') sz = 0.5;
+  /** Hit points (drums only; tires stay 0). Drives the floating integrity bar. */
+  @type('number') hp = 0;
+  @type('number') maxHp = 0;
   /** True while awake/moving — clients can smooth harder while active. */
   @type('boolean') active = false;
 }

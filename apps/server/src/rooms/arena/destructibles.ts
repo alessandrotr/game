@@ -7,7 +7,6 @@ import {
   IMPACT_DAMAGE_TO_PLAYER,
   MIN_DAMAGE_VELOCITY,
   PLAYER_RADIUS,
-  ServerMessage,
   TIRE_STACK_COUNT,
   TIRE_STACK_SPACING,
   TIRE_TUBE,
@@ -120,6 +119,9 @@ export class DestructibleSystem {
     obj.sx = cfg.radius;
     obj.sy = cfg.halfHeight;
     obj.sz = cfg.radius;
+    // Drums carry replicated HP (for the integrity bar); tires stay 0/0.
+    obj.hp = category === 'barrel' ? DRUM_HP : 0;
+    obj.maxHp = obj.hp;
     obj.active = false;
     this.ctx.state.destructibles.set(obj.id, obj);
 
@@ -210,9 +212,11 @@ export class DestructibleSystem {
       this.scatterStack(body, srcX, srcZ, spellDirX, spellDirZ, fromId);
       return;
     }
-    // Drum: chip its HP, and destroy it once depleted (no shove if it's gone).
+    // Drum: chip its HP (replicated for the integrity bar) and destroy it once
+    // depleted (no shove if it's gone).
     if (amount > 0) {
       body.hp -= amount;
+      body.obj.hp = Math.max(0, body.hp);
       if (body.hp <= 0) {
         this.destroyDrum(body);
         return;
@@ -224,17 +228,12 @@ export class DestructibleSystem {
     body.hitReadyAt = this.ctx.now() + body.cfg.cooldownMs;
   }
 
-  /** Destroy a drum whose HP ran out: pull its physics body + replicated entity
-   *  and burst a dust puff where it stood (reuses the crumble feedback). */
+  /** Destroy a drum whose HP ran out: pull its physics body + replicated entity.
+   *  No VFX — the drum just disappears (clients drop it when it leaves state). */
   private destroyDrum(body: Body): void {
     this.physics.removeBody(body.rb);
     this.ctx.state.destructibles.delete(body.obj.id);
     this.bodies.delete(body.obj.id);
-    this.ctx.broadcast(ServerMessage.StructureCrumbled, {
-      x: body.obj.x,
-      z: body.obj.z,
-      radius: body.radius,
-    });
   }
 
   /** Scatter the whole stack the struck tire belongs to (one-shot): members fan

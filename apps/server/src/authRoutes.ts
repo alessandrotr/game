@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import type { AuthResult } from '@arena/shared';
 import { getPool } from './db/database.js';
+import { captureServerError } from './observability.js';
 import {
   allProgress,
   createAccount,
@@ -61,7 +62,7 @@ async function register(req: Request, res: Response): Promise<void> {
       res.status(409).json({ error: 'That email is already registered.' });
       return;
     }
-    console.error('[auth] register failed:', err);
+    captureServerError(err, { message: '[auth] register failed:', tags: { where: 'auth.register' } });
     res.status(500).json({ error: 'Registration failed. Try again.' });
   }
 }
@@ -85,7 +86,7 @@ async function login(req: Request, res: Response): Promise<void> {
     const progress = await allProgress(db, acc.id);
     res.json(result(acc.id, acc.username, progress));
   } catch (err) {
-    console.error('[auth] login failed:', err);
+    captureServerError(err, { message: '[auth] login failed:', tags: { where: 'auth.login' } });
     res.status(500).json({ error: 'Login failed. Try again.' });
   }
 }

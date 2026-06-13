@@ -10,6 +10,7 @@ import type {
 } from '@arena/shared';
 import { assets } from '../assets/registry';
 import { AssetMesh } from './AssetMesh';
+import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
 
 /** Sum of char codes — a stable per-character phase offset for procedural motion. */
@@ -51,14 +52,16 @@ export function CharacterModel({
   if (descriptor.render.kind === 'gltf') {
     return (
       <group>
-        <Suspense fallback={null}>
-          <GltfCharacter
-            model={descriptor.render}
-            getAnimation={getAnimation}
-            getSpeed={getSpeed}
-            phase={phase}
-          />
-        </Suspense>
+        <AssetErrorBoundary label={descriptor.render.url}>
+          <Suspense fallback={null}>
+            <GltfCharacter
+              model={descriptor.render}
+              getAnimation={getAnimation}
+              getSpeed={getSpeed}
+              phase={phase}
+            />
+          </Suspense>
+        </AssetErrorBoundary>
         {weapon && <WeaponMount weapon={weapon} />}
       </group>
     );

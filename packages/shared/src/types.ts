@@ -99,6 +99,9 @@ export interface DestructibleView {
   sx: number;
   sy: number;
   sz: number;
+  /** Hit points (drums only; tires stay 0). Drives the floating integrity bar. */
+  hp: number;
+  maxHp: number;
   /** True while the body is awake/moving (asleep bodies hold their transform). */
   active: boolean;
 }

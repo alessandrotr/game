@@ -281,6 +281,18 @@ export class ArenaRoom extends AvatarRoom {
   }
 
   override onJoin(client: Client, options?: JoinOptions): void {
+    try {
+      this.setupArenaJoin(client, options);
+    } catch (err) {
+      captureServerError(err, {
+        message: '[arena] onJoin failed:',
+        tags: { where: 'arena.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+      });
+      throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
+    }
+  }
+
+  private setupArenaJoin(client: Client, options?: JoinOptions): void {
     const claims = this.enforceSingleSession(client, options);
 
     const player = new Player();
