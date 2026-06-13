@@ -24,7 +24,7 @@ import type { BurstShaderProps } from './common';
 
 export type { BurstShaderProps } from './common';
 export { ShieldBubble } from './ShieldBubble';
-export { CarSmoke, CarFire } from './coverEffects';
+export { CarSmoke, CarFire, BarrelFire } from './coverEffects';
 
 /**
  * The shader registries — the single place that maps a VFX id to a custom GLSL

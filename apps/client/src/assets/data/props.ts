@@ -523,7 +523,8 @@ const oilDrum = prop('arena.drum', 'Oil Drum', [
   },
 ]);
 
-/** A burning barrel — flames glow (emissive); ArenaLights drops a warm point
+/** A burning barrel — the charred drum body; the flame itself is a procedural
+ *  shader (scene/BarrelEntity → BarrelFire). ArenaLights drops a warm point
  *  light at each one (keep placements in sync with scene/ArenaLights.tsx). */
 const fireBarrel = prop('arena.drum.fire', 'Burning Barrel', [
   cyl(0.4, 0.4, 1, 12, [0, 0.5, 0], CHAR),
@@ -535,12 +536,6 @@ const fireBarrel = prop('arena.drum.fire', 'Burning Barrel', [
     color: RUST,
     castShadow: false,
   },
-  cone(0.34, 0.7, 7, [0, 1.3, 0], FIRE, { emissive: FIRE, emissiveIntensity: 2.2, castShadow: false }),
-  cone(0.2, 0.5, 7, [0.06, 1.45, -0.04], '#ffd27a', {
-    emissive: '#ffd27a',
-    emissiveIntensity: 2.6,
-    castShadow: false,
-  }),
 ]);
 
 /** A pile of refuse: black bin-bags, a dented can, loose junk. Decorative. */

@@ -7,6 +7,7 @@ import { useTargetStore } from '../store/targetState';
 import { clearDestination } from '../store/destinationState';
 import { sendAttack } from '../network/colyseus';
 import { AssetInstance } from '../render/AssetInstance';
+import { BarrelFire } from '../render/shaders';
 
 /** The drum body's half-height — the visual is shifted down by this so the group
  *  origin is the drum's CENTER (the physics pivot), matching the server body. */
@@ -57,6 +58,10 @@ export function BarrelEntity({ barrelId }: { barrelId: string }) {
       <group position={[0, -HALF_HEIGHT, 0]}>
         <AssetInstance id="prop.arena.drum.fire" />
       </group>
+      {/* Procedural flame licking up from the drum mouth (drum top ≈ +0.5 in
+          group space). One cheap additive billboard — replaces the old static
+          emissive cones baked into the prop. */}
+      <BarrelFire />
       {/* Invisible click target (the fire-drum itself is small/irregular). */}
       <mesh onPointerDown={onAttack}>
         <cylinderGeometry args={[0.7, 0.7, 1.5, 12]} />

@@ -109,6 +109,68 @@ export function CarFire({ height = 1.7, radius = 1.6 }: { height?: number; radiu
   );
 }
 
+// --- Barrel fire: a lively, domain-warped flame that licks up from the drum. --
+
+const barrelFireFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 uv = vUv;
+    vec2 p = vec2(uv.x - 0.5, uv.y);
+
+    // Rising, domain-warped turbulence — sampling noise of noise gives the
+    // curling "licking tongue" look instead of a uniform blob.
+    float t = uTime * 1.7;
+    vec2 base = vec2(p.x * 3.2, uv.y * 2.4 - t);
+    float warp = fbm(base * 0.8 + vec2(0.0, t * 0.4));
+    float n = fbm(base + vec2(warp * 0.7, warp));
+
+    // Flame silhouette: wide at the base, tapering to a flickering tip whose
+    // height wobbles with the noise.
+    float taper = mix(0.40, 0.05, uv.y);
+    float body = smoothstep(taper, 0.0, abs(p.x));
+    float top = 0.5 + 0.45 * n;
+    float vert = smoothstep(0.0, 0.05, uv.y) * smoothstep(top, top - 0.5, uv.y);
+    float flame = body * vert * (0.55 + 0.6 * n);
+
+    // Heat ramp: white-hot core → yellow → orange → deep-red smoky tips.
+    vec3 col = mix(vec3(1.0, 0.92, 0.5), vec3(1.0, 0.45, 0.08), smoothstep(0.0, 0.55, uv.y));
+    col = mix(col, vec3(0.65, 0.06, 0.0), smoothstep(0.55, 1.0, uv.y));
+    float core = smoothstep(0.22, 0.0, length(vec2(p.x * 1.7, uv.y - 0.02)));
+    col += vec3(0.5, 0.42, 0.25) * core;
+
+    float a = clamp(flame, 0.0, 1.0);
+    gl_FragColor = vec4(col * (0.9 + 0.8 * flame), a);
+  }
+`;
+
+/** A looping flame that sits on top of a burning barrel. One additive billboard
+ *  quad, procedural (no textures/lights) — cheap enough for every live barrel. */
+export function BarrelFire({ height = 1.3, width = 0.9, y = 1.05 }: { height?: number; width?: number; y?: number }) {
+  const matRef = useRef<ShaderMaterial>(null);
+  // Random phase per barrel so they don't all flicker in lockstep.
+  const uniforms = useMemo(() => ({ uTime: { value: Math.random() * 10 } }), []);
+  useUTime(matRef);
+  return (
+    <Billboard position={[0, y, 0]}>
+      <mesh>
+        <planeGeometry args={[width, height]} />
+        <shaderMaterial
+          ref={matRef}
+          vertexShader={UV_VERTEX}
+          fragmentShader={barrelFireFrag}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+    </Billboard>
+  );
+}
+
 // --- Explosion: a one-shot fireball + flash, over a ground scorch shock. -------
 
 const explosionBallFrag = /* glsl */ `
