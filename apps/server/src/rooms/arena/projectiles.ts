@@ -14,6 +14,10 @@ import type { CombatSystem } from './combat.js';
 /** Spawn height of a projectile above the ground. */
 const PROJECTILE_Y = 1;
 
+/** Hard cap on per-tick collision sub-steps — bounds the work for a pathological
+ *  speed while still letting the fastest real projectiles (the sniper) sweep. */
+const MAX_SUBSTEPS = 16;
+
 /** Total direct damage in an on-hit effect list — what a projectile chips off a
  *  cover structure it strikes (ability projectiles carry `onHit` damage leaves). */
 function sumDamage(onHit: LeafEffect[] | undefined): number {
@@ -161,113 +165,27 @@ export class ProjectileSystem {
         return;
       }
 
+      // Advance in sub-steps so a fast projectile can't tunnel past a thin target
+      // between ticks: cap each advance to ~half the hit radius and collision-check
+      // at every sub-position (a 85 u/s sniper would otherwise jump ~4u per tick,
+      // far more than its ~1u hit radius, and sail through enemies at range).
       const step = meta.speed * dt;
-      projectile.x += meta.dirX * step;
-      projectile.z += meta.dirZ * step;
-      meta.traveled += step;
+      const maxAdvance = Math.max(0.1, (meta.radius + PLAYER_RADIUS) * 0.5);
+      const subSteps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(step / maxAdvance)));
+      const inc = step / subSteps;
 
-      if (meta.traveled >= meta.range || now - meta.spawnedAt > PROJECTILE_LIFETIME_MS) {
-        expired.push(id);
-        return;
-      }
-
-      // Barrels: a projectile that strikes one launches + detonates it (and is
-      // consumed). Checked before cover so a barrel in front of a wall reacts.
-      let hitBarrel = false;
-      this.ctx.state.barrels.forEach((barrel) => {
-        if (hitBarrel || !barrel.alive) return;
-        const dx = barrel.x - projectile.x;
-        const dz = barrel.z - projectile.z;
-        const r = meta.radius + BARREL_RADIUS;
-        if (dx * dx + dz * dz <= r * r) {
-          this.combat.triggerBarrel(barrel, meta.dirX, meta.dirZ, meta.ownerId);
-          hitBarrel = true;
-        }
-      });
-      if (hitBarrel) {
-        expired.push(id);
-        return;
-      }
-
-      // The projectile's damage (auto-attack flat damage, or the ability's
-      // on-hit damage) — chips drum HP and cover-structure HP alike.
-      const projDmg = meta.damage > 0 ? meta.damage : sumDamage(meta.onHit);
-
-      // Destructibles (tires / barrels / building parts): a projectile that
-      // strikes one shoves it physically (and chips drum HP) and is consumed.
-      if (
-        this.combat.hitDestructible(
-          projectile.x,
-          projectile.z,
-          meta.radius,
-          meta.dirX,
-          meta.dirZ,
-          meta.ownerId,
-          projDmg,
-        )
-      ) {
-        expired.push(id);
-        return;
-      }
-
-      // Cover structures (trailers/cars/dumpsters): a projectile that strikes a
-      // live one deals its damage (chipping toward a crumble) and is consumed.
-      const structDmg = projDmg;
-      if (structDmg > 0 && this.combat.hitStructure(projectile.x, projectile.z, meta.radius, structDmg)) {
-        this.ctx.broadcast(ServerMessage.ProjectileImpact, {
-          ability: meta.ability,
-          x: projectile.x,
-          z: projectile.z,
-        });
-        expired.push(id);
-        return;
-      }
-
-      // Obstacles block projectiles (cover) — burst an impact at the wall so the
-      // block reads, instead of the projectile silently vanishing.
-      for (const o of this.ctx.obstacles) {
-        const dx = projectile.x - o.x;
-        const dz = projectile.z - o.z;
-        const r = o.radius + meta.radius;
-        if (dx * dx + dz * dz <= r * r) {
-          this.ctx.broadcast(ServerMessage.ProjectileImpact, {
-            ability: meta.ability,
-            x: projectile.x,
-            z: projectile.z,
-          });
+      for (let s = 0; s < subSteps; s++) {
+        projectile.x += meta.dirX * inc;
+        projectile.z += meta.dirZ * inc;
+        meta.traveled += inc;
+        if (meta.traveled >= meta.range || now - meta.spawnedAt > PROJECTILE_LIFETIME_MS) {
           expired.push(id);
-          return;
+          break;
         }
-      }
-
-      // Collide with the first eligible player (MapSchema isn't a standard
-      // iterable, so use forEach and capture the first hit).
-      const hitRadiusSq = (meta.radius + PLAYER_RADIUS) * (meta.radius + PLAYER_RADIUS);
-      let hitId: string | null = null;
-      this.ctx.state.players.forEach((target, targetId) => {
-        if (hitId || targetId === meta.ownerId || !target.alive) return;
-        const dx = target.x - projectile.x;
-        const dz = target.z - projectile.z;
-        if (dx * dx + dz * dz <= hitRadiusSq) hitId = targetId;
-      });
-      if (hitId) {
-        const target = this.ctx.state.players.get(hitId);
-        const owner = this.ctx.state.players.get(meta.ownerId);
-        if (target) {
-          if (meta.onHit && owner) {
-            // Ability projectile: run its composable on-hit effects (damage +
-            // any status/knockback) against the player it struck.
-            runCast(
-              meta.onHit,
-              { caster: owner, dirX: meta.dirX, dirZ: meta.dirZ, unitTarget: target },
-              this.combat.effectRuntime,
-            );
-          } else {
-            // Auto-attack projectile: a plain direct hit.
-            this.combat.dealDamage(target, meta.damage, meta.ownerId);
-          }
+        if (this.tryHit(projectile, meta)) {
+          expired.push(id);
+          break;
         }
-        expired.push(id);
       }
     });
 
@@ -275,5 +193,103 @@ export class ProjectileSystem {
       this.ctx.state.projectiles.delete(id);
       this.meta.delete(id);
     }
+  }
+
+  /** Resolve collisions at the projectile's current position — barrels,
+   *  destructibles, cover structures, static obstacles, then players (in that
+   *  priority) — performing the matching side effect. Returns true if the
+   *  projectile is consumed by the hit. */
+  private tryHit(projectile: Projectile, meta: ProjectileMeta): boolean {
+    // Barrels: a projectile that strikes one launches + detonates it (and is
+    // consumed). Checked before cover so a barrel in front of a wall reacts.
+    let hitBarrel = false;
+    this.ctx.state.barrels.forEach((barrel) => {
+      if (hitBarrel || !barrel.alive) return;
+      const dx = barrel.x - projectile.x;
+      const dz = barrel.z - projectile.z;
+      const r = meta.radius + BARREL_RADIUS;
+      if (dx * dx + dz * dz <= r * r) {
+        this.combat.triggerBarrel(barrel, meta.dirX, meta.dirZ, meta.ownerId);
+        hitBarrel = true;
+      }
+    });
+    if (hitBarrel) return true;
+
+    // The projectile's damage (auto-attack flat damage, or the ability's on-hit
+    // damage) — chips drum HP and cover-structure HP alike.
+    const projDmg = meta.damage > 0 ? meta.damage : sumDamage(meta.onHit);
+
+    // Destructibles (tires / barrels / building parts): a projectile that strikes
+    // one shoves it physically (and chips drum HP) and is consumed.
+    if (
+      this.combat.hitDestructible(
+        projectile.x,
+        projectile.z,
+        meta.radius,
+        meta.dirX,
+        meta.dirZ,
+        meta.ownerId,
+        projDmg,
+      )
+    ) {
+      return true;
+    }
+
+    // Cover structures (trailers/cars/dumpsters): a projectile that strikes a
+    // live one deals its damage (chipping toward a crumble) and is consumed.
+    if (projDmg > 0 && this.combat.hitStructure(projectile.x, projectile.z, meta.radius, projDmg)) {
+      this.ctx.broadcast(ServerMessage.ProjectileImpact, {
+        ability: meta.ability,
+        x: projectile.x,
+        z: projectile.z,
+      });
+      return true;
+    }
+
+    // Obstacles block projectiles (cover) — burst an impact at the wall so the
+    // block reads, instead of the projectile silently vanishing.
+    for (const o of this.ctx.obstacles) {
+      const dx = projectile.x - o.x;
+      const dz = projectile.z - o.z;
+      const r = o.radius + meta.radius;
+      if (dx * dx + dz * dz <= r * r) {
+        this.ctx.broadcast(ServerMessage.ProjectileImpact, {
+          ability: meta.ability,
+          x: projectile.x,
+          z: projectile.z,
+        });
+        return true;
+      }
+    }
+
+    // Collide with the first eligible player (MapSchema isn't a standard
+    // iterable, so use forEach and capture the first hit).
+    const hitRadiusSq = (meta.radius + PLAYER_RADIUS) * (meta.radius + PLAYER_RADIUS);
+    let hitId: string | null = null;
+    this.ctx.state.players.forEach((target, targetId) => {
+      if (hitId || targetId === meta.ownerId || !target.alive) return;
+      const dx = target.x - projectile.x;
+      const dz = target.z - projectile.z;
+      if (dx * dx + dz * dz <= hitRadiusSq) hitId = targetId;
+    });
+    if (!hitId) return false;
+
+    const target = this.ctx.state.players.get(hitId);
+    const owner = this.ctx.state.players.get(meta.ownerId);
+    if (target) {
+      if (meta.onHit && owner) {
+        // Ability projectile: run its composable on-hit effects (damage + any
+        // status/knockback) against the player it struck.
+        runCast(
+          meta.onHit,
+          { caster: owner, dirX: meta.dirX, dirZ: meta.dirZ, unitTarget: target },
+          this.combat.effectRuntime,
+        );
+      } else {
+        // Auto-attack projectile: a plain direct hit.
+        this.combat.dealDamage(target, meta.damage, meta.ownerId);
+      }
+    }
+    return true;
   }
 }
