@@ -5,6 +5,7 @@ import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { AudioControl } from './AudioControl';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
 import { Button, LevelBadge } from './primitives';
@@ -59,6 +60,7 @@ export function JoinScreen() {
           subtitle="Choose your champion · enter the town"
         >
           <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted sm:absolute sm:right-0 sm:top-1 sm:mt-0">
+            <AudioControl />
             <span>
               Signed in as <span className="font-semibold text-text">{username}</span>
             </span>

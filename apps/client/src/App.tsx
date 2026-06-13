@@ -29,6 +29,7 @@ import { Hud } from './ui/Hud';
 import { InteractionUI } from './ui/InteractionUI';
 import { ChatPanel } from './ui/ChatPanel';
 import { DevToolsGate } from './devtools';
+import { MusicDirector, useAudioUnlock } from './audio';
 
 export default function App() {
   const status = useGameStore((s) => s.status);
@@ -70,6 +71,7 @@ export default function App() {
   useServerCombatFlags(connected && inArena); // sync the auto-attack feature flag
   useInteractionInput(connected);
   useHudHotkey(connected); // H toggles HUD chrome visibility
+  useAudioUnlock(); // resume the audio context on the first user gesture
 
   // Connection watchdog: while in-game (and not mid world-swap), if no state has
   // arrived for a while the socket has gone quiet — raise the "connection lost"
@@ -104,6 +106,11 @@ export default function App() {
 
   return (
     <>
+      {/* Background music: menu theme on the JoinScreen, silence in-world (for now).
+          Mounted here (above the connected/JoinScreen branch) so it survives the
+          transition rather than restarting. */}
+      <MusicDirector />
+
       {/* Dev-only tuning panels (tree-shaken from production builds). */}
       <DevToolsGate />
 

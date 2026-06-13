@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
+import { reportClientError } from '../network/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -26,6 +28,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[ui] render crash — returning to the join screen:', error, info.componentStack);
+    // The boundary swallows the error (we render null), so Sentry's global
+    // handler never sees it — report it explicitly with the component stack.
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack } },
+    });
+    reportClientError('render-crash', {
+      message: error.message,
+      detail: error.stack ?? info.componentStack ?? undefined,
+    });
     this.props.onError();
   }
 

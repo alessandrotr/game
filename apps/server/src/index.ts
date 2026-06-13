@@ -1,3 +1,7 @@
+// Must be first: initialises Sentry before any instrumented library is imported
+// (ESM evaluates imports in source order). See instrument.ts.
+import './instrument.js';
+import * as Sentry from '@sentry/node';
 import { createServer } from 'node:http';
 import express, { type RequestHandler } from 'express';
 import cors from 'cors';
@@ -12,6 +16,7 @@ import { MatchmakingRoom } from './rooms/MatchmakingRoom.js';
 import { closeDatabase, initDatabase } from './db/database.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerPrefsRoutes } from './prefsRoutes.js';
+import { registerTelemetryRoutes } from './telemetryRoutes.js';
 
 // Load apps/server/.env (Node ≥20.12) so local dev can set DATABASE_URL without
 // exporting it. No-ops if the file is absent (e.g. in prod, where env vars come
@@ -36,7 +41,10 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
   console.error('💥  Uncaught exception — exiting for a clean restart:', err);
-  void closeDatabase().finally(() => process.exit(1));
+  // Sentry's default integration already captured `err` synchronously when this
+  // event fired; flush it over the network before we exit, or the report dies
+  // with the process. Then close the DB and exit for a clean restart.
+  void Sentry.flush(2000).finally(() => closeDatabase().finally(() => process.exit(1)));
 });
 
 const app = express();
@@ -58,6 +66,8 @@ app.get('/health', (_req, res) => {
 registerAuthRoutes(app);
 // Per-account UI preferences (camera locks).
 registerPrefsRoutes(app);
+// Client-error telemetry sink (self-hosted crash reporting → server logs).
+registerTelemetryRoutes(app);
 
 // Colyseus dashboard for inspecting live rooms. It exposes room state and admin
 // controls, so it must not be open on the public internet: require basic auth
@@ -71,6 +81,11 @@ if (monitorPassword) {
 } else {
   console.warn('🔒  /monitor disabled in production (set MONITOR_PASSWORD to enable it).');
 }
+
+// Sentry's Express error handler — after all routes, before listening. Captures
+// errors thrown in route handlers (the HTTP API; the realtime game runs over
+// the Colyseus WS transport and is covered by the process-level handlers above).
+Sentry.setupExpressErrorHandler(app);
 
 const httpServer = createServer(app);
 const gameServer = new Server({

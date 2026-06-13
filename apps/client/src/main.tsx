@@ -1,11 +1,30 @@
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import * as Sentry from '@sentry/react';
 import App from './App';
 import { registerBuiltInAssets } from './assets/data';
+import { installGlobalErrorReporting } from './network/telemetry';
 import './index.css';
+
+// Crash reporting (Sentry). DSN comes from VITE_SENTRY_DSN; when it's unset
+// (most local dev) Sentry stays disabled, so nothing is sent. Errors-only — no
+// performance tracing or session replay — to stay within the free-tier event
+// quota. Init runs first so it can catch failures during the rest of bootstrap.
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 0,
+  });
+}
 
 // Populate the asset registry before anything renders.
 registerBuiltInAssets();
+// Capture WebSocket close codes + other non-exception drops to the self-hosted
+// /client-error sink (Sentry can't see a clean socket close — it isn't a JS
+// error). JS exceptions are captured by Sentry above.
+installGlobalErrorReporting();
 
 // Which screen to show. Set VITE_ENTRY to switch entry points (defaults to the
 // game). The two demos are dev-only physics sandboxes and are dynamically

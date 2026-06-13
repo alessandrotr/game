@@ -38,6 +38,7 @@ import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
 import { clearSnapshots, recordSnapshots } from '../store/snapshotBuffer';
 import { clearDestination } from '../store/destinationState';
+import { reportClientError, setTelemetryContext } from './telemetry';
 
 /** Colyseus handler name for each world. */
 const ROOM_HANDLER: Record<RoomType, string> = { town: TOWN_ROOM, arena: ARENA_ROOM };
@@ -374,6 +375,7 @@ function bailToJoinScreen(reason: unknown): void {
   if (bailing) return;
   bailing = true;
   console.error('[net] dropping connection after a fatal sync error:', reason);
+  reportClientError('sync-error', { reason });
   const current = room;
   room = null;
   disconnectMatchmaking();
@@ -398,6 +400,7 @@ function guarded<T>(fn: (msg: T) => void): (msg: T) => void {
 function wireRoom(joined: Room): void {
   bailing = false; // fresh connection
   lastPatchAt = performance.now(); // start the watchdog clock fresh
+  setTelemetryContext({ sessionId: joined.sessionId, room: joined.name });
   useConnectionStore.getState().setLost(false);
   clearSnapshots(); // fresh interpolation timeline per room (no cross-room bleed)
   // A teleport (portal/scene change) cancels any pending move order — arrive
@@ -469,17 +472,25 @@ function wireRoom(joined: Room): void {
     // "connection lost" overlay over the (now unreliable) game rather than
     // silently leaving it frozen.
     console.error(`[net] room error ${code}: ${message ?? ''}`);
+    reportClientError('room-error', { message: message ?? `room error ${code}`, code });
     useConnectionStore.getState().setLost(true);
   });
 
   joined.onLeave((code) => {
     bailing = false;
     if (traveling) return; // an intentional room switch — keep playing
+    // True only when the app didn't initiate this leave (a local teardown nulls
+    // `room` first) — i.e. the socket dropped out from under us.
+    const unexpected = room === joined;
     teardownSession();
     // Distinguish a deliberate "newest session wins" kick from a random drop so
     // the join screen explains why, rather than looking like a crash.
     if (code === SESSION_SUPERSEDED_CODE) {
       useGameStore.getState().setStatus('error', 'You signed in on another tab or device.');
+    } else if (unexpected) {
+      // The single most diagnostic value for "in-game → join screen": the WS
+      // close code (1000 normal, 1001 going away, 1006 abnormal, 4xxx app).
+      reportClientError('disconnect', { message: `connection lost (code ${code})`, code });
     }
   });
 }
@@ -489,6 +500,7 @@ function wireRoom(joined: Room): void {
  *  from `onLeave` when the socket actually closes. */
 function teardownSession(): void {
   room = null;
+  setTelemetryContext({}); // no active session/room to tag reports with
   useConnectionStore.getState().setLost(false);
   disconnectMatchmaking(); // drop the parallel lobby connection too
   useGameStore.getState().reset();

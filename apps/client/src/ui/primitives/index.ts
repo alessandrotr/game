@@ -14,6 +14,7 @@ export {
   DialogDescription,
 } from './dialog';
 export { Meter, type MeterProps } from './meter';
+export { Slider, type SliderProps } from './slider';
 export { StatTile, type StatTileProps } from './stat-tile';
 export { Badge, type BadgeProps } from './badge';
 export { LevelBadge, type LevelBadgeProps } from './level-badge';

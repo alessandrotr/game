@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useHudStore } from '../../store/useHudStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
+import { AudioControl } from '../AudioControl';
 import { cn } from '@/lib/utils';
 
 /** A labelled on/off switch row, bound to a boolean + setter. */
@@ -74,6 +75,13 @@ export function SettingsPanel() {
         </div>
 
         <div className="p-2">
+          <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-sm text-text">Volume</span>
+              <span className="block text-[11px] text-muted">Master volume · mute</span>
+            </span>
+            <AudioControl />
+          </div>
           <ToggleRow
             label="Compact player card"
             hint="Collapse the town player card to a slim bar"
