@@ -16,7 +16,7 @@ const RESPAWN_MAX_COUNT = 4;
 const RESPAWN_MIN_MS = 15_000;
 const RESPAWN_MAX_MS = 25_000;
 /** Cap on live barrels so waves can't pile up without bound if nobody pops them. */
-const MAX_BARRELS = 16;
+const MAX_BARRELS = 10;
 
 // --- Body shape (the burning fire-drum) ---
 const BODY_RADIUS = 0.45;
