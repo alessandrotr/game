@@ -25,6 +25,12 @@ export interface GeneratedArenaLayout {
   /** Burning-barrel positions — the server promotes these to live, destructible
    *  `Barrel` entities (they're NOT static obstacles or props). */
   barrels: { x: number; z: number }[];
+  /** Oil-drum positions — the server promotes these to destructible, roll-away
+   *  drums (they're NOT static obstacles or props, and they don't explode). */
+  drums: { x: number; z: number }[];
+  /** Tire-stack centers — the server spawns a destructible 3-tire pile at each
+   *  (separate physical tires; NOT static props). */
+  tireStacks: { x: number; z: number }[];
 }
 
 // --- Placement constraints (world units) ---
@@ -57,8 +63,6 @@ const COVER: CoverKind[] = [
   { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1 },
   { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1 },
   { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1 },
-  { assetId: 'prop.arena.drum', radius: 1.1, height: 1, count: 1, cluster: 3 },
-  { assetId: 'prop.arena.drum', radius: 0.5, height: 1, count: 2 }, // loose drums
 ];
 
 /** Burning barrels per side (mirrored) — interactive, destructible entities. */
@@ -66,8 +70,24 @@ const BARREL_COUNT = 2;
 /** Footprint used only for placement spacing (barrels don't block movement). */
 const BARREL_FOOT = 0.6;
 
+/** Oil-drum piles per side (mirrored) — a huddle of 3 destructible drums each. */
+const DRUM_PILE_COUNT = 1;
+/** Loose single oil drums per side (mirrored). */
+const DRUM_LOOSE_COUNT = 2;
+/** Placement footprints for a drum pile vs a loose drum. */
+const DRUM_PILE_FOOT = 1.1;
+const DRUM_LOOSE_FOOT = 0.6;
+/** Drums in a standard pile, and how tightly they huddle. */
+const DRUM_PILE_SIZE = 3;
+const DRUM_PILE_HUDDLE = 0.5;
+
+/** Tire stacks per side (mirrored) — the server spawns a 3-tire destructible
+ *  pile at each (the old static tire-pile decor is now fully destructible). */
+const TIRE_STACK_COUNT = 2;
+/** Footprint used only for placement spacing. */
+const TIRE_STACK_FOOT = 1.2;
+
 const DECOR: DecorKind[] = [
-  { assetId: 'prop.arena.tires', foot: 1.2, count: 2 },
   { assetId: 'prop.arena.trash', foot: 1.2, count: 3 },
   { assetId: 'prop.arena.crate.broken', foot: 1.2, count: 2 },
   { assetId: 'prop.arena.debris', foot: 1.0, count: 3 },
@@ -99,6 +119,8 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   const obstacles: ArenaObstacle[] = [];
   const props: MapProp[] = [];
   const barrels: { x: number; z: number }[] = [];
+  const drums: { x: number; z: number }[] = [];
+  const tireStacks: { x: number; z: number }[] = [];
   /** Footprints already taken (includes mirrors) for separation checks. */
   const taken: { x: number; z: number; r: number }[] = [];
 
@@ -155,7 +177,34 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     barrels.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
 
-  const layout: GeneratedArenaLayout = { obstacles, props, barrels };
+  // Oil-drum piles (3 huddled) + loose drums: destructible entities (no static
+  // collision/props — the server spawns and replicates them), mirrored.
+  const pushPile = (cx: number, cz: number) => {
+    for (let i = 0; i < DRUM_PILE_SIZE; i++) {
+      const a = (i / DRUM_PILE_SIZE) * Math.PI * 2 + rng() * 0.6;
+      drums.push({ x: cx + Math.cos(a) * DRUM_PILE_HUDDLE, z: cz + Math.sin(a) * DRUM_PILE_HUDDLE });
+    }
+  };
+  for (let n = 0; n < DRUM_PILE_COUNT; n++) {
+    const spot = findSpot(DRUM_PILE_FOOT);
+    if (!spot) continue;
+    pushPile(spot.x, spot.z);
+    pushPile(-spot.x, -spot.z);
+  }
+  for (let n = 0; n < DRUM_LOOSE_COUNT; n++) {
+    const spot = findSpot(DRUM_LOOSE_FOOT);
+    if (!spot) continue;
+    drums.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
+  }
+
+  // Tire stacks: destructible 3-tire piles (no static collision/props), mirrored.
+  for (let n = 0; n < TIRE_STACK_COUNT; n++) {
+    const spot = findSpot(TIRE_STACK_FOOT);
+    if (!spot) continue;
+    tireStacks.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
+  }
+
+  const layout: GeneratedArenaLayout = { obstacles, props, barrels, drums, tireStacks };
   cache = { seed: s, layout };
   return layout;
 }

@@ -110,6 +110,9 @@ export type Effect =
       /** Where the blast is centered. */
       at: 'caster' | 'point' | 'unit';
       radius: number;
+      /** Limit the hit to an arc (degrees) centered on the cast direction; omit
+       *  for a full 360° circle. e.g. 180 = a half-disc swung in front. */
+      arc?: number;
       /** Optional visual tag for the burst. */
       vfx?: string;
       /** Effects applied to every enemy inside `radius`. */

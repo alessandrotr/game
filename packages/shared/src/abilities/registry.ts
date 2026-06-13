@@ -119,23 +119,21 @@ export const ABILITY_REGISTRY = {
     id: 'cleave',
     name: 'Cleave',
     icon: 'Swords',
-    aim: 'self',
-    cooldownMs: 4000,
-    manaCost: 20,
+    aim: 'direction',
+    cooldownMs: 1000,
+    manaCost: 10,
     castTimeMs: 0,
     range: 4,
-    damage: 26,
+    damage: 20,
     aoeRadius: 4,
+    // A 180° swing in front of the warrior (aimed at the cursor); flat hit, no bleed.
     effects: [
       {
         type: 'aoe',
         at: 'caster',
         radius: 4,
-        onHit: [
-          { type: 'damage', amount: 26 },
-          // Bleed: a damage-over-time that ticks for the next few seconds.
-          { type: 'status', status: { kind: 'dot', durationMs: 4000, tickMs: 1000, tickAmount: 6 } },
-        ],
+        arc: 180,
+        onHit: [{ type: 'damage', amount: 20 }],
       },
     ],
   },
@@ -418,7 +416,7 @@ export const ABILITY_SLOTS: readonly AbilitySlot[] = ['Q', 'W', 'E', 'R'];
  * server resolution) is driven off this map.
  */
 export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, AbilityKind>>> = {
-  warrior: { Q: 'smash', W: 'charge', E: 'shield_wall', R: 'ground_slam' },
+  warrior: { Q: 'cleave', W: 'charge', E: 'shield_wall', R: 'ground_slam' },
   mage: { Q: 'fireball', W: 'frost_nova', E: 'arcane_bolt', R: 'arcane_blast' },
   archer: { Q: 'power_shot', W: 'crippling_shot', E: 'tumble', R: 'pinning_arrow' },
   priest: { Q: 'smite', W: 'heal', E: 'renew', R: 'condemn' },

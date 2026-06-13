@@ -44,6 +44,8 @@ import { ArenaMatch } from './arena/match.js';
 import { CombatSystem } from './arena/combat.js';
 import { ProjectileSystem } from './arena/projectiles.js';
 import { BarrelSystem } from './arena/barrels.js';
+import { DestructibleSystem } from './arena/destructibles.js';
+import { ArenaPhysics } from './arena/physics.js';
 import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
@@ -127,6 +129,9 @@ export class ArenaRoom extends AvatarRoom {
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
   private barrels!: BarrelSystem;
+  private destructibles!: DestructibleSystem;
+  /** Shared Rapier world for the destructible props + launched barrels. */
+  private physics!: ArenaPhysics;
   private botDirector!: BotDirector;
 
   protected override jumpForce(): number {
@@ -152,6 +157,7 @@ export class ArenaRoom extends AvatarRoom {
 
     this.buildSystems();
     this.barrels.init(layout.barrels);
+    this.destructibles.init(layout.drums, layout.tireStacks);
 
     // A matchmade team game (1v1…5v5): cap at the mode's total size, scale the
     // win target by team size, and hide from public join (only reserved seats
@@ -236,9 +242,12 @@ export class ArenaRoom extends AvatarRoom {
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
-    this.barrels = new BarrelSystem(ctx, this.combat);
+    this.physics = new ArenaPhysics(this.obstacles);
+    this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
+    this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
+    this.combat.attachDestructibles(this.destructibles);
     this.botDirector = new BotDirector(ctx, {
       cooldowns: this.cooldowns,
       pendingCasts: this.pendingCasts,
@@ -625,9 +634,18 @@ export class ArenaRoom extends AvatarRoom {
     });
 
     this.combat.processDashImpacts();
+    // Projectiles/abilities apply their impulses, THEN we step the shared world
+    // once, THEN the barrel/destructible systems read back the new transforms.
     this.projectiles.update(dt);
-    this.barrels.update(dt);
+    this.physics.step();
+    this.barrels.update();
+    this.destructibles.update();
     this.state.tick++;
+  }
+
+  /** Free the shared Rapier physics world when the room is torn down. */
+  override onDispose(): void {
+    this.physics?.free();
   }
 
   /** Toggle the auto-attack feature flag. Disabling clears any in-progress

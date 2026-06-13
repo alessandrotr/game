@@ -10,6 +10,7 @@ import {
   type AbilityKind,
   type BarrelView,
   type CharacterClass,
+  type DestructibleView,
   type ClientMessagePayloads,
   type LobbyMode,
   type LobbySlotView,
@@ -58,13 +59,20 @@ interface RawBarrel {
   x: number;
   y: number;
   z: number;
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
   alive: boolean;
 }
+type RawDestructible = DestructibleView;
 interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
   /** Arena rooms only — interactive barrels (absent in town). */
   barrels?: { forEach(cb: (barrel: RawBarrel, key: string) => void): void };
+  /** Arena rooms only — destructible objects (absent in town). */
+  destructibles?: { forEach(cb: (d: RawDestructible, key: string) => void): void };
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
@@ -95,6 +103,7 @@ function snapshotState(state: RawState): {
   players: Map<string, PlayerView>;
   projectiles: Map<string, ProjectileView>;
   barrels: Map<string, BarrelView>;
+  destructibles: Map<string, DestructibleView>;
 } {
   const players = new Map<string, PlayerView>();
   state.players.forEach((player, sessionId) => {
@@ -148,10 +157,40 @@ function snapshotState(state: RawState): {
 
   const barrels = new Map<string, BarrelView>();
   state.barrels?.forEach((barrel, id) => {
-    barrels.set(id, { id, x: barrel.x, y: barrel.y, z: barrel.z, alive: barrel.alive });
+    barrels.set(id, {
+      id,
+      x: barrel.x,
+      y: barrel.y,
+      z: barrel.z,
+      qx: barrel.qx ?? 0,
+      qy: barrel.qy ?? 0,
+      qz: barrel.qz ?? 0,
+      qw: barrel.qw ?? 1,
+      alive: barrel.alive,
+    });
   });
 
-  return { players, projectiles, barrels };
+  const destructibles = new Map<string, DestructibleView>();
+  state.destructibles?.forEach((d, id) => {
+    destructibles.set(id, {
+      id,
+      kind: d.kind,
+      group: d.group,
+      x: d.x,
+      y: d.y,
+      z: d.z,
+      qx: d.qx,
+      qy: d.qy,
+      qz: d.qz,
+      qw: d.qw,
+      sx: d.sx,
+      sy: d.sy,
+      sz: d.sz,
+      active: d.active,
+    });
+  });
+
+  return { players, projectiles, barrels, destructibles };
 }
 
 /** Map an ability cast event to a transient client-side VFX + a character
@@ -346,8 +385,8 @@ function wireRoom(joined: Room): void {
   joined.onStateChange((state) => {
     try {
       const raw = state as unknown as RawState;
-      const { players, projectiles, barrels } = snapshotState(raw);
-      useGameStore.getState().applySnapshot(players, projectiles, barrels, raw.tick);
+      const { players, projectiles, barrels, destructibles } = snapshotState(raw);
+      useGameStore.getState().applySnapshot(players, projectiles, barrels, destructibles, raw.tick);
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.
       if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
       // Feed the interpolation buffer used to render remote players smoothly.
@@ -388,6 +427,10 @@ function wireRoom(joined: Room): void {
     // A fiery ground blast + a sharper burst at barrel height.
     useEffectsStore.getState().spawn('vfx.shockwave', [msg.x, 0.05, msg.z]);
     useEffectsStore.getState().spawn('vfx.arcane_blast', [msg.x, 0.8, msg.z]);
+  });
+  joined.onMessage(ServerMessage.DestructibleHit, (msg) => {
+    // A small impact puff where a spell struck a destructible — NOT a blast.
+    useEffectsStore.getState().spawn('vfx.cast', [msg.x, msg.y, msg.z]);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),

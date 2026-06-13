@@ -4,6 +4,7 @@ import cors from 'cors';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { ARENA_ROOM, MATCHMAKING_ROOM, TOWN_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
 import { TownRoom } from './rooms/TownRoom.js';
@@ -82,6 +83,12 @@ gameServer.define(MATCHMAKING_ROOM, MatchmakingRoom);
 
 // Connect persistence (if configured) before accepting players.
 await initDatabase();
+
+// Load the Rapier physics WASM before accepting players — the arena's
+// destructible props run a small server-side rigid-body world (see
+// DestructibleSystem). One-time init; the engine is shared across rooms.
+await RAPIER.init();
+console.log('🧊  Rapier physics initialized');
 
 gameServer
   .listen(PORT, HOST)

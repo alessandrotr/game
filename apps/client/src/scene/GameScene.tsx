@@ -18,6 +18,7 @@ import { TownLights } from './TownLights';
 import { Fountain } from './Fountain';
 import { PlayerEntity } from './PlayerEntity';
 import { BarrelEntity } from './BarrelEntity';
+import { DestructibleEntity } from './DestructibleEntity';
 import { Projectiles } from './Projectiles';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
@@ -44,6 +45,7 @@ import { Npcs } from './Npcs';
 export function GameScene() {
   const playerIds = useGameStore((s) => s.playerIds);
   const barrelIds = useGameStore((s) => s.barrelIds);
+  const destructibleIds = useGameStore((s) => s.destructibleIds);
   const isArena = useGameStore((s) => s.room) === 'arena';
   const room = isArena ? 'arena' : 'town';
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
@@ -177,6 +179,9 @@ export function GameScene() {
 
       {isArena &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
+
+      {isArena &&
+        destructibleIds.map((id) => <DestructibleEntity key={id} destructibleId={id} />)}
 
       <VfxLayer />
       {isArena && (

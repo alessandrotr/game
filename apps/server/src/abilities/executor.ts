@@ -48,6 +48,9 @@ export interface EffectRuntime {
   ): void;
   /** Detonate any interactive barrels within `radius` of (x,z), credited to `fromId`. */
   triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void;
+  /** Physically shove any destructibles (tires/barrels/building parts) within
+   *  `radius` of (x,z) outward, credited to `fromId`. No explosion — just a push. */
+  pushDestructiblesInRadius(x: number, z: number, radius: number, fromId: string): void;
   /** After `delayMs` (the dash's travel time), resolve `onLand` as an AoE around
    *  the caster's landing position — a charge's slam. */
   scheduleDashImpact(caster: EffectActor, delayMs: number, radius: number, onLand: LeafEffect[]): void;
@@ -152,11 +155,25 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         // Center the blast on the caster, the ground point, or the locked unit.
         const cx = effect.at === 'point' ? (ctx.targetX ?? caster.x) : effect.at === 'unit' ? (ctx.unitTarget?.x ?? caster.x) : caster.x;
         const cz = effect.at === 'point' ? (ctx.targetZ ?? caster.z) : effect.at === 'unit' ? (ctx.unitTarget?.z ?? caster.z) : caster.z;
-        rt.forEachEnemyInRadius(cx, cz, effect.radius, caster.sessionId, (target) =>
-          runLeaves(effect.onHit, caster, target, cx, cz, rt),
-        );
+        // Optional frontal arc: only hit targets within ±arc/2 of the cast
+        // direction (a target on top of the caster always counts).
+        const cosHalf = effect.arc !== undefined && effect.arc < 360 ? Math.cos((effect.arc * Math.PI) / 360) : -1;
+        const fl = Math.hypot(ctx.dirX, ctx.dirZ) || 1;
+        const fx = ctx.dirX / fl;
+        const fz = ctx.dirZ / fl;
+        rt.forEachEnemyInRadius(cx, cz, effect.radius, caster.sessionId, (target) => {
+          if (cosHalf > -1) {
+            const vx = target.x - cx;
+            const vz = target.z - cz;
+            const len = Math.hypot(vx, vz);
+            if (len > 1e-3 && (vx * fx + vz * fz) / len < cosHalf) return; // behind the arc
+          }
+          runLeaves(effect.onHit, caster, target, cx, cz, rt);
+        });
         // Barrels caught in the blast launch + detonate too.
         rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
+        // Destructibles in range get a physical shove (tires/barrels/wreckage).
+        rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId);
         break;
       }
       case 'dash':

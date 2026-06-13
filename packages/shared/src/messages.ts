@@ -85,6 +85,9 @@ export enum ServerMessage {
   ProjectileImpact = 'projectile_impact',
   /** A burning barrel exploded (drives a blast burst + area-damage feedback). */
   BarrelExplosion = 'barrel_explosion',
+  /** A destructible object was struck by a spell (drives a small dust/impact
+   *  puff — NOT an explosion; the object just reacts physically). */
+  DestructibleHit = 'destructible_hit',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -205,4 +208,7 @@ export interface ServerMessagePayloads {
   [ServerMessage.ProjectileImpact]: { ability: string; x: number; z: number };
   /** World point of a barrel blast (drives the explosion VFX). */
   [ServerMessage.BarrelExplosion]: { x: number; z: number };
+  /** World point + category of a destructible spell impact (drives a small
+   *  dust puff). `category` is 'tire' | 'barrel' | 'buildingPart'. */
+  [ServerMessage.DestructibleHit]: { x: number; y: number; z: number; category: string };
 }

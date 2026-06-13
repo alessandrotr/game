@@ -45,7 +45,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Melee Bruiser',
     description: 'A durable frontliner who wades in and erupts with shockwaves.',
     stats: { health: 420, mana: 80, moveSpeed: 9, attackDamage: 45, difficulty: 1 },
-    abilities: ['smash', 'charge', 'shield_wall', 'ground_slam'],
+    abilities: ['cleave', 'charge', 'shield_wall', 'ground_slam'],
     color: '#b94b4b',
   },
   mage: {

@@ -17,6 +17,7 @@ import type { ArenaContext } from './context.js';
 import type { ArenaMatch } from './match.js';
 import type { ProjectileSystem } from './projectiles.js';
 import type { BarrelSystem } from './barrels.js';
+import type { DestructibleSystem } from './destructibles.js';
 
 /**
  * Everything that resolves an ability's or attack's effect against the world:
@@ -30,6 +31,7 @@ export class CombatSystem {
    *  for on-hit resolution, so the two are wired up after both exist). */
   private projectiles!: ProjectileSystem;
   private barrels!: BarrelSystem;
+  private destructibles!: DestructibleSystem;
   /** Pending charge-slam impacts: session id → when (sim ms) + the AoE to apply. */
   private readonly dashImpacts = new Map<
     string,
@@ -49,9 +51,26 @@ export class CombatSystem {
     this.barrels = barrels;
   }
 
+  attachDestructibles(destructibles: DestructibleSystem): void {
+    this.destructibles = destructibles;
+  }
+
   /** Launch a struck barrel away from the hit (projectile / auto-attack). */
   triggerBarrel(barrel: Barrel, dirX: number, dirZ: number, fromId: string): void {
     this.barrels.trigger(barrel, dirX, dirZ, fromId);
+  }
+
+  /** Try to hit a destructible with a projectile at (px,pz). Returns true if a
+   *  body was struck (the caller then consumes the projectile). */
+  hitDestructible(
+    px: number,
+    pz: number,
+    projR: number,
+    dirX: number,
+    dirZ: number,
+    fromId: string,
+  ): boolean {
+    return this.destructibles.tryProjectileHit(px, pz, projR, dirX, dirZ, fromId);
   }
 
   /** Queue a dash's landing slam to resolve after its travel time elapses. */
@@ -265,6 +284,7 @@ export class CombatSystem {
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
+    pushDestructiblesInRadius: (x, z, r, from) => this.destructibles.pushInRadius(x, z, r, from),
     scheduleDashImpact: (c, d, r, onLand) => this.scheduleDashImpact(c, d, r, onLand),
   };
 }

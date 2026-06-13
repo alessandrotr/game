@@ -83,13 +83,49 @@ export class Barrel extends Schema {
   @type('number') x = 0;
   @type('number') y = 0;
   @type('number') z = 0;
+  /** Orientation quaternion — driven by the physics body while it's launched, so
+   *  the toss tumbles on clients (identity while resting). */
+  @type('number') qx = 0;
+  @type('number') qy = 0;
+  @type('number') qz = 0;
+  @type('number') qw = 1;
   @type('boolean') alive = true;
+}
+
+/**
+ * A destructible environment object (tire / barrel / building part), mirrors
+ * `DestructibleView` in `@arena/shared`. The server runs a lightweight
+ * rigid-body sim over these and replicates the transform; the non-replicated
+ * velocity/sleep state lives in the {@link DestructibleSystem}. These do NOT
+ * explode — they only react physically when hit. Size (`sx/sy/sz`) is written
+ * once at spawn and interpreted per `kind`. */
+export class DestructibleObject extends Schema {
+  @type('string') id = '';
+  /** Fine-grained kind (see `DestructibleKind`): tire/barrel/wall/roof/… */
+  @type('string') kind = 'barrel';
+  /** Structure id for building pieces ('' for standalone tires/barrels). */
+  @type('string') group = '';
+  @type('number') x = 0;
+  @type('number') y = 0;
+  @type('number') z = 0;
+  /** Orientation quaternion (identity at rest). */
+  @type('number') qx = 0;
+  @type('number') qy = 0;
+  @type('number') qz = 0;
+  @type('number') qw = 1;
+  /** Static size, interpreted per kind (see schema/view doc). */
+  @type('number') sx = 0.5;
+  @type('number') sy = 0.5;
+  @type('number') sz = 0.5;
+  /** True while awake/moving — clients can smooth harder while active. */
+  @type('boolean') active = false;
 }
 
 export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type({ map: Barrel }) barrels = new MapSchema<Barrel>();
+  @type({ map: DestructibleObject }) destructibles = new MapSchema<DestructibleObject>();
   @type('number') tick = 0;
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */

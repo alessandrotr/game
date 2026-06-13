@@ -66,7 +66,41 @@ export interface BarrelView {
   x: number;
   y: number;
   z: number;
+  /** Orientation quaternion (identity while resting; tumbles while launched). */
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
   alive: boolean;
+}
+
+/**
+ * Replicated destructible environment object (tire / barrel / building part).
+ * Mirrors `DestructibleObject` in the server schema. The size fields (`sx/sy/sz`)
+ * are written once at spawn and interpreted per `kind`; the transform fields are
+ * driven by the server's lightweight rigid-body sim while the body is `active`.
+ */
+export interface DestructibleView {
+  readonly id: string;
+  /** Fine-grained kind (see `DestructibleKind`) — drives the client visual. */
+  kind: string;
+  /** Structure id this piece belongs to ('' for standalone tires/barrels). */
+  group: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Orientation quaternion. */
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
+  /** Static size, interpreted per kind: tire (radius, tube, _),
+   *  barrel (radius, halfHeight, _), building part (halfX, halfY, halfZ). */
+  sx: number;
+  sy: number;
+  sz: number;
+  /** True while the body is awake/moving (asleep bodies hold their transform). */
+  active: boolean;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
@@ -163,6 +197,8 @@ export interface ArenaStateView {
   projectiles: Map<string, ProjectileView>;
   /** Keyed by barrel id. */
   barrels: Map<string, BarrelView>;
+  /** Keyed by destructible id (tires / barrels / building parts). */
+  destructibles: Map<string, DestructibleView>;
   /** Monotonically increasing server tick counter. */
   tick: number;
   /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */

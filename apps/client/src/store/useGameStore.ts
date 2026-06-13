@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BarrelView, PlayerView, ProjectileView } from '@arena/shared';
+import type { BarrelView, DestructibleView, PlayerView, ProjectileView } from '@arena/shared';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -33,6 +33,8 @@ interface GameStore {
   projectileIds: string[];
   /** Reactive list of live barrel ids — drives mounting/unmounting barrel meshes. */
   barrelIds: string[];
+  /** Reactive list of destructible ids — drives mounting/unmounting their meshes. */
+  destructibleIds: string[];
 
   /**
    * Mutable, non-reactive snapshots. Updated in place every patch and read
@@ -42,6 +44,7 @@ interface GameStore {
   readonly players: Map<string, PlayerView>;
   readonly projectiles: Map<string, ProjectileView>;
   readonly barrels: Map<string, BarrelView>;
+  readonly destructibles: Map<string, DestructibleView>;
 
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -55,6 +58,7 @@ interface GameStore {
     players: Map<string, PlayerView>,
     projectiles: Map<string, ProjectileView>,
     barrels: Map<string, BarrelView>,
+    destructibles: Map<string, DestructibleView>,
     tick: number,
   ) => void;
   reset: () => void;
@@ -80,9 +84,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerIds: [],
   projectileIds: [],
   barrelIds: [],
+  destructibleIds: [],
   players: new Map<string, PlayerView>(),
   projectiles: new Map<string, ProjectileView>(),
   barrels: new Map<string, BarrelView>(),
+  destructibles: new Map<string, DestructibleView>(),
 
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
@@ -93,8 +99,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setTransitioning: (transitioning, label) =>
     set(label ? { transitioning, transitionLabel: label } : { transitioning }),
 
-  applySnapshot: (incomingPlayers, incomingProjectiles, incomingBarrels, tick) => {
-    const { players, projectiles, barrels, playerIds, projectileIds, barrelIds } = get();
+  applySnapshot: (incomingPlayers, incomingProjectiles, incomingBarrels, incomingDestructibles, tick) => {
+    const { players, projectiles, barrels, destructibles, playerIds, projectileIds, barrelIds, destructibleIds } =
+      get();
 
     players.clear();
     for (const [id, view] of incomingPlayers) players.set(id, view);
@@ -102,15 +109,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     for (const [id, view] of incomingProjectiles) projectiles.set(id, view);
     barrels.clear();
     for (const [id, view] of incomingBarrels) barrels.set(id, view);
+    destructibles.clear();
+    for (const [id, view] of incomingDestructibles) destructibles.set(id, view);
 
     const nextPlayerIds = [...players.keys()].sort();
     const nextProjectileIds = [...projectiles.keys()].sort();
     const nextBarrelIds = [...barrels.keys()].sort();
+    const nextDestructibleIds = [...destructibles.keys()].sort();
 
     const patch: Partial<GameStore> = { tick };
     if (!sameMembership(playerIds, nextPlayerIds)) patch.playerIds = nextPlayerIds;
     if (!sameMembership(projectileIds, nextProjectileIds)) patch.projectileIds = nextProjectileIds;
     if (!sameMembership(barrelIds, nextBarrelIds)) patch.barrelIds = nextBarrelIds;
+    if (!sameMembership(destructibleIds, nextDestructibleIds)) patch.destructibleIds = nextDestructibleIds;
     set(patch);
   },
 
@@ -118,6 +129,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().players.clear();
     get().projectiles.clear();
     get().barrels.clear();
+    get().destructibles.clear();
     set({
       status: 'idle',
       error: null,
@@ -129,6 +141,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerIds: [],
       projectileIds: [],
       barrelIds: [],
+      destructibleIds: [],
     });
   },
 }));

@@ -28,6 +28,7 @@ function recordingRuntime() {
       calls.projectile.push({ owner: o.sessionId, vfx, onHit }),
     forEachEnemyInRadius: (_x, _z, _r, _except, fn) => enemies.forEach(fn),
     triggerBarrelsInRadius: () => {},
+    pushDestructiblesInRadius: () => {},
     scheduleDashImpact: () => {},
   };
   return { rt, calls, enemies };

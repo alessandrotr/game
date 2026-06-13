@@ -141,6 +141,9 @@ importers:
       '@colyseus/ws-transport':
         specifier: ^0.15.3
         version: 0.15.3(@colyseus/core@0.15.57(@colyseus/schema@2.0.37))(@colyseus/schema@2.0.37)
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.14.0
+        version: 0.14.0
       colyseus:
         specifier: ^0.15.17
         version: 0.15.57(@colyseus/schema@2.0.37)(express@4.22.2)

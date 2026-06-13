@@ -16,6 +16,7 @@
   "dependencies": {
     "@arena/shared": "workspace:*",
     "@colyseus/core": "^0.15.17",
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "@colyseus/monitor": "^0.15.6",
     "@colyseus/schema": "^2.0.36",
     "@colyseus/ws-transport": "^0.15.3",

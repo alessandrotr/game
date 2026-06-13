@@ -155,6 +155,22 @@ export class ProjectileSystem {
         return;
       }
 
+      // Destructibles (tires / barrels / building parts): a projectile that
+      // strikes one shoves it physically and is consumed (no impulse spam).
+      if (
+        this.combat.hitDestructible(
+          projectile.x,
+          projectile.z,
+          meta.radius,
+          meta.dirX,
+          meta.dirZ,
+          meta.ownerId,
+        )
+      ) {
+        expired.push(id);
+        return;
+      }
+
       // Obstacles block projectiles (cover) — burst an impact at the wall so the
       // block reads, instead of the projectile silently vanishing.
       for (const o of this.ctx.obstacles) {
