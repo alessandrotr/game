@@ -392,6 +392,7 @@ function guarded<T>(fn: (msg: T) => void): (msg: T) => void {
       fn(msg);
     } catch (err) {
       console.error('[net] message handler error (ignored):', err);
+      reportClientError('message-handler', { reason: err });
     }
   };
 }

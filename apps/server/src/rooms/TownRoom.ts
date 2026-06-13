@@ -21,6 +21,7 @@ import { getPool } from '../db/database.js';
 import { getProgress, topPlayers } from '../db/players.js';
 import { resolveClass, resolveName, resolveSkinId, type JoinOptions } from './util/identity.js';
 import { applyGravity, stepMove } from './util/locomotion.js';
+import { captureServerError, captureTickError } from '../observability.js';
 
 /** Where players appear when entering town (matches the town map's spawn zone). */
 const TOWN_SPAWN = { x: 0, z: 12 };
@@ -66,7 +67,10 @@ export class TownRoom extends AvatarRoom {
       void topPlayers(db, 20)
         .then((entries) => client.send(ServerMessage.Leaderboard, { enabled: true, entries }))
         .catch((err) => {
-          console.error('[town] leaderboard query failed:', err);
+          captureServerError(err, {
+            message: '[town] leaderboard query failed:',
+            tags: { where: 'town.leaderboard', roomId: this.roomId, sessionId: client.sessionId },
+          });
           client.send(ServerMessage.Leaderboard, { enabled: true, entries: [] });
         });
     });
@@ -78,7 +82,14 @@ export class TownRoom extends AvatarRoom {
     this.onMessage(ClientMessage.CastAbility, () => {});
     this.onMessage(ClientMessage.Attack, () => {});
 
-    this.setSimulationInterval((deltaMs) => this.update(deltaMs), TICK_MS);
+    // Swallow + capture a thrown tick rather than crashing the whole process.
+    this.setSimulationInterval((deltaMs) => {
+      try {
+        this.update(deltaMs);
+      } catch (err) {
+        captureTickError(this.roomId, err, { where: 'town.tick', roomId: this.roomId });
+      }
+    }, TICK_MS);
   }
 
   override onJoin(client: Client, options?: JoinOptions): void {

@@ -6,12 +6,13 @@ import { registerBuiltInAssets } from './assets/data';
 import { installGlobalErrorReporting } from './network/telemetry';
 import './index.css';
 
-// Crash reporting (Sentry). DSN comes from VITE_SENTRY_DSN; when it's unset
-// (most local dev) Sentry stays disabled, so nothing is sent. Errors-only — no
-// performance tracing or session replay — to stay within the free-tier event
-// quota. Init runs first so it can catch failures during the rest of bootstrap.
+// Crash reporting (Sentry). Production builds only — `import.meta.env.PROD` is
+// false under the dev server, so local errors never hit Sentry (keeps dev noise
+// out of the free-tier quota). DSN comes from VITE_SENTRY_DSN. Errors-only — no
+// performance tracing or session replay. Init runs first so it can catch
+// failures during the rest of bootstrap.
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
-if (SENTRY_DSN) {
+if (SENTRY_DSN && import.meta.env.PROD) {
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: import.meta.env.MODE,

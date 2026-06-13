@@ -34,6 +34,7 @@ const KINDS = new Set([
   'disconnect',
   'room-error',
   'sync-error',
+  'message-handler',
   'render-crash',
   'window-error',
   'unhandled-rejection',

@@ -50,6 +50,7 @@ import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
+import { captureServerError, captureTickError } from '../observability.js';
 
 /** Upper bound on practice bots a room will host at once. */
 const MAX_BOTS = 8;
@@ -229,7 +230,15 @@ export class ArenaRoom extends AvatarRoom {
         this.setAutoAttackEnabled(!!message?.enabled),
     );
 
-    this.setSimulationInterval((deltaMs) => this.update(deltaMs), TICK_MS);
+    // Swallow + capture a thrown tick instead of letting it bubble to
+    // `uncaughtException` (which restarts the process and disconnects everyone).
+    this.setSimulationInterval((deltaMs) => {
+      try {
+        this.update(deltaMs);
+      } catch (err) {
+        captureTickError(this.roomId, err, { where: 'arena.tick', roomId: this.roomId });
+      }
+    }, TICK_MS);
   }
 
   /** Build the shared context and wire the combat / projectile / match systems.
@@ -317,7 +326,11 @@ export class ArenaRoom extends AvatarRoom {
         player.deaths = progress.deaths;
       }
     } catch (err) {
-      console.error('[arena] failed to load profile:', err);
+      captureServerError(err, {
+        message: '[arena] failed to load profile:',
+        tags: { where: 'arena.loadProfile', roomId: this.roomId, sessionId },
+        extra: { playerId, characterClass },
+      });
     }
   }
 

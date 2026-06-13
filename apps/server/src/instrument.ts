@@ -16,11 +16,14 @@ try {
   /* no .env file — fine (prod injects env directly) */
 }
 
+// Production only: skip Sentry in local dev (tsx) so dev errors don't burn the
+// free-tier quota. NODE_ENV must be 'production' on the host (Render) — the same
+// flag index.ts already uses for IS_PROD.
 const dsn = process.env.SENTRY_DSN;
-if (dsn) {
+if (dsn && process.env.NODE_ENV === 'production') {
   Sentry.init({
     dsn,
-    environment: process.env.NODE_ENV ?? 'development',
+    environment: process.env.NODE_ENV,
     // Errors only — no performance tracing — to stay within the free-tier quota.
     tracesSampleRate: 0,
   });

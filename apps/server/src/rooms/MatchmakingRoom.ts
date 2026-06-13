@@ -18,6 +18,7 @@ import {
   type JoinOptions,
 } from './util/identity.js';
 import { LobbyManager } from './matchmaking/lobbies.js';
+import { captureServerError } from '../observability.js';
 
 /**
  * The singleton lobby/matchmaking room (Phase 12). It owns the replicated list
@@ -173,7 +174,11 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
         });
       }
     } catch (err) {
-      console.error('[matchmaking] failed to start match:', err);
+      captureServerError(err, {
+        message: '[matchmaking] failed to start match:',
+        tags: { where: 'matchmaking.startMatch', roomId: this.roomId },
+        extra: { lobbyId: lobby.id, mode: lobby.mode },
+      });
       lobby.status = 'queuing';
       lobby.arenaRoomId = '';
       for (const slot of this.lobbies.occupants(lobby)) {
@@ -219,7 +224,10 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
         if (rooms.length === 0) this.state.lobbies.delete(lobby.id);
       }
     } catch (err) {
-      console.error('[matchmaking] arena cleanup query failed:', err);
+      captureServerError(err, {
+        message: '[matchmaking] arena cleanup query failed:',
+        tags: { where: 'matchmaking.cleanup', roomId: this.roomId },
+      });
     } finally {
       this.polling = false;
     }

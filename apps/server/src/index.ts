@@ -69,6 +69,17 @@ registerPrefsRoutes(app);
 // Client-error telemetry sink (self-hosted crash reporting → server logs).
 registerTelemetryRoutes(app);
 
+// Opt-in Sentry smoke test: GET /debug-sentry throws, which the Sentry Express
+// error handler captures. Enabled only when SENTRY_DEBUG=1 so it's never live by
+// accident. To verify end to end locally: NODE_ENV=production SENTRY_DEBUG=1
+// SENTRY_DSN=… node dist/index.js, then `curl localhost:2567/debug-sentry`.
+if (process.env.SENTRY_DEBUG === '1') {
+  console.warn('🧪  /debug-sentry route enabled (SENTRY_DEBUG=1)');
+  app.get('/debug-sentry', () => {
+    throw new Error('debug-sentry: intentional test error');
+  });
+}
+
 // Colyseus dashboard for inspecting live rooms. It exposes room state and admin
 // controls, so it must not be open on the public internet: require basic auth
 // when MONITOR_PASSWORD is set, allow it unprotected only in dev, and disable it

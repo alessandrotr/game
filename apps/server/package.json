@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -b",
-    "start": "node dist/index.js",
+    "start": "node --enable-source-maps dist/index.js",
     "db:inspect": "tsx src/db/inspect.ts",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",

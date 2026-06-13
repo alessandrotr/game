@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { HTTP_BASE } from './auth';
 
 /**
@@ -16,9 +17,22 @@ export type ClientErrorKind =
   | 'disconnect'
   | 'room-error'
   | 'sync-error'
+  | 'message-handler'
   | 'render-crash'
   | 'window-error'
   | 'unhandled-rejection';
+
+// Kinds that Sentry's browser SDK does NOT see on its own — swallowed message
+// handlers, clean socket closes, app-level sync failures. We forward these to
+// Sentry explicitly. The others (render-crash, window-error, unhandled-rejection)
+// are already captured by Sentry directly (the ErrorBoundary + global handlers),
+// so forwarding them here would create duplicate events.
+const SENTRY_FORWARD: ReadonlySet<ClientErrorKind> = new Set([
+  'disconnect',
+  'room-error',
+  'sync-error',
+  'message-handler',
+]);
 
 export interface ClientErrorReport {
   kind: ClientErrorKind;
@@ -36,10 +50,14 @@ export interface ClientErrorReport {
 let sessionId: string | undefined;
 let roomName: string | undefined;
 
-/** Tag subsequent reports with the active session/room (cleared on teardown). */
+/** Tag subsequent reports with the active session/room (cleared on teardown).
+ *  Also attaches the same context to Sentry events (no-op when Sentry is
+ *  disabled, e.g. in dev). */
 export function setTelemetryContext(ctx: { sessionId?: string; room?: string }): void {
   sessionId = ctx.sessionId;
   roomName = ctx.room;
+  Sentry.setUser(ctx.sessionId ? { id: ctx.sessionId } : null);
+  Sentry.setTag('room', ctx.room ?? null);
 }
 
 /** Best-effort error normaliser — turns an unknown thrown value into a message
@@ -73,6 +91,19 @@ export function reportClientError(
       userAgent: navigator.userAgent,
       at: new Date().toISOString(),
     };
+    // Forward to Sentry the kinds it can't see for itself (no-op when Sentry is
+    // disabled). sessionId/room ride along via the scope set in
+    // setTelemetryContext. A JS error reason is captured with its stack; an
+    // event without one (e.g. a socket close code) goes as a warning message.
+    if (SENTRY_FORWARD.has(kind)) {
+      Sentry.withScope((scope) => {
+        scope.setTag('kind', kind);
+        if (info.code !== undefined) scope.setTag('closeCode', String(info.code));
+        if (info.reason instanceof Error) Sentry.captureException(info.reason);
+        else Sentry.captureMessage(body.message, 'warning');
+      });
+    }
+
     const json = JSON.stringify(body);
     // `keepalive` lets the request outlive the teardown/navigation that often
     // follows a disconnect — the equivalent of sendBeacon but with our JSON
