@@ -8,6 +8,12 @@ export interface Displacement {
   vx: number;
   vz: number;
   until: number;
+  /** Damaging dash: HP dealt to each enemy the mover ploughs through (once each). */
+  damage?: number;
+  /** Who gets the kill credit for that damage. */
+  fromId?: string;
+  /** Session ids already struck this dash (so each enemy is hit at most once). */
+  hit?: Set<string>;
 }
 
 /**

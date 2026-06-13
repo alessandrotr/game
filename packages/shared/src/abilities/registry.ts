@@ -32,13 +32,13 @@ export const ABILITY_REGISTRY = {
     damage: 20,
     projectileSpeed: 35,
     projectileRange: 30,
-    projectileRadius: 0.8,
+    projectileRadius: 1,
     effects: [
       {
         type: 'projectile',
         speed: 35,
         range: 30,
-        radius: 0.8,
+        radius: 1,
         vfx: VFX_FIRE,
         onHit: [{ type: 'damage', amount: 20 }],
       },
@@ -124,7 +124,7 @@ export const ABILITY_REGISTRY = {
     manaCost: 10,
     castTimeMs: 0,
     range: 4,
-    damage: 20,
+    damage: 25,
     aoeRadius: 4,
     // A 180° swing in front of the warrior (aimed at the cursor); flat hit, no bleed.
     effects: [
@@ -133,7 +133,7 @@ export const ABILITY_REGISTRY = {
         at: 'caster',
         radius: 4,
         arc: 180,
-        onHit: [{ type: 'damage', amount: 20 }],
+        onHit: [{ type: 'damage', amount: 25 }],
       },
     ],
   },
@@ -164,13 +164,13 @@ export const ABILITY_REGISTRY = {
     name: 'Charge',
     icon: 'Wind',
     aim: 'direction',
-    cooldownMs: 7000,
+    cooldownMs: 5000,
     manaCost: 20,
     castTimeMs: 0,
     range: 12,
-    damage: 0,
-    // A fast gap-closing lunge (faster than a sprint), no impact.
-    effects: [{ type: 'dash', distance: 12, speed: 34 }],
+    damage: 10,
+    // A fast gap-closing lunge that hits anything it ploughs through for 10.
+    effects: [{ type: 'dash', distance: 12, speed: 34, damage: 10 }],
   },
   shield_wall: {
     id: 'shield_wall',

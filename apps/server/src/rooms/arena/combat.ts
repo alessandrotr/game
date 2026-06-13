@@ -238,13 +238,23 @@ export class CombatSystem {
 
   /** Begin a forced displacement (dash / knockback): a constant-velocity slide
    *  for `distance / speed` seconds that overrides locomotion while active. */
-  displace(entity: Player, dirX: number, dirZ: number, distance: number, speed: number): void {
+  displace(
+    entity: Player,
+    dirX: number,
+    dirZ: number,
+    distance: number,
+    speed: number,
+    damage?: number,
+    fromId?: string,
+  ): void {
     if (speed <= 0 || distance <= 0) return;
     const len = Math.hypot(dirX, dirZ) || 1;
     this.ctx.displacements.set(entity.sessionId, {
       vx: (dirX / len) * speed,
       vz: (dirZ / len) * speed,
       until: this.ctx.now() + (distance / speed) * 1000,
+      // Damaging dash: carry the per-enemy hit so the tick loop can sweep it.
+      ...(damage ? { damage, fromId: fromId ?? entity.sessionId, hit: new Set<string>() } : {}),
     });
     // A displacement overrides a pending move order.
     this.ctx.destinations.delete(entity.sessionId);
@@ -296,7 +306,7 @@ export class CombatSystem {
     heal: (t, a) => this.healTarget(t, a),
     addShield: (t, a, d, f) => this.addShield(t, a, d, f),
     applyStatus: (t, s, f) => this.applyStatus(t, s, f),
-    displace: (e, dx, dz, dist, sp) => this.displace(e, dx, dz, dist, sp),
+    displace: (e, dx, dz, dist, sp, dmg, from) => this.displace(e, dx, dz, dist, sp, dmg, from),
     spawnProjectile: (o, v, dx, dz, sp, r, rad, oh) =>
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),

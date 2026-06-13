@@ -122,6 +122,8 @@ export type Effect =
       type: 'dash';
       distance: number;
       speed: number;
+      /** Damage dealt to each enemy the dasher ploughs through mid-dash (once each). */
+      damage?: number;
       /** Radius of the slam resolved at the landing point (needs `onLand`). */
       impactRadius?: number;
       /** Effects applied to every enemy near where the dash ends (e.g. a charge

@@ -602,6 +602,22 @@ export class ArenaRoom extends AvatarRoom {
         // Slide along the displacement velocity (clamped to the arena).
         player.x = clamp(player.x + disp.vx * dt, -limit, limit);
         player.z = clamp(player.z + disp.vz * dt, -limit, limit);
+        // Damaging dash (e.g. Charge): hit each enemy swept through once.
+        if (disp.damage && disp.hit) {
+          const hitR = PLAYER_RADIUS * 2;
+          const dmg = disp.damage;
+          const fromId = disp.fromId ?? sessionId;
+          const hit = disp.hit;
+          this.state.players.forEach((other, oid) => {
+            if (oid === sessionId || !other.alive || hit.has(oid)) return;
+            const ddx = other.x - player.x;
+            const ddz = other.z - player.z;
+            if (ddx * ddx + ddz * ddz <= hitR * hitR) {
+              hit.add(oid);
+              this.combat.dealDamage(other, dmg, fromId);
+            }
+          });
+        }
       } else if (pending) {
         // Rooted wind-up: no movement while casting.
       } else if (isStunned(player) || isRooted(player)) {

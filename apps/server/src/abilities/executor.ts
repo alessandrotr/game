@@ -25,8 +25,18 @@ export interface EffectRuntime {
   addShield(target: EffectActor, amount: number, durationMs: number, fromId: string): void;
   /** Apply (or refresh) a status on `target`. */
   applyStatus(target: EffectActor, spec: StatusSpec, fromId: string): void;
-  /** Push `entity` along (dirX,dirZ) for `distance` units at `speed` u/s. */
-  displace(entity: EffectActor, dirX: number, dirZ: number, distance: number, speed: number): void;
+  /** Push `entity` along (dirX,dirZ) for `distance` units at `speed` u/s. With
+   *  `damage`, it's a damaging dash — each enemy ploughed through takes it once,
+   *  credited to `fromId`. */
+  displace(
+    entity: EffectActor,
+    dirX: number,
+    dirZ: number,
+    distance: number,
+    speed: number,
+    damage?: number,
+    fromId?: string,
+  ): void;
   /** Spawn a projectile carrying `onHit` effects (run against whoever it hits). */
   spawnProjectile(
     owner: EffectActor,
@@ -189,7 +199,7 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         break;
       }
       case 'dash':
-        rt.displace(caster, ctx.dirX, ctx.dirZ, effect.distance, effect.speed);
+        rt.displace(caster, ctx.dirX, ctx.dirZ, effect.distance, effect.speed, effect.damage, caster.sessionId);
         // A charge-style lunge slams where it lands: resolve the onLand effects
         // as an AoE once the dash completes (so it's centred on the end point).
         if (effect.onLand && effect.onLand.length) {
