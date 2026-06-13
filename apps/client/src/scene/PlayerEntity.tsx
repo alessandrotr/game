@@ -9,6 +9,8 @@ import {
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
   collideObstacles,
+  isRooted,
+  isStunned,
   stepLocomotion,
   type AnimationName,
   type CharacterClass,
@@ -184,6 +186,11 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const isArena = useGameStore.getState().room === 'arena';
       const halfBounds = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
       const dest = getDestination();
+      // Hard CC mirrors the server: stun/root halt movement; a stun also drops
+      // the chase target. Read through the shared status helpers (a present
+      // status is live — the server prunes expired ones each tick).
+      const rooted = isRooted(latest);
+      const stunned = isStunned(latest);
 
       // Auto-attack chase intent (arena only). Drop it the moment the target dies
       // so we stop chasing a corpse (the server clears its attack-target too).
@@ -192,7 +199,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       if (target && !target.alive) {
         useTargetStore.getState().setTarget(null);
       }
-      const attacking = !!target && target.alive;
+      const attacking = !rooted && !!target && target.alive;
 
       // Predicted dash (charge / tumble): a constant-velocity slide that mirrors
       // the server's displacement and overrides locomotion while active — so the
@@ -209,6 +216,14 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         pos.x = fixed.x;
         pos.z = fixed.z;
         predictedRot.current = Math.atan2(dashState.dirX, dashState.dirZ);
+      } else if (rooted) {
+        // Hard CC: the server halts the player and drops the move order (stun or
+        // root); a stun also drops the chase target (see ArenaRoom). Mirror it so
+        // the predictor stops walking toward the now-cancelled destination
+        // instead of running ahead and snapping back — the "elastic" lag. The
+        // body settles onto the frozen server position via the reconcile below.
+        if (dest.active) clearDestination();
+        if (stunned && attackId) useTargetStore.getState().setTarget(null);
       } else if (attacking && target) {
         // Mirror the server's auto-attack movement so prediction matches by
         // construction: face the target, close to attack range, then HOLD and
