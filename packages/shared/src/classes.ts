@@ -63,7 +63,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     name: 'Archer',
     role: 'Ranged Skirmisher',
     description: 'Mobile damage dealer who kites from a distance.',
-    stats: { health: 360, mana: 90, moveSpeed: 9, attackDamage: 40, difficulty: 2 },
+    stats: { health: 360, mana: 100, moveSpeed: 9, attackDamage: 40, difficulty: 2 },
     abilities: ['power_shot', 'crippling_shot', 'tumble', 'pinning_arrow'],
     color: '#3f9d56',
   },

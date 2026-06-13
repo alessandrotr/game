@@ -59,8 +59,33 @@ export class ProjectileSystem {
   ) {}
 
   /** Spawn an ability projectile carrying its `onHit` effects (run by the
-   *  executor against whoever it collides with). */
+   *  executor against whoever it collides with). With `count` > 1 it fires a
+   *  burst: the first shot now, the rest `intervalMs` apart from the owner's
+   *  position at fire time (along the original aim). */
   spawnProjectile(
+    owner: Player,
+    vfx: string,
+    dirX: number,
+    dirZ: number,
+    speed: number,
+    range: number,
+    radius: number,
+    onHit: LeafEffect[],
+    count = 1,
+    intervalMs = 0,
+  ): void {
+    this.fireAbilityShot(owner, vfx, dirX, dirZ, speed, range, radius, onHit);
+    for (let i = 1; i < count; i++) {
+      this.ctx.setTimeout(() => {
+        const live = this.ctx.state.players.get(owner.sessionId);
+        if (live && live.alive)
+          this.fireAbilityShot(live, vfx, dirX, dirZ, speed, range, radius, onHit);
+      }, i * intervalMs);
+    }
+  }
+
+  /** Spawn a single ability projectile carrying its `onHit` effects. */
+  private fireAbilityShot(
     owner: Player,
     vfx: string,
     dirX: number,

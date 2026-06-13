@@ -23,6 +23,7 @@ const STATUS_COLOR: Record<StatusKind, string> = {
   haste: '#7cff9e',
   attack_speed: '#ffae42',
   damage_amp: '#ff5a5a',
+  empower: '#ffd700',
   dot: '#9b5cff',
   hot: '#7cff9e',
   shield: '#aab4ff',

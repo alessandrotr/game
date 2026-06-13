@@ -59,6 +59,8 @@ function statusPhrase(s: StatusSpec): string {
       return `grants +${pct(s.magnitude, 'increase')}% attack speed ${dur}`;
     case 'damage_amp':
       return `increases damage taken by ${pct(s.magnitude, 'increase')}% ${dur}`;
+    case 'empower':
+      return `empowers your next hit with +${s.magnitude ?? 0} damage`;
     case 'dot':
       return `deals ${s.tickAmount ?? 0} damage every ${secs(s.tickMs ?? 1000)}s ${dur}`;
     case 'hot':
@@ -93,8 +95,12 @@ function joinPhrases(parts: string[]): string {
 /** One sentence for a top-level effect. */
 function effectLine(effect: Effect): string {
   switch (effect.type) {
-    case 'projectile':
-      return `Fires a projectile that ${joinPhrases(effect.onHit.map(leafPhrase))}.`;
+    case 'projectile': {
+      const what = `${joinPhrases(effect.onHit.map(leafPhrase))}`;
+      return (effect.count ?? 1) > 1
+        ? `Fires ${effect.count} projectiles that each ${what}.`
+        : `Fires a projectile that ${what}.`;
+    }
     case 'aoe': {
       const where =
         effect.at === 'point'

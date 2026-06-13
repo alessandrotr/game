@@ -37,7 +37,8 @@ export interface EffectRuntime {
     damage?: number,
     fromId?: string,
   ): void;
-  /** Spawn a projectile carrying `onHit` effects (run against whoever it hits). */
+  /** Spawn a projectile carrying `onHit` effects (run against whoever it hits).
+   *  With `count` > 1 it fires a burst of that many shots `intervalMs` apart. */
   spawnProjectile(
     owner: EffectActor,
     vfx: string,
@@ -47,6 +48,8 @@ export interface EffectRuntime {
     range: number,
     radius: number,
     onHit: LeafEffect[],
+    count?: number,
+    intervalMs?: number,
   ): void;
   /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x,z). */
   forEachEnemyInRadius(
@@ -169,6 +172,8 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
           effect.range,
           effect.radius,
           effect.onHit,
+          effect.count,
+          effect.intervalMs,
         );
         break;
       case 'aoe': {

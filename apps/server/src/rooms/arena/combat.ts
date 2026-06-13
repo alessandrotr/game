@@ -137,8 +137,11 @@ export class CombatSystem {
   dealDamage(target: Player, amount: number, fromId: string): void {
     if (!target.alive || amount <= 0) return;
     const now = this.ctx.now();
+    // An `empower` buff on the attacker adds flat damage to this one hit, then
+    // is consumed (the archer's Tumble empowers the next ability/projectile).
+    const total = amount + this.consumeEmpower(fromId, target.sessionId);
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
-    let incoming = amount * damageTakenMultiplier(target);
+    let incoming = total * damageTakenMultiplier(target);
     if (target.shield > 0) {
       const absorbed = Math.min(target.shield, incoming);
       target.shield -= absorbed;
@@ -190,6 +193,23 @@ export class CombatSystem {
         });
       }
     }
+  }
+
+  /** Flat bonus damage from an `empower` buff on the attacker, consumed on use.
+   *  Returns 0 when the attacker has none (or is hitting itself). */
+  private consumeEmpower(fromId: string, targetId: string): number {
+    if (fromId === targetId) return 0;
+    const attacker = this.ctx.state.players.get(fromId);
+    if (!attacker) return 0;
+    let bonus = 0;
+    for (const s of attacker.statuses) {
+      if (s.kind === 'empower') {
+        bonus = s.magnitude;
+        break;
+      }
+    }
+    if (bonus > 0) this.removeStatuses(attacker, 'empower');
+    return bonus;
   }
 
   /** Heal a target and broadcast the healing feedback. */
@@ -307,8 +327,8 @@ export class CombatSystem {
     addShield: (t, a, d, f) => this.addShield(t, a, d, f),
     applyStatus: (t, s, f) => this.applyStatus(t, s, f),
     displace: (e, dx, dz, dist, sp, dmg, from) => this.displace(e, dx, dz, dist, sp, dmg, from),
-    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh) =>
-      this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh),
+    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh, count, interval) =>
+      this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh, count, interval),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
     pushDestructiblesInRadius: (x, z, r, from) => this.destructibles.pushInRadius(x, z, r, from),

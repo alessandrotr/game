@@ -31,6 +31,7 @@ export type StatusKind =
   | 'haste' // move speed × magnitude (>1)
   | 'attack_speed' // auto-attack interval × (1 / magnitude)
   | 'damage_amp' // damage TAKEN × magnitude (>1 = vulnerable)
+  | 'empower' // adds `magnitude` flat damage to the carrier's NEXT damaging hit, then consumed
   | 'dot' // damage over time (tickAmount every tickMs)
   | 'hot' // heal over time (tickAmount every tickMs)
   | 'shield'; // tracks the lifetime of an absorb shield
@@ -44,6 +45,7 @@ export const STATUS_KINDS: readonly StatusKind[] = [
   'haste',
   'attack_speed',
   'damage_amp',
+  'empower',
   'dot',
   'hot',
   'shield',
@@ -104,6 +106,11 @@ export type Effect =
       vfx: string;
       /** Effects applied to the first player it collides with. */
       onHit: LeafEffect[];
+      /** Fire this many shots in a burst (default 1). Each carries the same
+       *  `onHit`; subsequent shots leave the caster's current position. */
+      count?: number;
+      /** Delay between burst shots, in milliseconds (only used when `count` > 1). */
+      intervalMs?: number;
     }
   | {
       type: 'aoe';
