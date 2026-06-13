@@ -10,12 +10,16 @@ import { GLSL_NOISE, UV_VERTEX, useUTime } from './common';
  * projectiles in flight — one draw call each, no textures, no lights.
  */
 
-// --- Arcane Bolt: a violet orb wrapped in crackling electric filaments. -----
+// --- Electric Bolt: an orb wrapped in crackling electric filaments (the look
+// shared by the mage's Arcane Bolt and the archer's Power Shot). Colour-tunable.
+// The quad is sized to the projectile's collision radius, so the glow reads as
+// the actual hit area — the VFX never extends past where it can connect. --------
 
-const arcaneBoltFrag = /* glsl */ `
+const electricBoltFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime;
+  uniform vec3 uColor;
   ${GLSL_NOISE}
   void main(){
     vec2 p = vUv - 0.5;
@@ -26,16 +30,26 @@ const arcaneBoltFrag = /* glsl */ `
     arcs += pow(noise(p * 16.0 - uTime * 7.0), 4.0) * 0.6;
     arcs *= smoothstep(1.0, 0.15, r);
     float bolt = core + arcs;
-    vec3 col = mix(vec3(0.45, 0.18, 1.0), vec3(0.92, 0.84, 1.0), core + arcs * 0.4);
-    float a = smoothstep(0.05, 0.45, bolt) * (1.0 - smoothstep(0.9, 1.1, r));
+    vec3 col = mix(uColor, vec3(1.0), core + arcs * 0.4);
+    // Hard cutoff at the quad edge → the glow stays inside the collision radius.
+    float a = smoothstep(0.05, 0.45, bolt) * (1.0 - smoothstep(0.85, 1.0, r));
     gl_FragColor = vec4(col * (1.1 + bolt * 2.2), a);
   }
 `;
 
-export function ArcaneBoltEffect({ radius = 0.7 }: { radius?: number }) {
+export function ElectricBoltEffect({
+  color = '#7330ff',
+  radius = 0.6,
+}: {
+  color?: string;
+  radius?: number;
+}) {
   const matRef = useRef<ShaderMaterial>(null);
   const seed = useMemo(() => Math.random() * 10, []);
-  const uniforms = useMemo(() => ({ uTime: { value: seed } }), [seed]);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: seed }, uColor: { value: new Color(color) } }),
+    [seed, color],
+  );
   useUTime(matRef);
   return (
     <Billboard>
@@ -44,7 +58,7 @@ export function ArcaneBoltEffect({ radius = 0.7 }: { radius?: number }) {
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={arcaneBoltFrag}
+          fragmentShader={electricBoltFrag}
           uniforms={uniforms}
           transparent
           depthWrite={false}
@@ -54,6 +68,11 @@ export function ArcaneBoltEffect({ radius = 0.7 }: { radius?: number }) {
     </Billboard>
   );
 }
+
+/** Mage Arcane Bolt — a violet electric orb. */
+export const ArcaneBoltEffect = ({ radius }: { radius?: number }) => (
+  <ElectricBoltEffect color="#7330ff" radius={radius} />
+);
 
 // --- Energy Arrow: a bright four-point star/dart with shimmering sparkle. ----
 // Colour-tunable so the archer's three shots read distinctly (poke / chill / pin).
@@ -110,12 +129,19 @@ export function EnergyArrowEffect({
   );
 }
 
-/** Archer Power Shot — a clean piercing green-white dart. */
-export const PowerShotEffect = () => <EnergyArrowEffect color="#7dff9c" radius={0.55} />;
+/** Archer Power Shot — a green electric bolt (same crackling look as the mage's
+ *  arcane bolt, sized to its collision radius). */
+export const PowerShotEffect = ({ radius }: { radius?: number }) => (
+  <ElectricBoltEffect color="#3dff7a" radius={radius} />
+);
 /** Archer Crippling Shot — a frigid blue dart (telegraphs the slow). */
-export const CripplingShotEffect = () => <EnergyArrowEffect color="#5fc8ff" radius={0.52} />;
+export const CripplingShotEffect = ({ radius }: { radius?: number }) => (
+  <EnergyArrowEffect color="#5fc8ff" radius={radius} />
+);
 /** Archer Pinning Arrow — a heavy crimson-gold bolt (telegraphs the root). */
-export const PinningArrowEffect = () => <EnergyArrowEffect color="#ffb24a" radius={0.7} />;
+export const PinningArrowEffect = ({ radius }: { radius?: number }) => (
+  <EnergyArrowEffect color="#ffb24a" radius={radius} />
+);
 
 // --- Holy Bolt: a radiant golden orb with a slowly turning cross flare. ------
 

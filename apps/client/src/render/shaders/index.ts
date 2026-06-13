@@ -35,7 +35,7 @@ export { CarSmoke, CarFire, BarrelFire } from './coverEffects';
  * Projectile shaders loop (server drives their lifetime); burst shaders are
  * one-shot and self-unmount via {@link BurstShaderProps}.
  */
-export const PROJECTILE_SHADERS: Partial<Record<VfxAssetId, FC>> = {
+export const PROJECTILE_SHADERS: Partial<Record<VfxAssetId, FC<{ radius?: number }>>> = {
   'vfx.fireball': FireballEffect,
   'vfx.arcane_bolt': ArcaneBoltEffect,
   'vfx.power_shot': PowerShotEffect,

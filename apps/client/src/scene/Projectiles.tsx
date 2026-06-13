@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MathUtils, type Group } from 'three';
-import type { VfxAssetId } from '@arena/shared';
+import { ABILITIES, isAbilityKind, type VfxAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { assets } from '../assets/registry';
 import { AssetMesh } from '../render/AssetMesh';
@@ -47,11 +47,17 @@ function ProjectileEntity({ id }: { id: string }) {
   });
 
   if (!descriptor) return null;
+  // Size the VFX to the projectile's collision radius, so the animation reads as
+  // the actual hit area (never larger than where it can connect).
+  const tag = projectile?.ability;
+  const radius = tag && isAbilityKind(tag) ? ABILITIES[tag].projectileRadius : undefined;
   // Use a custom GLSL projectile shader when one is registered for this VFX;
   // otherwise fall back to the descriptor's placeholder primitives.
   const Shader = vfxId ? PROJECTILE_SHADERS[vfxId] : undefined;
   return (
-    <group ref={group}>{Shader ? <Shader /> : <AssetMesh source={descriptor.render} />}</group>
+    <group ref={group}>
+      {Shader ? <Shader radius={radius} /> : <AssetMesh source={descriptor.render} />}
+    </group>
   );
 }
 
