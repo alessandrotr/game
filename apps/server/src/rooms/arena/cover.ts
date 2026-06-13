@@ -1,7 +1,9 @@
+import { type Collider } from '@dimforge/rapier3d-compat';
 import { PLAYER_RADIUS, ServerMessage, type ArenaObstacle, type CoverStructureSpec } from '@arena/shared';
 import { CoverStructure } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
+import type { ArenaPhysics } from './physics.js';
 
 /** A car detonates on destruction: 100 damage to everything within 5 units. */
 const CAR_EXPLOSION_DAMAGE = 100;
@@ -27,6 +29,9 @@ function isCar(assetId: string): boolean {
 export class CoverSystem {
   /** id → the collision circle this structure contributes (for removal on death). */
   private readonly circles = new Map<string, ArenaObstacle>();
+  /** id → the structure's fixed physics collider (so drums/barrels bounce off it;
+   *  removed on crumble so props can roll over the rubble). */
+  private readonly colliders = new Map<string, Collider>();
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -35,12 +40,16 @@ export class CoverSystem {
     private readonly collision: ArenaObstacle[],
     /** Combat, for the area damage a car deals when it detonates on death. */
     private readonly combat: CombatSystem,
+    /** The shared physics world — structures register a fixed collider here so
+     *  dynamic props (drums, launched barrels) collide with them. */
+    private readonly physics: ArenaPhysics,
   ) {}
 
   /** Spawn the match's HP-bearing cover from the generated layout. */
   init(specs: CoverStructureSpec[]): void {
     this.ctx.state.structures.clear();
     this.circles.clear();
+    this.colliders.clear();
     specs.forEach((s, i) => {
       const cs = new CoverStructure();
       cs.id = `s${i}`;
@@ -57,7 +66,10 @@ export class CoverSystem {
 
       const circle: ArenaObstacle = { x: s.x, z: s.z, radius: s.radius, height: s.height };
       this.circles.set(cs.id, circle);
-      this.collision.push(circle); // collidable while alive
+      this.collision.push(circle); // collidable while alive (movement + projectiles)
+      // A matching fixed collider in the physics world so dynamic props (drums,
+      // launched barrels) bounce off it too.
+      this.colliders.set(cs.id, this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height));
     });
   }
 
@@ -110,8 +122,13 @@ export class CoverSystem {
     const circle = this.circles.get(s.id);
     if (circle) {
       const i = this.collision.indexOf(circle);
-      if (i >= 0) this.collision.splice(i, 1); // now uncollidable
+      if (i >= 0) this.collision.splice(i, 1); // now uncollidable (movement + projectiles)
       this.circles.delete(s.id);
+    }
+    const collider = this.colliders.get(s.id);
+    if (collider) {
+      this.physics.removeCollider(collider); // props now roll over the rubble
+      this.colliders.delete(s.id);
     }
     this.ctx.broadcast(ServerMessage.StructureCrumbled, { x: s.x, z: s.z, radius: s.radius });
     if (isCar(s.assetId)) this.detonate(s);

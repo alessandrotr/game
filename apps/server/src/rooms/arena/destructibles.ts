@@ -3,9 +3,11 @@ import {
   DAMAGE_COOLDOWN_MS,
   DESTRUCTIBLE_CONFIG,
   DRUM_HALF_HEIGHT,
+  DRUM_HP,
   IMPACT_DAMAGE_TO_PLAYER,
   MIN_DAMAGE_VELOCITY,
   PLAYER_RADIUS,
+  ServerMessage,
   TIRE_STACK_COUNT,
   TIRE_STACK_SPACING,
   TIRE_TUBE,
@@ -36,6 +38,9 @@ interface Body {
   spent: boolean;
   /** Drums can be hit repeatedly; this gates re-impulses (sim ms). */
   hitReadyAt: number;
+  /** Remaining hit points. Drums start at {@link DRUM_HP} and are destroyed at 0;
+   *  tires are `Infinity` (they scatter but can't be destroyed by damage). */
+  hp: number;
   /** Was awake last tick — lets us write one final transform when it sleeps. */
   wasAwake: boolean;
 }
@@ -128,6 +133,7 @@ export class DestructibleSystem {
       dmgReadyAt: new Map(),
       spent: false,
       hitReadyAt: 0,
+      hp: category === 'barrel' ? DRUM_HP : Infinity,
       wasAwake: true, // settle from spawn, then Rapier sleeps it
     });
   }
@@ -161,6 +167,7 @@ export class DestructibleSystem {
     dirX: number,
     dirZ: number,
     fromId: string,
+    amount = 0,
   ): boolean {
     for (const body of this.bodies.values()) {
       if (body.category === 'tire' && body.spent) continue;
@@ -168,7 +175,7 @@ export class DestructibleSystem {
       const dz = body.obj.z - pz;
       const r = body.radius + projR;
       if (dx * dx + dz * dz <= r * r) {
-        this.impact(body, px, pz, dirX, dirZ, fromId);
+        this.impact(body, px, pz, dirX, dirZ, fromId, amount);
         return true; // first hit consumes the projectile
       }
     }
@@ -176,19 +183,20 @@ export class DestructibleSystem {
   }
 
   /** Push/scatter every destructible within `radius` of (x,z) — used by AoE
-   *  abilities and dash slams. */
-  pushInRadius(x: number, z: number, radius: number, fromId: string): void {
-    for (const body of this.bodies.values()) {
+   *  abilities and dash slams. `amount` (the AoE's damage) also chips drum HP. */
+  pushInRadius(x: number, z: number, radius: number, fromId: string, amount = 0): void {
+    for (const body of [...this.bodies.values()]) {
       if (body.category === 'tire' && body.spent) continue;
       const dx = body.obj.x - x;
       const dz = body.obj.z - z;
       const r = radius + body.radius;
-      if (dx * dx + dz * dz <= r * r) this.impact(body, x, z, 0, 0, fromId);
+      if (dx * dx + dz * dz <= r * r) this.impact(body, x, z, 0, 0, fromId, amount);
     }
   }
 
   /** Resolve one impact: tires scatter their whole stack once; drums take a
-   *  single clamped shove (repeatable after a cooldown). */
+   *  single clamped shove (repeatable after a cooldown) AND lose `amount` HP,
+   *  being destroyed when it runs out. */
   private impact(
     body: Body,
     srcX: number,
@@ -196,15 +204,37 @@ export class DestructibleSystem {
     spellDirX: number,
     spellDirZ: number,
     fromId: string,
+    amount: number,
   ): void {
     if (body.category === 'tire') {
       this.scatterStack(body, srcX, srcZ, spellDirX, spellDirZ, fromId);
       return;
     }
+    // Drum: chip its HP, and destroy it once depleted (no shove if it's gone).
+    if (amount > 0) {
+      body.hp -= amount;
+      if (body.hp <= 0) {
+        this.destroyDrum(body);
+        return;
+      }
+    }
     if (this.ctx.now() < body.hitReadyAt) return;
     const dir = outwardDir(body.obj.x, body.obj.z, srcX, srcZ, spellDirX, spellDirZ);
     this.applyImpulse(body, dir.x, dir.z, 1, fromId);
     body.hitReadyAt = this.ctx.now() + body.cfg.cooldownMs;
+  }
+
+  /** Destroy a drum whose HP ran out: pull its physics body + replicated entity
+   *  and burst a dust puff where it stood (reuses the crumble feedback). */
+  private destroyDrum(body: Body): void {
+    this.physics.removeBody(body.rb);
+    this.ctx.state.destructibles.delete(body.obj.id);
+    this.bodies.delete(body.obj.id);
+    this.ctx.broadcast(ServerMessage.StructureCrumbled, {
+      x: body.obj.x,
+      z: body.obj.z,
+      radius: body.radius,
+    });
   }
 
   /** Scatter the whole stack the struck tire belongs to (one-shot): members fan

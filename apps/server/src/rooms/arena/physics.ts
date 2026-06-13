@@ -1,4 +1,4 @@
-import RAPIER, { type RigidBody, type World } from '@dimforge/rapier3d-compat';
+import RAPIER, { type Collider, type RigidBody, type World } from '@dimforge/rapier3d-compat';
 import { DESTRUCTIBLE_BOUND, DESTRUCTIBLE_GRAVITY, TICK_RATE, type ArenaObstacle } from '@arena/shared';
 
 /** A dynamic cylinder body to add to the world (tires, drums, launched barrels). */
@@ -57,6 +57,21 @@ export class ArenaPhysics {
         RAPIER.ColliderDesc.cylinder(h / 2, o.radius).setTranslation(o.x, h / 2, o.z).setFriction(0.8),
       );
     }
+  }
+
+  /** Add a fixed cylinder collider for a piece of cover (e.g. an HP-bearing
+   *  trailer/car/dumpster), returning its handle so it can be removed when the
+   *  structure crumbles. Drums and launched barrels bounce off it. */
+  addStaticCylinder(x: number, z: number, radius: number, height: number): Collider {
+    const h = height || 2;
+    return this.world.createCollider(
+      RAPIER.ColliderDesc.cylinder(h / 2, radius).setTranslation(x, h / 2, z).setFriction(0.8),
+    );
+  }
+
+  /** Remove a static collider (a crumbled structure stops blocking props). */
+  removeCollider(collider: Collider): void {
+    this.world.removeCollider(collider, false);
   }
 
   /** Add a dynamic cylinder body and return it. */

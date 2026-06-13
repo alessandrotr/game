@@ -86,8 +86,9 @@ export class CombatSystem {
     dirX: number,
     dirZ: number,
     fromId: string,
+    amount = 0,
   ): boolean {
-    return this.destructibles.tryProjectileHit(px, pz, projR, dirX, dirZ, fromId);
+    return this.destructibles.tryProjectileHit(px, pz, projR, dirX, dirZ, fromId, amount);
   }
 
   /** Queue a dash's landing slam to resolve after its travel time elapses. */
@@ -331,7 +332,8 @@ export class CombatSystem {
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh, count, interval),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
-    pushDestructiblesInRadius: (x, z, r, from) => this.destructibles.pushInRadius(x, z, r, from),
+    pushDestructiblesInRadius: (x, z, r, from, amount) =>
+      this.destructibles.pushInRadius(x, z, r, from, amount),
     damageStructuresInRadius: (x, z, r, amount) => this.cover.damageInRadius(x, z, r, amount),
     scheduleDashImpact: (c, d, r, onLand) => this.scheduleDashImpact(c, d, r, onLand),
   };

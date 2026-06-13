@@ -268,7 +268,7 @@ export class ArenaRoom extends AvatarRoom {
     this.physics = new ArenaPhysics(this.obstacles);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
-    this.cover = new CoverSystem(ctx, this.obstacles, this.combat);
+    this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);

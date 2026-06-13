@@ -189,8 +189,12 @@ export class ProjectileSystem {
         return;
       }
 
+      // The projectile's damage (auto-attack flat damage, or the ability's
+      // on-hit damage) — chips drum HP and cover-structure HP alike.
+      const projDmg = meta.damage > 0 ? meta.damage : sumDamage(meta.onHit);
+
       // Destructibles (tires / barrels / building parts): a projectile that
-      // strikes one shoves it physically and is consumed (no impulse spam).
+      // strikes one shoves it physically (and chips drum HP) and is consumed.
       if (
         this.combat.hitDestructible(
           projectile.x,
@@ -199,6 +203,7 @@ export class ProjectileSystem {
           meta.dirX,
           meta.dirZ,
           meta.ownerId,
+          projDmg,
         )
       ) {
         expired.push(id);
@@ -207,7 +212,7 @@ export class ProjectileSystem {
 
       // Cover structures (trailers/cars/dumpsters): a projectile that strikes a
       // live one deals its damage (chipping toward a crumble) and is consumed.
-      const structDmg = meta.damage > 0 ? meta.damage : sumDamage(meta.onHit);
+      const structDmg = projDmg;
       if (structDmg > 0 && this.combat.hitStructure(projectile.x, projectile.z, meta.radius, structDmg)) {
         this.ctx.broadcast(ServerMessage.ProjectileImpact, {
           ability: meta.ability,

@@ -132,3 +132,7 @@ export const TIRE_STACK_SPACING = 0.38;
  *  (a 1-unit-tall, ~0.4-radius rusted drum). */
 export const DRUM_RADIUS = 0.4;
 export const DRUM_HALF_HEIGHT = 0.5;
+
+/** Oil-drum hit points. A drum still rolls when struck, but spell damage chips
+ *  this down and the drum is destroyed when it runs out (tires have no HP). */
+export const DRUM_HP = 60;

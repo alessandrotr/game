@@ -62,8 +62,15 @@ export interface EffectRuntime {
   /** Detonate any interactive barrels within `radius` of (x,z), credited to `fromId`. */
   triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void;
   /** Physically shove any destructibles (tires/barrels/building parts) within
-   *  `radius` of (x,z) outward, credited to `fromId`. No explosion — just a push. */
-  pushDestructiblesInRadius(x: number, z: number, radius: number, fromId: string): void;
+   *  `radius` of (x,z) outward, credited to `fromId`. No explosion — just a push;
+   *  `amount` (the effect's damage) also chips drum HP. */
+  pushDestructiblesInRadius(
+    x: number,
+    z: number,
+    radius: number,
+    fromId: string,
+    amount: number,
+  ): void;
   /** Damage any HP-bearing cover structures (trailers/cars/dumpsters) within
    *  `radius` of (x,z) — an AoE chips away at / crumbles them. */
   damageStructuresInRadius(x: number, z: number, radius: number, amount: number): void;
@@ -197,8 +204,9 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         });
         // Barrels caught in the blast launch + detonate too.
         rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
-        // Destructibles in range get a physical shove (tires/barrels/wreckage).
-        rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId);
+        // Destructibles in range get a physical shove (tires/barrels/wreckage)
+        // and take the blast's damage (chipping drum HP toward destruction).
+        rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId, sumLeafDamage(effect.onHit));
         // Cover structures (trailers/cars/dumpsters) take the blast's damage.
         rt.damageStructuresInRadius(cx, cz, effect.radius, sumLeafDamage(effect.onHit));
         break;
