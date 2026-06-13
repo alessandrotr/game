@@ -51,19 +51,11 @@ export function useAbilityHotkeys(enabled: boolean): void {
     const castInstant = (ability: AbilityKind, fromId: string) => {
       const config = ABILITIES[ability];
       const me = getLocalRenderTransform();
-      // Aim toward the cursor (so a frontal swing like cleave lands where you
-      // point); fall back to the current facing if the cursor is on the player.
-      const cur = getCursorGround();
-      let dx = cur.x - me.x;
-      let dz = cur.z - me.z;
-      const len = Math.hypot(dx, dz);
-      if (len > 1e-3) {
-        dx /= len;
-        dz /= len;
-      } else {
-        dx = Math.sin(me.rotation);
-        dz = Math.cos(me.rotation);
-      }
+      // A self-cast (e.g. Cleave's frontal swing) fires straight along the
+      // player's CURRENT facing — not the cursor — so it always lands directly in
+      // front of the character instead of pivoting toward the mouse.
+      const dx = Math.sin(me.rotation);
+      const dz = Math.cos(me.rotation);
       sendCast(ability, dx, dz);
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');

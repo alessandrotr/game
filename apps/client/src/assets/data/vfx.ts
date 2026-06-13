@@ -318,7 +318,8 @@ const cleave: VfxDescriptor = {
   id: 'vfx.cleave',
   displayName: 'Cleave',
   behavior: 'burst',
-  durationMs: 560,
+  // Double speed — plays in half its old 560ms so the swing snaps.
+  durationMs: 280,
   render: { kind: 'placeholder', parts: [{ name: 'arc', shape: 'torus', args: [2.8, 0.18, 10, 40], rotation: [Math.PI / 2, 0, 0], color: '#ffe2b0', emissive: '#ff7a1a', emissiveIntensity: 3.2 }] },
 };
 
