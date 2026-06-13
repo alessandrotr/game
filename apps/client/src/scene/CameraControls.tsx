@@ -15,7 +15,7 @@ const CLICK_SLOP = 4;
 /**
  * Manual camera rotation, layered on the fixed follow-camera ({@link CameraRig}).
  * Two input paths so it works on any device:
- *  - **← / →** orbit (yaw), **↑ / ↓** tilt (pitch); all held = continuous.
+ *  - **← / →** (or **A / D**) orbit (yaw), **↑ / ↓** tilt (pitch); held = continuous.
  *  - **Middle-mouse drag** orbits (horizontal) and tilts (vertical); a
  *    middle-click recenters both (mouse only — many laptops/trackpads have no
  *    middle button, hence the keyboard path above).
@@ -25,7 +25,7 @@ const CLICK_SLOP = 4;
  */
 export function CameraControls() {
   const gl = useThree((s) => s.gl);
-  // -1 / +1 / 0 for held arrow keys.
+  // -1 / +1 / 0 for held yaw keys (← / → and A / D).
   const yawDir = useRef(0);
   const pitchDir = useRef(0);
 
@@ -77,16 +77,17 @@ export function CameraControls() {
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
-      if (e.code === 'ArrowLeft') yawDir.current = -1;
-      else if (e.code === 'ArrowRight') yawDir.current = 1;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') yawDir.current = -1; // orbit left
+      else if (e.code === 'ArrowRight' || e.code === 'KeyD') yawDir.current = 1; // orbit right
       else if (e.code === 'ArrowUp') pitchDir.current = 1; // tilt toward top-down
       else if (e.code === 'ArrowDown') pitchDir.current = -1; // tilt flatter
       else return;
       e.preventDefault(); // don't scroll the page
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowLeft' && yawDir.current === -1) yawDir.current = 0;
-      else if (e.code === 'ArrowRight' && yawDir.current === 1) yawDir.current = 0;
+      if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && yawDir.current === -1) yawDir.current = 0;
+      else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && yawDir.current === 1)
+        yawDir.current = 0;
       else if (e.code === 'ArrowUp' && pitchDir.current === 1) pitchDir.current = 0;
       else if (e.code === 'ArrowDown' && pitchDir.current === -1) pitchDir.current = 0;
     };
