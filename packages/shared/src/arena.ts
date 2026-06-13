@@ -123,11 +123,19 @@ const TIRE_STACK_COUNT = 2;
 /** Footprint used only for placement spacing. */
 const TIRE_STACK_FOOT = 1.2;
 
+/** The pool of random road signs that replaced the old rusted-fence decor. */
+const ROAD_SIGNS: PropAssetId[] = [
+  'prop.arena.sign.stop',
+  'prop.arena.sign.warning',
+  'prop.arena.sign.speed',
+  'prop.arena.sign.arrow',
+  'prop.arena.sign.route62',
+];
+
 const DECOR: DecorKind[] = [
   { assetId: 'prop.arena.trash', foot: 1.2, count: 3 },
   { assetId: 'prop.arena.crate.broken', foot: 1.2, count: 2 },
   { assetId: 'prop.arena.debris', foot: 1.0, count: 3 },
-  { assetId: 'prop.arena.fence.rust', foot: 1.5, count: 2 },
 ];
 
 /** Deterministic PRNG (mulberry32) — same sequence on server and client per seed. */
@@ -215,6 +223,14 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
       props.push({ assetId: kind.assetId, position: [spot.x, 0, spot.z], rotation: [0, rot, 0] });
       props.push({ assetId: kind.assetId, position: [-spot.x, 0, -spot.z], rotation: [0, rot + Math.PI, 0] });
     }
+  }
+
+  // Road signs: exactly ONE of each kind, scattered at random positions. Pure
+  // decor (no collision), so they're not mirrored — there's just one each.
+  for (const sign of ROAD_SIGNS) {
+    const spot = findSpot(1);
+    if (!spot) continue;
+    props.push({ assetId: sign, position: [spot.x, 0, spot.z], rotation: [0, rng() * Math.PI * 2, 0] });
   }
 
   // Burning barrels: interactive entities (no collision/props), mirrored.

@@ -597,6 +597,87 @@ const tireStack = prop('arena.tires', 'Tyre Stack', [
   },
 ]);
 
+// --- Road signs (arena) ----------------------------------------------------
+// Low-poly junkyard road signs that replace the old rusted-fence decor. Each is
+// a galvanized post + a sign face; the layout places them at a random yaw so
+// they point every which way. Built from primitives like everything else.
+const SIGN_POST = '#8a8f96';
+const SIGN_RED = '#b23b32';
+const SIGN_WHITE = '#d8d6cf';
+const SIGN_YELLOW = '#e3b22e';
+const SIGN_BLUE = '#3f6fb0';
+const SIGN_BLACK = '#22252b';
+/** A leaning galvanized signpost (slightly tilted for a derelict look). */
+const signPost = (h = 1.8): PlaceholderPart => cyl(0.045, 0.05, h, 6, [0, h / 2, 0], SIGN_POST, ns);
+
+// An octagon (8-seg cylinder) faces forward via PI/2 about X; the SECOND euler
+// (local Y, which becomes the facing axis after that turn) rolls it a
+// half-segment so a flat edge sits on top — a proper stop-sign octagon, in plane.
+const OCTA_FACING: Vec3 = [Math.PI / 2, Math.PI / 8, 0];
+
+/** STOP: red octagon with a white border ring + bar. */
+const signStop = prop('arena.sign.stop', 'Stop Sign', [
+  signPost(),
+  cyl(0.47, 0.47, 0.05, 8, [0, 1.95, -0.01], SIGN_WHITE, { rotation: OCTA_FACING, castShadow: false }),
+  cyl(0.42, 0.42, 0.07, 8, [0, 1.95, 0.01], SIGN_RED, { rotation: OCTA_FACING }),
+  box([0.46, 0.11, 0.02], [0, 1.95, 0.06], SIGN_WHITE, ns),
+]);
+
+/** WARNING: yellow diamond with a black exclamation. */
+const signWarning = prop('arena.sign.warning', 'Warning Sign', [
+  signPost(),
+  box([0.58, 0.58, 0.06], [0, 1.95, 0], SIGN_YELLOW, { rotation: [0, 0, Math.PI / 4] }),
+  box([0.07, 0.26, 0.02], [0, 2.0, 0.05], SIGN_BLACK, ns),
+  box([0.07, 0.07, 0.02], [0, 1.8, 0.05], SIGN_BLACK, ns),
+]);
+
+/** SPEED LIMIT: white disc with a red ring and a couple of dark "digits". */
+const signSpeed = prop('arena.sign.speed', 'Speed Limit Sign', [
+  signPost(),
+  cyl(0.4, 0.4, 0.06, 16, [0, 1.95, 0], SIGN_WHITE, { rotation: [Math.PI / 2, 0, 0] }),
+  { shape: 'torus', args: [0.37, 0.05, 6, 16], position: [0, 1.95, 0.04], color: SIGN_RED, castShadow: false },
+  box([0.11, 0.24, 0.02], [-0.09, 1.95, 0.06], SIGN_BLACK, ns),
+  box([0.11, 0.24, 0.02], [0.1, 1.95, 0.06], SIGN_BLACK, ns),
+]);
+
+/** DIRECTION: blue rectangle with a white arrow. */
+const signArrow = prop('arena.sign.arrow', 'Direction Sign', [
+  signPost(1.9),
+  box([0.9, 0.42, 0.06], [0, 2.05, 0], SIGN_BLUE, ns),
+  box([0.42, 0.1, 0.02], [-0.06, 2.05, 0.05], SIGN_WHITE, ns),
+  box([0.2, 0.1, 0.02], [0.2, 2.13, 0.05], SIGN_WHITE, { rotation: [0, 0, -Math.PI / 4], castShadow: false }),
+  box([0.2, 0.1, 0.02], [0.2, 1.97, 0.05], SIGN_WHITE, { rotation: [0, 0, Math.PI / 4], castShadow: false }),
+]);
+
+// 7-segment digit, drawn from thin black bars on the sign face (z = 0.06). Lets
+// us spell numbers (e.g. "62") with primitives — no text geometry needed.
+const SEG_T = 0.035;
+const segBar = (w: number, h: number, x: number, y: number): PlaceholderPart =>
+  box([w, h, 0.02], [x, y, 0.06], SIGN_BLACK, ns);
+function digit7(ch: '6' | '2', cx: number, cy: number): PlaceholderPart[] {
+  const hw = 0.075; // half-width (left/right verticals)
+  const vh = 0.13; // vertical-segment height
+  const vy = 0.07; // vertical-segment y offset from center
+  const sh = 0.14; // horizontal-segment y offset (top/bottom)
+  const A = segBar(0.13, SEG_T, cx, cy + sh); // top
+  const G = segBar(0.13, SEG_T, cx, cy); // middle
+  const D = segBar(0.13, SEG_T, cx, cy - sh); // bottom
+  const F = segBar(SEG_T, vh, cx - hw, cy + vy); // top-left
+  const B = segBar(SEG_T, vh, cx + hw, cy + vy); // top-right
+  const E = segBar(SEG_T, vh, cx - hw, cy - vy); // bottom-left
+  const C = segBar(SEG_T, vh, cx + hw, cy - vy); // bottom-right
+  return ch === '6' ? [A, F, G, E, D, C] : [A, B, G, E, D]; // '6' vs '2'
+}
+
+/** ROUTE 62: a white route marker with a black border and a black "62". */
+const signRoute62 = prop('arena.sign.route62', 'Route 62 Sign', [
+  signPost(),
+  box([0.7, 0.7, 0.04], [0, 1.97, -0.01], SIGN_BLACK, ns), // border
+  box([0.62, 0.62, 0.05], [0, 1.97, 0], SIGN_WHITE, ns), // face
+  ...digit7('6', -0.15, 1.95),
+  ...digit7('2', 0.15, 1.95),
+]);
+
 export const PROPS: PropDescriptor[] = [
   house,
   cottage,
@@ -637,6 +718,11 @@ export const PROPS: PropDescriptor[] = [
   scrapPile,
   dumpster,
   rustFence,
+  signStop,
+  signWarning,
+  signSpeed,
+  signArrow,
+  signRoute62,
   oilDrum,
   fireBarrel,
   trashPile,
