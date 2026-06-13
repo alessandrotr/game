@@ -28,6 +28,12 @@ const NOISE_GLSL = /* glsl */ `
     for (int i = 0; i < 5; i++){ v += a * gNoise(p); p = p * 2.02 + 7.3; a *= 0.5; }
     return v;
   }
+  // Soft-edged coverage of an axis-aligned rect (centre c, half-extents h): 1
+  // inside → 0 outside, with a small antialiased border.
+  float gRect(vec2 p, vec2 c, vec2 h){
+    vec2 d = abs(p - c) - h;
+    return 1.0 - smoothstep(-0.18, 0.18, max(d.x, d.y));
+  }
 `;
 
 const ALBEDO_GLSL = /* glsl */ `
@@ -43,6 +49,21 @@ const ALBEDO_GLSL = /* glsl */ `
 
     // Whisper of fine speckle, just enough to avoid a dead-flat slab.
     grass *= 0.98 + 0.02 * gNoise(gp * 9.0);
+
+    // Streets + central plaza painted straight into the ground (no separate decal
+    // meshes → nothing to z-fight, clip the player's feet, or overdraw the
+    // portal). World-space rects/circle, matching the town layout.
+    float street = max(max(
+      gRect(gp, vec2(0.0, -4.0), vec2(2.5, 22.0)),
+      gRect(gp, vec2(8.0, 5.0), vec2(9.0, 2.0))),
+      gRect(gp, vec2(-8.0, 2.0), vec2(9.0, 2.0)));
+    float dPlaza = distance(gp, vec2(0.0, -2.0));
+    float rim = 1.0 - smoothstep(8.25, 8.55, dPlaza);   // plaza rim, radius 8.4
+    float plaza = 1.0 - smoothstep(7.65, 7.95, dPlaza); // plaza floor, radius 7.8
+    grass = mix(grass, uStreet, street);
+    grass = mix(grass, uRim, rim);     // rim under floor (painted first)
+    grass = mix(grass, uPlaza, plaza);
+
     diffuseColor.rgb = grass;
   }
 `;
@@ -56,6 +77,10 @@ export function GrassGround() {
       const town = useEnvStore.getState().town;
       shader.uniforms.uGrassDark = { value: new Color(town.grassDark) };
       shader.uniforms.uGrassLight = { value: new Color(town.grassLight) };
+      // Street / plaza colours, baked into the ground (replaces the decal meshes).
+      shader.uniforms.uStreet = { value: new Color('#857a66') };
+      shader.uniforms.uPlaza = { value: new Color('#8e887b') };
+      shader.uniforms.uRim = { value: new Color('#6c675b') };
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vGrassWorld;')
@@ -67,7 +92,7 @@ export function GrassGround() {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          `#include <common>\nvarying vec3 vGrassWorld;\nuniform vec3 uGrassDark;\nuniform vec3 uGrassLight;\n${NOISE_GLSL}`,
+          `#include <common>\nvarying vec3 vGrassWorld;\nuniform vec3 uGrassDark;\nuniform vec3 uGrassLight;\nuniform vec3 uStreet;\nuniform vec3 uPlaza;\nuniform vec3 uRim;\n${NOISE_GLSL}`,
         )
         .replace(
           'vec4 diffuseColor = vec4( diffuse, opacity );',
@@ -76,7 +101,7 @@ export function GrassGround() {
 
       uniforms.current = shader.uniforms;
     };
-    m.customProgramCacheKey = () => 'grass-ground-v3';
+    m.customProgramCacheKey = () => 'grass-ground-v4';
     return m;
   }, []);
 

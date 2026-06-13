@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
+import { isRooted } from '@arena/shared';
 import { setDestination } from '../store/destinationState';
+import { useGameStore } from '../store/useGameStore';
 import { useTargetStore } from '../store/targetState';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 import { sendMoveTo } from '../network/colyseus';
@@ -109,6 +111,15 @@ export function MouseMove() {
 
   useFrame((_, delta) => {
     if (!held.current) return;
+
+    // Frozen (stun/root): the server ignores move orders and drops the
+    // destination, so issuing one locally only races the predictor (which
+    // clears it each frame) — that flip-flop was the residual rubber-band. Skip
+    // setting a destination/marker or spamming the server while CC'd; holding
+    // resumes movement automatically once it wears off.
+    const { sessionId, players } = useGameStore.getState();
+    const me = sessionId ? players.get(sessionId) : undefined;
+    if (me && isRooted(me)) return;
 
     const rect = gl.domElement.getBoundingClientRect();
     ndc.current.set(
