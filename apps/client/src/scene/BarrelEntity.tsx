@@ -58,9 +58,9 @@ export function BarrelEntity({ barrelId }: { barrelId: string }) {
       <group position={[0, -HALF_HEIGHT, 0]}>
         <AssetInstance id="prop.arena.drum.fire" />
       </group>
-      {/* Procedural flame licking up from the drum mouth (drum top ≈ +0.5 in
-          group space). One cheap additive billboard — replaces the old static
-          emissive cones baked into the prop. */}
+      {/* Procedural flame on a real cone mesh (drum top ≈ +0.5 in group space).
+          Parented here so it tumbles rigidly with the drum — no billboard, no
+          position-follower glitches when the barrel is launched. */}
       <BarrelFire />
       {/* Invisible click target (the fire-drum itself is small/irregular). */}
       <mesh onPointerDown={onAttack}>

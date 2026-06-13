@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { Billboard } from '@react-three/drei';
-import { AdditiveBlending, NormalBlending, type ShaderMaterial } from 'three';
+import { AdditiveBlending, DoubleSide, NormalBlending, type ShaderMaterial } from 'three';
 import { GLSL_NOISE, UV_VERTEX, useBurstClock, useUTime, type BurstShaderProps } from './common';
 
 /**
@@ -109,7 +109,7 @@ export function CarFire({ height = 1.7, radius = 1.6 }: { height?: number; radiu
   );
 }
 
-// --- Barrel fire: a lively, domain-warped flame that licks up from the drum. --
+// --- Barrel fire: a flickering flame on a real cone mesh (no billboard). -------
 
 const barrelFireFrag = /* glsl */ `
   precision highp float;
@@ -117,57 +117,43 @@ const barrelFireFrag = /* glsl */ `
   uniform float uTime;
   ${GLSL_NOISE}
   void main(){
-    vec2 uv = vUv;
-    vec2 p = vec2(uv.x - 0.5, uv.y);
-
-    // Rising, domain-warped turbulence — sampling noise of noise gives the
-    // curling "licking tongue" look instead of a uniform blob.
-    float t = uTime * 1.7;
-    vec2 base = vec2(p.x * 3.2, uv.y * 2.4 - t);
-    float warp = fbm(base * 0.8 + vec2(0.0, t * 0.4));
-    float n = fbm(base + vec2(warp * 0.7, warp));
-
-    // Flame silhouette: wide at the base, tapering to a flickering tip whose
-    // height wobbles with the noise.
-    float taper = mix(0.40, 0.05, uv.y);
-    float body = smoothstep(taper, 0.0, abs(p.x));
-    float top = 0.5 + 0.45 * n;
-    float vert = smoothstep(0.0, 0.05, uv.y) * smoothstep(top, top - 0.5, uv.y);
-    float flame = body * vert * (0.55 + 0.6 * n);
-
-    // Heat ramp: white-hot core → yellow → orange → deep-red smoky tips.
-    vec3 col = mix(vec3(1.0, 0.92, 0.5), vec3(1.0, 0.45, 0.08), smoothstep(0.0, 0.55, uv.y));
-    col = mix(col, vec3(0.65, 0.06, 0.0), smoothstep(0.55, 1.0, uv.y));
-    float core = smoothstep(0.22, 0.0, length(vec2(p.x * 1.7, uv.y - 0.02)));
-    col += vec3(0.5, 0.42, 0.25) * core;
-
-    float a = clamp(flame, 0.0, 1.0);
-    gl_FragColor = vec4(col * (0.9 + 0.8 * flame), a);
+    // On a cone, vUv.y runs 0 at the base → 1 at the tip; vUv.x wraps around.
+    float h = vUv.y;
+    float n = fbm(vec2(vUv.x * 5.0, h * 3.0 - uTime * 2.2));
+    // Brightest at the base, flickering, fading out toward the tip.
+    float v = (1.0 - h) * (0.45 + 0.7 * n);
+    // Heat ramp: white-hot base → orange body → deep-red tip.
+    vec3 col = mix(vec3(1.0, 0.92, 0.5), vec3(1.0, 0.42, 0.07), h);
+    col = mix(col, vec3(0.7, 0.06, 0.0), smoothstep(0.55, 1.0, h));
+    gl_FragColor = vec4(col * (0.7 + v), clamp(v, 0.0, 1.0));
   }
 `;
 
-/** A looping flame that sits on top of a burning barrel. One additive billboard
- *  quad, procedural (no textures/lights) — cheap enough for every live barrel. */
-export function BarrelFire({ height = 1.3, width = 0.9, y = 1.05 }: { height?: number; width?: number; y?: number }) {
+/**
+ * A flame on top of a burning barrel. It's a real cone mesh (not a billboard),
+ * so it's parented to the barrel and tumbles rigidly with it when launched — no
+ * camera-facing or position-follower glitches. The shader gives it a flickering
+ * fire look; cheap (one additive cone, procedural, no textures/lights).
+ */
+export function BarrelFire({ baseY = 0.4, height = 1.15, radius = 0.34 }: { baseY?: number; height?: number; radius?: number }) {
   const matRef = useRef<ShaderMaterial>(null);
   // Random phase per barrel so they don't all flicker in lockstep.
   const uniforms = useMemo(() => ({ uTime: { value: Math.random() * 10 } }), []);
   useUTime(matRef);
   return (
-    <Billboard position={[0, y, 0]}>
-      <mesh>
-        <planeGeometry args={[width, height]} />
-        <shaderMaterial
-          ref={matRef}
-          vertexShader={UV_VERTEX}
-          fragmentShader={barrelFireFrag}
-          uniforms={uniforms}
-          transparent
-          depthWrite={false}
-          blending={AdditiveBlending}
-        />
-      </mesh>
-    </Billboard>
+    <mesh position={[0, baseY + height / 2, 0]}>
+      <coneGeometry args={[radius, height, 10, 1, true]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={UV_VERTEX}
+        fragmentShader={barrelFireFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        side={DoubleSide}
+        blending={AdditiveBlending}
+      />
+    </mesh>
   );
 }
 
