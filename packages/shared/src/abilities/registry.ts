@@ -119,14 +119,15 @@ export const ABILITY_REGISTRY = {
     id: 'cleave',
     name: 'Cleave',
     icon: 'Swords',
-    aim: 'direction',
+    aim: 'self',
     cooldownMs: 1000,
     manaCost: 10,
     castTimeMs: 0,
     range: 4,
     damage: 25,
     aoeRadius: 4,
-    // A 180° swing in front of the warrior (aimed at the cursor); flat hit, no bleed.
+    // A 180° swing in front of the warrior (its current facing); instant on press,
+    // no aim indicator. Flat hit, no bleed.
     effects: [
       {
         type: 'aoe',

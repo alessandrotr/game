@@ -138,7 +138,7 @@ const groundSlamFrag = /* glsl */ `
 `;
 export const GroundSlamEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={13} frag={groundSlamFrag} />;
 
-// --- Cleave: a steel blade-trail that sweeps a full circle from the front. ----
+// --- Cleave: a steel blade-trail that sweeps the 180° arc in FRONT of the player.
 
 const cleaveFrag = /* glsl */ `
   precision highp float;
@@ -148,22 +148,25 @@ const cleaveFrag = /* glsl */ `
     const float TAU = 6.28318530718;
     vec2 p = vUv - 0.5;
     float r = length(p) * 2.0;                        // 0 centre → 1 edge
-    // Angle from "forward" (+y of the oriented quad), 0..1 going clockwise:
-    // 0 = front, .25 = right, .5 = behind, .75 = left.
-    float na = fract(atan(p.x, p.y) / TAU + 1.0);
-    // The blade tip sweeps a full turn over the cast, starting in front.
-    float lead = uProgress;
-    float delta = lead - na;                          // >=0 → already carved
+    // Signed angle from "forward", in turns: 0 = front, ±0.25 = the sides,
+    // ±0.5 = directly behind. (−p.y points toward the cast direction once the
+    // quad is laid flat and yaw-oriented, so the arc sits IN FRONT.)
+    float front = atan(p.x, -p.y) / TAU;              // -0.5 .. 0.5
+    // Only the 180° arc ahead (|front| <= 0.25), with a soft edge.
+    float inFront = smoothstep(0.27, 0.24, abs(front));
+    // The blade tip sweeps across the front arc, one side to the other.
+    float tipPos = -0.25 + uProgress * 0.5;
+    float delta = tipPos - front;                     // >=0 → already carved
     float swept = step(0.0, delta);
-    // The circular band the sword carves (a ring around the warrior).
+    // The arc band the sword carves.
     float band = smoothstep(0.30, 0.0, abs(r - 0.78));
     // Comet trail: brightest at the tip, fading back along the swept arc.
-    float trail = swept * smoothstep(0.95, 0.0, delta);
+    float trail = swept * smoothstep(0.5, 0.0, delta);
     // Hot leading edge — the steel glint at the blade tip.
-    float tip = smoothstep(0.06, 0.0, abs(delta)) * swept;
-    // Faint full ring so the reach reads even before the sweep reaches it.
+    float tip = smoothstep(0.05, 0.0, abs(delta)) * swept;
+    // Faint reach line across the whole front arc.
     float ring = band * 0.10;
-    float v = band * (trail * 0.7 + tip * 1.9) + ring;
+    float v = (band * (trail * 0.7 + tip * 1.9) + ring) * inFront;
     vec3 col = mix(vec3(1.0, 0.45, 0.12), vec3(1.0, 0.97, 0.9), clamp(tip + trail * 0.3, 0.0, 1.0));
     // Hold, then fade out over the last third of the lifetime.
     float life = 1.0 - smoothstep(0.65, 1.0, uProgress);

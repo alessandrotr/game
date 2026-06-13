@@ -68,6 +68,11 @@ const BOT_NAMES = [
 /** Origin height for a cast's broadcast (matches the projectile spawn height). */
 const PROJECTILE_Y = 1;
 
+/** Cooldown leniency (ms) on casts: a client whose optimistic cooldown just
+ *  expired shouldn't have its cast rejected by round-trip / tick jitter (which
+ *  wastes the press and desyncs the cooldown display). Absorbs typical latency. */
+const CAST_COOLDOWN_GRACE_MS = 130;
+
 /** A cast in its wind-up: the effect resolves at `resolveAt` (sim time, ms). */
 interface PendingCast {
   ability: AbilityKind;
@@ -359,7 +364,8 @@ export class ArenaRoom extends AvatarRoom {
     if (!cd) return;
 
     // Cooldown + mana gates, plus: can't start a cast while already casting.
-    if ((cd[ability] ?? 0) > this.simTime) return;
+    // A small grace absorbs latency so a just-ready client cast isn't dropped.
+    if ((cd[ability] ?? 0) > this.simTime + CAST_COOLDOWN_GRACE_MS) return;
     if (player.mana < config.manaCost) return;
     if (this.pendingCasts.has(sessionId)) return;
 

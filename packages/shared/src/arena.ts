@@ -226,11 +226,17 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   }
 
   // Road signs: exactly ONE of each kind, scattered at random positions. Pure
-  // decor (no collision), so they're not mirrored — there's just one each.
+  // decor (no collision), so they're not mirrored — there's just one each. Each
+  // gets a random yaw and a derelict lean (crooked, sometimes nearly toppled),
+  // pivoting about its base — a dead-city look.
   for (const sign of ROAD_SIGNS) {
     const spot = findSpot(1);
     if (!spot) continue;
-    props.push({ assetId: sign, position: [spot.x, 0, spot.z], rotation: [0, rng() * Math.PI * 2, 0] });
+    const yaw = rng() * Math.PI * 2;
+    const heavy = rng() < 0.3; // some signs are nearly knocked over
+    const lx = (rng() * 2 - 1) * (heavy ? 0.7 : 0.2);
+    const lz = (rng() * 2 - 1) * (heavy ? 0.7 : 0.2);
+    props.push({ assetId: sign, position: [spot.x, 0, spot.z], rotation: [lx, yaw, lz] });
   }
 
   // Burning barrels: interactive entities (no collision/props), mirrored.

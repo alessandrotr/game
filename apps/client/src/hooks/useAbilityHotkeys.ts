@@ -50,9 +50,21 @@ export function useAbilityHotkeys(enabled: boolean): void {
 
     const castInstant = (ability: AbilityKind, fromId: string) => {
       const config = ABILITIES[ability];
-      const local = getLocalRenderTransform();
-      const rotation = local.active ? local.rotation : 0;
-      sendCast(ability, Math.sin(rotation), Math.cos(rotation));
+      const me = getLocalRenderTransform();
+      // Aim toward the cursor (so a frontal swing like cleave lands where you
+      // point); fall back to the current facing if the cursor is on the player.
+      const cur = getCursorGround();
+      let dx = cur.x - me.x;
+      let dz = cur.z - me.z;
+      const len = Math.hypot(dx, dz);
+      if (len > 1e-3) {
+        dx /= len;
+        dz /= len;
+      } else {
+        dx = Math.sin(me.rotation);
+        dz = Math.cos(me.rotation);
+      }
+      sendCast(ability, dx, dz);
       triggerCooldown(ability, config.cooldownMs);
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
