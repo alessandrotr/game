@@ -453,9 +453,8 @@ function wireRoom(joined: Room): void {
     useEffectsStore.getState().spawn(IMPACT_VFX[msg.ability] ?? 'vfx.cast', [msg.x, IMPACT_Y, msg.z]),
   );
   joined.onMessage(ServerMessage.BarrelExplosion, (msg) => {
-    // A fiery ground blast + a sharper burst at barrel height.
-    useEffectsStore.getState().spawn('vfx.shockwave', [msg.x, 0.05, msg.z]);
-    useEffectsStore.getState().spawn('vfx.arcane_blast', [msg.x, 0.8, msg.z]);
+    // The same fireball as a car detonation, scaled down for the smaller barrel.
+    useEffectsStore.getState().spawn('vfx.barrel_explosion', [msg.x, 0, msg.z]);
   });
   joined.onMessage(ServerMessage.DestructibleHit, (msg) => {
     // A small impact puff where a spell struck a destructible — NOT a blast.

@@ -442,6 +442,40 @@ const carExplosion: VfxDescriptor = {
   },
 };
 
+/** Barrel detonation — the car explosion shader, scaled down. Rendered by a
+ *  custom shader (BURST_SHADERS['vfx.barrel_explosion']); the placeholder parts
+ *  are only a fallback if that shader is ever unregistered. */
+const barrelExplosion: VfxDescriptor = {
+  id: 'vfx.barrel_explosion',
+  displayName: 'Barrel Explosion',
+  behavior: 'burst',
+  durationMs: 700,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'fireball',
+        shape: 'sphere',
+        args: [0.9, 16, 16],
+        position: [0, 0.8, 0],
+        color: '#ffd27a',
+        emissive: '#ff5a1a',
+        emissiveIntensity: 3.2,
+        opacity: 0.85,
+      },
+      {
+        name: 'shock',
+        shape: 'torus',
+        args: [1.3, 0.16, 12, 36],
+        rotation: [Math.PI / 2, 0, 0],
+        color: '#ffb072',
+        emissive: '#ff6a1a',
+        emissiveIntensity: 2.4,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -463,4 +497,5 @@ export const VFX: VfxDescriptor[] = [
   condemn,
   death,
   carExplosion,
+  barrelExplosion,
 ];

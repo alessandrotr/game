@@ -1,5 +1,5 @@
 import { type RigidBody } from '@dimforge/rapier3d-compat';
-import { PLAYER_RADIUS, ServerMessage } from '@arena/shared';
+import { ARENA_HALF_SIZE, PLAYER_RADIUS, ServerMessage } from '@arena/shared';
 import { Barrel } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
@@ -7,6 +7,16 @@ import type { ArenaPhysics } from './physics.js';
 
 /** Hit footprint of a barrel (projectile / AoE detection). */
 export const BARREL_RADIUS = 0.6;
+
+// --- Periodic respawn: drop a fresh wave of barrels onto open ground. ---
+/** Min/max barrels added per respawn wave. */
+const RESPAWN_MIN_COUNT = 2;
+const RESPAWN_MAX_COUNT = 4;
+/** Min/max delay (ms) between respawn waves. */
+const RESPAWN_MIN_MS = 15_000;
+const RESPAWN_MAX_MS = 25_000;
+/** Cap on live barrels so waves can't pile up without bound if nobody pops them. */
+const MAX_BARRELS = 16;
 
 // --- Body shape (the burning fire-drum) ---
 const BODY_RADIUS = 0.45;
@@ -52,6 +62,10 @@ interface Armed {
 export class BarrelSystem {
   private readonly bodies = new Map<string, RigidBody>();
   private readonly armed = new Map<string, Armed>();
+  /** Monotonic id counter (initial layout + every respawn share it). */
+  private seq = 0;
+  /** Sim time (ms) the next respawn wave is due. */
+  private nextSpawnAt = 0;
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -64,30 +78,87 @@ export class BarrelSystem {
     this.ctx.state.barrels.clear();
     this.bodies.clear();
     this.armed.clear();
-    positions.forEach((p, i) => {
-      const b = new Barrel();
-      b.id = `b${i}`;
-      b.x = p.x;
-      b.z = p.z;
-      b.y = REST_Y;
-      b.alive = true;
-      this.ctx.state.barrels.set(b.id, b);
-      this.bodies.set(
-        b.id,
-        this.physics.addCylinder({
-          x: p.x,
-          y: REST_Y,
-          z: p.z,
-          halfHeight: BODY_HALF_HEIGHT,
-          radius: BODY_RADIUS,
-          mass: MASS,
-          friction: FRICTION,
-          restitution: RESTITUTION,
-          linearDamping: LINEAR_DAMPING,
-          angularDamping: ANGULAR_DAMPING,
-        }),
-      );
+    this.seq = 0;
+    for (const p of positions) this.spawnAt(p.x, p.z);
+    this.nextSpawnAt = this.ctx.now() + this.randomRespawnDelay();
+  }
+
+  /** Create one barrel (replicated entity + physics body) at (x,z). */
+  private spawnAt(x: number, z: number): void {
+    const b = new Barrel();
+    b.id = `b${this.seq++}`;
+    b.x = x;
+    b.z = z;
+    b.y = REST_Y;
+    b.alive = true;
+    this.ctx.state.barrels.set(b.id, b);
+    this.bodies.set(
+      b.id,
+      this.physics.addCylinder({
+        x,
+        y: REST_Y,
+        z,
+        halfHeight: BODY_HALF_HEIGHT,
+        radius: BODY_RADIUS,
+        mass: MASS,
+        friction: FRICTION,
+        restitution: RESTITUTION,
+        linearDamping: LINEAR_DAMPING,
+        angularDamping: ANGULAR_DAMPING,
+      }),
+    );
+  }
+
+  private randomRespawnDelay(): number {
+    return RESPAWN_MIN_MS + Math.random() * (RESPAWN_MAX_MS - RESPAWN_MIN_MS);
+  }
+
+  /** Drop a wave of 2–4 fresh barrels onto open ground (up to the live cap). */
+  private respawnWave(): void {
+    const want = RESPAWN_MIN_COUNT + Math.floor(Math.random() * (RESPAWN_MAX_COUNT - RESPAWN_MIN_COUNT + 1));
+    const room = MAX_BARRELS - this.ctx.state.barrels.size;
+    const n = Math.min(want, room);
+    for (let i = 0; i < n; i++) {
+      const spot = this.findOpenSpot();
+      if (spot) this.spawnAt(spot.x, spot.z);
+    }
+  }
+
+  /** A random point clear of cover, players and other barrels — or null if the
+   *  arena is too crowded after several tries. */
+  private findOpenSpot(): { x: number; z: number } | null {
+    const limit = ARENA_HALF_SIZE - 2;
+    for (let i = 0; i < 30; i++) {
+      const x = (Math.random() * 2 - 1) * limit;
+      const z = (Math.random() * 2 - 1) * limit;
+      if (this.isClearSpot(x, z)) return { x, z };
+    }
+    return null;
+  }
+
+  private isClearSpot(x: number, z: number): boolean {
+    // Clear of cover / static obstacles (with a little breathing room).
+    for (const o of this.ctx.obstacles) {
+      const dx = x - o.x;
+      const dz = z - o.z;
+      const r = o.radius + BARREL_RADIUS + 0.5;
+      if (dx * dx + dz * dz < r * r) return false;
+    }
+    // Don't drop a barrel on top of a player or another barrel.
+    let blocked = false;
+    this.ctx.state.players.forEach((p) => {
+      if (!p.alive) return;
+      const dx = x - p.x;
+      const dz = z - p.z;
+      if (dx * dx + dz * dz < 4) blocked = true; // ~2u clearance
     });
+    this.ctx.state.barrels.forEach((b) => {
+      const dx = x - b.x;
+      const dz = z - b.z;
+      const r = BARREL_RADIUS * 2;
+      if (dx * dx + dz * dz < r * r) blocked = true;
+    });
+    return !blocked;
   }
 
   /** Look up a live, not-yet-triggered barrel by id (auto-attack targeting). */
@@ -128,6 +199,11 @@ export class BarrelSystem {
    *  world first) and detonate any that have landed or whose fuse elapsed. */
   update(): void {
     const now = this.ctx.now();
+    // Periodically drop a fresh wave of barrels onto the map.
+    if (now >= this.nextSpawnAt) {
+      this.respawnWave();
+      this.nextSpawnAt = now + this.randomRespawnDelay();
+    }
     const exploded: { b: Barrel; fromId: string }[] = [];
     this.ctx.state.barrels.forEach((b) => {
       const rb = this.bodies.get(b.id);
@@ -163,6 +239,12 @@ export class BarrelSystem {
       const dz = target.z - b.z;
       if (dx * dx + dz * dz <= hitSq) this.combat.dealDamage(target, EXPLOSION_DAMAGE, fromId);
     });
+
+    // The blast also damages every object in range: cover structures take damage
+    // (cars chain-detonate), oil drums lose HP / tires scatter, and other barrels
+    // chain off the trigger below.
+    this.combat.effectRuntime.damageStructuresInRadius(b.x, b.z, EXPLOSION_RADIUS, EXPLOSION_DAMAGE);
+    this.combat.effectRuntime.pushDestructiblesInRadius(b.x, b.z, EXPLOSION_RADIUS, fromId, EXPLOSION_DAMAGE);
 
     this.ctx.broadcast(ServerMessage.BarrelExplosion, { x: b.x, z: b.z });
 

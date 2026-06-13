@@ -149,8 +149,9 @@ const explosionRingFrag = /* glsl */ `
   }
 `;
 
-/** The car detonation burst: an upward fireball with an expanding ground shock. */
-export function CarExplosionEffect({ durationMs, onComplete }: BurstShaderProps) {
+/** The car detonation burst: an upward fireball with an expanding ground shock.
+ *  `scale` shrinks the whole effect (the barrel reuses it at a smaller size). */
+export function CarExplosionEffect({ durationMs, onComplete, scale = 1 }: BurstShaderProps & { scale?: number }) {
   const ball = useBurstClock(durationMs, onComplete);
   const ring = useBurstClock(durationMs, () => {}); // shares the lifetime; no-op completion
   const ballUniforms = useMemo(
@@ -162,7 +163,7 @@ export function CarExplosionEffect({ durationMs, onComplete }: BurstShaderProps)
     [ring.seed],
   );
   return (
-    <group>
+    <group scale={scale}>
       {/* Ground scorch shock */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
         <planeGeometry args={[12, 12]} />
@@ -193,4 +194,10 @@ export function CarExplosionEffect({ durationMs, onComplete }: BurstShaderProps)
       </Billboard>
     </group>
   );
+}
+
+/** Barrel detonation — the same shader as the car, scaled down (barrels are
+ *  smaller props with a tighter blast). */
+export function BarrelExplosionEffect(p: BurstShaderProps) {
+  return <CarExplosionEffect {...p} scale={0.6} />;
 }
