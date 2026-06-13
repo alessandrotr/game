@@ -10,8 +10,9 @@ const KEY_SPEED = 1.8;
 /** Peak A/D orbit speed — 30% faster than the arrow keys, approached via easing. */
 const AD_KEY_SPEED = KEY_SPEED * 1.3;
 /** Easing rate (1/s) for A/D yaw: the angular velocity eases toward its target
- *  (ease-in on press) and back to 0 (ease-out on release) at this rate. */
-const AD_EASE = 6;
+ *  (ease-in on press) and back to 0 (ease-out on release) at this rate. Higher =
+ *  snappier ramp (≈1/AD_EASE seconds to ~63% of peak). */
+const AD_EASE = 14;
 /** Zoom (radius multiplier) change per unit of wheel delta. */
 const ZOOM_SENSITIVITY = 0.001;
 /** Below this total drag (px), the middle press counts as a click → recenter. */
