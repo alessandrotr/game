@@ -1,5 +1,10 @@
-import { Heart, Droplet, Wind, Sword, type LucideIcon } from 'lucide-react';
-import { CLASS_LIST, getClassDefinition, type AbilityKind, type ClassDefinition } from '@arena/shared';
+import { Heart, Droplet, type LucideIcon } from 'lucide-react';
+import {
+  CLASS_LIST,
+  getClassDefinition,
+  type AbilityKind,
+  type ClassDefinition,
+} from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { Badge, Card, LevelBadge, Meter } from './primitives';
@@ -7,11 +12,14 @@ import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 
 /** Comparison stats, in display order: icon + label + normalizing upper bound. */
-const STATS: { stat: keyof ClassDefinition['stats']; label: string; icon: LucideIcon; max: number }[] = [
+const STATS: {
+  stat: keyof ClassDefinition['stats'];
+  label: string;
+  icon: LucideIcon;
+  max: number;
+}[] = [
   { stat: 'health', label: 'Health', icon: Heart, max: 160 },
   { stat: 'mana', label: 'Mana', icon: Droplet, max: 150 },
-  { stat: 'moveSpeed', label: 'Speed', icon: Wind, max: 8 },
-  { stat: 'attackDamage', label: 'Damage', icon: Sword, max: 60 },
 ];
 
 /** Title-case a snake_case ability id ("frost_nova" → "Frost Nova"). */
@@ -25,14 +33,22 @@ const titleCase = (s: string) =>
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-2 mt-4 flex items-center gap-2.5">
-      <span className="font-display text-[10px] uppercase tracking-[0.25em] text-gold/70">{children}</span>
+      <span className="font-display text-[10px] uppercase tracking-[0.25em] text-gold/70">
+        {children}
+      </span>
       <span className="h-px flex-1 bg-linear-to-r from-gold/25 to-transparent" />
     </div>
   );
 }
 
 /** One comparison stat: icon + label, normalized bar, value. */
-function StatRow({ icon: Icon, label, value, max, color }: (typeof STATS)[number] & { value: number; color: string }) {
+function StatRow({
+  icon: Icon,
+  label,
+  value,
+  max,
+  color,
+}: (typeof STATS)[number] & { value: number; color: string }) {
   return (
     <Meter
       value={value}
@@ -127,7 +143,9 @@ export function CharacterSelect() {
                 style={{ background: c.color, boxShadow: `0 0 10px ${c.color}` }}
               />
               <span className="min-w-0 flex-1">
-                <span className="block font-display text-sm tracking-wide text-white">{c.name}</span>
+                <span className="block font-display text-sm tracking-wide text-white">
+                  {c.name}
+                </span>
                 <span className="block truncate text-[11px] text-muted">{c.role}</span>
               </span>
               <LevelBadge level={level} size="xs" className="shrink-0" />

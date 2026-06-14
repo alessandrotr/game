@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react';
+import { useRef, useState, type MouseEvent, type MutableRefObject } from 'react';
 import {
   Check,
   ChevronRight,
@@ -27,12 +27,15 @@ import {
   type CosmeticType,
   type Loadout,
 } from '@arena/shared';
+import { Canvas } from '@react-three/fiber';
+import { View } from '@react-three/drei';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
+import { Pedestal } from '../render/Pedestal';
 import {
   Button,
   Dialog,
@@ -166,54 +169,6 @@ function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   );
 }
 
-/** The conic/solid gradient + spin speed that mimics each pedestal effect in
- *  pure CSS (no WebGL) — cheap and reliable for the store grid thumbnails. */
-function pedestalRingStyle(c: Cosmetic & { type: 'pedestal' }): { background: string; animation?: string } {
-  const a = c.color;
-  const b = c.color2 ?? c.color;
-  switch (c.effect) {
-    case 'prism':
-      return {
-        background: 'conic-gradient(from 0deg, #ff5d5d, #ffd24d, #4dff8a, #4dd2ff, #9a6cff, #ff5dff, #ff5d5d)',
-        animation: 'spin 7s linear infinite',
-      };
-    case 'vortex':
-      return { background: `conic-gradient(from 0deg, ${a}, ${b}, ${a}, ${b}, ${a})`, animation: 'spin 3.5s linear infinite' };
-    case 'aurora':
-      return { background: `conic-gradient(from 0deg, ${a}, ${b}, ${a})`, animation: 'spin 9s linear infinite' };
-    case 'holo':
-      return {
-        background: `repeating-conic-gradient(${a} 0deg 10deg, transparent 10deg 22deg)`,
-        animation: 'spin 6s linear infinite',
-      };
-    default: // 'ring' | 'pulse' — solid color ring (pulse adds a ping layer)
-      return { background: a };
-  }
-}
-
-/** Animated CSS pedestal thumbnail for the store grid — a glowing ring whose
- *  motion hints at the real in-game shader effect. */
-function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
-  const ring = pedestalRingStyle(c);
-  return (
-    <span className="relative grid h-16 w-16 place-items-center">
-      {c.effect === 'pulse' && (
-        <span
-          className="absolute inset-0 rounded-full"
-          style={{ boxShadow: `0 0 0 2px ${c.color}`, animation: 'ping 1.8s cubic-bezier(0,0,0.2,1) infinite' }}
-        />
-      )}
-      {/* Gradient disc → masked to a ring by the dark center on top. */}
-      <span
-        className="grid h-16 w-16 place-items-center rounded-full"
-        style={{ ...ring, boxShadow: `0 0 16px ${c.color}aa` }}
-      >
-        <span className="h-11 w-11 rounded-full bg-[#0c0e16]" />
-      </span>
-    </span>
-  );
-}
-
 /** Modern rarity chip — a gradient pill tinted by the rarity color, with a soft
  *  glow + bevel. Reads instantly without turning the card into a rainbow. */
 function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
@@ -290,7 +245,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
       }}
       aria-pressed={previewing}
       title={`Preview ${c.name}`}
-      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
+      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border text-left transition hover:-translate-y-0.5 ${
         equipped
           ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]'
           : previewing
@@ -298,8 +253,18 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
             : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <div className="relative grid h-24 place-items-center bg-black/20">
-        {c.type === 'pedestal' ? <PedestalThumb c={c} /> : <Swatch c={c} size={52} />}
+      <div className={`relative grid h-24 place-items-center ${c.type === 'pedestal' ? '' : 'bg-black/20'}`}>
+        {c.type === 'pedestal' ? (
+          // Transparent tracked window — the shared store canvas renders the live
+          // 3D pedestal into this rect (one WebGL context for the whole grid).
+          <View className="h-full w-full">
+            <ambientLight intensity={0.95} />
+            <directionalLight position={[2, 4, 3]} intensity={1.2} />
+            <Pedestal effect={c.effect} color={c.color} color2={c.color2} />
+          </View>
+        ) : (
+          <Swatch c={c} size={52} />
+        )}
         {/* Rarity tag — bottom-left of the thumbnail. */}
         <span className="absolute bottom-2 left-2">
           <RarityTag rarity={c.rarity} />
@@ -315,7 +280,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
+      <div className="flex flex-1 flex-col gap-1.5 bg-panel/95 p-3">
         <span className="truncate text-sm font-semibold text-text">{c.name}</span>
         <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
           {c.description}
@@ -382,6 +347,7 @@ type StoreFilter = 'all' | CosmeticType;
  *  category sections. "All" shows every section stacked; a filter narrows to one. */
 function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const [filter, setFilter] = useState<StoreFilter>('all');
+  const storeRef = useRef<HTMLDivElement>(null);
   const ownedCount = useCosmeticsStore(
     (s) =>
       classCosmeticsOf(s.byClass, characterClass).owned.filter((id) =>
@@ -391,7 +357,9 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const shown = filter === 'all' ? CATEGORIES : CATEGORIES.filter((cat) => cat.type === filter);
 
   return (
-    <div className="flex min-h-0 flex-col">
+    // h-full so this fills its (full-height) grid cell — otherwise the flex-1
+    // scroll/canvas wrapper below has no height to flex into and collapses.
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-2.5">
         <div className="flex gap-1">
           <FilterChip
@@ -416,16 +384,35 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
         </span>
       </div>
 
-      <div className="overflow-y-auto px-5 py-4">
-        {shown.map((cat) => (
-          <CategorySection
-            key={cat.type}
-            type={cat.type}
-            label={cat.label}
-            icon={cat.icon}
-            characterClass={characterClass}
-          />
-        ))}
+      {/* The grid scrolls in front; a single shared canvas sits BEHIND it and
+          renders each pedestal's live 3D into its transparent thumbnail window
+          (one WebGL context for the whole store). `eventSource`/`eventPrefix`
+          tie the <View> coordinate space to this scrolling container so each
+          thumbnail tracks its card on scroll. Camera looks down so the flat disc
+          reads. Positioned via `style` (R3F forces inline `position`). */}
+      <div ref={storeRef} className="relative min-h-0 flex-1">
+        <Canvas
+          eventSource={storeRef as unknown as MutableRefObject<HTMLElement>}
+          eventPrefix="client"
+          camera={{ position: [0, 2.7, 2.4], fov: 34 }}
+          onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
+          dpr={[1, 1.5]}
+          gl={{ alpha: true, antialias: true }}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        >
+          <View.Port />
+        </Canvas>
+        <div className="absolute inset-0 overflow-y-auto px-5 py-4">
+          {shown.map((cat) => (
+            <CategorySection
+              key={cat.type}
+              type={cat.type}
+              label={cat.label}
+              icon={cat.icon}
+              characterClass={characterClass}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

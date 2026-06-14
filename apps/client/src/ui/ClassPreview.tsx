@@ -48,11 +48,12 @@ interface ClassPreviewProps {
   align?: 'center' | 'top';
 }
 
-/** Camera + orbit framing per `align` for the full showcase. `'top'` sits the
- *  model higher and smaller so a bottom UI panel can overlay the rest. */
+/** Camera + orbit framing per `align` for the full showcase. `'top'` pulls the
+ *  camera back so the model reads smaller inside its (shorter) area above the
+ *  bottom UI panel. */
 const FRAMING = {
   center: { position: [0, 1.5, 4] as const, fov: 42, target: [0, 0.95, 0] as const },
-  top: { position: [0, 1.7, 5.6] as const, fov: 38, target: [0, 0.35, 0] as const },
+  top: { position: [0, 1.45, 7] as const, fov: 40, target: [0, 0.9, 0] as const },
 };
 
 function ClassPreviewImpl({
@@ -111,16 +112,19 @@ function ClassPreviewImpl({
           CDN and suspends the whole canvas subtree while it loads, which kept
           OrbitControls (and the model) from ever mounting if the asset was slow
           or blocked. Matte characters don't need it. */}
-      <ambientLight intensity={0.7} />
+      {/* Neutral-white key + ambient so the model's dye/skin colors read true;
+          faint cool/warm rims (low intensity) only shape the form without
+          tinting the albedo. */}
+      <ambientLight intensity={0.85} color="#ffffff" />
       <directionalLight
         position={[3, 5, 2]}
-        intensity={1.6}
-        color="#fff1d4"
+        intensity={1.5}
+        color="#ffffff"
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <directionalLight position={[-4, 2, -3]} intensity={0.8} color="#8ea8ff" />
-      <directionalLight position={[0, 3, -5]} intensity={0.5} color="#ffd9a8" />
+      <directionalLight position={[-4, 2, -3]} intensity={0.4} color="#cfd8ff" />
+      <directionalLight position={[0, 3, -5]} intensity={0.35} color="#ffe6c4" />
 
       {/* Remount on class change so the new model pops in cleanly. */}
       <group key={selected}>
@@ -137,7 +141,7 @@ function ClassPreviewImpl({
         autoRotate
         autoRotateSpeed={0.9}
         minDistance={2.2}
-        maxDistance={7}
+        maxDistance={8}
         minPolarAngle={0.25}
         maxPolarAngle={Math.PI / 2 - 0.04}
       />
