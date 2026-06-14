@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useCameraPrefsStore } from './store/useCameraPrefsStore';
@@ -23,7 +23,6 @@ import { JoinScreen } from './ui/JoinScreen';
 /** No state for this long (server ticks ~20/s) means the socket has gone quiet. */
 const STALE_MS = 3000;
 import { AuthScreen } from './ui/AuthScreen';
-import { LandingPage } from './ui/LandingPage';
 import { LoadingScreen } from './ui/LoadingScreen';
 import { Hud } from './ui/Hud';
 import { InteractionUI } from './ui/InteractionUI';
@@ -50,14 +49,7 @@ export default function App() {
     if (authStatus === 'authed') void useCameraPrefsStore.getState().loadForAccount();
   }, [authStatus]);
 
-  // Pre-login flow: logged-out visitors see the marketing landing first, then
-  // the auth form (← back returns here). Authed users skip both.
-  const [view, setView] = useState<'landing' | 'auth'>('landing');
   const minLoading = useMinimumDuration(1200); // floor the intro splash
-  useEffect(() => {
-    // Sign-out (authed → idle) returns the user to the landing, not the form.
-    if (authStatus === 'idle') setView('landing');
-  }, [authStatus]);
 
   // Combat input + live tuning are arena-only (the town room has no such handlers,
   // and Colyseus disconnects a client that sends an unhandled message). Movement
@@ -97,11 +89,7 @@ export default function App() {
     return <LoadingScreen />;
   }
   if (authStatus !== 'authed') {
-    return view === 'landing' ? (
-      <LandingPage onPlay={() => setView('auth')} />
-    ) : (
-      <AuthScreen onBack={() => setView('landing')} />
-    );
+    return <AuthScreen />;
   }
 
   return (

@@ -6,6 +6,7 @@ import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
+import { TownBackdrop } from '../scene/TownBackdrop';
 import { AudioControl } from './AudioControl';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
@@ -56,8 +57,12 @@ export function JoinScreen() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto bg-arena-radial">
-      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 py-7">
+    <div className="absolute inset-0 overflow-y-auto">
+      <TownBackdrop />
+      {/* Scrim over the live scene so the select UI stays legible. */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-black/65" />
+
+      <div className="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 py-7">
         <ScreenHeader
           className="relative mb-6"
           titleClassName="text-4xl sm:text-5xl"

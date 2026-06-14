@@ -17,13 +17,17 @@ export function ScreenHeader({ subtitle, className, titleClassName, children }: 
     <header className={cn('text-center', className)}>
       <h1
         className={cn(
-          'font-display tracking-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.35)]',
+          // text-indent matches the tracking so the trailing letter-spacing on
+          // the last glyph doesn't shift the wordmark left of true center.
+          'font-display tracking-[0.35em] indent-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.35)]',
           titleClassName ?? 'text-5xl',
         )}
       >
         ARENA
       </h1>
-      <p className="mt-2 text-[11px] uppercase tracking-[0.4em] text-muted">{subtitle}</p>
+      <p className="mt-2 text-[11px] uppercase tracking-[0.4em] indent-[0.4em] text-muted">
+        {subtitle}
+      </p>
       {children}
     </header>
   );
