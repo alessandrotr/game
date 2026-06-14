@@ -61,6 +61,9 @@ export interface PlayerView {
   channelAbility: string;
   channelDirX: number;
   channelDirZ: number;
+  /** Pickable object the player is carrying over their head ('' if none) — drives
+   *  the held-object render. A {@link PickableKind} by construction. */
+  holding: string;
 }
 
 /** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded
@@ -131,6 +134,34 @@ export interface CoverStructureView {
   maxHp: number;
   /** True once crumbled — uncollidable, rendered as flattened rubble. */
   destroyed: boolean;
+}
+
+/**
+ * Replicated pickable object sitting on the ground (molotov / grenade), waiting to
+ * be grabbed. Mirrors `Pickable` in the server schema.
+ */
+export interface PickableView {
+  readonly id: string;
+  /** Which pickable this is — drives the client visual. A {@link PickableKind}. */
+  kind: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Replicated lingering ground effect — currently the molotov's burning puddle.
+ * Mirrors `GroundZone` in the server schema. The server owns the periodic damage;
+ * the client just renders a circle sized to `radius` (the damage area).
+ */
+export interface GroundZoneView {
+  readonly id: string;
+  /** Effect kind (e.g. 'molotov_fire') — drives the client visual. */
+  kind: string;
+  x: number;
+  z: number;
+  /** Effect radius (world units) — the VFX matches this exactly. */
+  radius: number;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
@@ -233,6 +264,10 @@ export interface ArenaStateView {
   destructibles: Map<string, DestructibleView>;
   /** Keyed by cover-structure id (trailers / cars / dumpsters with HP). */
   structures: Map<string, CoverStructureView>;
+  /** Keyed by pickable id (molotovs / grenades waiting to be grabbed). */
+  pickables: Map<string, PickableView>;
+  /** Keyed by ground-zone id (lingering effects like the molotov puddle). */
+  groundZones: Map<string, GroundZoneView>;
   /** Monotonically increasing server tick counter. */
   tick: number;
   /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */

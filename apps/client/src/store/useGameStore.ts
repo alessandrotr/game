@@ -4,6 +4,8 @@ import type {
   BarrelView,
   CoverStructureView,
   DestructibleView,
+  GroundZoneView,
+  PickableView,
   PlayerView,
   ProjectileView,
 } from '@arena/shared';
@@ -54,6 +56,10 @@ interface GameStore {
   /** Reactive list of cover-structure ids — drives mounting their meshes (stable
    *  for the match; structures crumble in place rather than being removed). */
   structureIds: string[];
+  /** Reactive list of loose pickable ids — drives mounting their meshes. */
+  pickableIds: string[];
+  /** Reactive list of ground-zone ids (the molotov puddle) — drives mounting. */
+  groundZoneIds: string[];
   /** Alive (un-crumbled) structures as collision circles, for local prediction.
    *  Recomputed only when a structure crumbles (rare) — not every tick. */
   structureObstacles: ArenaObstacle[];
@@ -71,6 +77,8 @@ interface GameStore {
   readonly barrels: Map<string, BarrelView>;
   readonly destructibles: Map<string, DestructibleView>;
   readonly structures: Map<string, CoverStructureView>;
+  readonly pickables: Map<string, PickableView>;
+  readonly groundZones: Map<string, GroundZoneView>;
 
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -88,6 +96,8 @@ interface GameStore {
     barrels: Map<string, BarrelView>,
     destructibles: Map<string, DestructibleView>,
     structures: Map<string, CoverStructureView>,
+    pickables: Map<string, PickableView>,
+    groundZones: Map<string, GroundZoneView>,
     tick: number,
   ) => void;
   reset: () => void;
@@ -126,12 +136,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   barrelIds: [],
   destructibleIds: [],
   structureIds: [],
+  pickableIds: [],
+  groundZoneIds: [],
   structureObstacles: [],
   players: new Map<string, PlayerView>(),
   projectiles: new Map<string, ProjectileView>(),
   barrels: new Map<string, BarrelView>(),
   destructibles: new Map<string, DestructibleView>(),
   structures: new Map<string, CoverStructureView>(),
+  pickables: new Map<string, PickableView>(),
+  groundZones: new Map<string, GroundZoneView>(),
   /** Signature of the last-applied alive-structure set (internal; gates rebuilds). */
   _structureSig: '',
 
@@ -161,6 +175,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     incomingBarrels,
     incomingDestructibles,
     incomingStructures,
+    incomingPickables,
+    incomingGroundZones,
     tick,
   ) => {
     const {
@@ -169,11 +185,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       barrels,
       destructibles,
       structures,
+      pickables,
+      groundZones,
       playerIds,
       projectileIds,
       barrelIds,
       destructibleIds,
       structureIds,
+      pickableIds,
+      groundZoneIds,
     } = get();
 
     players.clear();
@@ -186,12 +206,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     for (const [id, view] of incomingDestructibles) destructibles.set(id, view);
     structures.clear();
     for (const [id, view] of incomingStructures) structures.set(id, view);
+    pickables.clear();
+    for (const [id, view] of incomingPickables) pickables.set(id, view);
+    groundZones.clear();
+    for (const [id, view] of incomingGroundZones) groundZones.set(id, view);
 
     const nextPlayerIds = [...players.keys()].sort();
     const nextProjectileIds = [...projectiles.keys()].sort();
     const nextBarrelIds = [...barrels.keys()].sort();
     const nextDestructibleIds = [...destructibles.keys()].sort();
     const nextStructureIds = [...structures.keys()].sort();
+    const nextPickableIds = [...pickables.keys()].sort();
+    const nextGroundZoneIds = [...groundZones.keys()].sort();
 
     const patch: Partial<GameStore> = { tick };
     if (!sameMembership(playerIds, nextPlayerIds)) patch.playerIds = nextPlayerIds;
@@ -199,6 +225,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sameMembership(barrelIds, nextBarrelIds)) patch.barrelIds = nextBarrelIds;
     if (!sameMembership(destructibleIds, nextDestructibleIds)) patch.destructibleIds = nextDestructibleIds;
     if (!sameMembership(structureIds, nextStructureIds)) patch.structureIds = nextStructureIds;
+    if (!sameMembership(pickableIds, nextPickableIds)) patch.pickableIds = nextPickableIds;
+    if (!sameMembership(groundZoneIds, nextGroundZoneIds)) patch.groundZoneIds = nextGroundZoneIds;
     // Rebuild the prediction collision circles only when a structure crumbles.
     const sig = aliveStructureSig(structures);
     if (sig !== get()._structureSig) {
@@ -216,6 +244,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().barrels.clear();
     get().destructibles.clear();
     get().structures.clear();
+    get().pickables.clear();
+    get().groundZones.clear();
     set({
       status: 'idle',
       error: null,
@@ -233,6 +263,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       barrelIds: [],
       destructibleIds: [],
       structureIds: [],
+      pickableIds: [],
+      groundZoneIds: [],
       structureObstacles: [],
       _structureSig: '',
     });

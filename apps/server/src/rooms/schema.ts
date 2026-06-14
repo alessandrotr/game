@@ -71,6 +71,10 @@ export class Player extends Schema {
   /** Current aim direction of the active channel (normalized). */
   @type('number') channelDirX = 0;
   @type('number') channelDirZ = 1;
+  /** Pickable object kind being carried over the head ('' if none). Mirrors
+   *  `PlayerView.holding`; a `PickableKind` by construction. Kept last so existing
+   *  replicated field offsets are unchanged. */
+  @type('string') holding = '';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */
@@ -151,12 +155,37 @@ export class CoverStructure extends Schema {
   @type('boolean') destroyed = false;
 }
 
+/** A pickable object resting on the ground (molotov / grenade), waiting to be
+ *  grabbed. Mirrors `PickableView` in `@arena/shared`. */
+export class Pickable extends Schema {
+  @type('string') id = '';
+  /** Which pickable this is (a `PickableKind`). */
+  @type('string') kind = 'grenade';
+  @type('number') x = 0;
+  @type('number') y = 0;
+  @type('number') z = 0;
+}
+
+/** A lingering ground effect — the molotov's burning puddle. Mirrors
+ *  `GroundZoneView` in `@arena/shared`. The server owns the periodic damage; the
+ *  client renders a circle sized to `radius`. */
+export class GroundZone extends Schema {
+  @type('string') id = '';
+  /** Effect kind (e.g. 'molotov_fire') — drives the client visual. */
+  @type('string') kind = 'molotov_fire';
+  @type('number') x = 0;
+  @type('number') z = 0;
+  @type('number') radius = 1;
+}
+
 export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type({ map: Barrel }) barrels = new MapSchema<Barrel>();
   @type({ map: DestructibleObject }) destructibles = new MapSchema<DestructibleObject>();
   @type({ map: CoverStructure }) structures = new MapSchema<CoverStructure>();
+  @type({ map: Pickable }) pickables = new MapSchema<Pickable>();
+  @type({ map: GroundZone }) groundZones = new MapSchema<GroundZone>();
   @type('number') tick = 0;
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */

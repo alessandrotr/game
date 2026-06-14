@@ -191,6 +191,9 @@ export class CombatSystem {
       lethal,
     });
 
+    // Suffering any damage makes a carried pickable disappear (knocked loose / lost).
+    if (target.holding) target.holding = '';
+
     if (lethal) {
       this.ctx.destinations.delete(target.sessionId);
       this.ctx.respawnAt.set(target.sessionId, now + RESPAWN_DELAY_MS);

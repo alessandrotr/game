@@ -1,11 +1,12 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MathUtils, type Group } from 'three';
-import { ABILITIES, isAbilityKind, type VfxAssetId } from '@arena/shared';
+import { ABILITIES, isAbilityKind, isPickableKind, type VfxAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { assets } from '../assets/registry';
 import { AssetMesh } from '../render/AssetMesh';
 import { PROJECTILE_SHADERS } from '../render/shaders';
+import { PickableVisual } from './PickableVisual';
 
 /** Maps a projectile's source tag (ability kind or auto-attack) to its VFX. */
 const ABILITY_VFX: Record<string, VfxAssetId> = {
@@ -27,7 +28,10 @@ function ProjectileEntity({ id }: { id: string }) {
   const initialized = useRef(false);
 
   const projectile = useGameStore.getState().projectiles.get(id);
-  const vfxId = projectile ? ABILITY_VFX[projectile.ability] : undefined;
+  // Thrown pickables (molotov / grenade) render their object mesh, tumbling in
+  // flight; ability/auto projectiles use their VFX descriptor + shader.
+  const thrownKind = projectile && isPickableKind(projectile.ability) ? projectile.ability : undefined;
+  const vfxId = projectile && !thrownKind ? ABILITY_VFX[projectile.ability] : undefined;
   const descriptor = vfxId ? assets.getVfx(vfxId) : undefined;
 
   useFrame((_, delta) => {
@@ -44,8 +48,16 @@ function ProjectileEntity({ id }: { id: string }) {
     node.position.x = MathUtils.lerp(node.position.x, latest.x, t);
     node.position.z = MathUtils.lerp(node.position.z, latest.z, t);
     node.position.y = latest.y;
+    if (thrownKind) node.rotation.x = node.rotation.y += delta * 6; // tumble
   });
 
+  if (thrownKind) {
+    return (
+      <group ref={group}>
+        <PickableVisual kind={thrownKind} />
+      </group>
+    );
+  }
   if (!descriptor) return null;
   // Size the VFX to the projectile's collision radius, so the animation reads as
   // the actual hit area (never larger than where it can connect).

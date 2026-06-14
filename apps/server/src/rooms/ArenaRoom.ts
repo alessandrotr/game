@@ -60,6 +60,8 @@ import { CombatSystem } from './arena/combat.js';
 import { ProjectileSystem } from './arena/projectiles.js';
 import { BarrelSystem, BARREL_RADIUS } from './arena/barrels.js';
 import { DestructibleSystem } from './arena/destructibles.js';
+import { GroundZoneSystem } from './arena/groundZones.js';
+import { PickableSystem } from './arena/pickables.js';
 import { ArenaPhysics } from './arena/physics.js';
 import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
@@ -185,6 +187,10 @@ export class ArenaRoom extends AvatarRoom {
   private destructibles!: DestructibleSystem;
   /** HP-bearing cover structures (trailers/cars/dumpsters) that crumble. */
   private cover!: CoverSystem;
+  /** Lingering ground effects (the molotov's burning puddle). */
+  private groundZones!: GroundZoneSystem;
+  /** Pickable objects (molotov / grenade): grab/carry/throw + drum drops. */
+  private pickables!: PickableSystem;
   /** Shared Rapier world for the destructible props + launched barrels. */
   private physics!: ArenaPhysics;
   private botDirector!: BotDirector;
@@ -269,6 +275,20 @@ export class ArenaRoom extends AvatarRoom {
       (client, message) => this.handleCast(client.sessionId, message),
     );
 
+    // Spacebar: grab a nearby pickable (empty-handed) or throw the one being
+    // carried, along the player's facing. A thrown object plays a quick toss pose.
+    this.onMessage(ClientMessage.Interact, (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !player.alive) return;
+      const threw = !!player.holding;
+      if (this.pickables.interact(player) && threw) {
+        this.animOneShots.set(client.sessionId, {
+          name: 'attack',
+          until: this.simTime + INSTANT_ONESHOT_MS,
+        });
+      }
+    });
+
     this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) =>
       this.tuning.tuneMovement(message),
     );
@@ -351,10 +371,14 @@ export class ArenaRoom extends AvatarRoom {
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
+    this.groundZones = new GroundZoneSystem(ctx, this.combat);
+    this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);
     this.combat.attachCover(this.cover);
+    // A destroyed oil drum has a chance to drop a pickable (molotov / grenade).
+    this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
     this.botDirector = new BotDirector(ctx, {
       cooldowns: this.cooldowns,
       pendingCasts: this.pendingCasts,
@@ -864,6 +888,7 @@ export class ArenaRoom extends AvatarRoom {
         this.stopChannel(sessionId);
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
+        player.holding = ''; // a carried object is lost on death
         // Zombies don't respawn — let the death pose play, then remove the
         // entity so the level's "all dead" check can clear and advance.
         if (this.zombieMode && this.bots.has(sessionId)) {
@@ -1003,6 +1028,10 @@ export class ArenaRoom extends AvatarRoom {
     this.physics.step();
     this.barrels.update();
     this.destructibles.update();
+    // Pickables (despawn loose ones) + lingering ground zones (the molotov puddle's
+    // periodic damage). Run after combat so they read this tick's positions.
+    this.pickables.update();
+    this.groundZones.update();
     this.state.tick++;
   }
 

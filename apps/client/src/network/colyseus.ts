@@ -13,6 +13,8 @@ import {
   type CharacterClass,
   type CoverStructureView,
   type DestructibleView,
+  type GroundZoneView,
+  type PickableView,
   type ClientMessagePayloads,
   type LobbyMode,
   type LobbySlotView,
@@ -70,6 +72,8 @@ interface RawBarrel {
 }
 type RawDestructible = DestructibleView;
 type RawStructure = CoverStructureView;
+type RawPickable = PickableView;
+type RawGroundZone = GroundZoneView;
 interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
@@ -79,6 +83,10 @@ interface RawState {
   destructibles?: { forEach(cb: (d: RawDestructible, key: string) => void): void };
   /** Arena rooms only — HP-bearing cover structures (absent in town). */
   structures?: { forEach(cb: (s: RawStructure, key: string) => void): void };
+  /** Arena rooms only — loose pickable objects (absent in town). */
+  pickables?: { forEach(cb: (p: RawPickable, key: string) => void): void };
+  /** Arena rooms only — lingering ground zones, e.g. the molotov puddle. */
+  groundZones?: { forEach(cb: (z: RawGroundZone, key: string) => void): void };
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
@@ -116,6 +124,8 @@ function snapshotState(state: RawState): {
   barrels: Map<string, BarrelView>;
   destructibles: Map<string, DestructibleView>;
   structures: Map<string, CoverStructureView>;
+  pickables: Map<string, PickableView>;
+  groundZones: Map<string, GroundZoneView>;
 } {
   const players = new Map<string, PlayerView>();
   state.players.forEach((player, sessionId) => {
@@ -155,6 +165,7 @@ function snapshotState(state: RawState): {
       channelAbility: player.channelAbility ?? '',
       channelDirX: player.channelDirX ?? 0,
       channelDirZ: player.channelDirZ ?? 1,
+      holding: player.holding ?? '',
     });
   });
 
@@ -223,7 +234,17 @@ function snapshotState(state: RawState): {
     });
   });
 
-  return { players, projectiles, barrels, destructibles, structures };
+  const pickables = new Map<string, PickableView>();
+  state.pickables?.forEach((p, id) => {
+    pickables.set(id, { id, kind: p.kind, x: p.x, y: p.y, z: p.z });
+  });
+
+  const groundZones = new Map<string, GroundZoneView>();
+  state.groundZones?.forEach((z, id) => {
+    groundZones.set(id, { id, kind: z.kind, x: z.x, z: z.z, radius: z.radius });
+  });
+
+  return { players, projectiles, barrels, destructibles, structures, pickables, groundZones };
 }
 
 /** Map an ability cast event to a transient client-side VFX + a character
@@ -422,10 +443,20 @@ function wireRoom(joined: Room): void {
   joined.onStateChange((state) => {
     try {
       const raw = state as unknown as RawState;
-      const { players, projectiles, barrels, destructibles, structures } = snapshotState(raw);
+      const { players, projectiles, barrels, destructibles, structures, pickables, groundZones } =
+        snapshotState(raw);
       useGameStore
         .getState()
-        .applySnapshot(players, projectiles, barrels, destructibles, structures, raw.tick);
+        .applySnapshot(
+          players,
+          projectiles,
+          barrels,
+          destructibles,
+          structures,
+          pickables,
+          groundZones,
+          raw.tick,
+        );
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.
       if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
       // Zombie survival: mirror the replicated wave counters for the HUD.
@@ -488,6 +519,14 @@ function wireRoom(joined: Room): void {
     // A car detonated: a fireball + ground shock (the server already dealt the
     // 100-damage area blast — this is the explosion VFX).
     useEffectsStore.getState().spawn('vfx.car_explosion', [msg.x, 0, msg.z]);
+  });
+  joined.onMessage(ServerMessage.Detonation, (msg) => {
+    // A thrown pickable burst (server already applied the area damage). The
+    // grenade gets the bigger fireball; the molotov a smaller fire pop (its
+    // lingering puddle renders separately from replicated ground-zone state).
+    useEffectsStore
+      .getState()
+      .spawn(msg.kind === 'grenade' ? 'vfx.car_explosion' : 'vfx.barrel_explosion', [msg.x, 0, msg.z]);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
@@ -871,6 +910,11 @@ export function sendStopMove(): void {
 /** Request a jump; the server applies it only when grounded. */
 export function sendJump(): void {
   room?.send(ClientMessage.Jump, {});
+}
+
+/** Spacebar in the arena: grab a nearby pickable, or throw the carried one. */
+export function sendInteract(): void {
+  room?.send(ClientMessage.Interact, {});
 }
 
 /** Set the auto-attack target (attack-move toward a player and strike). */

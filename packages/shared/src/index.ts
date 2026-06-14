@@ -1,6 +1,7 @@
 export * from './constants.js';
 export * from './arena.js';
 export * from './destructibles.js';
+export * from './pickables.js';
 export * from './status.js';
 export * from './balance.js';
 export * from './locomotion.js';

@@ -5,6 +5,7 @@ import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
   AUTO_ATTACKS,
+  PICKABLE_CARRY_Y,
   TOWN_HALF_SIZE,
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
@@ -33,6 +34,7 @@ import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
+import { PickableVisual } from './PickableVisual';
 
 /** Smoothing for the local player's vertical (jump) toward the server's. */
 const REMOTE_SMOOTHING = 14;
@@ -376,6 +378,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     <group ref={group}>
       <CharacterModel descriptor={descriptor} getAnimation={getAnimation} getSpeed={getSpeed} />
 
+      {/* Pickable object carried over the head (molotov / grenade). */}
+      <HeldItem sessionId={sessionId} />
+
       {/* Chat speech bubble above the head (mirrors what the player typed). */}
       {bubble && (
         <Html position={[0, 3.4, 0]} center zIndexRange={[20, 0]}>
@@ -462,6 +467,22 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           {player?.name ?? ''}
         </Text>
       </Billboard>
+    </group>
+  );
+}
+
+/**
+ * The pickable object a player is carrying, floating over their head. Reads the
+ * replicated `holding` flag each snapshot (~20/s) and renders the matching mesh;
+ * nothing when empty-handed. Lives inside the player group so it tracks the body.
+ */
+function HeldItem({ sessionId }: { sessionId: string }) {
+  useGameStore((s) => s.tick); // re-evaluate as snapshots arrive
+  const holding = useGameStore.getState().players.get(sessionId)?.holding ?? '';
+  if (!holding) return null;
+  return (
+    <group position={[0, PICKABLE_CARRY_Y, 0]}>
+      <PickableVisual kind={holding} />
     </group>
   );
 }

@@ -21,6 +21,8 @@ import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
 import { CoverStructureEntity } from './CoverStructureEntity';
 import { Projectiles } from './Projectiles';
+import { Pickables } from './Pickables';
+import { GroundZones } from './GroundZones';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
@@ -188,6 +190,9 @@ export function GameScene() {
 
       {isArena &&
         structureIds.map((id) => <CoverStructureEntity key={id} structureId={id} />)}
+
+      {isArena && <Pickables />}
+      {isArena && <GroundZones />}
 
       <VfxLayer />
       {isArena && (

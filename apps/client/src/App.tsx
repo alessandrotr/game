@@ -5,6 +5,7 @@ import { useCameraPrefsStore } from './store/useCameraPrefsStore';
 import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
+import { useInteract } from './hooks/useInteract';
 import { useEmotes } from './hooks/useEmotes';
 import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
@@ -55,7 +56,8 @@ export default function App() {
   // and Colyseus disconnects a client that sends an unhandled message). Movement
   // and NPC interaction apply in both worlds.
   useAbilityHotkeys(connected && inArena);
-  useJump(connected); // jump works in both town and arena
+  useJump(connected && !inArena); // jump in town; the arena uses spacebar to throw
+  useInteract(connected && inArena); // spacebar grabs/throws pickables (arena only)
   useEmotes(connected); // number keys → dances, in both worlds
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);

@@ -23,6 +23,9 @@ export enum ClientMessage {
   StopMove = 'stop_move',
   /** Request a jump; the server applies it only when grounded. */
   Jump = 'jump',
+  /** Pickable objects: grab a nearby one (empty-handed) or throw the one being
+   *  carried (the arena's spacebar action). The server decides which applies. */
+  Interact = 'interact',
   /** Set the auto-attack target (a player session id); attack-move toward it. */
   Attack = 'attack',
   /** Request to cast an ability in a direction. */
@@ -97,6 +100,9 @@ export enum ServerMessage {
   /** A car ran out of HP and detonated (drives the fireball explosion VFX; the
    *  server has already applied its area damage). */
   CarExplosion = 'car_explosion',
+  /** A thrown pickable (molotov / grenade) burst on impact (drives the blast VFX,
+   *  sized to its radius; the server has already applied the area damage). */
+  Detonation = 'detonation',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -126,6 +132,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.MoveTo]: { x: number; z: number };
   [ClientMessage.StopMove]: Record<string, never>;
   [ClientMessage.Jump]: Record<string, never>;
+  [ClientMessage.Interact]: Record<string, never>;
   [ClientMessage.Attack]: { targetId: string };
   [ClientMessage.CastAbility]: {
     ability: AbilityKind;
@@ -227,4 +234,7 @@ export interface ServerMessagePayloads {
   [ServerMessage.StructureCrumbled]: { x: number; z: number; radius: number };
   /** World point + blast radius of a car that detonated (drives the fireball). */
   [ServerMessage.CarExplosion]: { x: number; z: number; radius: number };
+  /** A thrown pickable burst: its kind, world point, and blast radius (the VFX is
+   *  sized to the radius). The server has already applied the area damage. */
+  [ServerMessage.Detonation]: { kind: string; x: number; z: number; radius: number };
 }

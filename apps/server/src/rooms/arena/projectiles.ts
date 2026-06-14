@@ -46,6 +46,10 @@ interface ProjectileMeta {
    *  it still stops on cover. `hit` tracks the players already pierced. */
   pierce?: boolean;
   hit?: Set<string>;
+  /** For thrown pickables: a callback run at the projectile's final position when
+   *  it's consumed (hit anything) or reaches its range — the AoE burst lives here,
+   *  so the projectile itself carries no direct damage. */
+  onImpact?: (x: number, z: number) => void;
   traveled: number;
   spawnedAt: number;
 }
@@ -112,6 +116,24 @@ export class ProjectileSystem {
       meta.pierce = true;
       meta.hit = new Set();
     }
+  }
+
+  /** Spawn a thrown pickable (molotov / grenade). It carries no direct/on-hit
+   *  damage — it just flies until it's consumed (hits a player / prop / cover /
+   *  obstacle) or reaches its range, then `onImpact` runs at its final position to
+   *  resolve the burst (+ any lingering puddle). */
+  spawnThrown(
+    owner: Player,
+    vfx: string,
+    dirX: number,
+    dirZ: number,
+    speed: number,
+    range: number,
+    radius: number,
+    onImpact: (x: number, z: number) => void,
+  ): void {
+    const id = this.spawn(owner, vfx, dirX, dirZ, speed, range, radius, 0);
+    this.meta.get(id)!.onImpact = onImpact;
   }
 
   /** Spawn a basic-attack projectile (ranged auto-attacks). */
@@ -201,6 +223,13 @@ export class ProjectileSystem {
     });
 
     for (const id of expired) {
+      // Thrown pickables burst at their final position (hit something, or reached
+      // their range) — resolve that before the entity is removed.
+      const m = this.meta.get(id);
+      if (m?.onImpact) {
+        const p = this.ctx.state.projectiles.get(id);
+        if (p) m.onImpact(p.x, p.z);
+      }
       this.ctx.state.projectiles.delete(id);
       this.meta.delete(id);
     }

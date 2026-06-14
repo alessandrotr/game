@@ -61,6 +61,14 @@ export class DestructibleSystem {
   private readonly bodies = new Map<string, Body>();
   private seq = 0;
   private structureSeq = 0;
+  /** Called when a drum is destroyed (HP ran out), with its position — lets the
+   *  room roll for a pickable drop. Set via {@link onDrumDestroyed}. */
+  private drumDestroyedCb?: (x: number, z: number) => void;
+
+  /** Register a callback fired whenever a drum is destroyed (at its position). */
+  onDrumDestroyed(cb: (x: number, z: number) => void): void {
+    this.drumDestroyedCb = cb;
+  }
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -255,9 +263,12 @@ export class DestructibleSystem {
   /** Destroy a drum whose HP ran out: pull its physics body + replicated entity.
    *  No VFX — the drum just disappears (clients drop it when it leaves state). */
   private destroyDrum(body: Body): void {
+    const { x, z } = body.obj;
     this.physics.removeBody(body.rb);
     this.ctx.state.destructibles.delete(body.obj.id);
     this.bodies.delete(body.obj.id);
+    // A destroyed drum may drop a pickable (the room decides the odds + kind).
+    this.drumDestroyedCb?.(x, z);
   }
 
   /** Scatter the whole stack the struck tire belongs to (one-shot): members fan
