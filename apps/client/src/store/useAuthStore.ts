@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ClassProgressView } from '@arena/shared';
-import { fetchMe, loginAccount, registerAccount } from '../network/auth';
+import { decodeToken, fetchMe, loginAccount, registerAccount } from '../network/auth';
+import { setTelemetryUser } from '../network/telemetry';
 
 const TOKEN_KEY = 'arena.auth.token';
 
@@ -18,6 +19,13 @@ function saveToken(token: string | null): void {
   } catch {
     /* storage blocked — token lives only in memory this session */
   }
+}
+
+/** Mirror the signed-in account into crash reports (Sentry user + the
+ *  self-hosted sink), so a captured error carries the account id + display name.
+ *  The account id is decoded from the token; null on sign-out clears it. */
+function tagTelemetryUser(token: string, username: string): void {
+  setTelemetryUser({ accountId: decodeToken(token)?.pid, username });
 }
 
 /**
@@ -59,10 +67,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const me = await fetchMe(token);
       saveToken(me.token);
+      tagTelemetryUser(me.token, me.username);
       set({ status: 'authed', token: me.token, username: me.username, progress: me.progress });
     } catch {
       // Token invalid/expired or server unreachable — fall back to the form.
       saveToken(null);
+      setTelemetryUser(null);
       set({ status: 'idle', token: null, username: null, progress: [] });
     }
   },
@@ -72,6 +82,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const res = await loginAccount(email, password);
       saveToken(res.token);
+      tagTelemetryUser(res.token, res.username);
       set({
         status: 'authed',
         token: res.token,
@@ -89,6 +100,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const res = await registerAccount(email, username, password);
       saveToken(res.token);
+      tagTelemetryUser(res.token, res.username);
       set({
         status: 'authed',
         token: res.token,
@@ -103,6 +115,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   signOut: () => {
     saveToken(null);
+    setTelemetryUser(null);
     set({ status: 'idle', token: null, username: null, progress: [], error: null });
   },
 }));

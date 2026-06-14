@@ -18,7 +18,8 @@ import {
   type JoinOptions,
 } from './util/identity.js';
 import { LobbyManager } from './matchmaking/lobbies.js';
-import { captureServerError } from '../observability.js';
+import { captureServerError, userFromClaims } from '../observability.js';
+import { verifyToken } from '../auth.js';
 
 /**
  * The singleton lobby/matchmaking room (Phase 12). It owns the replicated list
@@ -72,6 +73,7 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
       captureServerError(err, {
         message: '[matchmaking] onJoin failed:',
         tags: { where: 'matchmaking.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+        user: userFromClaims(verifyToken(options?.token)),
       });
       throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
     }

@@ -46,3 +46,21 @@ export function loginAccount(email: string, password: string): Promise<AuthResul
 export function fetchMe(token: string): Promise<AuthResult> {
   return request('/auth/me', { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
 }
+
+/** Read the (unverified) claims a session token carries — account id + name —
+ *  for client-side use like telemetry tagging. NOT a security check: the server
+ *  verifies the signature on every authenticated request; this only decodes the
+ *  base64url payload the client already holds. */
+export function decodeToken(token: string): { pid?: number; name?: string } | null {
+  try {
+    const payload = token.split('.')[0];
+    if (!payload) return null;
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      pid?: number;
+      name?: string;
+    };
+    return { pid: claims.pid, name: claims.name };
+  } catch {
+    return null;
+  }
+}

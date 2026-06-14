@@ -54,10 +54,47 @@ export interface ClientErrorReport {
   sessionId?: string;
   /** Room name (town/arena/matchmaking), when known. */
   room?: string;
+  /** Signed-in account id + display name, when authenticated. */
+  accountId?: string;
+  username?: string;
 }
 
 let sessionId: string | undefined;
 let roomName: string | undefined;
+let account: { id?: string; username?: string } | undefined;
+
+/** Re-apply the merged Sentry user. Sentry holds a single user object, so the
+ *  durable account identity and the per-connection session are combined here:
+ *  the account id is the stable key (drives "users affected"), the session id is
+ *  the fallback before sign-in and rides along as an extra field. */
+function applyUser(): void {
+  const id = account?.id ?? sessionId;
+  if (!id && !account?.username) {
+    Sentry.setUser(null);
+    return;
+  }
+  Sentry.setUser({
+    id,
+    username: account?.username,
+    ip_address: '{{auto}}', // let Sentry record the client IP
+    sessionId,
+    room: roomName,
+  });
+}
+
+/** Tag events with the signed-in account (id + display name). Persists across
+ *  rooms — call on sign-in/restore, and clear (pass null) on sign-out. */
+export function setTelemetryUser(
+  user: { accountId?: string | number; username?: string } | null,
+): void {
+  account = user
+    ? {
+        id: user.accountId !== undefined ? String(user.accountId) : undefined,
+        username: user.username,
+      }
+    : undefined;
+  applyUser();
+}
 
 /** Tag subsequent reports with the active session/room (cleared on teardown).
  *  Also attaches the same context to Sentry events (no-op when Sentry is
@@ -65,7 +102,7 @@ let roomName: string | undefined;
 export function setTelemetryContext(ctx: { sessionId?: string; room?: string }): void {
   sessionId = ctx.sessionId;
   roomName = ctx.room;
-  Sentry.setUser(ctx.sessionId ? { id: ctx.sessionId } : null);
+  applyUser();
   Sentry.setTag('room', ctx.room ?? null);
 }
 
@@ -96,6 +133,8 @@ export function reportClientError(
       code: info.code,
       sessionId,
       room: roomName,
+      accountId: account?.id,
+      username: account?.username,
       url: location.href,
       userAgent: navigator.userAgent,
       at: new Date().toISOString(),

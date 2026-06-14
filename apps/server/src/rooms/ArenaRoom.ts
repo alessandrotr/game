@@ -61,7 +61,8 @@ import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from 
 import { ZombieDirector } from './arena/zombies.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
-import { captureServerError, captureTickError } from '../observability.js';
+import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
+import { verifyToken } from '../auth.js';
 
 /** Upper bound on practice bots a room will host at once. */
 const MAX_BOTS = 8;
@@ -357,6 +358,7 @@ export class ArenaRoom extends AvatarRoom {
       captureServerError(err, {
         message: '[arena] onJoin failed:',
         tags: { where: 'arena.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+        user: userFromClaims(verifyToken(options?.token)),
       });
       throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
     }
@@ -412,6 +414,7 @@ export class ArenaRoom extends AvatarRoom {
         message: '[arena] failed to load profile:',
         tags: { where: 'arena.loadProfile', roomId: this.roomId, sessionId },
         extra: { playerId, characterClass },
+        user: playerId !== undefined ? { id: String(playerId) } : undefined,
       });
     }
   }

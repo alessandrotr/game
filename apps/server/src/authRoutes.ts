@@ -62,7 +62,12 @@ async function register(req: Request, res: Response): Promise<void> {
       res.status(409).json({ error: 'That email is already registered.' });
       return;
     }
-    captureServerError(err, { message: '[auth] register failed:', tags: { where: 'auth.register' } });
+    captureServerError(err, {
+      message: '[auth] register failed:',
+      tags: { where: 'auth.register' },
+      // No account yet — attach what identifies the attempt: email + client IP.
+      user: { email, username, ip_address: req.ip },
+    });
     res.status(500).json({ error: 'Registration failed. Try again.' });
   }
 }
@@ -86,7 +91,12 @@ async function login(req: Request, res: Response): Promise<void> {
     const progress = await allProgress(db, acc.id);
     res.json(result(acc.id, acc.username, progress));
   } catch (err) {
-    captureServerError(err, { message: '[auth] login failed:', tags: { where: 'auth.login' } });
+    captureServerError(err, {
+      message: '[auth] login failed:',
+      tags: { where: 'auth.login' },
+      // No verified account on a failed login — attach the attempted email + IP.
+      user: { email, ip_address: req.ip },
+    });
     res.status(500).json({ error: 'Login failed. Try again.' });
   }
 }

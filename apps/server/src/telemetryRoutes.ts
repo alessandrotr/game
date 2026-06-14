@@ -61,6 +61,8 @@ function sanitize(body: Record<string, unknown> | null | undefined) {
     code: typeof b.code === 'number' && Number.isFinite(b.code) ? b.code : undefined,
     sessionId: str(b.sessionId, 64),
     room: str(b.room, 64),
+    accountId: str(b.accountId, 64),
+    username: str(b.username, 64),
     url: str(b.url, 500),
     userAgent: str(b.userAgent, 300),
     clientAt: str(b.at, 40),

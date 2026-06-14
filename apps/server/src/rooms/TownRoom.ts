@@ -21,7 +21,8 @@ import { getPool } from '../db/database.js';
 import { getProgress, topPlayers } from '../db/players.js';
 import { resolveClass, resolveName, resolveSkinId, type JoinOptions } from './util/identity.js';
 import { applyGravity, stepMove } from './util/locomotion.js';
-import { captureServerError, captureTickError } from '../observability.js';
+import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
+import { verifyToken } from '../auth.js';
 
 /** Where players appear when entering town (matches the town map's spawn zone). */
 const TOWN_SPAWN = { x: 0, z: 12 };
@@ -99,6 +100,7 @@ export class TownRoom extends AvatarRoom {
       captureServerError(err, {
         message: '[town] onJoin failed:',
         tags: { where: 'town.onJoin', roomId: this.roomId, sessionId: client.sessionId },
+        user: userFromClaims(verifyToken(options?.token)),
       });
       throw err; // re-throw so Colyseus rejects the seat (client sees a join error)
     }
