@@ -42,6 +42,13 @@ let uMode: { value: number };
 let uColor: { value: Color };
 let uColor2: { value: Color };
 const thumbs = new Set<PedestalThumbHandle>();
+/** Thumbs needing a static (re)render → frames still to draw. A few frames (not
+ *  one) because a freshly-created WebGL context can hand back a blank first frame. */
+const dirty = new Map<PedestalThumbHandle, number>();
+/** How many static frames to draw on register / hover-end. */
+const STATIC_FRAMES = 4;
+/** Thumbs currently hovered — these animate every frame. */
+const hovered = new Set<PedestalThumbHandle>();
 let raf = 0;
 let startMs = 0;
 
@@ -78,49 +85,86 @@ function init(): void {
   scene.add(mesh);
 }
 
+/** Render one thumbnail's current frame into its 2D canvas. Returns false if the
+ *  canvas isn't laid out yet (so the caller can retry next frame). */
+function renderThumb(thumb: PedestalThumbHandle, t: number): boolean {
+  if (!renderer) return false;
+  const { canvas } = thumb;
+  const w = canvas.width;
+  const h = canvas.height;
+  if (w === 0 || h === 0) return false;
+
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  uTime.value = t;
+  uMode.value = PEDESTAL_MODE[thumb.effect];
+  uColor.value.set(thumb.color);
+  uColor2.value.set(thumb.color2 ?? thumb.color);
+
+  renderer.render(scene, camera);
+
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(renderer.domElement, 0, 0, w, h);
+  }
+  return true;
+}
+
+function ensureLoop(): void {
+  if (!raf) raf = requestAnimationFrame(loop);
+}
+
+/**
+ * Animate only the hovered thumbnails; everyone else just gets a one-off static
+ * frame (queued in `dirty`). When nothing is hovered and nothing is dirty the
+ * RAF stops entirely — zero idle GPU cost.
+ */
 function loop(now: number): void {
-  if (!renderer) return;
+  if (!renderer) {
+    raf = 0;
+    return;
+  }
   if (!startMs) startMs = now;
   const t = (now - startMs) / 1000;
 
-  for (const thumb of thumbs) {
-    const { canvas } = thumb;
-    const w = canvas.width;
-    const h = canvas.height;
-    if (w === 0 || h === 0) continue;
-
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-
-    uTime.value = t;
-    uMode.value = PEDESTAL_MODE[thumb.effect];
-    uColor.value.set(thumb.color);
-    uColor2.value.set(thumb.color2 ?? thumb.color);
-
-    renderer.render(scene, camera);
-
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, w, h);
-      ctx.drawImage(renderer.domElement, 0, 0, w, h);
+  // Static (re)renders — only count a frame once the canvas is actually laid
+  // out (renderThumb returns false at 0×0), so off-screen mounts still settle.
+  for (const [thumb, left] of dirty) {
+    if (renderThumb(thumb, t)) {
+      if (left <= 1) dirty.delete(thumb);
+      else dirty.set(thumb, left - 1);
     }
   }
+  // Live animation for hovered thumbnails.
+  for (const thumb of hovered) renderThumb(thumb, t);
 
-  raf = requestAnimationFrame(loop);
+  raf = dirty.size > 0 || hovered.size > 0 ? requestAnimationFrame(loop) : 0;
 }
 
-/** Start driving a thumbnail. Returns an unregister fn (call on unmount). */
+/** Start driving a thumbnail (renders a static frame; animates on hover).
+ *  Returns an unregister fn (call on unmount). */
 export function registerPedestalThumb(handle: PedestalThumbHandle): () => void {
   if (!renderer) init();
   thumbs.add(handle);
-  if (!raf) raf = requestAnimationFrame(loop);
+  dirty.set(handle, STATIC_FRAMES); // draw the initial static frame(s)
+  ensureLoop();
   return () => {
     thumbs.delete(handle);
-    if (thumbs.size === 0 && raf) {
-      cancelAnimationFrame(raf);
-      raf = 0;
-      startMs = 0;
-    }
+    dirty.delete(handle);
+    hovered.delete(handle);
   };
+}
+
+/** Toggle live animation for a thumbnail (on pointer enter/leave of its card). */
+export function setPedestalThumbHover(handle: PedestalThumbHandle, on: boolean): void {
+  if (on) {
+    hovered.add(handle);
+  } else {
+    hovered.delete(handle);
+    dirty.set(handle, STATIC_FRAMES); // settle back to a clean static frame
+  }
+  ensureLoop();
 }

@@ -34,7 +34,7 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
-import { registerPedestalThumb } from '../render/pedestalThumbnails';
+import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
 import {
   Button,
   Dialog,
@@ -177,12 +177,16 @@ function PedestalCanvas({
   effect,
   color,
   color2,
+  hovered = false,
 }: {
   effect: PedestalEffect;
   color: string;
   color2?: string;
+  /** Driven by the parent card — animates while true, static frame otherwise. */
+  hovered?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const handle = useRef<PedestalThumbHandle | null>(null);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -195,18 +199,26 @@ function PedestalCanvas({
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(canvas);
-    const stop = registerPedestalThumb({ canvas, effect, color, color2 });
+    const h: PedestalThumbHandle = { canvas, effect, color, color2 };
+    handle.current = h;
+    const stop = registerPedestalThumb(h);
     return () => {
       ro.disconnect();
       stop();
+      handle.current = null;
     };
   }, [effect, color, color2]);
+  // Animate only while the card is hovered; otherwise hold a static frame (the
+  // shared render loop pauses entirely when nothing is hovered).
+  useEffect(() => {
+    if (handle.current) setPedestalThumbHover(handle.current, hovered);
+  }, [hovered]);
   return <canvas ref={ref} className="block h-full w-full" />;
 }
 
 /** Real 3D pedestal thumbnail for a catalog item. */
-function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
-  return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} />;
+function PedestalThumb({ c, hovered }: { c: Cosmetic & { type: 'pedestal' }; hovered?: boolean }) {
+  return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} hovered={hovered} />;
 }
 
 /** Title thumbnail — a mini nameplate preview showing how the title reads above
@@ -283,6 +295,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
   const previewing = useCustomizeStore((s) => s.previewId === c.id);
   const equipped = isEquipped(c, loadout);
   const act = cardAction(c, owned, equipped, loadout);
+  const [hovered, setHovered] = useState(false);
   // Clicking the card previews it on the avatar (owned or not). The button (which
   // stops propagation) is the only thing that unlocks/equips — equip needs ownership.
   const preview = () => useCustomizeStore.getState().setPreview(c.id);
@@ -298,6 +311,8 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
       role="button"
       tabIndex={0}
       onClick={preview}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -312,7 +327,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
     >
       <div className="relative grid h-24 place-items-center bg-black/20">
         {c.type === 'pedestal' ? (
-          <PedestalThumb c={c} />
+          <PedestalThumb c={c} hovered={hovered} />
         ) : c.type === 'title' ? (
           <TitleThumb c={c} />
         ) : (
@@ -487,10 +502,13 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const equipped = isEquipped(c, loadout);
   const slot = c.type === 'emote' ? loadout.emotes.indexOf(c.id) + 1 : 0;
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
       onClick={() => equipCosmetic(characterClass, c)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       aria-pressed={equipped}
       title={`${c.name} · ${c.rarity}`}
       className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
@@ -499,7 +517,7 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
     >
       <div className="relative grid h-16 place-items-center bg-black/20">
         {c.type === 'pedestal' ? (
-          <PedestalThumb c={c} />
+          <PedestalThumb c={c} hovered={hovered} />
         ) : c.type === 'title' ? (
           <TitleThumb c={c} />
         ) : (
@@ -524,10 +542,13 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
 /** The default (un-equipped) pedestal — the neutral gray ring every character
  *  starts with. Selecting it clears the equipped pedestal back to default. */
 function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: () => void }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
       onClick={onSelect}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       aria-pressed={active}
       title="Default pedestal"
       className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
@@ -535,7 +556,7 @@ function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: 
       }`}
     >
       <div className="relative grid h-16 place-items-center bg-black/20">
-        <PedestalCanvas effect="ring" color={DEFAULT_PEDESTAL_COLOR} />
+        <PedestalCanvas effect="ring" color={DEFAULT_PEDESTAL_COLOR} hovered={hovered} />
         {active && (
           <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
             <Check size={11} />
