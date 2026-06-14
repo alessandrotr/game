@@ -229,16 +229,12 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         break;
       }
       case 'heal_allies': {
-        // The friendly counterpart to `aoe`: heal same-team allies within radius
-        // of the centre, plus the caster IF he's inside the burst ("if they get
+        // The friendly counterpart to `aoe`: the caster always heals himself, and
+        // same-team allies heal only if they're inside the burst ("if they get
         // hit"). Centre = caster / ground point / locked unit.
         const hx = effect.at === 'point' ? (ctx.targetX ?? caster.x) : effect.at === 'unit' ? (ctx.unitTarget?.x ?? caster.x) : caster.x;
         const hz = effect.at === 'point' ? (ctx.targetZ ?? caster.z) : effect.at === 'unit' ? (ctx.unitTarget?.z ?? caster.z) : caster.z;
-        const cdx = caster.x - hx;
-        const cdz = caster.z - hz;
-        if (cdx * cdx + cdz * cdz <= effect.radius * effect.radius) {
-          rt.heal(caster, effect.amount, caster.sessionId);
-        }
+        rt.heal(caster, effect.amount, caster.sessionId); // the priest always heals himself
         rt.forEachAllyInRadius(hx, hz, effect.radius, caster, (ally) => rt.heal(ally, effect.amount, caster.sessionId));
         break;
       }
