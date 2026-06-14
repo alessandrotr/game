@@ -51,6 +51,12 @@ export class ZombieDirector {
     private readonly hooks: ZombieHooks,
   ) {}
 
+  /** The current wave/level (every alive zombie belongs to it, since a level
+   *  only advances once all of its zombies are dead). */
+  currentLevel(): number {
+    return this.level;
+  }
+
   /** Arm the first horde's countdown (called once the room is built). */
   start(now: number): void {
     this.phase = 'intermission';

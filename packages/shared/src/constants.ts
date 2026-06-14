@@ -440,9 +440,15 @@ export const ZOMBIE_SPAWN_BATCH = 2;
  *  pours out unevenly — bursts and lulls instead of a metronomic trickle. */
 export const ZOMBIE_SPAWN_INTERVAL_MIN_MS = 350;
 export const ZOMBIE_SPAWN_INTERVAL_MAX_MS = 1100;
-/** Zombie chase/move speed (world units/second) — a slow shamble, well under a
- *  player's pace, so they're a threat by numbers and persistence, not speed. */
+/** Zombie base chase/move speed (world units/second) — a slow shamble, well
+ *  under a player's pace, so early hordes threaten by numbers, not speed. */
 export const ZOMBIE_SPEED = 4;
+/** Zombies speed up by 1 unit/s every this many levels (so the shamble ramps
+ *  toward a genuine chase as the run wears on). */
+export const ZOMBIE_SPEED_LEVEL_STEP = 4;
+/** XP a player earns for killing a zombie — far less than a player kill
+ *  ({@link XP_PER_KILL}), so grinding hordes doesn't trivialise progression. */
+export const ZOMBIE_XP_PER_KILL = 10;
 /** Skin id the server tags zombies with; the client maps it to the zombie GLB
  *  (a Mixamo-rigged shambling model) in place of the warrior body. */
 export const ZOMBIE_SKIN_ID = 'skin.zombie';
@@ -466,6 +472,12 @@ export function zombieHordeSize(level: number): number {
 /** A zombie's max health at `level` (base + linear per-level toughening). */
 export function zombieHealthForLevel(level: number): number {
   return ZOMBIE_BASE_HP + Math.max(0, level - 1) * ZOMBIE_HP_PER_LEVEL;
+}
+
+/** A zombie's move speed at `level`: base, stepped up by 1 every
+ *  {@link ZOMBIE_SPEED_LEVEL_STEP} levels (lvl 1–4 → 4, 5–8 → 5, …). */
+export function zombieSpeedForLevel(level: number): number {
+  return ZOMBIE_SPEED + Math.floor(Math.max(0, level - 1) / ZOMBIE_SPEED_LEVEL_STEP);
 }
 
 /** How long an emote (dance) plays before returning to idle, in milliseconds. */

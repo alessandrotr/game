@@ -19,8 +19,8 @@ import {
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
   ZOMBIE_SKIN_ID,
-  ZOMBIE_SPEED,
   zombieHealthForLevel,
+  zombieSpeedForLevel,
   ClientMessage,
   type ClientMessagePayloads,
   ServerMessage,
@@ -730,7 +730,9 @@ export class ArenaRoom extends AvatarRoom {
       // their own fixed pace; everyone else uses their class walk speed.
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
       const isZombie = this.zombieMode && this.bots.has(sessionId);
-      const baseSpeed = isZombie ? ZOMBIE_SPEED : this.tuning.walkSpeedFor(attacker.characterClass);
+      const baseSpeed = isZombie
+        ? zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1)
+        : this.tuning.walkSpeedFor(attacker.characterClass);
       const speed = baseSpeed * moveSpeedMultiplier(attacker);
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
