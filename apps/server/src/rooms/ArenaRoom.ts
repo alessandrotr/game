@@ -385,8 +385,6 @@ export class ArenaRoom extends AvatarRoom {
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);
     this.combat.attachCover(this.cover);
-    // A destroyed oil drum has a chance to drop a pickable (molotov / grenade).
-    this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
     this.botDirector = new BotDirector(ctx, {
       cooldowns: this.cooldowns,
       pendingCasts: this.pendingCasts,
