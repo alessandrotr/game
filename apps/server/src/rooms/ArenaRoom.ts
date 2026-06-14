@@ -926,6 +926,19 @@ export class ArenaRoom extends AvatarRoom {
     // `attackTargets` / cast seams human input does, consumed by the loop below.
     if (this.bots.size > 0) this.botDirector.update(this.simTime, this.bots);
 
+    // Zombie mode: living zombies are solid to players. Feed them as extra
+    // obstacle circles into each human's locomotion (the SAME shared step the
+    // client predicts with — using `isZombieSkin` to pick the same bodies — so a
+    // player is blocked by the horde without rubber-banding). `height: 0` makes
+    // them satisfy ArenaObstacle for the post-move resolve too.
+    const zombieBlockers: ArenaObstacle[] = [];
+    if (this.zombieMode) {
+      this.bots.forEach((_profile, id) => {
+        const z = this.state.players.get(id);
+        if (z?.alive) zombieBlockers.push({ x: z.x, z: z.z, radius: PLAYER_RADIUS, height: 0 });
+      });
+    }
+
     this.state.players.forEach((player, sessionId) => {
       if (!player.alive) {
         player.animState = 'die';
@@ -972,6 +985,13 @@ export class ArenaRoom extends AvatarRoom {
       const startZ = player.z;
 
       const m = this.tuning.movement;
+
+      // Humans collide with the living horde; zombies only with static cover
+      // (they separate from each other via resolveZombieCollisions).
+      const moveObstacles =
+        zombieBlockers.length > 0 && !this.bots.has(sessionId)
+          ? this.obstacles.concat(zombieBlockers)
+          : this.obstacles;
 
       // Forced displacement (dash / knockback) overrides locomotion while active.
       const disp = this.displacements.get(sessionId);
@@ -1041,7 +1061,7 @@ export class ArenaRoom extends AvatarRoom {
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
-            obstacles: this.obstacles,
+            obstacles: moveObstacles,
           },
           dt,
         );
@@ -1050,7 +1070,7 @@ export class ArenaRoom extends AvatarRoom {
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,
       // idle overlaps); stepMove already resolved the move path.
-      const fixed = collideObstacles(player.x, player.z, this.obstacles, PLAYER_RADIUS);
+      const fixed = collideObstacles(player.x, player.z, moveObstacles, PLAYER_RADIUS);
       player.x = fixed.x;
       player.z = fixed.z;
 

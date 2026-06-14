@@ -13,8 +13,10 @@ import {
   getCosmeticOfType,
   isRooted,
   isStunned,
+  isZombieSkin,
   stepLocomotion,
   type AnimationName,
+  type ArenaObstacle,
   type CharacterClass,
 } from '@arena/shared';
 import { useArenaLayout } from './useArenaLayout';
@@ -197,6 +199,20 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const isArena = useGameStore.getState().room === 'arena';
       const halfBounds = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
       const dest = getDestination();
+
+      // Zombie mode (arena): the living horde is solid. Collide against the same
+      // zombie bodies the server does (matched by skin), rebuilt each frame since
+      // they move, so the player is blocked by the horde instead of walking
+      // through. `height: 0` keeps them ArenaObstacle-shaped for collideObstacles.
+      let arenaMoveObstacles: readonly ArenaObstacle[] = arenaObstacles;
+      if (isArena && useGameStore.getState().zombieMode) {
+        const blockers: ArenaObstacle[] = [];
+        useGameStore.getState().players.forEach((p, id) => {
+          if (id !== sessionId && p.alive && isZombieSkin(p.skinId))
+            blockers.push({ x: p.x, z: p.z, radius: PLAYER_RADIUS, height: 0 });
+        });
+        if (blockers.length > 0) arenaMoveObstacles = [...arenaObstacles, ...blockers];
+      }
       // Hard CC mirrors the server: stun/root halt movement; a stun also drops
       // the chase target. Read through the shared status helpers (a present
       // status is live — the server prunes expired ones each tick).
@@ -249,7 +265,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
           pos.z = clamp(pos.z + (dz / dist) * step, -halfBounds, halfBounds);
           // Same post-move obstacle push-out the server applies to the chase path.
-          const fixed = collideObstacles(pos.x, pos.z, arenaObstacles, PLAYER_RADIUS);
+          const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
           pos.x = fixed.x;
           pos.z = fixed.z;
         }
@@ -264,7 +280,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,
-            obstacles: isArena ? arenaObstacles : TOWN_OBSTACLES,
+            obstacles: isArena ? arenaMoveObstacles : TOWN_OBSTACLES,
           },
           delta,
         );

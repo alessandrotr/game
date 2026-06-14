@@ -131,7 +131,7 @@ export function PlayerCard() {
         <Button
           variant="goldOutline"
           size="sm"
-          onClick={() => showCustomize('profile')}
+          onClick={() => showCustomize('customize')}
           className="pointer-events-auto mt-3 w-full gap-1.5"
         >
           <Sparkles size={13} /> Customize

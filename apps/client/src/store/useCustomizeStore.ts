@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /** Which tab the customization hub opens to. */
-export type CustomizeTab = 'profile' | 'store';
+export type CustomizeTab = 'customize' | 'store';
 
 interface CustomizeStore {
   open: boolean;
@@ -25,7 +25,7 @@ interface CustomizeStore {
  */
 export const useCustomizeStore = create<CustomizeStore>((set) => ({
   open: false,
-  tab: 'profile',
+  tab: 'customize',
   previewId: null,
   show: (tab) => set((s) => ({ open: true, tab: tab ?? s.tab, previewId: null })),
   setOpen: (open) => set((s) => ({ open, previewId: open ? s.previewId : null })),

@@ -26,6 +26,7 @@ import {
   type CosmeticRarity,
   type CosmeticType,
   type Loadout,
+  type PedestalEffect,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -43,7 +44,6 @@ import {
   IconButton,
   LevelBadge,
   Meter,
-  StatTile,
 } from './primitives';
 import { STAT_COLORS } from './theme';
 
@@ -167,10 +167,21 @@ function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   );
 }
 
-/** Real 3D pedestal thumbnail: a `<canvas>` DOM child of the card (so it scrolls
- *  with the grid) driven by the shared offscreen WebGL renderer — the same shader
- *  as the big showcase, one context for the whole store. */
-function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
+/** Default pedestal color when nothing is equipped (matches the in-scene default). */
+const DEFAULT_PEDESTAL_COLOR = '#8b91a8';
+
+/** A `<canvas>` DOM child driven by the shared offscreen WebGL renderer (one
+ *  context for the whole store). Scrolls with its card; same shader as the big
+ *  showcase. */
+function PedestalCanvas({
+  effect,
+  color,
+  color2,
+}: {
+  effect: PedestalEffect;
+  color: string;
+  color2?: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -184,13 +195,18 @@ function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(canvas);
-    const stop = registerPedestalThumb({ canvas, effect: c.effect ?? 'ring', color: c.color, color2: c.color2 });
+    const stop = registerPedestalThumb({ canvas, effect, color, color2 });
     return () => {
       ro.disconnect();
       stop();
     };
-  }, [c.effect, c.color, c.color2]);
+  }, [effect, color, color2]);
   return <canvas ref={ref} className="block h-full w-full" />;
+}
+
+/** Real 3D pedestal thumbnail for a catalog item. */
+function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
+  return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} />;
 }
 
 /** Title thumbnail — a mini nameplate preview showing how the title reads above
@@ -205,7 +221,9 @@ function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
       >
         {c.text}
       </span>
-      <span className="max-w-full truncate font-display text-sm tracking-wide text-white">{username}</span>
+      <span className="max-w-full truncate font-display text-sm tracking-wide text-white">
+        {username}
+      </span>
       {/* A sliver of health bar to evoke the in-world nameplate. */}
       <span className="mt-1 h-1 w-14 rounded-full bg-positive/80" />
     </div>
@@ -289,11 +307,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
       aria-pressed={previewing}
       title={`Preview ${c.name}`}
       className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        equipped
-          ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]'
-          : previewing
-            ? 'border-white/40'
-            : 'border-white/10 hover:border-white/20'
+        previewing ? 'border-white/40' : 'border-white/10 hover:border-white/20'
       }`}
     >
       <div className="relative grid h-24 place-items-center bg-black/20">
@@ -467,59 +481,68 @@ function FilterChip({
 // Customize — the loadout editor (owned items only)
 // ---------------------------------------------------------------------------
 
-/** A selectable owned-item tile in a slot. */
+/** A selectable owned-item card in a slot — same rich thumbnail as the store
+ *  (3D pedestal / nameplate title / icon), selected state via a check pill. */
 function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const equipped = isEquipped(c, loadout);
   const slot = c.type === 'emote' ? loadout.emotes.indexOf(c.id) + 1 : 0;
-  const accent = RARITY[c.rarity];
   return (
     <button
       type="button"
       onClick={() => equipCosmetic(characterClass, c)}
       aria-pressed={equipped}
       title={`${c.name} · ${c.rarity}`}
-      style={equipped ? { borderColor: accent, background: `${accent}14` } : undefined}
-      className={`group relative flex items-center gap-2.5 rounded-xl border p-2 pr-3 text-left transition ${
-        equipped
-          ? 'text-text'
-          : 'border-white/10 bg-black/25 text-muted hover:border-white/25 hover:text-text'
+      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
+        equipped ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <Swatch c={c} size={36} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium">{c.name}</span>
-        <span className="text-[10px] uppercase tracking-wider" style={{ color: accent }}>
-          {c.rarity}
-        </span>
-      </span>
-      {c.type === 'emote' && equipped && (
-        <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-gold/20 text-[11px] font-bold text-gold">
-          {slot}
-        </span>
-      )}
-      {c.type !== 'emote' && equipped && <Check size={15} className="shrink-0 text-gold" />}
+      <div className="relative grid h-16 place-items-center bg-black/20">
+        {c.type === 'pedestal' ? (
+          <PedestalThumb c={c} />
+        ) : c.type === 'title' ? (
+          <TitleThumb c={c} />
+        ) : (
+          <Swatch c={c} size={40} />
+        )}
+        {equipped && c.type !== 'emote' && (
+          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
+            <Check size={11} />
+          </span>
+        )}
+        {c.type === 'emote' && equipped && (
+          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded bg-gold text-[10px] font-bold text-black">
+            {slot}
+          </span>
+        )}
+      </div>
+      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">{c.name}</span>
     </button>
   );
 }
 
-/** A "clear this slot" tile (single-select slots only). */
-function NoneTile({ active, onClear }: { active: boolean; onClear: () => void }) {
+/** The default (un-equipped) pedestal — the neutral gray ring every character
+ *  starts with. Selecting it clears the equipped pedestal back to default. */
+function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
-      onClick={onClear}
+      onClick={onSelect}
       aria-pressed={active}
-      className={`flex items-center gap-2.5 rounded-xl border p-2 pr-3 text-left transition ${
-        active
-          ? 'border-gold/50 bg-gold/10 text-gold'
-          : 'border-white/10 bg-black/25 text-muted hover:text-text'
+      title="Default pedestal"
+      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
+        active ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-dashed border-white/20 text-[10px] uppercase text-muted">
-        —
-      </span>
-      <span className="text-[13px] font-medium">None</span>
+      <div className="relative grid h-16 place-items-center bg-black/20">
+        <PedestalCanvas effect="ring" color={DEFAULT_PEDESTAL_COLOR} />
+        {active && (
+          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
+            <Check size={11} />
+          </span>
+        )}
+      </div>
+      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">Default</span>
     </button>
   );
 }
@@ -564,7 +587,11 @@ function EmptySlot({ onBrowse }: { onBrowse: () => void }) {
   );
 }
 
-/** One single-select slot (pedestal / title): None + owned options. */
+/**
+ * One single-select slot. Pedestal leads with a "Default" tile (the gray ring —
+ * its un-equipped state); title has no default tile since every character always
+ * has a title equipped (starting Novice).
+ */
 function SingleSlot({
   title,
   icon,
@@ -584,14 +611,15 @@ function SingleSlot({
 }) {
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
   const items = cosmeticsOfType(type).filter((c) => owned.includes(c.id));
+  const withDefault = type === 'pedestal';
   return (
     <section className="mb-5">
       <SlotHeader title={title} icon={icon} onBrowse={onBrowse} />
-      {items.length === 0 ? (
+      {items.length === 0 && !withDefault ? (
         <EmptySlot onBrowse={onBrowse} />
       ) : (
-        <div className="grid grid-cols-2 gap-2">
-          <NoneTile active={!equippedId} onClear={onClear} />
+        <div className="grid grid-cols-3 gap-2">
+          {withDefault && <DefaultPedestalTile active={!equippedId} onSelect={onClear} />}
           {items.map((c) => (
             <OptionTile key={c.id} c={c} characterClass={characterClass} />
           ))}
@@ -630,7 +658,12 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 
   return (
     <div className="relative min-h-[300px] overflow-hidden border-b border-white/5 bg-linear-to-b from-black/30 to-black/55 md:border-b-0 md:border-r">
-      <ClassPreview characterClass={characterClass} skinId={skinId} dyeId={dyeId} pedestalId={pedestalId} />
+      <ClassPreview
+        characterClass={characterClass}
+        skinId={skinId}
+        dyeId={dyeId}
+        pedestalId={pedestalId}
+      />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
         {preview && (
           <div className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
@@ -677,26 +710,10 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 }
 
 // ---------------------------------------------------------------------------
-// Profile — career stats + appearance editor for the current class
+// Customize — the loadout editor for the current class (owned items only)
 // ---------------------------------------------------------------------------
 
-/** A section divider with a heading (e.g. "Career", "Appearance"). */
-function GroupHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-3 mt-6 flex items-center gap-2.5 first:mt-0">
-      <span className="font-display text-[11px] uppercase tracking-[0.22em] text-gold/80">
-        {children}
-      </span>
-      <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
-    </div>
-  );
-}
-
-function ProfileContent({ characterClass }: { characterClass: CharacterClass }) {
-  const progress = useAuthStore((s) => s.progress);
-  const sessionId = useGameStore((s) => s.sessionId);
-  useGameStore((s) => s.tick); // keep live stats fresh
-  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+function CustomizeContent({ characterClass }: { characterClass: CharacterClass }) {
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
   const setTab = useCustomizeStore((s) => s.setTab);
@@ -704,31 +721,10 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
   const clearSlot = (patch: Partial<Loadout>) =>
     useCosmeticsStore.getState().equip(characterClass, patch);
 
-  const record = progress.find((p) => p.characterClass === characterClass);
-  const kills = me?.kills ?? record?.kills ?? 0;
-  const deaths = me?.deaths ?? record?.deaths ?? 0;
-  const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
   const ownedEmotes = cosmeticsOfType('emote').filter((c) => owned.includes(c.id));
 
   return (
-    <div className="overflow-y-auto px-5 py-4">
-      {/* Career stats (identity + level + XP live on the canvas to the left). */}
-      <GroupHeading>Career</GroupHeading>
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <StatTile label="Kills" value={kills} color={STAT_COLORS.positive} />
-        <StatTile label="Deaths" value={deaths} color={STAT_COLORS.negative} />
-        <StatTile label="K/D" value={kd} color={STAT_COLORS.text} />
-      </div>
-
-      {record && (
-        <div className="mt-2 grid grid-cols-2 gap-2 text-center">
-          <StatTile label="Wins" value={record.wins} color={STAT_COLORS.positive} />
-          <StatTile label="Losses" value={record.losses} color={STAT_COLORS.negative} />
-        </div>
-      )}
-
-      {/* Appearance — equip what this character owns (browse the Store for more). */}
-      <GroupHeading>Appearance</GroupHeading>
+    <div className="h-full overflow-y-auto px-5 py-4">
       <SingleSlot
         title="Pedestal"
         icon={Footprints}
@@ -756,7 +752,7 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
             <p className="mb-2 text-[11px] text-muted">
               Tap to bind in order — the slot number is the key you press in-game.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {ownedEmotes.map((c) => (
                 <OptionTile key={c.id} c={c} characterClass={characterClass} />
               ))}
@@ -773,17 +769,17 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
 // ---------------------------------------------------------------------------
 
 const TABS: { id: CustomizeTab; label: string; icon: typeof User }[] = [
-  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'customize', label: 'Customize', icon: Sparkles },
   { id: 'store', label: 'Store', icon: ShoppingBag },
 ];
 
 /**
  * The player's customization & store hub: a large modal opened from the town
  * player card. A persistent left showcase (your live avatar + identity) sits
- * beside the active tab — Profile (career stats + appearance editor) or Store
- * (browse & unlock). Cosmetics are owned and equipped **per class**, so
- * everything here is scoped to the character you're currently playing. Equipping
- * is immediate: it broadcasts live to the town and persists to the account.
+ * beside the active tab — Customize (equip what you own) or Store (browse &
+ * unlock). Cosmetics are owned and equipped **per class**, so everything here is
+ * scoped to the character you're currently playing. Equipping is immediate: it
+ * broadcasts live to the town and persists to the account.
  */
 export function CustomizePanel() {
   const open = useCustomizeStore((s) => s.open);
@@ -836,7 +832,7 @@ export function CustomizePanel() {
             {tab === 'store' ? (
               <StoreContent characterClass={characterClass} />
             ) : (
-              <ProfileContent characterClass={characterClass} />
+              <CustomizeContent characterClass={characterClass} />
             )}
           </div>
         </div>
