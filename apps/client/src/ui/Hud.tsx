@@ -1,5 +1,6 @@
 import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
 import { PlayerCard } from './PlayerCard';
@@ -13,6 +14,7 @@ import { Minimap } from './hud/Minimap';
 import { PerfOverlay } from './hud/PerfOverlay';
 import { SettingsPanel } from './hud/SettingsPanel';
 import { ControlsHelp } from './hud/ControlsHelp';
+import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 import { HudLayout, HudZone } from './hud/HudLayout';
 
 /**
@@ -30,6 +32,7 @@ import { HudLayout, HudZone } from './hud/HudLayout';
 export function Hud() {
   const inArena = useGameStore((s) => s.room) === 'arena';
   const hudHidden = useHudStore((s) => s.hidden);
+  const guest = useAuthStore((s) => s.guest);
 
   return (
     <>
@@ -78,6 +81,7 @@ export function Hud() {
       <Leaderboard />
       <SettingsPanel />
       <ControlsHelp />
+      {guest && <UpgradeAccountDialog />}
     </>
   );
 }

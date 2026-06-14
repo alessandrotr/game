@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { useUpgradeStore } from '../store/useUpgradeStore';
 import {
   Button,
   Dialog,
@@ -15,19 +16,17 @@ import {
  * In-game "claim your account" modal for guests: attaches email/username/
  * password to the current guest session, keeping all progress earned so far.
  * On success the store flips `guest` → false and the dialog closes; on failure
- * it stays open with the error.
+ * it stays open with the error. Visibility is driven by {@link useUpgradeStore},
+ * so the same single instance is opened from the character-select screen and the
+ * in-game game menu.
  */
-export function UpgradeAccountDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+export function UpgradeAccountDialog() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
+  const open = useUpgradeStore((s) => s.open);
+  const setOpen = useUpgradeStore((s) => s.setOpen);
   const busy = useAuthStore((s) => s.busy);
   const error = useAuthStore((s) => s.error);
   const upgradeAccount = useAuthStore((s) => s.upgradeAccount);
@@ -36,14 +35,14 @@ export function UpgradeAccountDialog({
     e.preventDefault();
     if (busy) return;
     upgradeAccount(email.trim(), username.trim(), password)
-      .then(() => onOpenChange(false))
+      .then(() => setOpen(false))
       .catch(() => {
         /* error shown in the store; keep the dialog open */
       });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>

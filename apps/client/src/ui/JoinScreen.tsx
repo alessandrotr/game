@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { type FormEvent } from 'react';
 import { Diamond, Loader2 } from 'lucide-react';
 import { getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useUpgradeStore } from '../store/useUpgradeStore';
 import { AudioControl } from './AudioControl';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
@@ -37,7 +38,7 @@ export function JoinScreen() {
   const guest = useAuthStore((s) => s.guest);
   const signOut = useAuthStore((s) => s.signOut);
   const progress = useAuthStore((s) => s.progress);
-  const [upgrading, setUpgrading] = useState(false);
+  const openUpgrade = useUpgradeStore((s) => s.setOpen);
 
   const connecting = status === 'connecting';
   const def = getClassDefinition(selectedClass);
@@ -74,7 +75,7 @@ export function JoinScreen() {
               )}
             </span>
             {guest && (
-              <Button variant="gold" size="sm" onClick={() => setUpgrading(true)}>
+              <Button variant="gold" size="sm" onClick={() => openUpgrade(true)}>
                 Save progress
               </Button>
             )}
@@ -140,7 +141,7 @@ export function JoinScreen() {
         </div>
       </div>
 
-      {guest && <UpgradeAccountDialog open={upgrading} onOpenChange={setUpgrading} />}
+      {guest && <UpgradeAccountDialog />}
     </div>
   );
 }

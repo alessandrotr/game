@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Menu, RotateCcw, Settings, Trophy, type LucideIcon } from 'lucide-react';
+import { Keyboard, Menu, RotateCcw, Settings, Trophy, UserPlus, type LucideIcon } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useLeaderboardStore } from '../../store/useLeaderboardStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useControlsStore } from '../../store/useControlsStore';
+import { useUpgradeStore } from '../../store/useUpgradeStore';
 import { leaveToCharacterSelect } from '../../network/colyseus';
 import { Button, Card, IconButton } from '../primitives';
 
@@ -31,9 +33,11 @@ function MenuItem({ icon: Icon, label, onSelect }: { icon: LucideIcon; label: st
  */
 export function GameMenu() {
   const inArena = useGameStore((s) => s.room) === 'arena';
+  const guest = useAuthStore((s) => s.guest);
   const openLeaderboard = () => useLeaderboardStore.getState().setOpen(true);
   const openSettings = () => useSettingsStore.getState().setOpen(true);
   const openControls = () => useControlsStore.getState().setOpen(true);
+  const openUpgrade = () => useUpgradeStore.getState().setOpen(true);
 
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -72,6 +76,9 @@ export function GameMenu() {
           role="menu"
           className="absolute bottom-full right-0 z-popover mb-2 w-52 p-1.5"
         >
+          {guest && (
+            <MenuItem icon={UserPlus} label="Save Progress" onSelect={run(openUpgrade)} />
+          )}
           <MenuItem icon={RotateCcw} label="Change Character" onSelect={run(leaveToCharacterSelect)} />
           <MenuItem icon={Trophy} label="Leaderboard" onSelect={run(openLeaderboard)} />
           <MenuItem icon={Keyboard} label="Controls" onSelect={run(openControls)} />
