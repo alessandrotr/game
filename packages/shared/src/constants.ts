@@ -436,8 +436,13 @@ export const ZOMBIE_GROWTH = 1.5;
 export const ZOMBIE_MAX_ALIVE = 24;
 /** Zombies released per spawn pulse (a trickle out of the portal). */
 export const ZOMBIE_SPAWN_BATCH = 2;
-/** Delay between spawn pulses, in milliseconds. */
-export const ZOMBIE_SPAWN_INTERVAL_MS = 600;
+/** Delay between spawn pulses is randomized within this range (ms) so a horde
+ *  pours out unevenly — bursts and lulls instead of a metronomic trickle. */
+export const ZOMBIE_SPAWN_INTERVAL_MIN_MS = 350;
+export const ZOMBIE_SPAWN_INTERVAL_MAX_MS = 1100;
+/** Zombie chase/move speed (world units/second) — a touch slower than a player
+ *  so a player can kite a horde but never fully shake it. */
+export const ZOMBIE_SPEED = 8;
 /** Breather between a cleared level and the next horde, in milliseconds. */
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */

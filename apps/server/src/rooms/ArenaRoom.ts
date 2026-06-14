@@ -18,6 +18,7 @@ import {
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
+  ZOMBIE_SPEED,
   zombieHealthForLevel,
   ClientMessage,
   type ClientMessagePayloads,
@@ -724,10 +725,12 @@ export class ArenaRoom extends AvatarRoom {
 
     if (dist > cfg.range) {
       // Chase: walk toward the target, stopping right at attack range (slows/
-      // hastes scale the chase speed, same as locomotion).
+      // hastes scale the chase speed, same as locomotion). Zombies chase at
+      // their own fixed pace; everyone else uses their class walk speed.
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const speed =
-        this.tuning.walkSpeedFor(attacker.characterClass) * moveSpeedMultiplier(attacker);
+      const isZombie = this.zombieMode && this.bots.has(sessionId);
+      const baseSpeed = isZombie ? ZOMBIE_SPEED : this.tuning.walkSpeedFor(attacker.characterClass);
+      const speed = baseSpeed * moveSpeedMultiplier(attacker);
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
       attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
@@ -912,6 +915,10 @@ export class ArenaRoom extends AvatarRoom {
       player.attackTargetId = this.attackTargets.get(sessionId) ?? '';
     });
 
+    // Zombies are solid: keep a horde from collapsing onto a single point (and
+    // off the top of a player) by separating overlapping bodies each tick.
+    if (this.zombieMode) this.resolveZombieCollisions();
+
     this.processChannels();
     this.combat.processDashImpacts();
     // Projectiles/abilities apply their impulses, THEN we step the shared world
@@ -1030,6 +1037,74 @@ export class ArenaRoom extends AvatarRoom {
   }
 
   // --- Zombie survival ---------------------------------------------------
+
+  /**
+   * Make zombies solid: a single circle-vs-circle separation relaxation each
+   * tick so a horde fans out around its prey instead of stacking on one point.
+   * Zombie↔zombie overlaps split the push between both; a zombie overlapping a
+   * human is shoved fully clear (the human isn't moved — pushing a predicted,
+   * point-and-click player server-side would rubber-band them). Pushed zombies
+   * are re-resolved against cover so they can't be wedged into an obstacle.
+   */
+  private resolveZombieCollisions(): void {
+    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const minSep = PLAYER_RADIUS * 2;
+    const minSepSq = minSep * minSep;
+    const zombies: Player[] = [];
+    this.bots.forEach((_profile, id) => {
+      const z = this.state.players.get(id);
+      if (z?.alive) zombies.push(z);
+    });
+    if (zombies.length === 0) return;
+
+    // Zombie ↔ zombie: push apart equally (a deterministic axis when exactly
+    // coincident, e.g. two spawned on the same jittered point).
+    for (let i = 0; i < zombies.length; i++) {
+      const a = zombies[i]!;
+      for (let j = i + 1; j < zombies.length; j++) {
+        const b = zombies[j]!;
+        let dx = b.x - a.x;
+        let dz = b.z - a.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= minSepSq) continue;
+        let d = Math.sqrt(d2);
+        if (d < 1e-4) {
+          dx = i % 2 === 0 ? 1 : -1;
+          dz = 0;
+          d = 1;
+        }
+        const push = (minSep - d) / 2;
+        const ox = (dx / d) * push;
+        const oz = (dz / d) * push;
+        a.x = clamp(a.x - ox, -limit, limit);
+        a.z = clamp(a.z - oz, -limit, limit);
+        b.x = clamp(b.x + ox, -limit, limit);
+        b.z = clamp(b.z + oz, -limit, limit);
+      }
+    }
+
+    // Zombie ↔ human: shove the zombie fully out (leave the human put).
+    this.state.players.forEach((human, id) => {
+      if (this.bots.has(id) || !human.alive) return;
+      for (const z of zombies) {
+        const dx = z.x - human.x;
+        const dz = z.z - human.z;
+        const dist2 = dx * dx + dz * dz;
+        if (dist2 >= minSepSq || dist2 < 1e-8) continue;
+        const d = Math.sqrt(dist2);
+        const push = minSep - d;
+        z.x = clamp(z.x + (dx / d) * push, -limit, limit);
+        z.z = clamp(z.z + (dz / d) * push, -limit, limit);
+      }
+    });
+
+    // Re-resolve cover collisions for any zombie nudged into an obstacle.
+    for (const z of zombies) {
+      const fixed = collideObstacles(z.x, z.z, this.obstacles, PLAYER_RADIUS);
+      z.x = fixed.x;
+      z.z = fixed.z;
+    }
+  }
 
   /** Living human (non-bot) players in the room — waves pause when this hits 0. */
   private countHumans(): number {

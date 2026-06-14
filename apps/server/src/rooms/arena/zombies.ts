@@ -3,7 +3,8 @@ import {
   ZOMBIE_LEVEL_BREAK_MS,
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_SPAWN_BATCH,
-  ZOMBIE_SPAWN_INTERVAL_MS,
+  ZOMBIE_SPAWN_INTERVAL_MAX_MS,
+  ZOMBIE_SPAWN_INTERVAL_MIN_MS,
   zombieHordeSize,
 } from '@arena/shared';
 import type { ArenaContext } from './context.js';
@@ -75,7 +76,7 @@ export class ZombieDirector {
         const batch = Math.min(ZOMBIE_SPAWN_BATCH, this.quota, room);
         for (let i = 0; i < batch; i++) this.hooks.spawnZombie(this.level);
         this.quota -= batch;
-        this.nextSpawnAt = now + ZOMBIE_SPAWN_INTERVAL_MS;
+        this.nextSpawnAt = now + this.randomSpawnDelay();
       }
       // Level cleared: the whole quota has spawned and every zombie is dead.
       if (this.quota === 0 && alive === 0) {
@@ -85,6 +86,12 @@ export class ZombieDirector {
     }
 
     this.publish(this.hooks.aliveZombies());
+  }
+
+  /** A randomized gap until the next spawn pulse, so the horde arrives unevenly. */
+  private randomSpawnDelay(): number {
+    const span = ZOMBIE_SPAWN_INTERVAL_MAX_MS - ZOMBIE_SPAWN_INTERVAL_MIN_MS;
+    return ZOMBIE_SPAWN_INTERVAL_MIN_MS + Math.random() * span;
   }
 
   /** Begin the next level's horde. */
