@@ -17,6 +17,7 @@ import { sendEquipLoadout } from '../network/colyseus';
 export interface Appearance {
   skinId: string;
   dyeId: string;
+  pedestalId: string;
   titleId: string;
 }
 
@@ -67,7 +68,7 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
 
   appearanceFor: (characterClass) => {
     const loadout = classCosmeticsOf(get().byClass, characterClass).loadout;
-    return { skinId: loadout.skinId, dyeId: loadout.dyeId, titleId: loadout.titleId };
+    return { skinId: loadout.skinId, dyeId: loadout.dyeId, pedestalId: loadout.pedestalId, titleId: loadout.titleId };
   },
 
   hydrate: (state) => set({ byClass: sanitizeState(state) }),
@@ -102,7 +103,12 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
     set({ byClass: { ...get().byClass, [characterClass]: { owned: cur.owned, loadout } } });
     // Broadcast live so the town sees it (the editor only ever touches the class
     // the player is currently in-world as).
-    sendEquipLoadout({ skinId: loadout.skinId, dyeId: loadout.dyeId, titleId: loadout.titleId });
+    sendEquipLoadout({
+      skinId: loadout.skinId,
+      dyeId: loadout.dyeId,
+      pedestalId: loadout.pedestalId,
+      titleId: loadout.titleId,
+    });
     scheduleSave(get);
   },
 }));

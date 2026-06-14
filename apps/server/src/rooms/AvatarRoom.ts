@@ -120,6 +120,8 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         player.skinId =
           skin?.type === 'skin' && skin.characterClass === player.characterClass ? skin.id : '';
         player.dyeId = getCosmetic(String(message?.dyeId ?? ''))?.type === 'dye' ? message.dyeId : '';
+        player.pedestalId =
+          getCosmetic(String(message?.pedestalId ?? ''))?.type === 'pedestal' ? message.pedestalId : '';
         player.titleId =
           getCosmetic(String(message?.titleId ?? ''))?.type === 'title' ? message.titleId : '';
       },

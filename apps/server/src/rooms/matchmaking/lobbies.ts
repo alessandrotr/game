@@ -9,6 +9,7 @@ export interface Identity {
   characterClass: string;
   skinId: string;
   dyeId: string;
+  pedestalId: string;
   titleId: string;
   /** The tab/session key, carried into the arena seat reservation. */
   sessionKey: string;

@@ -56,6 +56,7 @@ import {
   resolveClass,
   resolveDyeId,
   resolveName,
+  resolvePedestalId,
   resolveSkinId,
   resolveTitleId,
   type JoinOptions,
@@ -415,6 +416,7 @@ export class ArenaRoom extends AvatarRoom {
     player.characterClass = resolveClass(options);
     player.skinId = resolveSkinId(options);
     player.dyeId = resolveDyeId(options);
+    player.pedestalId = resolvePedestalId(options);
     player.titleId = resolveTitleId(options);
     // Team comes from the matchmaking seat reservation; public arena joins
     // (portal) carry none and default to blue.

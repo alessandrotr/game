@@ -46,6 +46,8 @@ export interface PlayerView {
   skinId: string;
   /** Equipped dye cosmetic id ('' = none) — tints the body. */
   dyeId: string;
+  /** Equipped pedestal cosmetic id ('' = none) — colors the portrait pedestal. */
+  pedestalId: string;
   /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
   titleId: string;
   /** Authoritative animation state; remote clients render this directly. */

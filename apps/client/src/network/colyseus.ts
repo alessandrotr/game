@@ -149,6 +149,7 @@ function snapshotState(state: RawState): {
       characterClass: player.characterClass,
       skinId: player.skinId,
       dyeId: player.dyeId ?? '',
+      pedestalId: player.pedestalId ?? '',
       titleId: player.titleId ?? '',
       animState: player.animState,
       attackTargetId: player.attackTargetId,
@@ -391,6 +392,7 @@ let joinOptions: {
   characterClass: CharacterClass;
   skinId?: string;
   dyeId?: string;
+  pedestalId?: string;
   titleId?: string;
   sessionKey: string;
 } | null = null;
@@ -734,6 +736,7 @@ export async function connectToRoom(
     characterClass,
     skinId: look.skinId,
     dyeId: look.dyeId,
+    pedestalId: look.pedestalId,
     titleId: look.titleId,
     sessionKey: TAB_SESSION,
   };
@@ -907,6 +910,7 @@ export function sendEquipLoadout(look: Appearance): void {
   if (joinOptions) {
     joinOptions.skinId = look.skinId;
     joinOptions.dyeId = look.dyeId;
+    joinOptions.pedestalId = look.pedestalId;
     joinOptions.titleId = look.titleId;
   }
   room?.send(ClientMessage.EquipLoadout, look);

@@ -14,6 +14,7 @@ import {
   resolveClass,
   resolveDyeId,
   resolveName,
+  resolvePedestalId,
   resolveSkinId,
   resolveTitleId,
   sessionKeyOf,
@@ -89,6 +90,7 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
       characterClass: resolveClass(options),
       skinId: resolveSkinId(options),
       dyeId: resolveDyeId(options),
+      pedestalId: resolvePedestalId(options),
       titleId: resolveTitleId(options),
       sessionKey: sessionKeyOf(options),
     });
@@ -181,6 +183,7 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
           characterClass: slot.characterClass,
           skinId: identity?.skinId ?? '',
           dyeId: identity?.dyeId ?? '',
+          pedestalId: identity?.pedestalId ?? '',
           titleId: identity?.titleId ?? '',
           team: slot.team,
           sessionKey: identity?.sessionKey ?? '',

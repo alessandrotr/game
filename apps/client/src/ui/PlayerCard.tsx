@@ -1,8 +1,7 @@
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
-import { classCosmeticsOf, getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
+import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
-import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
 import { Button, Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
@@ -37,7 +36,6 @@ export function PlayerCard() {
   useGameStore((s) => s.tick); // re-render ~20×/s so stats track the server
   const compact = useHudStore((s) => s.playerCardCompact);
   const setCompact = useHudStore((s) => s.setPlayerCardCompact);
-  const byClass = useCosmeticsStore((s) => s.byClass);
   const showCustomize = useCustomizeStore((s) => s.show);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   if (!me) return null;
@@ -45,8 +43,7 @@ export function PlayerCard() {
   const def = getClassDefinition(me.characterClass);
   const { span, into } = xpProgress(me.level, me.xp);
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title')?.text : undefined;
-  const pedestalId = classCosmeticsOf(byClass, me.characterClass).loadout.pedestalId;
-  const pedestalColor = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal')?.color : undefined;
+  const pedestalColor = me.pedestalId ? getCosmeticOfType(me.pedestalId, 'pedestal')?.color : undefined;
   const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
 
   const ToggleButton = (

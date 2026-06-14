@@ -379,6 +379,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         xp: latest.xp,
         kills: latest.kills,
         deaths: latest.deaths,
+        skinId: latest.skinId,
+        dyeId: latest.dyeId,
+        pedestalId: latest.pedestalId,
+        titleId: latest.titleId,
       });
     }
   };

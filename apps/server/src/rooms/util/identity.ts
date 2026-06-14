@@ -21,6 +21,7 @@ export interface JoinOptions {
   characterClass?: string;
   skinId?: string;
   dyeId?: string;
+  pedestalId?: string;
   titleId?: string;
   team?: string;
   sessionKey?: string;
@@ -51,7 +52,7 @@ export function resolveSkinId(options?: JoinOptions): string {
 /** A cosmetic id from join options, accepted only if it's a known cosmetic of
  *  the expected type (else ''). Appearance only — ownership is enforced when the
  *  loadout is persisted over HTTP. */
-function resolveCosmeticId(id: string | undefined, type: 'dye' | 'title'): string {
+function resolveCosmeticId(id: string | undefined, type: 'dye' | 'pedestal' | 'title'): string {
   const clean = String(id ?? '').slice(0, MAX_SKIN_ID_LENGTH);
   return getCosmetic(clean)?.type === type ? clean : '';
 }
@@ -59,6 +60,11 @@ function resolveCosmeticId(id: string | undefined, type: 'dye' | 'title'): strin
 /** The equipped dye cosmetic id, validated against the catalog. */
 export function resolveDyeId(options?: JoinOptions): string {
   return resolveCosmeticId(options?.dyeId, 'dye');
+}
+
+/** The equipped pedestal cosmetic id, validated against the catalog. */
+export function resolvePedestalId(options?: JoinOptions): string {
+  return resolveCosmeticId(options?.pedestalId, 'pedestal');
 }
 
 /** The equipped title cosmetic id, validated against the catalog. */

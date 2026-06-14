@@ -51,6 +51,8 @@ export class Player extends Schema {
   @type('string') skinId = '';
   /** Equipped dye cosmetic id ('' = none) — tints the body. */
   @type('string') dyeId = '';
+  /** Equipped pedestal cosmetic id ('' = none) — colors the portrait pedestal. */
+  @type('string') pedestalId = '';
   /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
   @type('string') titleId = '';
   /**

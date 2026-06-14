@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { getClassDefinition, xpProgress } from '@arena/shared';
+import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
@@ -35,6 +35,10 @@ export function Paperdoll() {
   const def = getClassDefinition(data.characterClass);
   const { span, into } = xpProgress(data.level, data.xp);
   const kd = data.deaths === 0 ? data.kills.toFixed(2) : (data.kills / data.deaths).toFixed(2);
+  const title = data.titleId ? getCosmeticOfType(data.titleId, 'title')?.text : undefined;
+  const pedestalColor = data.pedestalId
+    ? getCosmeticOfType(data.pedestalId, 'pedestal')?.color
+    : undefined;
 
   return (
     <Card variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
@@ -52,6 +56,9 @@ export function Paperdoll() {
             <div className="text-xs font-medium" style={{ color: def.color }}>
               {def.name}
             </div>
+            {title && (
+              <div className="truncate text-[10px] uppercase tracking-wider text-gold/80">{title}</div>
+            )}
           </div>
         </div>
         <IconButton icon={X} onClick={close} aria-label="Close" />
@@ -59,7 +66,12 @@ export function Paperdoll() {
 
       {/* 3D portrait */}
       <div className="relative h-56 border-y border-white/5 bg-black/40">
-        <ClassPreview characterClass={data.characterClass} />
+        <ClassPreview
+          characterClass={data.characterClass}
+          skinId={data.skinId}
+          dyeId={data.dyeId}
+          pedestalColor={pedestalColor}
+        />
         <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
           drag to rotate
         </div>

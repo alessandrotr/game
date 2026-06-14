@@ -10,6 +10,11 @@ export interface PaperdollData {
   xp: number;
   kills: number;
   deaths: number;
+  /** Equipped cosmetics (ids; '' = none) so the portrait reflects their look. */
+  skinId: string;
+  dyeId: string;
+  pedestalId: string;
+  titleId: string;
 }
 
 interface PaperdollStore {
