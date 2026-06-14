@@ -46,13 +46,16 @@ interface ClassPreviewProps {
    *  whole model sits in the upper part of a full-height canvas, leaving the
    *  lower area clear for overlaid UI. */
   align?: 'center' | 'top';
+  /** Skip the opaque canvas background + fog so whatever sits behind the canvas
+   *  (e.g. the live town backdrop) shows through around the model. */
+  transparent?: boolean;
 }
 
 /** Camera + orbit framing per `align` for the full showcase. `'top'` pulls the
  *  camera back so the model reads smaller inside its (shorter) area above the
  *  bottom UI panel. */
 const FRAMING = {
-  center: { position: [0, 1.5, 4] as const, fov: 42, target: [0, 0.95, 0] as const },
+  center: { position: [0, 1.5, 6.8] as const, fov: 40, target: [0, 0.95, 0] as const },
   top: { position: [0, 1.45, 7] as const, fov: 40, target: [0, 0.9, 0] as const },
 };
 
@@ -64,6 +67,7 @@ function ClassPreviewImpl({
   dyeId,
   pedestalId,
   align = 'center',
+  transparent = false,
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -105,8 +109,14 @@ function ClassPreviewImpl({
 
   return (
     <Canvas shadows dpr={[1, 2]} camera={{ position: frame.position, fov: frame.fov }}>
-      <color attach="background" args={['#0a0b12']} />
-      <fog attach="fog" args={['#0a0b12', 6, 16]} />
+      {/* Opaque dark stage by default; skipped when `transparent` so a backdrop
+          (the live town) shows through around the model. */}
+      {!transparent && (
+        <>
+          <color attach="background" args={['#0a0b12']} />
+          <fog attach="fog" args={['#0a0b12', 6, 16]} />
+        </>
+      )}
 
       {/* Lit explicitly (no IBL) — an <Environment> here fetches an HDR from a
           CDN and suspends the whole canvas subtree while it loads, which kept

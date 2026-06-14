@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   Check,
   ChevronRight,
@@ -27,15 +27,13 @@ import {
   type CosmeticType,
   type Loadout,
 } from '@arena/shared';
-import { Canvas } from '@react-three/fiber';
-import { View } from '@react-three/drei';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
-import { Pedestal } from '../render/Pedestal';
+import { registerPedestalThumb } from '../render/pedestalThumbnails';
 import {
   Button,
   Dialog,
@@ -169,6 +167,51 @@ function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   );
 }
 
+/** Real 3D pedestal thumbnail: a `<canvas>` DOM child of the card (so it scrolls
+ *  with the grid) driven by the shared offscreen WebGL renderer — the same shader
+ *  as the big showcase, one context for the whole store. */
+function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const fit = () => {
+      const r = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(r.width * dpr));
+      canvas.height = Math.max(1, Math.round(r.height * dpr));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(canvas);
+    const stop = registerPedestalThumb({ canvas, effect: c.effect ?? 'ring', color: c.color, color2: c.color2 });
+    return () => {
+      ro.disconnect();
+      stop();
+    };
+  }, [c.effect, c.color, c.color2]);
+  return <canvas ref={ref} className="block h-full w-full" />;
+}
+
+/** Title thumbnail — a mini nameplate preview showing how the title reads above
+ *  your name in-game (colored title over the player name + a hint of HP bar). */
+function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
+  const username = useAuthStore((s) => s.username) ?? 'Adventurer';
+  return (
+    <div className="flex flex-col items-center gap-0.5 px-3 text-center">
+      <span
+        className="truncate text-[10px] font-bold uppercase tracking-[0.18em]"
+        style={{ color: c.color, textShadow: `0 0 8px ${c.color}66` }}
+      >
+        {c.text}
+      </span>
+      <span className="max-w-full truncate font-display text-sm tracking-wide text-white">{username}</span>
+      {/* A sliver of health bar to evoke the in-world nameplate. */}
+      <span className="mt-1 h-1 w-14 rounded-full bg-positive/80" />
+    </div>
+  );
+}
+
 /** Modern rarity chip — a gradient pill tinted by the rarity color, with a soft
  *  glow + bevel. Reads instantly without turning the card into a rainbow. */
 function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
@@ -245,7 +288,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
       }}
       aria-pressed={previewing}
       title={`Preview ${c.name}`}
-      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border text-left transition hover:-translate-y-0.5 ${
+      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
         equipped
           ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]'
           : previewing
@@ -253,15 +296,11 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
             : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <div className={`relative grid h-24 place-items-center ${c.type === 'pedestal' ? '' : 'bg-black/20'}`}>
+      <div className="relative grid h-24 place-items-center bg-black/20">
         {c.type === 'pedestal' ? (
-          // Transparent tracked window — the shared store canvas renders the live
-          // 3D pedestal into this rect (one WebGL context for the whole grid).
-          <View className="h-full w-full">
-            <ambientLight intensity={0.95} />
-            <directionalLight position={[2, 4, 3]} intensity={1.2} />
-            <Pedestal effect={c.effect} color={c.color} color2={c.color2} />
-          </View>
+          <PedestalThumb c={c} />
+        ) : c.type === 'title' ? (
+          <TitleThumb c={c} />
         ) : (
           <Swatch c={c} size={52} />
         )}
@@ -280,7 +319,7 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1.5 bg-panel/95 p-3">
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
         <span className="truncate text-sm font-semibold text-text">{c.name}</span>
         <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
           {c.description}
@@ -347,7 +386,6 @@ type StoreFilter = 'all' | CosmeticType;
  *  category sections. "All" shows every section stacked; a filter narrows to one. */
 function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const [filter, setFilter] = useState<StoreFilter>('all');
-  const storeRef = useRef<HTMLDivElement>(null);
   const ownedCount = useCosmeticsStore(
     (s) =>
       classCosmeticsOf(s.byClass, characterClass).owned.filter((id) =>
@@ -384,35 +422,16 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
         </span>
       </div>
 
-      {/* The grid scrolls in front; a single shared canvas sits BEHIND it and
-          renders each pedestal's live 3D into its transparent thumbnail window
-          (one WebGL context for the whole store). `eventSource`/`eventPrefix`
-          tie the <View> coordinate space to this scrolling container so each
-          thumbnail tracks its card on scroll. Camera looks down so the flat disc
-          reads. Positioned via `style` (R3F forces inline `position`). */}
-      <div ref={storeRef} className="relative min-h-0 flex-1">
-        <Canvas
-          eventSource={storeRef as unknown as MutableRefObject<HTMLElement>}
-          eventPrefix="client"
-          camera={{ position: [0, 2.7, 2.4], fov: 34 }}
-          onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
-          dpr={[1, 1.5]}
-          gl={{ alpha: true, antialias: true }}
-          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-        >
-          <View.Port />
-        </Canvas>
-        <div className="absolute inset-0 overflow-y-auto px-5 py-4">
-          {shown.map((cat) => (
-            <CategorySection
-              key={cat.type}
-              type={cat.type}
-              label={cat.label}
-              icon={cat.icon}
-              characterClass={characterClass}
-            />
-          ))}
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {shown.map((cat) => (
+          <CategorySection
+            key={cat.type}
+            type={cat.type}
+            label={cat.label}
+            icon={cat.icon}
+            characterClass={characterClass}
+          />
+        ))}
       </div>
     </div>
   );
@@ -600,7 +619,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const dyeId = preview?.type === 'dye' ? preview.id : loadout.dyeId;
   const pedestalId = preview?.type === 'pedestal' ? preview.id : loadout.pedestalId;
   const titleId = preview?.type === 'title' ? preview.id : loadout.titleId;
-  const title = titleId ? getCosmeticOfType(titleId, 'title')?.text : undefined;
+  const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
   const sessionId = useGameStore.getState().sessionId;
@@ -622,8 +641,11 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
           <LevelBadge level={level} size="md" className="shrink-0" />
           <div className="min-w-0">
             {title && (
-              <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/85">
-                {title}
+              <div
+                className="truncate text-[11px] font-semibold uppercase tracking-[0.18em]"
+                style={{ color: title.color, textShadow: `0 0 8px ${title.color}66` }}
+              >
+                {title.text}
               </div>
             )}
             <div className="truncate font-display text-xl tracking-wide text-white">

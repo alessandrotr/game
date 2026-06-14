@@ -42,7 +42,7 @@ export function PlayerCard() {
 
   const def = getClassDefinition(me.characterClass);
   const { span, into } = xpProgress(me.level, me.xp);
-  const title = me.titleId ? getCosmeticOfType(me.titleId, 'title')?.text : undefined;
+  const title = me.titleId ? getCosmeticOfType(me.titleId, 'title') : undefined;
   const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
 
   const ToggleButton = (
@@ -87,7 +87,9 @@ export function PlayerCard() {
             {def.name} · {def.role}
           </div>
           {title && (
-            <div className="truncate text-[10px] uppercase tracking-wider text-gold/80">{title}</div>
+            <div className="truncate text-[10px] uppercase tracking-wider" style={{ color: title.color }}>
+              {title.text}
+            </div>
           )}
         </div>
         {ToggleButton}

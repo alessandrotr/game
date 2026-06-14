@@ -67,10 +67,12 @@ export interface PedestalCosmetic extends BaseCosmetic {
   effect?: PedestalEffect;
 }
 
-/** A flavor title shown under the player name. */
+/** A flavor title shown under the player name. The `color` tints the title text
+ *  on the nameplate (gray for the base title, brighter for rarer ones). */
 export interface TitleCosmetic extends BaseCosmetic {
   type: 'title';
   text: string;
+  color: string;
 }
 
 export type Cosmetic =
@@ -139,11 +141,12 @@ const PEDESTALS: PedestalCosmetic[] = [
 ];
 
 const TITLES: TitleCosmetic[] = [
-  { id: 'title.novice', type: 'title', text: 'Novice', name: 'Novice', description: 'Everyone starts somewhere.', rarity: 'common', default: true },
-  { id: 'title.gladiator', type: 'title', text: 'Gladiator', name: 'Gladiator', description: 'Blooded in the arena.', rarity: 'common' },
-  { id: 'title.champion', type: 'title', text: 'Champion', name: 'Champion', description: 'A proven victor.', rarity: 'rare' },
-  { id: 'title.warlord', type: 'title', text: 'Warlord', name: 'Warlord', description: 'Feared across the field.', rarity: 'epic' },
-  { id: 'title.legend', type: 'title', text: 'Legend', name: 'Legend', description: 'Spoken of in hushed tones.', rarity: 'legendary' },
+  // Color rises with rarity: gray base → blue → purple → gold.
+  { id: 'title.novice', type: 'title', text: 'Novice', color: '#9aa3b8', name: 'Novice', description: 'Everyone starts somewhere.', rarity: 'common', default: true },
+  { id: 'title.gladiator', type: 'title', text: 'Gladiator', color: '#9aa3b8', name: 'Gladiator', description: 'Blooded in the arena.', rarity: 'common' },
+  { id: 'title.champion', type: 'title', text: 'Champion', color: '#4a8bff', name: 'Champion', description: 'A proven victor.', rarity: 'rare' },
+  { id: 'title.warlord', type: 'title', text: 'Warlord', color: '#9a6cff', name: 'Warlord', description: 'Feared across the field.', rarity: 'epic' },
+  { id: 'title.legend', type: 'title', text: 'Legend', color: '#e8b24a', name: 'Legend', description: 'Spoken of in hushed tones.', rarity: 'legendary' },
 ];
 
 /** The full cosmetics catalog, in display order within each type. */

@@ -103,7 +103,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Equipped title can change live (equip broadcast), so read it reactively —
   // the selector only re-renders this entity when the title id actually changes.
   const titleId = useGameStore((s) => s.players.get(sessionId)?.titleId ?? '');
-  const title = titleId ? getCosmeticOfType(titleId, 'title')?.text : undefined;
+  const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
   // Max HP is constant per class, so this selector only re-renders on a class
   // change — it drives how many segment ticks the floating bar is divided into.
   const maxHp = useGameStore((s) => s.players.get(sessionId)?.maxHp ?? 0);
@@ -483,18 +483,18 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         >
           {player?.name ?? ''}
         </Text>
-        {/* Equipped title, sitting just above the name. */}
+        {/* Equipped title, sitting just above the name (tinted by its rarity). */}
         {title && (
           <Text
             position={[0, 0.56, 0]}
             fontSize={0.2}
-            color="#e8b24a"
+            color={title.color}
             anchorX="center"
             anchorY="bottom"
             outlineWidth={0.015}
             outlineColor="#000000"
           >
-            {title}
+            {title.text}
           </Text>
         )}
       </Billboard>

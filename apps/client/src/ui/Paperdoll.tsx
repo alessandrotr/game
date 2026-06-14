@@ -35,7 +35,7 @@ export function Paperdoll() {
   const def = getClassDefinition(data.characterClass);
   const { span, into } = xpProgress(data.level, data.xp);
   const kd = data.deaths === 0 ? data.kills.toFixed(2) : (data.kills / data.deaths).toFixed(2);
-  const title = data.titleId ? getCosmeticOfType(data.titleId, 'title')?.text : undefined;
+  const title = data.titleId ? getCosmeticOfType(data.titleId, 'title') : undefined;
 
   return (
     <Card variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
@@ -54,7 +54,9 @@ export function Paperdoll() {
               {def.name}
             </div>
             {title && (
-              <div className="truncate text-[10px] uppercase tracking-wider text-gold/80">{title}</div>
+              <div className="truncate text-[10px] uppercase tracking-wider" style={{ color: title.color }}>
+                {title.text}
+              </div>
             )}
           </div>
         </div>
