@@ -456,10 +456,10 @@ export const ZOMBIE_SKIN_ID = 'skin.zombie';
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */
 export const ZOMBIE_FIRST_DELAY_MS = 3000;
-/** A zombie strike lands on a randomized interval in this range (ms) — fast,
- *  frantic swings rather than the slow class auto-attack timer. */
-export const ZOMBIE_ATTACK_MIN_MS = 200;
-export const ZOMBIE_ATTACK_MAX_MS = 400;
+/** A zombie strike lands on a randomized interval in this range (ms) — slow,
+ *  lumbering swings on its own erratic cadence (not the class auto-attack timer). */
+export const ZOMBIE_ATTACK_MIN_MS = 1000;
+export const ZOMBIE_ATTACK_MAX_MS = 2000;
 /** A zombie's base health (level 1). Low — hordes are a threat by numbers. */
 export const ZOMBIE_BASE_HP = 45;
 /** Added to a zombie's health per level, so later hordes are also tougher. */
