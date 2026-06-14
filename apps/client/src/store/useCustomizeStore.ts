@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /** Which tab the customization hub opens to. */
-export type CustomizeTab = 'profile' | 'customize' | 'store';
+export type CustomizeTab = 'profile' | 'store';
 
 interface CustomizeStore {
   open: boolean;

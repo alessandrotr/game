@@ -456,58 +456,6 @@ function SingleSlot({
   );
 }
 
-/** Tab content: live loadout editor for the current class. */
-function CustomizeContent({ characterClass }: { characterClass: CharacterClass }) {
-  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
-  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
-  const setTab = useCustomizeStore((s) => s.setTab);
-  const browse = () => setTab('store');
-  const clearSlot = (patch: Partial<Loadout>) => useCosmeticsStore.getState().equip(characterClass, patch);
-
-  const ownedEmotes = cosmeticsOfType('emote').filter((c) => owned.includes(c.id));
-
-  return (
-    <div className="overflow-y-auto px-5 py-4">
-      <SingleSlot
-        title="Pedestal"
-        icon={Footprints}
-        type="pedestal"
-        characterClass={characterClass}
-        equippedId={loadout.pedestalId}
-        onClear={() => clearSlot({ pedestalId: '' })}
-        onBrowse={browse}
-      />
-      <SingleSlot
-        title="Title"
-        icon={Tag}
-        type="title"
-        characterClass={characterClass}
-        equippedId={loadout.titleId}
-        onClear={() => clearSlot({ titleId: '' })}
-        onBrowse={browse}
-      />
-
-      <section>
-        <SlotHeader title={`Emotes · keys 1–${MAX_EMOTE_SLOTS}`} icon={Smile} onBrowse={browse} />
-        {ownedEmotes.length === 0 ? (
-          <EmptySlot onBrowse={browse} />
-        ) : (
-          <>
-            <p className="mb-2 text-[11px] text-muted">
-              Tap to bind in order — the slot number is the key you press in-game.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {ownedEmotes.map((c) => (
-                <OptionTile key={c.id} c={c} characterClass={characterClass} />
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Shared left showcase (avatar + identity) — same across all tabs.
 // ---------------------------------------------------------------------------
@@ -534,14 +482,29 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 }
 
 // ---------------------------------------------------------------------------
-// Profile
+// Profile — career stats + appearance editor for the current class
 // ---------------------------------------------------------------------------
+
+/** A section divider with a heading (e.g. "Appearance"). */
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-3 mt-6 flex items-center gap-2.5">
+      <span className="font-display text-[11px] uppercase tracking-[0.22em] text-gold/80">{children}</span>
+      <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
+    </div>
+  );
+}
 
 function ProfileContent({ characterClass }: { characterClass: CharacterClass }) {
   const progress = useAuthStore((s) => s.progress);
   const sessionId = useGameStore((s) => s.sessionId);
   useGameStore((s) => s.tick); // keep live stats fresh
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
+  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
+  const setTab = useCustomizeStore((s) => s.setTab);
+  const browse = () => setTab('store');
+  const clearSlot = (patch: Partial<Loadout>) => useCosmeticsStore.getState().equip(characterClass, patch);
 
   const def = getClassDefinition(characterClass);
   const record = progress.find((p) => p.characterClass === characterClass);
@@ -550,9 +513,11 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
   const deaths = me?.deaths ?? record?.deaths ?? 0;
   const { span, into } = xpProgress(level, me?.xp ?? record?.xp ?? 0);
   const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+  const ownedEmotes = cosmeticsOfType('emote').filter((c) => owned.includes(c.id));
 
   return (
     <div className="overflow-y-auto px-5 py-4">
+      {/* Identity + career stats. */}
       <div className="flex items-center gap-3">
         <LevelBadge level={level} size="md" />
         <div className="min-w-0">
@@ -588,6 +553,44 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
           <StatTile label="Losses" value={record.losses} color={STAT_COLORS.negative} />
         </div>
       )}
+
+      {/* Appearance — equip what this character owns (browse the Store for more). */}
+      <GroupHeading>Appearance</GroupHeading>
+      <SingleSlot
+        title="Pedestal"
+        icon={Footprints}
+        type="pedestal"
+        characterClass={characterClass}
+        equippedId={loadout.pedestalId}
+        onClear={() => clearSlot({ pedestalId: '' })}
+        onBrowse={browse}
+      />
+      <SingleSlot
+        title="Title"
+        icon={Tag}
+        type="title"
+        characterClass={characterClass}
+        equippedId={loadout.titleId}
+        onClear={() => clearSlot({ titleId: '' })}
+        onBrowse={browse}
+      />
+      <section>
+        <SlotHeader title={`Emotes · keys 1–${MAX_EMOTE_SLOTS}`} icon={Smile} onBrowse={browse} />
+        {ownedEmotes.length === 0 ? (
+          <EmptySlot onBrowse={browse} />
+        ) : (
+          <>
+            <p className="mb-2 text-[11px] text-muted">
+              Tap to bind in order — the slot number is the key you press in-game.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {ownedEmotes.map((c) => (
+                <OptionTile key={c.id} c={c} characterClass={characterClass} />
+              ))}
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -598,15 +601,14 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
 
 const TABS: { id: CustomizeTab; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profile', icon: User },
-  { id: 'customize', label: 'Customize', icon: Sparkles },
   { id: 'store', label: 'Store', icon: ShoppingBag },
 ];
 
 /**
  * The player's customization & store hub: a large modal opened from the town
  * player card. A persistent left showcase (your live avatar + identity) sits
- * beside the active tab — Profile (career stats), Customize (loadout editor),
- * or Store (browse & unlock). Cosmetics are owned and equipped **per class**, so
+ * beside the active tab — Profile (career stats + appearance editor) or Store
+ * (browse & unlock). Cosmetics are owned and equipped **per class**, so
  * everything here is scoped to the character you're currently playing. Equipping
  * is immediate: it broadcasts live to the town and persists to the account.
  */
@@ -654,12 +656,10 @@ export function CustomizePanel() {
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
           <Showcase characterClass={characterClass} />
           <div className="flex min-h-0 flex-col">
-            {tab === 'profile' ? (
-              <ProfileContent characterClass={characterClass} />
-            ) : tab === 'customize' ? (
-              <CustomizeContent characterClass={characterClass} />
-            ) : (
+            {tab === 'store' ? (
               <StoreContent characterClass={characterClass} />
+            ) : (
+              <ProfileContent characterClass={characterClass} />
             )}
           </div>
         </div>
