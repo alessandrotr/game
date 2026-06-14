@@ -6,10 +6,13 @@ import {
   allProgress,
   createAccount,
   EmailTakenError,
+  ensureGuestAccount,
   findByEmail,
+  findGuestId,
   getProgress,
   recordResult,
   topPlayers,
+  upgradeGuest,
 } from './players';
 
 /** Register a test account with a throwaway password hash. */
@@ -101,6 +104,38 @@ describe('player repository (pg-mem)', () => {
     const all = await allProgress(db, p.id);
     expect(all.map((r) => r.characterClass).sort()).toEqual(['mage', 'warrior']);
     expect(all.find((r) => r.characterClass === 'mage')).toMatchObject({ xp: 500, kills: 3 });
+  });
+
+  it('ensureGuestAccount creates a row once and is idempotent per gid', async () => {
+    const id = await ensureGuestAccount(db, 'gid-1', 'Guest-AAAA');
+    // Same gid resolves to the same row (no duplicate created).
+    expect(await ensureGuestAccount(db, 'gid-1', 'Guest-AAAA')).toBe(id);
+    expect(await findGuestId(db, 'gid-1')).toBe(id);
+    // An unknown gid has no row yet (read-only — nothing created).
+    expect(await findGuestId(db, 'gid-unknown')).toBeNull();
+  });
+
+  it('upgradeGuest converts the guest row in place, keeping its id and progress', async () => {
+    const id = await ensureGuestAccount(db, 'gid-2', 'Guest-BBBB');
+    await recordResult(db, id, 'mage', { xp: 250, kills: 4, deaths: 1, wins: 1, losses: 0 });
+
+    const upgraded = await upgradeGuest(db, id, 'claimed@example.com', 'RealName', 'salt:hash');
+    expect(upgraded.id).toBe(id); // same row → progress carries over
+    expect(upgraded.username).toBe('RealName');
+
+    // Now a normal account: findable by email, no longer a guest.
+    const found = await findByEmail(db, 'claimed@example.com');
+    expect(found?.id).toBe(id);
+    expect(await findGuestId(db, 'gid-2')).toBeNull(); // guest_id cleared
+    expect(await getProgress(db, id, 'mage')).toMatchObject({ xp: 250, kills: 4 });
+  });
+
+  it('upgradeGuest rejects an email already registered to another account', async () => {
+    await account(db, 'taken@example.com', 'Owner');
+    const id = await ensureGuestAccount(db, 'gid-3', 'Guest-CCCC');
+    await expect(
+      upgradeGuest(db, id, 'taken@example.com', 'Imposter', 'salt:hash'),
+    ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it('topPlayers ranks by wins then xp, one row per player+class', async () => {

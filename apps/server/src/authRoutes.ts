@@ -6,15 +6,21 @@ import {
   allProgress,
   createAccount,
   EmailTakenError,
+  ensureGuestAccount,
   findByEmail,
+  findGuestId,
   touchLastSeen,
+  upgradeGuest,
 } from './db/players.js';
 import {
   cleanUsername,
   hashPassword,
   isValidEmail,
+  newGuestId,
   normalizeEmail,
   PASSWORD_MIN,
+  randomGuestName,
+  signGuestToken,
   signToken,
   verifyPassword,
   verifyToken,
@@ -28,7 +34,76 @@ import {
 export function registerAuthRoutes(app: Express): void {
   app.post('/auth/register', (req, res) => void register(req, res));
   app.post('/auth/login', (req, res) => void login(req, res));
+  app.post('/auth/guest', (req, res) => guest(req, res));
+  app.patch('/auth/upgrade', (req, res) => void upgrade(req, res));
   app.get('/auth/me', (req, res) => void me(req, res));
+}
+
+/**
+ * Start a guest session. Issues a signed guest token immediately but writes
+ * nothing to the database — the `players` row is created lazily on the guest's
+ * first match (so idle visitors never create rows). Registration later upgrades
+ * that same row in place, keeping any progress earned as a guest.
+ */
+function guest(_req: Request, res: Response): void {
+  const name = randomGuestName();
+  res.status(201).json({ token: signGuestToken(newGuestId(), name), username: name, progress: [], guest: true });
+}
+
+/**
+ * Upgrade the current guest session into a full account: attach email/username/
+ * password to the guest's (possibly not-yet-created) row, keeping its id and all
+ * progress. Requires a valid guest token; a registered account token is rejected.
+ */
+async function upgrade(req: Request, res: Response): Promise<void> {
+  const db = getPool();
+  if (!db) {
+    res.status(503).json({ error: 'Accounts are unavailable (no database configured).' });
+    return;
+  }
+  const claims = verifyToken(bearer(req));
+  if (!claims) {
+    res.status(401).json({ error: 'Session expired — please sign in again.' });
+    return;
+  }
+  if (!claims.guest || !claims.gid) {
+    res.status(409).json({ error: 'This session is already a registered account.' });
+    return;
+  }
+
+  const email = normalizeEmail(req.body?.email);
+  const username = cleanUsername(req.body?.username);
+  const password = String(req.body?.password ?? '');
+  if (!isValidEmail(email)) {
+    res.status(400).json({ error: 'Enter a valid email address.' });
+    return;
+  }
+  if (!username) {
+    res.status(400).json({ error: 'Display name must be 2–24 characters.' });
+    return;
+  }
+  if (password.length < PASSWORD_MIN) {
+    res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN} characters.` });
+    return;
+  }
+
+  try {
+    const pid = await ensureGuestAccount(db, claims.gid, claims.name);
+    const acc = await upgradeGuest(db, pid, email, username, hashPassword(password));
+    const progress = await allProgress(db, acc.id).catch(() => []);
+    res.json(result(acc.id, acc.username, progress));
+  } catch (err) {
+    if (err instanceof EmailTakenError) {
+      res.status(409).json({ error: 'That email is already registered.' });
+      return;
+    }
+    captureServerError(err, {
+      message: '[auth] guest upgrade failed:',
+      tags: { where: 'auth.upgrade' },
+      user: { email, username, ip_address: req.ip },
+    });
+    res.status(500).json({ error: 'Could not create your account. Try again.' });
+  }
 }
 
 async function register(req: Request, res: Response): Promise<void> {
@@ -108,13 +183,21 @@ async function me(req: Request, res: Response): Promise<void> {
     return;
   }
   const db = getPool();
-  const progress = db ? await allProgress(db, claims.pid).catch(() => []) : [];
-  res.json(result(claims.pid, claims.name, progress));
+  if (claims.guest && claims.gid) {
+    // Resume a guest session: look up their row read-only (it exists only if
+    // they've played a match) so we can replay any earned progress.
+    const pid = db ? await findGuestId(db, claims.gid).catch(() => null) : null;
+    const progress = pid !== null && db ? await allProgress(db, pid).catch(() => []) : [];
+    res.json({ token: signGuestToken(claims.gid, claims.name), username: claims.name, progress, guest: true });
+    return;
+  }
+  const progress = db && claims.pid !== undefined ? await allProgress(db, claims.pid).catch(() => []) : [];
+  res.json(result(claims.pid!, claims.name, progress));
 }
 
-/** Build the standard auth response (issues a fresh token). */
+/** Build the standard auth response (issues a fresh account token). */
 function result(pid: number, username: string, progress: AuthResult['progress']): AuthResult {
-  return { token: signToken(pid, username), username, progress };
+  return { token: signToken(pid, username), username, progress, guest: false };
 }
 
 /** Extract a Bearer token from the Authorization header. */

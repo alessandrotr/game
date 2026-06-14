@@ -26,19 +26,29 @@ export abstract class BaseGameRoom<TState extends object> extends Room<TState> {
    */
   protected enforceSingleSession(client: Client, options?: JoinOptions): TokenClaims | null {
     const claims = verifyToken(options?.token);
-    if (claims?.pid !== undefined) {
-      tagClientAccount(client, claims.pid);
-      // Cross-tab supersede (other rooms too): close the previous tab's sockets.
-      for (const stale of registerSession(claims.pid, sessionKeyOf(options), client)) {
-        stale.leave(SESSION_SUPERSEDED);
-      }
-      // In-room duplicate: tear down its presence NOW (no lingering ghost), close it.
-      for (const dupe of findRoomDuplicates(this, claims.pid, client)) {
-        this.removeClient(dupe);
-        dupe.leave(SESSION_SUPERSEDED);
-      }
-    }
+    // Registered accounts bind immediately. Guests have no account id until their
+    // row is created on first match — the arena binds them then (see ArenaRoom).
+    if (claims?.pid !== undefined) this.bindAccountSession(client, claims.pid, options);
     return claims;
+  }
+
+  /**
+   * Bind a connection to its account for single-session enforcement: tag it,
+   * supersede the account's previous tab (closing its sockets), and evict any
+   * duplicate of this account already in the room. Called for registered
+   * accounts on join, and for a guest once their row is resolved on first match.
+   */
+  protected bindAccountSession(client: Client, pid: number, options?: JoinOptions): void {
+    tagClientAccount(client, pid);
+    // Cross-tab supersede (other rooms too): close the previous tab's sockets.
+    for (const stale of registerSession(pid, sessionKeyOf(options), client)) {
+      stale.leave(SESSION_SUPERSEDED);
+    }
+    // In-room duplicate: tear down its presence NOW (no lingering ghost), close it.
+    for (const dupe of findRoomDuplicates(this, pid, client)) {
+      this.removeClient(dupe);
+      dupe.leave(SESSION_SUPERSEDED);
+    }
   }
 
   override onLeave(client: Client): void {

@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import type { ClassProgressView } from '@arena/shared';
-import { decodeToken, fetchMe, loginAccount, registerAccount } from '../network/auth';
+import {
+  decodeToken,
+  fetchMe,
+  guestLogin,
+  loginAccount,
+  registerAccount,
+  upgradeAccount as upgradeAccountRequest,
+} from '../network/auth';
 import { setTelemetryUser } from '../network/telemetry';
 
 const TOKEN_KEY = 'arena.auth.token';
@@ -38,6 +45,8 @@ interface AuthStore {
   status: AuthStatus;
   token: string | null;
   username: string | null;
+  /** True while signed in as a guest (drives the in-game "save progress" CTA). */
+  guest: boolean;
   /** Per-class progression for the signed-in account (drives char-select levels). */
   progress: ClassProgressView[];
   /** Async-in-flight flag for the auth form (login/register button). */
@@ -47,13 +56,19 @@ interface AuthStore {
   restore: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, username: string, password: string) => Promise<void>;
+  /** Start a guest session (temporary account, progress saved on first match). */
+  signInAsGuest: () => Promise<void>;
+  /** Convert the current guest session into a full account, keeping progress.
+   *  Resolves on success and rejects on failure (so the form can stay open). */
+  upgradeAccount: (email: string, username: string, password: string) => Promise<void>;
   signOut: () => void;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   status: 'restoring',
   token: null,
   username: null,
+  guest: false,
   progress: [],
   busy: false,
   error: null,
@@ -68,12 +83,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const me = await fetchMe(token);
       saveToken(me.token);
       tagTelemetryUser(me.token, me.username);
-      set({ status: 'authed', token: me.token, username: me.username, progress: me.progress });
+      set({
+        status: 'authed',
+        token: me.token,
+        username: me.username,
+        guest: me.guest ?? false,
+        progress: me.progress,
+      });
     } catch {
       // Token invalid/expired or server unreachable — fall back to the form.
       saveToken(null);
       setTelemetryUser(null);
-      set({ status: 'idle', token: null, username: null, progress: [] });
+      set({ status: 'idle', token: null, username: null, guest: false, progress: [] });
     }
   },
 
@@ -87,6 +108,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
         status: 'authed',
         token: res.token,
         username: res.username,
+        guest: false,
         progress: res.progress,
         busy: false,
       });
@@ -105,6 +127,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
         status: 'authed',
         token: res.token,
         username: res.username,
+        guest: false,
         progress: res.progress,
         busy: false,
       });
@@ -113,9 +136,50 @@ export const useAuthStore = create<AuthStore>((set) => ({
     }
   },
 
+  signInAsGuest: async () => {
+    set({ busy: true, error: null });
+    try {
+      const res = await guestLogin();
+      saveToken(res.token);
+      tagTelemetryUser(res.token, res.username);
+      set({
+        status: 'authed',
+        token: res.token,
+        username: res.username,
+        guest: res.guest ?? true,
+        progress: res.progress,
+        busy: false,
+      });
+    } catch (err) {
+      set({ busy: false, error: err instanceof Error ? err.message : 'Could not start a guest session.' });
+    }
+  },
+
+  upgradeAccount: async (email, username, password) => {
+    const token = get().token;
+    if (!token) throw new Error('Not signed in.');
+    set({ busy: true, error: null });
+    try {
+      const res = await upgradeAccountRequest(token, email, username, password);
+      saveToken(res.token);
+      tagTelemetryUser(res.token, res.username);
+      set({
+        status: 'authed',
+        token: res.token,
+        username: res.username,
+        guest: false,
+        progress: res.progress,
+        busy: false,
+      });
+    } catch (err) {
+      set({ busy: false, error: err instanceof Error ? err.message : 'Could not create your account.' });
+      throw err; // let the dialog keep itself open on failure
+    }
+  },
+
   signOut: () => {
     saveToken(null);
     setTelemetryUser(null);
-    set({ status: 'idle', token: null, username: null, progress: [], error: null });
+    set({ status: 'idle', token: null, username: null, guest: false, progress: [], error: null });
   },
 }));

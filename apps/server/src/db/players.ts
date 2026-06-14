@@ -72,6 +72,68 @@ export async function createAccount(
   }
 }
 
+/**
+ * Resolve a guest's persistent player id, creating the row on first use (their
+ * first match). Guest rows carry no email/password (`is_guest = true`) and are
+ * keyed by the random `gid` from the guest token. Registration later upgrades
+ * the same row in place ({@link upgradeGuest}), so progress earned as a guest is
+ * preserved.
+ */
+export async function ensureGuestAccount(q: Queryable, gid: string, name: string): Promise<number> {
+  const existing = await findGuestId(q, gid);
+  if (existing !== null) return existing;
+  try {
+    const created = await q.query(
+      'INSERT INTO players (username, is_guest, guest_id) VALUES ($1, true, $2) RETURNING id',
+      [name, gid],
+    );
+    return num(created.rows[0]!.id);
+  } catch (err) {
+    // Lost the insert race for this gid (e.g. two tabs entering at once) — re-read.
+    const raced = await findGuestId(q, gid);
+    if (raced !== null) return raced;
+    throw err;
+  }
+}
+
+/** The player id backing a guest's `gid`, or null if they have no row yet (never
+ *  entered a match). Read-only — never creates a row. */
+export async function findGuestId(q: Queryable, gid: string): Promise<number | null> {
+  const res = await q.query('SELECT id FROM players WHERE guest_id = $1', [gid]);
+  const row = res.rows[0];
+  return row ? num(row.id) : null;
+}
+
+/**
+ * Upgrade a guest row into a full account in place: attach email/username/
+ * password and clear the guest flag. The `id` is unchanged, so all class
+ * progress earned as a guest carries over. Throws {@link EmailTakenError} if the
+ * email already belongs to another account.
+ */
+export async function upgradeGuest(
+  q: Queryable,
+  playerId: number,
+  email: string,
+  username: string,
+  passwordHash: string,
+): Promise<AccountRow> {
+  if (await findByEmail(q, email)) throw new EmailTakenError();
+  try {
+    const updated = await q.query(
+      `UPDATE players
+          SET email = $2, username = $3, password_hash = $4, is_guest = false, guest_id = NULL
+        WHERE id = $1
+        RETURNING id, username`,
+      [playerId, email, username, passwordHash],
+    );
+    const row = updated.rows[0]!;
+    return { id: num(row.id), username: String(row.username) };
+  } catch (err) {
+    if (await findByEmail(q, email)) throw new EmailTakenError();
+    throw err;
+  }
+}
+
 /** Look up an account by (normalized) email, including its password hash. */
 export async function findByEmail(q: Queryable, email: string): Promise<AccountWithSecret | null> {
   const res = await q.query(

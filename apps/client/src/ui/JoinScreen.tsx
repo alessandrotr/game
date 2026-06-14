@@ -1,4 +1,4 @@
-import { type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Diamond, Loader2 } from 'lucide-react';
 import { getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
@@ -10,6 +10,7 @@ import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
 import { Button, LevelBadge } from './primitives';
 import { ScreenHeader } from './ScreenHeader';
+import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 
 /** Difficulty pips (UO-flavored). */
 function Difficulty({ level }: { level: number }) {
@@ -33,8 +34,10 @@ export function JoinScreen() {
   const error = useGameStore((s) => s.error);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
   const username = useAuthStore((s) => s.username);
+  const guest = useAuthStore((s) => s.guest);
   const signOut = useAuthStore((s) => s.signOut);
   const progress = useAuthStore((s) => s.progress);
+  const [upgrading, setUpgrading] = useState(false);
 
   const connecting = status === 'connecting';
   const def = getClassDefinition(selectedClass);
@@ -62,10 +65,21 @@ export function JoinScreen() {
           <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted sm:absolute sm:right-0 sm:top-1 sm:mt-0">
             <AudioControl />
             <span>
-              Signed in as <span className="font-semibold text-text">{username}</span>
+              {guest ? (
+                'Playing as guest'
+              ) : (
+                <>
+                  Signed in as <span className="font-semibold text-text">{username}</span>
+                </>
+              )}
             </span>
+            {guest && (
+              <Button variant="gold" size="sm" onClick={() => setUpgrading(true)}>
+                Save progress
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={signOut}>
-              Sign out
+              {guest ? 'Exit' : 'Sign out'}
             </Button>
           </div>
         </ScreenHeader>
@@ -125,6 +139,8 @@ export function JoinScreen() {
           </section>
         </div>
       </div>
+
+      {guest && <UpgradeAccountDialog open={upgrading} onOpenChange={setUpgrading} />}
     </div>
   );
 }

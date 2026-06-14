@@ -27,11 +27,16 @@ export function databaseEnabled(): boolean {
  * display handle and `password_hash` is a salted scrypt hash.
  */
 export const SCHEMA: readonly string[] = [
+  // email/password_hash are nullable so guests (is_guest = true, keyed by the
+  // random guest_id) can exist without credentials until they register, which
+  // upgrades the row in place — see db/players.ts:ensureGuestAccount/upgradeGuest.
   `CREATE TABLE IF NOT EXISTS players (
      id SERIAL PRIMARY KEY,
-     email TEXT NOT NULL UNIQUE,
+     email TEXT UNIQUE,
      username TEXT NOT NULL,
-     password_hash TEXT NOT NULL,
+     password_hash TEXT,
+     is_guest BOOLEAN NOT NULL DEFAULT false,
+     guest_id TEXT UNIQUE,
      camera_prefs JSONB,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -78,6 +83,14 @@ const LEGACY_MIGRATIONS: readonly string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS players_email_key ON players(lower(email)) WHERE email IS NOT NULL`,
   // Per-account UI prefs (camera locks). Added to existing account tables.
   `ALTER TABLE players ADD COLUMN IF NOT EXISTS camera_prefs JSONB`,
+  // Guest accounts: a temporary identity (no email/password) created lazily on a
+  // guest's first match, upgraded in place when they register. email/password
+  // become nullable so guest rows can exist without credentials.
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS guest_id TEXT`,
+  `ALTER TABLE players ALTER COLUMN email DROP NOT NULL`,
+  `ALTER TABLE players ALTER COLUMN password_hash DROP NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS players_guest_id_key ON players(guest_id) WHERE guest_id IS NOT NULL`,
 ];
 
 /** Create the tables if they don't exist, then apply legacy fixups. */

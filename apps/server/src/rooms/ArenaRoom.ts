@@ -62,7 +62,8 @@ import { ZombieDirector } from './arena/zombies.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
-import { verifyToken } from '../auth.js';
+import { verifyToken, type TokenClaims } from '../auth.js';
+import { ensureGuestAccount } from '../db/players.js';
 
 /** Upper bound on practice bots a room will host at once. */
 const MAX_BOTS = 8;
@@ -386,18 +387,31 @@ export class ArenaRoom extends AvatarRoom {
 
     // Load persisted progression for this account + class (async; sets the
     // replicated `level` and starts a stats accumulator). No-op without a valid
-    // token or a database.
-    void this.loadProfile(client.sessionId, claims?.pid, player.characterClass);
+    // token or a database. Guests get their account row created here — the arena
+    // is their "first match" — and bound for single-session enforcement.
+    void this.loadProfile(client, claims, options, player.characterClass);
   }
 
-  /** Load this account's class progression (identity comes from the token). */
+  /** Load this account's class progression (identity comes from the token).
+   *  For a guest, lazily create their `players` row (this is their first match)
+   *  and bind the session, then load progress exactly like a registered account. */
   private async loadProfile(
-    sessionId: string,
-    playerId: number | undefined,
+    client: Client,
+    claims: TokenClaims | null,
+    options: JoinOptions | undefined,
     characterClass: string,
   ): Promise<void> {
     const db = getPool();
-    if (!db || playerId === undefined) return;
+    if (!db || !claims) return;
+    const sessionId = client.sessionId;
+    let playerId = claims.pid;
+    if (playerId === undefined && claims.guest && claims.gid) {
+      playerId = await ensureGuestAccount(db, claims.gid, claims.name);
+      // The guest now has an account id — enforce single-session like any account
+      // (skipped at join time because there was no id yet).
+      this.bindAccountSession(client, playerId, options);
+    }
+    if (playerId === undefined) return;
     try {
       const { profile, progress } = await fetchProfile(db, playerId, characterClass);
       this.profiles.set(sessionId, profile);

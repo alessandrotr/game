@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from 'express';
+import { DEFAULT_CAMERA_PREFS } from '@arena/shared';
 import { getPool } from './db/database.js';
 import { getCameraPrefs, saveCameraPrefs, sanitizeCameraPrefs } from './db/prefs.js';
 import { verifyToken } from './auth.js';
@@ -25,6 +26,11 @@ async function getCamera(req: Request, res: Response): Promise<void> {
     res.status(401).json({ error: 'Session expired — please sign in again.' });
     return;
   }
+  // Camera prefs live on the account row; a guest (no account id) gets defaults.
+  if (claims.pid === undefined) {
+    res.json({ ...DEFAULT_CAMERA_PREFS });
+    return;
+  }
   const db = getPool();
   if (!db) {
     res.status(503).json({ error: 'Accounts are unavailable (no database configured).' });
@@ -44,12 +50,17 @@ async function putCamera(req: Request, res: Response): Promise<void> {
     res.status(401).json({ error: 'Session expired — please sign in again.' });
     return;
   }
+  const prefs = sanitizeCameraPrefs(req.body);
+  // Guests have no account row to persist to — accept and echo without saving.
+  if (claims.pid === undefined) {
+    res.json(prefs);
+    return;
+  }
   const db = getPool();
   if (!db) {
     res.status(503).json({ error: 'Accounts are unavailable (no database configured).' });
     return;
   }
-  const prefs = sanitizeCameraPrefs(req.body);
   try {
     await saveCameraPrefs(db, claims.pid, prefs);
     res.json(prefs); // echo the stored (sanitized) prefs

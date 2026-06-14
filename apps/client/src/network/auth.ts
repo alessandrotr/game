@@ -42,6 +42,27 @@ export function loginAccount(email: string, password: string): Promise<AuthResul
   return post('/auth/login', { email, password });
 }
 
+/** Start a guest session — a temporary account with no email/password. The
+ *  server persists nothing until the guest plays a match (and then registers). */
+export function guestLogin(): Promise<AuthResult> {
+  return post('/auth/guest', {});
+}
+
+/** Upgrade the current guest session into a full account, keeping its progress.
+ *  Authenticated with the guest's own token. */
+export function upgradeAccount(
+  token: string,
+  email: string,
+  username: string,
+  password: string,
+): Promise<AuthResult> {
+  return request('/auth/upgrade', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email, username, password }),
+  });
+}
+
 /** Validate a stored token and refresh username + progress (session resume). */
 export function fetchMe(token: string): Promise<AuthResult> {
   return request('/auth/me', { method: 'GET', headers: { Authorization: `Bearer ${token}` } });

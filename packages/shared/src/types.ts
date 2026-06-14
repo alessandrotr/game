@@ -163,6 +163,8 @@ export interface AuthResult {
   token: string;
   username: string;
   progress: ClassProgressView[];
+  /** True when this is a guest session (temporary identity, not yet registered). */
+  guest?: boolean;
 }
 
 /**

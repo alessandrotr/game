@@ -20,6 +20,7 @@ export function AuthScreen({ onBack }: { onBack?: () => void }) {
   const error = useAuthStore((s) => s.error);
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
+  const signInAsGuest = useAuthStore((s) => s.signInAsGuest);
 
   const isRegister = mode === 'register';
 
@@ -110,6 +111,27 @@ export function AuthScreen({ onBack }: { onBack?: () => void }) {
             </div>
           )}
         </form>
+
+        {/* Guest entry: jump straight in with a throwaway account. Progress is
+            saved from the first match and can be claimed later by registering. */}
+        <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-muted">
+          <span className="h-px flex-1 bg-white/10" />
+          or
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          disabled={busy}
+          onClick={() => void signInAsGuest()}
+          className="w-full tracking-[0.15em]"
+        >
+          CONTINUE AS GUEST
+        </Button>
+        <p className="mt-2 text-center text-[12px] text-muted">
+          Play now — keep your progress later by creating an account.
+        </p>
       </div>
     </div>
   );

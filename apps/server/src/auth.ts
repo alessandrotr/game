@@ -44,10 +44,17 @@ export function verifyPassword(password: string, stored: string): boolean {
 // --- Session tokens --------------------------------------------------------
 
 export interface TokenClaims {
-  /** Account (player) id. */
-  pid: number;
+  /** Account (player) id. Present for registered accounts; absent for guests who
+   *  haven't been persisted yet (they carry {@link TokenClaims.gid} instead, and
+   *  get a row lazily on their first match). */
+  pid?: number;
+  /** Guest identity — a random, unguessable id keyed to the (eventual) `players`
+   *  row. Present (with `guest: true`) only for not-yet-registered guests. */
+  gid?: string;
   /** Display name, embedded so rooms get an authoritative name without a DB hit. */
   name: string;
+  /** True for a guest session (a temporary identity with no email/password). */
+  guest: boolean;
 }
 
 /** Issue a signed session token carrying the account id + display name. */
@@ -57,6 +64,27 @@ export function signToken(pid: number, name: string): string {
   );
   const sig = createHmac('sha256', SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
+}
+
+/** Issue a signed session token for a guest. Keyed by a random guest id rather
+ *  than an account id — the `players` row is created lazily on their first match
+ *  ({@link signToken} takes over once they register). */
+export function signGuestToken(gid: string, name: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ gid, name, guest: true, exp: Date.now() + TOKEN_TTL_MS }),
+  ).toString('base64url');
+  const sig = createHmac('sha256', SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+/** A random, unguessable guest identifier (carried in the guest token). */
+export function newGuestId(): string {
+  return randomBytes(16).toString('hex');
+}
+
+/** A friendly throwaway display name like `Guest-7F3A`. */
+export function randomGuestName(): string {
+  return `Guest-${randomBytes(2).toString('hex').toUpperCase()}`;
 }
 
 /** Verify a token's signature + expiry. Returns the claims, or null if invalid. */
@@ -73,12 +101,18 @@ export function verifyToken(token: string | undefined | null): TokenClaims | nul
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
       pid?: unknown;
+      gid?: unknown;
       name?: unknown;
+      guest?: unknown;
       exp?: unknown;
     };
-    if (typeof data.pid !== 'number' || typeof data.exp !== 'number') return null;
-    if (data.exp < Date.now()) return null;
-    return { pid: data.pid, name: String(data.name ?? '') };
+    if (typeof data.exp !== 'number' || data.exp < Date.now()) return null;
+    const name = String(data.name ?? '');
+    if (data.guest === true && typeof data.gid === 'string') {
+      return { gid: data.gid, name, guest: true };
+    }
+    if (typeof data.pid === 'number') return { pid: data.pid, name, guest: false };
+    return null;
   } catch {
     return null;
   }

@@ -18,11 +18,11 @@ import { AvatarRoom } from './AvatarRoom.js';
 import { reviveFull } from '../combat.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
-import { getProgress, topPlayers } from '../db/players.js';
+import { findGuestId, getProgress, topPlayers } from '../db/players.js';
 import { resolveClass, resolveName, resolveSkinId, type JoinOptions } from './util/identity.js';
 import { applyGravity, stepMove } from './util/locomotion.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
-import { verifyToken } from '../auth.js';
+import { verifyToken, type TokenClaims } from '../auth.js';
 
 /** Where players appear when entering town (matches the town map's spawn zone). */
 const TOWN_SPAWN = { x: 0, z: 12 };
@@ -133,17 +133,24 @@ export class TownRoom extends AvatarRoom {
     // Show the account's persisted progression for this class in town too (the
     // HUD reads level/xp/kills/deaths). Town is non-combat, so this is display
     // only — nothing here mutates or saves it.
-    void this.loadProgress(client.sessionId, claims?.pid, player.characterClass);
+    void this.loadProgress(client.sessionId, claims, player.characterClass);
   }
 
-  /** Seed the replicated career totals from the DB so the town HUD isn't 1/0/0. */
+  /** Seed the replicated career totals from the DB so the town HUD isn't 1/0/0.
+   *  For a guest this is read-only — it shows progress only if their row already
+   *  exists (from a prior match) and never creates one (that happens in the arena). */
   private async loadProgress(
     sessionId: string,
-    playerId: number | undefined,
+    claims: TokenClaims | null,
     characterClass: string,
   ): Promise<void> {
     const db = getPool();
-    if (!db || playerId === undefined) return;
+    if (!db || !claims) return;
+    let playerId = claims.pid;
+    if (playerId === undefined && claims.guest && claims.gid) {
+      playerId = (await findGuestId(db, claims.gid)) ?? undefined;
+    }
+    if (playerId === undefined) return;
     try {
       const progress = await getProgress(db, playerId, characterClass);
       const player = this.state.players.get(sessionId);

@@ -3,7 +3,10 @@ import {
   cleanUsername,
   hashPassword,
   isValidEmail,
+  newGuestId,
   normalizeEmail,
+  randomGuestName,
+  signGuestToken,
   signToken,
   verifyPassword,
   verifyToken,
@@ -26,9 +29,14 @@ describe('password hashing', () => {
 });
 
 describe('session tokens', () => {
-  it('round-trips claims through sign/verify', () => {
+  it('round-trips account claims through sign/verify', () => {
     const token = signToken(42, 'Gandalf');
-    expect(verifyToken(token)).toEqual({ pid: 42, name: 'Gandalf' });
+    expect(verifyToken(token)).toEqual({ pid: 42, name: 'Gandalf', guest: false });
+  });
+
+  it('round-trips guest claims (gid, no pid)', () => {
+    const token = signGuestToken('abc123', 'Guest-7F3A');
+    expect(verifyToken(token)).toEqual({ gid: 'abc123', name: 'Guest-7F3A', guest: true });
   });
 
   it('rejects tampered or malformed tokens', () => {
@@ -36,6 +44,11 @@ describe('session tokens', () => {
     expect(verifyToken(token + 'x')).toBeNull();
     expect(verifyToken('garbage')).toBeNull();
     expect(verifyToken(undefined)).toBeNull();
+  });
+
+  it('generates distinct guest ids and Guest-prefixed names', () => {
+    expect(newGuestId()).not.toBe(newGuestId());
+    expect(randomGuestName()).toMatch(/^Guest-[0-9A-F]{4}$/);
   });
 });
 

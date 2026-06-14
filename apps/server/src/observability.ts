@@ -30,7 +30,8 @@ export function userFromClaims(
   ip?: string,
 ): ErrorUser | undefined {
   if (!claims) return ip ? { ip_address: ip } : undefined;
-  return { id: String(claims.pid), username: claims.name, ip_address: ip };
+  const id = claims.pid !== undefined ? String(claims.pid) : claims.gid;
+  return { id, username: claims.name, ip_address: ip };
 }
 
 /** Log + capture a caught server error, tagged with where it happened plus any
