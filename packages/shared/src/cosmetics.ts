@@ -52,10 +52,19 @@ export interface DyeCosmetic extends BaseCosmetic {
   recolor?: Record<string, string>;
 }
 
-/** The glowing rune circle under the avatar in the portrait. */
+/** Visual style of a pedestal — the client maps each to a (shader) renderer.
+ *  `ring` is the plain glowing rune circle; the rest are animated effects. */
+export type PedestalEffect = 'ring' | 'pulse' | 'aurora' | 'holo' | 'vortex' | 'prism';
+
+/** The glowing circle under the avatar in the portrait. */
 export interface PedestalCosmetic extends BaseCosmetic {
   type: 'pedestal';
+  /** Primary color. */
   color: string;
+  /** Secondary color, for multi-tone effects (aurora/vortex gradients). */
+  color2?: string;
+  /** Visual style (defaults to `ring`). */
+  effect?: PedestalEffect;
 }
 
 /** A flavor title shown under the player name. */
@@ -116,11 +125,17 @@ const EMOTES: EmoteCosmetic[] = [
 ];
 
 const PEDESTALS: PedestalCosmetic[] = [
-  { id: 'pedestal.gold', type: 'pedestal', color: '#e8b24a', name: 'Golden Rune', description: 'A warm gilded ring.', rarity: 'rare' },
-  { id: 'pedestal.crimson', type: 'pedestal', color: '#d6435a', name: 'Crimson Rune', description: 'A smoldering red circle.', rarity: 'common' },
-  { id: 'pedestal.azure', type: 'pedestal', color: '#4a8bff', name: 'Azure Rune', description: 'A glacial blue circle.', rarity: 'common' },
-  { id: 'pedestal.emerald', type: 'pedestal', color: '#3fb87a', name: 'Emerald Rune', description: 'A living green circle.', rarity: 'common' },
-  { id: 'pedestal.violet', type: 'pedestal', color: '#9a6cff', name: 'Arcane Rune', description: 'A humming violet circle.', rarity: 'epic' },
+  // Plain glowing runes (cheap, classic).
+  { id: 'pedestal.gold', type: 'pedestal', effect: 'ring', color: '#e8b24a', name: 'Golden Rune', description: 'A warm gilded ring.', rarity: 'common' },
+  { id: 'pedestal.crimson', type: 'pedestal', effect: 'ring', color: '#d6435a', name: 'Crimson Rune', description: 'A smoldering red circle.', rarity: 'common' },
+  { id: 'pedestal.azure', type: 'pedestal', effect: 'ring', color: '#4a8bff', name: 'Azure Rune', description: 'A glacial blue circle.', rarity: 'common' },
+  { id: 'pedestal.emerald', type: 'pedestal', effect: 'ring', color: '#3fb87a', name: 'Emerald Rune', description: 'A living green circle.', rarity: 'common' },
+  // Animated, shader-driven showpieces.
+  { id: 'pedestal.pulse', type: 'pedestal', effect: 'pulse', color: '#22e1ff', name: 'Pulse Core', description: 'Concentric energy waves ripple outward beneath you.', rarity: 'rare' },
+  { id: 'pedestal.holo', type: 'pedestal', effect: 'holo', color: '#27e0c8', name: 'Hologrid', description: 'A flickering holographic deck of scanlines.', rarity: 'rare' },
+  { id: 'pedestal.aurora', type: 'pedestal', effect: 'aurora', color: '#3fb87a', color2: '#4a8bff', name: 'Aurora Veil', description: 'Northern lights drift in a slow ribbon.', rarity: 'epic' },
+  { id: 'pedestal.vortex', type: 'pedestal', effect: 'vortex', color: '#9a6cff', color2: '#ff4d8d', name: 'Singularity', description: 'A spiral of light winds into the core.', rarity: 'legendary' },
+  { id: 'pedestal.prism', type: 'pedestal', effect: 'prism', color: '#ff4d8d', name: 'Prismatica', description: 'A rotating spectrum of pure, shifting color.', rarity: 'legendary' },
 ];
 
 const TITLES: TitleCosmetic[] = [

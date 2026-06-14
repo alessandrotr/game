@@ -36,9 +36,6 @@ export function Paperdoll() {
   const { span, into } = xpProgress(data.level, data.xp);
   const kd = data.deaths === 0 ? data.kills.toFixed(2) : (data.kills / data.deaths).toFixed(2);
   const title = data.titleId ? getCosmeticOfType(data.titleId, 'title')?.text : undefined;
-  const pedestalColor = data.pedestalId
-    ? getCosmeticOfType(data.pedestalId, 'pedestal')?.color
-    : undefined;
 
   return (
     <Card variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
@@ -70,7 +67,7 @@ export function Paperdoll() {
           characterClass={data.characterClass}
           skinId={data.skinId}
           dyeId={data.dyeId}
-          pedestalColor={pedestalColor}
+          pedestalId={data.pedestalId}
         />
         <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
           drag to rotate

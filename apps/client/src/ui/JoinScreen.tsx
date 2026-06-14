@@ -1,6 +1,6 @@
 import { type FormEvent } from 'react';
 import { Diamond, Loader2 } from 'lucide-react';
-import { classCosmeticsOf, getClassDefinition, getCosmeticOfType } from '@arena/shared';
+import { classCosmeticsOf, getClassDefinition } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
@@ -49,9 +49,6 @@ export function JoinScreen() {
   // Reflect the selected class's equipped look (skin / dye / pedestal).
   const byClass = useCosmeticsStore((s) => s.byClass);
   const loadout = classCosmeticsOf(byClass, selectedClass).loadout;
-  const pedestalColor = loadout.pedestalId
-    ? getCosmeticOfType(loadout.pedestalId, 'pedestal')?.color
-    : undefined;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -105,7 +102,7 @@ export function JoinScreen() {
               characterClass={selectedClass}
               skinId={loadout.skinId}
               dyeId={loadout.dyeId}
-              pedestalColor={pedestalColor}
+              pedestalId={loadout.pedestalId}
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5">
               <div className="flex items-end justify-between gap-3">

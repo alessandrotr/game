@@ -540,9 +540,6 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const progress = useAuthStore((s) => s.progress);
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const def = getClassDefinition(characterClass);
-  const pedestal = loadout.pedestalId
-    ? getCosmeticOfType(loadout.pedestalId, 'pedestal')
-    : undefined;
   const title = loadout.titleId ? getCosmeticOfType(loadout.titleId, 'title')?.text : undefined;
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
@@ -558,7 +555,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
         characterClass={characterClass}
         skinId={loadout.skinId}
         dyeId={loadout.dyeId}
-        pedestalColor={pedestal?.color}
+        pedestalId={loadout.pedestalId}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
         <div className="flex items-center gap-3">

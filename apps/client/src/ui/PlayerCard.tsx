@@ -43,7 +43,6 @@ export function PlayerCard() {
   const def = getClassDefinition(me.characterClass);
   const { span, into } = xpProgress(me.level, me.xp);
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title')?.text : undefined;
-  const pedestalColor = me.pedestalId ? getCosmeticOfType(me.pedestalId, 'pedestal')?.color : undefined;
   const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
 
   const ToggleButton = (
@@ -100,7 +99,7 @@ export function PlayerCard() {
           characterClass={me.characterClass}
           skinId={me.skinId}
           dyeId={me.dyeId}
-          pedestalColor={pedestalColor}
+          pedestalId={me.pedestalId}
           lite
         />
       </div>

@@ -2,10 +2,14 @@ import { memo, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
-import { type CharacterClass } from '@arena/shared';
+import { getCosmeticOfType, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
+import { Pedestal } from '../render/Pedestal';
+
+/** Default pedestal color when nothing is equipped (neutral gray, every class). */
+const DEFAULT_PEDESTAL_COLOR = '#8b91a8';
 
 /** Slowly spins its children about Y (used for the lite HUD portrait, which has
  *  no OrbitControls). */
@@ -15,26 +19,6 @@ function Spin({ children }: { children: React.ReactNode }) {
     if (ref.current) ref.current.rotation.y += dt * 0.6;
   });
   return <group ref={ref}>{children}</group>;
-}
-
-/** Glowing rune pedestal the champion stands on (Ultima-style circle). */
-function Pedestal({ color }: { color: string }) {
-  return (
-    <group>
-      <mesh position={[0, -0.05, 0]} receiveShadow>
-        <cylinderGeometry args={[1.35, 1.5, 0.1, 64]} />
-        <meshStandardMaterial color="#14151d" metalness={0.5} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.12, 1.32, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.85} />
-      </mesh>
-      <mesh position={[0, 0.011, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.95, 1, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.4} />
-      </mesh>
-    </group>
-  );
 }
 
 /**
@@ -54,8 +38,9 @@ interface ClassPreviewProps {
   skinId?: string;
   /** Equipped/previewed dye cosmetic id (tints the body). */
   dyeId?: string;
-  /** Override the pedestal ring color (defaults to the class color). */
-  pedestalColor?: string;
+  /** Equipped/previewed pedestal cosmetic id (drives its color + shader effect).
+   *  Defaults to a neutral gray ring when absent. */
+  pedestalId?: string;
 }
 
 function ClassPreviewImpl({
@@ -64,7 +49,7 @@ function ClassPreviewImpl({
   spin = true,
   skinId,
   dyeId,
-  pedestalColor,
+  pedestalId,
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -72,9 +57,12 @@ function ClassPreviewImpl({
     () => resolveCharacter(selected, skinId, dyeId),
     [selected, skinId, dyeId],
   );
-  // Default pedestal is a neutral gray for every class; an equipped pedestal
-  // cosmetic (or an explicit override) recolors it.
-  const pedestal = pedestalColor ?? '#8b91a8';
+  // Resolve the equipped pedestal (color + shader effect); a neutral gray ring
+  // is the default for every class when nothing is equipped.
+  const ped = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal') : undefined;
+  const pedColor = ped?.color ?? DEFAULT_PEDESTAL_COLOR;
+  const pedEffect = ped?.effect ?? 'ring';
+  const pedColor2 = ped?.color2;
 
   if (lite) {
     const bust = (
@@ -82,7 +70,7 @@ function ClassPreviewImpl({
         <group key={selected}>
           <CharacterModel descriptor={descriptor} />
         </group>
-        <Pedestal color={pedestal} />
+        <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       </>
     );
     return (
@@ -123,7 +111,7 @@ function ClassPreviewImpl({
       <group key={selected}>
         <CharacterModel descriptor={descriptor} />
       </group>
-      <Pedestal color={pedestal} />
+      <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={6} blur={2.4} far={4} />
 
       <OrbitControls
