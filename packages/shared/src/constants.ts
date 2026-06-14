@@ -452,6 +452,22 @@ export const ZOMBIE_SPEED = 4;
 /** Zombies speed up by 1 unit/s every this many levels (so the shamble ramps
  *  toward a genuine chase as the run wears on). */
 export const ZOMBIE_SPEED_LEVEL_STEP = 4;
+/** Per-zombie speed is jittered by ±this (world units/s, rolled at spawn) so a
+ *  horde doesn't move as one block — some shamble, some lunge ahead. */
+export const ZOMBIE_SPEED_JITTER = 1;
+
+// --- Chase wander: zombies steer off the straight line to their prey so they
+//     fan out and take varied paths instead of funneling into one tight stream
+//     (the offset shrinks to nothing as they close to attack range, so they
+//     still converge to strike). Re-rolled occasionally → a new path now and then.
+/** Max steering angle off the bee-line to the target, in radians (~34°). */
+export const ZOMBIE_WANDER_MAX_RAD = 0.6;
+/** Distance (world units) over which the wander ramps in: full at this far out,
+ *  zero at attack range, so they only spread while genuinely chasing. */
+export const ZOMBIE_WANDER_FALLOFF = 8;
+/** A zombie re-picks its wander bias on a randomized interval in this range (ms). */
+export const ZOMBIE_WANDER_REROLL_MIN_MS = 1500;
+export const ZOMBIE_WANDER_REROLL_MAX_MS = 4000;
 /** XP a player earns for killing a zombie — far less than a player kill
  *  ({@link XP_PER_KILL}), so grinding hordes doesn't trivialise progression. */
 export const ZOMBIE_XP_PER_KILL = 10;
@@ -464,7 +480,7 @@ export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 export const ZOMBIE_FIRST_DELAY_MS = 3000;
 /** A zombie strike lands on a randomized interval in this range (ms) — slow,
  *  lumbering swings on its own erratic cadence (not the class auto-attack timer). */
-export const ZOMBIE_ATTACK_MIN_MS = 2000;
+export const ZOMBIE_ATTACK_MIN_MS = 800;
 export const ZOMBIE_ATTACK_MAX_MS = 3500;
 /** Wind-up before a zombie's FIRST swing after reaching its prey, in ms — so it
  *  doesn't bite the instant it's in range (it rears back, giving a beat to react

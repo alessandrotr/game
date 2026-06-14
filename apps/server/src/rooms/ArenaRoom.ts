@@ -21,6 +21,11 @@ import {
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MODE,
   ZOMBIE_SKIN_ID,
+  ZOMBIE_SPEED_JITTER,
+  ZOMBIE_WANDER_FALLOFF,
+  ZOMBIE_WANDER_MAX_RAD,
+  ZOMBIE_WANDER_REROLL_MAX_MS,
+  ZOMBIE_WANDER_REROLL_MIN_MS,
   zombieHealthForLevel,
   zombieMaxAlive,
   zombieSpeedForLevel,
@@ -159,6 +164,10 @@ export class ArenaRoom extends AvatarRoom {
   /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
    *  it at (a brief linger so the death pose plays before it vanishes). */
   private readonly zombieCorpseAt = new Map<string, number>();
+  /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
+   *  lateral chase-wander bias that re-rolls on its own clock — so a horde spreads
+   *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
+  private readonly zombieAi = new Map<string, { speedOffset: number; wander: number; wanderUntil: number }>();
 
   /** This match's live collision set for movement and projectiles: static cover
    *  (scrap) plus a circle for every alive destructible structure. Mutated by the
@@ -747,16 +756,38 @@ export class ArenaRoom extends AvatarRoom {
     if (dist > cfg.range) {
       // Chase: walk toward the target, stopping right at attack range (slows/
       // hastes scale the chase speed, same as locomotion). Zombies chase at
-      // their own fixed pace; everyone else uses their class walk speed.
+      // their own (jittered) pace and steer off the bee-line so the horde fans
+      // out; everyone else heads straight at class walk speed.
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
       const isZombie = this.zombieMode && this.bots.has(sessionId);
-      const baseSpeed = isZombie
-        ? zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1)
-        : this.tuning.walkSpeedFor(attacker.characterClass);
+      let baseSpeed: number;
+      let cdx = ndx;
+      let cdz = ndz;
+      if (isZombie) {
+        const ai = this.zombieAiFor(sessionId);
+        baseSpeed = Math.max(
+          1,
+          zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) + ai.speedOffset,
+        );
+        // Steer off the straight line by a wander angle that ramps with distance
+        // (full when far, zero at attack range) so they spread while chasing but
+        // still converge to strike. Re-roll the bias on the AI's own clock.
+        if (this.simTime >= ai.wanderUntil) {
+          ai.wander = Math.random() * 2 - 1;
+          ai.wanderUntil = this.simTime + this.rollWanderInterval();
+        }
+        const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
+        const ang = Math.atan2(ndx, ndz) + ai.wander * ZOMBIE_WANDER_MAX_RAD * ramp;
+        cdx = Math.sin(ang);
+        cdz = Math.cos(ang);
+        attacker.rotation = ang; // face where it's actually heading
+      } else {
+        baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass);
+      }
       const speed = baseSpeed * moveSpeedMultiplier(attacker);
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
-      attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
-      attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
+      attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
+      attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
       // Out of range: re-arm a zombie's first-swing wind-up so it can't bite the
       // instant it closes back in (the in-range branch sees no timer → winds up).
       if (isZombie) this.attackReadyAt.delete(sessionId);
@@ -1073,6 +1104,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackReadyAt.delete(id);
     this.displacements.delete(id);
     this.zombieCorpseAt.delete(id);
+    this.zombieAi.delete(id);
     this.bots.delete(id);
   }
 
@@ -1164,6 +1196,29 @@ export class ArenaRoom extends AvatarRoom {
     return n;
   }
 
+  /** This zombie's movement personality (lazily created — covers any spawned
+   *  before this map existed, though `spawnZombie` seeds it). */
+  private zombieAiFor(id: string): { speedOffset: number; wander: number; wanderUntil: number } {
+    let ai = this.zombieAi.get(id);
+    if (!ai) {
+      ai = {
+        speedOffset: (Math.random() * 2 - 1) * ZOMBIE_SPEED_JITTER,
+        wander: Math.random() * 2 - 1,
+        wanderUntil: this.simTime + this.rollWanderInterval(),
+      };
+      this.zombieAi.set(id, ai);
+    }
+    return ai;
+  }
+
+  /** A randomized gap until a zombie next re-picks its wander path. */
+  private rollWanderInterval(): number {
+    return (
+      ZOMBIE_WANDER_REROLL_MIN_MS +
+      Math.random() * (ZOMBIE_WANDER_REROLL_MAX_MS - ZOMBIE_WANDER_REROLL_MIN_MS)
+    );
+  }
+
   /** Spawn one zombie for `level`: a red-team melee bot that pours out of the
    *  arena portal with level-scaled health and a relentless-chaser AI profile.
    *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
@@ -1194,5 +1249,6 @@ export class ArenaRoom extends AvatarRoom {
     this.grounded.set(id, true);
     this.cooldowns.set(id, {});
     this.bots.set(id, makeZombieProfile());
+    this.zombieAiFor(id); // roll this zombie's speed/wander personality
   }
 }
