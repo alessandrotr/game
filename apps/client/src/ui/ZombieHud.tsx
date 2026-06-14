@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Skull } from 'lucide-react';
+import { Heart, Skull, Zap } from 'lucide-react';
 import {
   ZOMBIE_FIRST_DELAY_MS,
   ZOMBIE_LEVEL_BREAK_MS,
+  zombieHealthForLevel,
   zombieHordeSize,
+  zombieSpeedForLevel,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { HudZone } from './hud/HudLayout';
@@ -44,6 +46,9 @@ export function ZombieHud() {
   const displayLevel = warming ? 1 : level;
   // Threat ramps the closing-in readout from caution → alarm as the pack grows.
   const heavy = alive >= 14;
+  // Current difficulty stats for this wave (so the player can read the ramp).
+  const speed = zombieSpeedForLevel(displayLevel);
+  const hp = zombieHealthForLevel(displayLevel);
 
   return (
     <HudZone zone="top-center">
@@ -113,28 +118,40 @@ export function ZombieHud() {
                 </div>
               </div>
 
-              {/* Live threat readout. */}
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className="relative flex h-2 w-2 items-center justify-center">
-                  <span
-                    className="absolute inline-flex h-2 w-2 rounded-full"
-                    style={{
-                      background: THREAT,
-                      animation: `threat-pulse ${heavy ? 0.7 : 1.1}s ease-in-out infinite`,
-                    }}
-                  />
-                </span>
-                <span
-                  className="text-[11px] font-bold uppercase tracking-wide tabular-nums"
-                  style={{ color: heavy ? THREAT : '#ffb4b4' }}
-                >
-                  {alive} closing in
-                </span>
-                {heavy && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#ff7a7a]/70">
-                    · swarm!
+              {/* Live threat readout (left) + current difficulty stats (right). */}
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2 items-center justify-center">
+                    <span
+                      className="absolute inline-flex h-2 w-2 rounded-full"
+                      style={{
+                        background: THREAT,
+                        animation: `threat-pulse ${heavy ? 0.7 : 1.1}s ease-in-out infinite`,
+                      }}
+                    />
                   </span>
-                )}
+                  <span
+                    className="text-[11px] font-bold uppercase tracking-wide tabular-nums"
+                    style={{ color: heavy ? THREAT : '#ffb4b4' }}
+                  >
+                    {alive} closing in
+                  </span>
+                  {heavy && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-negative/70">
+                      · swarm!
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2.5 text-[9px] font-bold uppercase tracking-wider tabular-nums text-white/45">
+                  <span className="flex items-center gap-1" title="Zombie move speed">
+                    <Zap size={9} aria-hidden="true" style={{ color: `${TOX}aa` }} />
+                    {speed}
+                  </span>
+                  <span className="flex items-center gap-1" title="Zombie health">
+                    <Heart size={9} aria-hidden="true" style={{ color: `${THREAT}aa` }} />
+                    {hp}
+                  </span>
+                </div>
               </div>
             </>
           ) : (
@@ -213,6 +230,10 @@ export function WaveAnnouncement() {
 
   if (!zombieMode || !shown) return null;
   const total = zombieHordeSize(shown.level);
+  // Difficulty milestones reached at THIS wave (vs the one before), so the player
+  // is told when the horde just got harder — speed steps up every few levels;
+  // tougher (more HP) and bigger (more concurrent) ramp every wave.
+  const speedUp = zombieSpeedForLevel(shown.level) > zombieSpeedForLevel(shown.level - 1);
 
   return (
     <div
@@ -246,6 +267,18 @@ export function WaveAnnouncement() {
         >
           {total} undead approaching
         </div>
+        {speedUp && (
+          <div
+            className="mt-2 flex items-center gap-1.5 rounded-full border border-gold/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-gold"
+            style={{
+              textShadow: '0 0 12px rgba(200,162,74,0.6)',
+              animation: 'threat-pulse 0.5s ease-in-out 4',
+            }}
+          >
+            <Zap size={13} aria-hidden="true" />
+            The horde is faster
+          </div>
+        )}
       </div>
     </div>
   );
