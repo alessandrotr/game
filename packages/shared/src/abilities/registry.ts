@@ -102,14 +102,14 @@ export const ABILITY_REGISTRY = {
     manaCost: 100,
     castTimeMs: 0,
     range: 16,
-    damage: 55,
+    damage: 65,
     aoeRadius: 4,
     effects: [
       {
         type: 'aoe',
         at: 'point',
         radius: 4,
-        onHit: [{ type: 'damage', amount: 55 }],
+        onHit: [{ type: 'damage', amount: 65 }],
       },
     ],
   },
@@ -165,7 +165,7 @@ export const ABILITY_REGISTRY = {
     name: 'Charge',
     icon: 'Wind',
     aim: 'direction',
-    cooldownMs: 5000,
+    cooldownMs: 3500,
     manaCost: 20,
     castTimeMs: 0,
     range: 12,
@@ -219,16 +219,16 @@ export const ABILITY_REGISTRY = {
     cooldownMs: 2000,
     manaCost: 20,
     castTimeMs: 0,
-    range: 34,
+    range: 36,
     damage: 12,
-    projectileSpeed: 35,
-    projectileRange: 34,
+    projectileSpeed: 40,
+    projectileRange: 36,
     projectileRadius: 0.6,
     effects: [
       {
         type: 'projectile',
-        speed: 35,
-        range: 34,
+        speed: 40,
+        range: 36,
         radius: 0.6,
         vfx: 'power_shot',
         onHit: [{ type: 'damage', amount: 12 }],
@@ -315,12 +315,12 @@ export const ABILITY_REGISTRY = {
     manaCost: 30,
     castTimeMs: 0,
     range: 16,
-    damage: 24,
-    healAmount: 16,
+    damage: 26,
+    healAmount: 4,
     aoeRadius: 2,
     effects: [
-      { type: 'aoe', at: 'point', radius: 2, onHit: [{ type: 'damage', amount: 24 }] },
-      { type: 'heal_allies', at: 'point', radius: 2, amount: 16 },
+      { type: 'aoe', at: 'point', radius: 2, onHit: [{ type: 'damage', amount: 26 }] },
+      { type: 'heal_allies', at: 'point', radius: 2, amount: 4 },
     ],
   },
   // W — Sanctuary: a damaging field that follows the priest for 3s.
@@ -333,11 +333,11 @@ export const ABILITY_REGISTRY = {
     manaCost: 60,
     castTimeMs: 0,
     range: 3,
-    damage: 4,
+    damage: 6,
     aoeRadius: 3,
     effects: [
-      // A self `field` status: ticks 4 to enemies within radius 3 every 0.5s for 3s.
-      { type: 'status', status: { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 4, magnitude: 3 } },
+      // A self `field` status: ticks 6 to enemies within radius 3 every 0.5s for 3s.
+      { type: 'status', status: { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 6, magnitude: 3 } },
     ],
   },
   // E — Blessing: a shield, plus +20 damage on the priest's NEXT Smite (Q only).
@@ -365,8 +365,8 @@ export const ABILITY_REGISTRY = {
     manaCost: 100,
     castTimeMs: 0,
     range: 18,
-    damage: 5,
-    // A sustained beam: an 18-long, 1-wide ray that deals 5 damage every 0.2s for
+    damage: 6,
+    // A sustained beam: an 18-long, 1-wide ray that deals 6 damage every 0.2s for
     // 3s (a target is hit the instant it enters, then each tick). The priest may
     // move and re-aim with the mouse while channelling, but can't cast anything
     // else; re-pressing R interrupts it. Handled by the server's channel system
