@@ -196,6 +196,30 @@ export class DestructibleSystem {
     }
   }
 
+  /** Shove + damage every destructible inside a beam capsule — a ray from
+   *  (ox,oz) along (dx,dz) of `length`, `halfWidth` wide. Each body is hit at most
+   *  once per call (unlike repeatedly sampling {@link pushInRadius}). */
+  damageInBeam(
+    ox: number,
+    oz: number,
+    dx: number,
+    dz: number,
+    length: number,
+    halfWidth: number,
+    fromId: string,
+    amount: number,
+  ): void {
+    for (const body of [...this.bodies.values()]) {
+      if (body.category === 'tire' && body.spent) continue;
+      const rx = body.obj.x - ox;
+      const rz = body.obj.z - oz;
+      const along = rx * dx + rz * dz;
+      if (along < 0 || along > length) continue;
+      const perp = Math.abs(rx * dz - rz * dx); // (dx,dz) is unit → perpendicular distance
+      if (perp <= halfWidth + body.radius) this.impact(body, ox, oz, dx, dz, fromId, amount);
+    }
+  }
+
   /** Resolve one impact: tires scatter their whole stack once; drums take a
    *  single clamped shove (repeatable after a cooldown) AND lose `amount` HP,
    *  being destroyed when it runs out. */

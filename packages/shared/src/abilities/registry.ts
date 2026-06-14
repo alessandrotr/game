@@ -367,15 +367,16 @@ export const ABILITY_REGISTRY = {
     cooldownMs: 12000,
     manaCost: 100,
     castTimeMs: 0,
-    range: 12,
+    range: 18,
     damage: 12,
-    // A sustained beam: a 12-long, 0.6-wide ray that ticks 12 damage every 0.5s
-    // for 3s. The priest may move and re-aim with the mouse while channelling,
-    // but can't cast anything else; re-pressing R interrupts it. Handled by the
-    // server's channel system (not the instant effect executor), so no `effects`.
+    // A sustained beam: an 18-long, 1-wide ray that deals 12 the instant it hits
+    // a target, then 12 every 0.5s for 3s. The priest may move and re-aim with the
+    // mouse while channelling, but can't cast anything else; re-pressing R
+    // interrupts it. Handled by the server's channel system (not the instant
+    // effect executor), so no `effects`.
     channelMs: 3000,
     channelTickMs: 500,
-    beamWidth: 0.6,
+    beamWidth: 1,
     effects: [],
   },
 } satisfies Record<string, AbilityDef>;
