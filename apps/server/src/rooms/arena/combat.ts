@@ -63,20 +63,38 @@ export class CombatSystem {
     this.cover = cover;
   }
 
-  /** Damage a cover structure by id (auto-attack / melee). */
-  damageStructure(id: string, amount: number): void {
-    this.cover.damage(id, amount);
+  /** Damage a cover structure by id (auto-attack / melee). `(dirX,dirZ)` is the
+   *  hit direction — shoves a car along it (ignored by static cover). */
+  damageStructure(id: string, amount: number, dirX = 0, dirZ = 0): void {
+    this.cover.damage(id, amount, dirX, dirZ);
   }
 
   /** Damage the first alive cover structure a projectile at (x,z) overlaps.
-   *  Returns true if one was hit (the caller consumes the projectile). */
-  hitStructure(x: number, z: number, projR: number, amount: number): boolean {
-    return this.cover.hitProjectile(x, z, projR, amount);
+   *  `(dirX,dirZ)` is the projectile's travel direction (shoves cars). Returns
+   *  true if one was hit (the caller consumes the projectile). */
+  hitStructure(x: number, z: number, projR: number, amount: number, dirX = 0, dirZ = 0): boolean {
+    return this.cover.hitProjectile(x, z, projR, amount, dirX, dirZ);
   }
 
   /** Launch a struck barrel away from the hit (projectile / auto-attack). */
   triggerBarrel(barrel: Barrel, dirX: number, dirZ: number, fromId: string): void {
     this.barrels.trigger(barrel, dirX, dirZ, fromId);
+  }
+
+  /** Detonate/launch every burning barrel within `radius` of (x,z). */
+  triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void {
+    this.barrels.triggerInRadius(x, z, radius, fromId);
+  }
+
+  /** Shove (and chip) every destructible drum/tire within `radius` of (x,z). */
+  pushDestructiblesInRadius(
+    x: number,
+    z: number,
+    radius: number,
+    fromId: string,
+    amount = 0,
+  ): void {
+    this.destructibles.pushInRadius(x, z, radius, fromId, amount);
   }
 
   /** Try to hit a destructible with a projectile at (px,pz). Returns true if a

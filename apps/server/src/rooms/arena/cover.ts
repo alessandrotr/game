@@ -1,5 +1,11 @@
 import { type Collider } from '@dimforge/rapier3d-compat';
-import { PLAYER_RADIUS, ServerMessage, type ArenaObstacle, type CoverStructureSpec } from '@arena/shared';
+import {
+  ARENA_HALF_SIZE,
+  PLAYER_RADIUS,
+  ServerMessage,
+  type ArenaObstacle,
+  type CoverStructureSpec,
+} from '@arena/shared';
 import { CoverStructure } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
@@ -9,7 +15,29 @@ import type { ArenaPhysics } from './physics.js';
 const CAR_EXPLOSION_DAMAGE = 100;
 const CAR_EXPLOSION_RADIUS = 5;
 
-/** True for car cover (the only structure that explodes when destroyed). */
+// --- Car kinematics: cars roll when shot ------------------------------------
+// A car sits on wheels, so a hit shoves it instead of just chipping it. The hit
+// direction is split onto the car's long axis (front↔back) and its side axis;
+// it rolls freely along the long axis but barely budges sideways (tyres resist
+// a lateral skid). The car keeps its own velocity, which the room integrates
+// each tick with rolling friction until it coasts to a stop.
+/** Velocity (u/s) a reference-damage hit adds when it lands square on the nose/tail. */
+const CAR_HIT_SPEED = 4.6;
+/** Damage that maps to a full-strength shove; smaller/bigger hits scale around it. */
+const CAR_PUSH_REF_DMG = 30;
+/** Push-strength clamp so a huge nuke can't fling a car across the map. */
+const CAR_MAX_PUSH_SCALE = 1.6;
+/** Anisotropy: rolls fully along its length, only a fraction of that sideways. */
+const CAR_FORWARD_GAIN = 1;
+const CAR_SIDE_GAIN = 0.18;
+/** Speed cap (u/s) and per-second rolling friction (coasts to rest in ~1.5s). */
+const CAR_MAX_SPEED = 6;
+const CAR_FRICTION = 1.6;
+/** Below this speed (u/s) the car is snapped to rest (stops replicating churn). */
+const CAR_MIN_SPEED = 0.15;
+
+/** True for car cover (the only structure that explodes when destroyed AND the
+ *  only kind that rolls when shot). */
 function isCar(assetId: string): boolean {
   return assetId.includes('car');
 }
@@ -32,6 +60,9 @@ export class CoverSystem {
   /** id → the structure's fixed physics collider (so drums/barrels bounce off it;
    *  removed on crumble so props can roll over the rubble). */
   private readonly colliders = new Map<string, Collider>();
+  /** Cars only: their current rolling velocity (u/s). Present ⇒ this structure
+   *  is a car that can be shoved; absent ⇒ static cover that never moves. */
+  private readonly carVel = new Map<string, { vx: number; vz: number }>();
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -50,6 +81,7 @@ export class CoverSystem {
     this.ctx.state.structures.clear();
     this.circles.clear();
     this.colliders.clear();
+    this.carVel.clear();
     specs.forEach((s, i) => {
       const cs = new CoverStructure();
       cs.id = `s${i}`;
@@ -70,6 +102,8 @@ export class CoverSystem {
       // A matching fixed collider in the physics world so dynamic props (drums,
       // launched barrels) bounce off it too.
       this.colliders.set(cs.id, this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height));
+      // Cars roll when shot — give them a (zero) velocity to integrate.
+      if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
     });
   }
 
@@ -79,24 +113,28 @@ export class CoverSystem {
     return s && !s.destroyed ? s : undefined;
   }
 
-  /** Apply `amount` damage to a structure by id; crumble it if its HP runs out. */
-  damage(id: string, amount: number): void {
+  /** Apply `amount` damage to a structure by id; crumble it if its HP runs out.
+   *  `(dirX,dirZ)` is the hit's travel direction — a car is shoved along it (see
+   *  {@link pushCar}); other cover ignores it. */
+  damage(id: string, amount: number, dirX = 0, dirZ = 0): void {
     const s = this.ctx.state.structures.get(id);
     if (!s || s.destroyed || amount <= 0) return;
+    if (dirX || dirZ) this.pushCar(s, dirX, dirZ, amount);
     s.hp = Math.max(0, s.hp - amount);
     if (s.hp <= 0) this.crumble(s);
   }
 
   /** Damage the first alive structure a projectile at (x,z) of radius `projR`
-   *  overlaps. Returns true if one was hit (the caller consumes the projectile). */
-  hitProjectile(x: number, z: number, projR: number, amount: number): boolean {
+   *  overlaps. `(dirX,dirZ)` is the projectile's travel direction (shoves cars).
+   *  Returns true if one was hit (the caller consumes the projectile). */
+  hitProjectile(x: number, z: number, projR: number, amount: number, dirX = 0, dirZ = 0): boolean {
     for (const s of this.ctx.state.structures.values()) {
       if (s.destroyed) continue;
       const dx = s.x - x;
       const dz = s.z - z;
       const r = s.radius + projR;
       if (dx * dx + dz * dz <= r * r) {
-        this.damage(s.id, amount);
+        this.damage(s.id, amount, dirX, dirZ);
         return true;
       }
     }
@@ -104,14 +142,122 @@ export class CoverSystem {
   }
 
   /** Damage every alive structure whose footprint is within `radius` of (x,z) —
-   *  used by AoE abilities. */
+   *  used by AoE abilities. Cars are shoved radially outward from the blast. */
   damageInRadius(x: number, z: number, radius: number, amount: number): void {
     this.ctx.state.structures.forEach((s) => {
       if (s.destroyed) return;
       const dx = s.x - x;
       const dz = s.z - z;
       const r = radius + s.radius;
-      if (dx * dx + dz * dz <= r * r) this.damage(s.id, amount);
+      if (dx * dx + dz * dz <= r * r) this.damage(s.id, amount, dx, dz);
+    });
+  }
+
+  /**
+   * Shove a car along the hit's travel direction, split onto its own axes: it
+   * rolls freely along its length (front/back hits send it a long way) but
+   * resists a sideways skid (side hits only nudge it). No-op for non-car cover
+   * (only cars are registered in {@link carVel}). The accumulated velocity is
+   * integrated — and friction applied — in {@link update}.
+   */
+  private pushCar(s: CoverStructure, dirX: number, dirZ: number, amount: number): void {
+    const vel = this.carVel.get(s.id);
+    if (!vel) return;
+    const len = Math.hypot(dirX, dirZ);
+    if (len < 1e-3) return;
+    const dx = dirX / len;
+    const dz = dirZ / len;
+    // Car axes from its yaw: forward is the long (X) axis, side is the Z axis —
+    // matching how the prop is rendered (rotation about Y).
+    const fx = Math.cos(s.rotation);
+    const fz = -Math.sin(s.rotation);
+    const sx = Math.sin(s.rotation);
+    const sz = Math.cos(s.rotation);
+    const alongF = dx * fx + dz * fz; // signed component down the car's length
+    const alongS = dx * sx + dz * sz; // signed component across the car
+    const speed = CAR_HIT_SPEED * Math.min(CAR_MAX_PUSH_SCALE, amount / CAR_PUSH_REF_DMG + 0.4);
+    vel.vx += (alongF * CAR_FORWARD_GAIN * fx + alongS * CAR_SIDE_GAIN * sx) * speed;
+    vel.vz += (alongF * CAR_FORWARD_GAIN * fz + alongS * CAR_SIDE_GAIN * sz) * speed;
+    const m = Math.hypot(vel.vx, vel.vz);
+    if (m > CAR_MAX_SPEED) {
+      vel.vx = (vel.vx / m) * CAR_MAX_SPEED;
+      vel.vz = (vel.vz / m) * CAR_MAX_SPEED;
+    }
+  }
+
+  /**
+   * Roll moving cars forward one tick: integrate velocity, keep them inside the
+   * arena and out of other cover, sync the collision circle + physics collider
+   * to the new spot, then bleed off speed with rolling friction. Cheap no-op
+   * when nothing is moving. Called by the room each tick (before the physics
+   * step, so drums/barrels collide against the car's new position).
+   */
+  update(dt: number): void {
+    if (this.carVel.size === 0) return;
+    this.carVel.forEach((vel, id) => {
+      if (vel.vx === 0 && vel.vz === 0) return;
+      const s = this.ctx.state.structures.get(id);
+      if (!s || s.destroyed) {
+        vel.vx = 0;
+        vel.vz = 0;
+        return;
+      }
+      let nx = s.x + vel.vx * dt;
+      let nz = s.z + vel.vz * dt;
+      // Arena walls: clamp and kill the velocity into the wall.
+      const lim = ARENA_HALF_SIZE - s.radius;
+      if (nx > lim) {
+        nx = lim;
+        vel.vx = 0;
+      } else if (nx < -lim) {
+        nx = -lim;
+        vel.vx = 0;
+      }
+      if (nz > lim) {
+        nz = lim;
+        vel.vz = 0;
+      } else if (nz < -lim) {
+        nz = -lim;
+        vel.vz = 0;
+      }
+      // Don't roll through other cover: push back to the edge of any circle it
+      // overlaps and cancel the velocity heading into it (skip the car's own).
+      const self = this.circles.get(id);
+      for (const o of this.collision) {
+        if (o === self) continue;
+        const ddx = nx - o.x;
+        const ddz = nz - o.z;
+        const min = o.radius + s.radius;
+        const d2 = ddx * ddx + ddz * ddz;
+        if (d2 < min * min && d2 > 1e-6) {
+          const d = Math.sqrt(d2);
+          const nxn = ddx / d;
+          const nzn = ddz / d;
+          nx = o.x + nxn * min;
+          nz = o.z + nzn * min;
+          const into = vel.vx * nxn + vel.vz * nzn;
+          if (into < 0) {
+            vel.vx -= into * nxn;
+            vel.vz -= into * nzn;
+          }
+        }
+      }
+      // Commit: replicated transform, collision circle, and physics collider.
+      s.x = nx;
+      s.z = nz;
+      if (self) {
+        self.x = nx;
+        self.z = nz;
+      }
+      this.colliders.get(id)?.setTranslation({ x: nx, y: s.height / 2, z: nz });
+      // Rolling friction → coast to a stop, then snap to rest.
+      const decay = Math.max(0, 1 - CAR_FRICTION * dt);
+      vel.vx *= decay;
+      vel.vz *= decay;
+      if (Math.hypot(vel.vx, vel.vz) < CAR_MIN_SPEED) {
+        vel.vx = 0;
+        vel.vz = 0;
+      }
     });
   }
 
@@ -119,6 +265,11 @@ export class CoverSystem {
    *  — for cars — detonate, dealing area damage to nearby players. */
   private crumble(s: CoverStructure): void {
     s.destroyed = true;
+    const vel = this.carVel.get(s.id);
+    if (vel) {
+      vel.vx = 0;
+      vel.vz = 0;
+    }
     const circle = this.circles.get(s.id);
     if (circle) {
       const i = this.collision.indexOf(circle);
@@ -134,8 +285,10 @@ export class CoverSystem {
     if (isCar(s.assetId)) this.detonate(s);
   }
 
-  /** A destroyed car explodes: flat area damage to every player in the blast
-   *  (caught attackers included — it's a neutral hazard, credited to no one). */
+  /** A destroyed car explodes: flat area damage to everything in the blast — every
+   *  player AND every nearby object. It's a neutral hazard, credited to no one.
+   *  The blast chips other cover (chain-detonating adjacent cars), launches burning
+   *  barrels and scatters drums/tires — so a row of props can go up in a chain. */
   private detonate(s: CoverStructure): void {
     const reach = CAR_EXPLOSION_RADIUS + PLAYER_RADIUS;
     const reachSq = reach * reach;
@@ -152,5 +305,11 @@ export class CoverSystem {
       z: s.z,
       radius: CAR_EXPLOSION_RADIUS,
     });
+    // Objects in the blast: other cover (this car is already `destroyed`, so it
+    // can't re-hit itself; a struck car that reaches 0 HP chain-detonates here),
+    // burning barrels, and drums/tires.
+    this.damageInRadius(s.x, s.z, CAR_EXPLOSION_RADIUS, CAR_EXPLOSION_DAMAGE);
+    this.combat.triggerBarrelsInRadius(s.x, s.z, CAR_EXPLOSION_RADIUS, s.id);
+    this.combat.pushDestructiblesInRadius(s.x, s.z, CAR_EXPLOSION_RADIUS, s.id, CAR_EXPLOSION_DAMAGE);
   }
 }

@@ -30,6 +30,7 @@ function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
       {model.parts.map((part, i) => (
         <mesh
           key={part.name ?? i}
+          name={part.name ?? ''}
           position={part.position ?? [0, 0, 0]}
           rotation={part.rotation ?? [0, 0, 0]}
           scale={part.scale ?? 1}

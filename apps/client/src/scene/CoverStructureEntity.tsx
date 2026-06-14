@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import type { AssetId } from '@arena/shared';
-import type { Group, Mesh } from 'three';
+import { Vector3, type Group, type Mesh } from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { useTargetStore } from '../store/targetState';
 import { clearDestination } from '../store/destinationState';
@@ -12,6 +12,14 @@ import { CarSmoke, CarFire } from '../render/shaders';
 
 /** Cars (and only cars) smoke as they're worn down and burn near death. */
 type DamageStage = 'none' | 'smoke' | 'fire';
+
+/** A wheel (a torus tyre) rolls about its axle — the torus's local-Z symmetry
+ *  axis — so {@link Group.rotateOnAxis} with this spins it in place. */
+const WHEEL_AXIS = new Vector3(0, 0, 1);
+/** Radians of wheel spin per unit the car rolls forward. A true roll would be
+ *  1/radius (≈2.5), but that reads as a strobe on the small faceted wheels — so
+ *  it's dialled down and negated so the wheels turn the way the car travels. */
+const WHEEL_SPIN_PER_UNIT = -1.1;
 
 /**
  * A destructible cover structure (trailer="house" / car / dumpster) rendered
@@ -43,9 +51,41 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
   const [stage, setStage] = useState<DamageStage>('none');
   const stageRef = useRef<DamageStage>('none');
 
+  // Cars roll when shot: the server slides them, so we follow the replicated
+  // transform each frame (the component only re-renders on crumble) and spin the
+  // wheels by how far the car travelled along its length.
+  const root = useRef<Group>(null);
+  const carGroup = useRef<Group>(null);
+  const wheels = useRef<Mesh[] | null>(null);
+  const prevPos = useRef<{ x: number; z: number } | null>(null);
+
   useFrame(() => {
     const cur = useGameStore.getState().structures.get(structureId);
     if (!cur || !hpBar.current) return;
+
+    // Follow the (server-driven) car position and roll the wheels.
+    if (isCar && root.current) {
+      root.current.position.x = cur.x;
+      root.current.position.z = cur.z;
+      // Lazily collect the named wheel meshes once the prop has mounted.
+      if (!wheels.current && carGroup.current) {
+        const found: Mesh[] = [];
+        carGroup.current.traverse((o) => {
+          if (o.name === 'wheel') found.push(o as Mesh);
+        });
+        if (found.length) wheels.current = found;
+      }
+      const prev = prevPos.current;
+      if (prev && wheels.current) {
+        // Distance rolled along the car's length (forward axis from its yaw).
+        const fwd = (cur.x - prev.x) * Math.cos(cur.rotation) - (cur.z - prev.z) * Math.sin(cur.rotation);
+        if (Math.abs(fwd) > 1e-5) {
+          const spin = fwd * WHEEL_SPIN_PER_UNIT;
+          for (const w of wheels.current) w.rotateOnAxis(WHEEL_AXIS, spin);
+        }
+      }
+      prevPos.current = { x: cur.x, z: cur.z };
+    }
     // Show only while damaged and still standing.
     const damaged = !cur.destroyed && cur.hp > 0 && cur.hp < cur.maxHp;
     hpBar.current.visible = damaged;
@@ -76,12 +116,19 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
   if (!s) return null;
   return (
     <group
+      ref={root}
       position={[s.x, 0, s.z]}
       rotation={[0, s.rotation, 0]}
       // Crumbled: squash flat into a low rubble footprint.
       scale={[1, s.destroyed ? 0.18 : 1, 1]}
     >
-      <AssetInstance id={s.assetId as AssetId} />
+      {isCar ? (
+        <group ref={carGroup}>
+          <AssetInstance id={s.assetId as AssetId} />
+        </group>
+      ) : (
+        <AssetInstance id={s.assetId as AssetId} />
+      )}
       {isCar && stage === 'smoke' && <CarSmoke height={s.height} radius={s.radius} />}
       {isCar && stage === 'fire' && <CarFire height={s.height} radius={s.radius} />}
       {!s.destroyed && (

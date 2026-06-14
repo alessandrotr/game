@@ -705,7 +705,7 @@ export class ArenaRoom extends AvatarRoom {
     // Cover structures (trailers / cars / dumpsters) in the beam take its damage.
     this.state.structures.forEach((s) => {
       if (!s.destroyed && this.inBeam(caster, s.x, s.z, s.radius, config)) {
-        this.combat.damageStructure(s.id, config.damage);
+        this.combat.damageStructure(s.id, config.damage, dx, dz);
       }
     });
     // Burning barrels caught in the beam are launched + detonated.
@@ -829,8 +829,9 @@ export class ArenaRoom extends AvatarRoom {
       // Melee shove: launch the barrel away from the attacker.
       this.combat.triggerBarrel(targetBarrel, ndx, ndz, sessionId);
     } else if (targetStructure) {
-      // Melee strike: chip the structure's HP (crumbles at 0).
-      this.combat.damageStructure(targetStructure.id, cfg.damage);
+      // Melee strike: chip the structure's HP (crumbles at 0), shoving a car the
+      // way the blow is aimed.
+      this.combat.damageStructure(targetStructure.id, cfg.damage, ndx, ndz);
     }
   }
 
@@ -996,6 +997,9 @@ export class ArenaRoom extends AvatarRoom {
     // Projectiles/abilities apply their impulses, THEN we step the shared world
     // once, THEN the barrel/destructible systems read back the new transforms.
     this.projectiles.update(dt);
+    // Roll any shot cars forward (moves their collider) BEFORE the physics step,
+    // so drums/barrels collide against the car's new position this tick.
+    this.cover.update(dt);
     this.physics.step();
     this.barrels.update();
     this.destructibles.update();

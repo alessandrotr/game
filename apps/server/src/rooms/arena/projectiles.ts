@@ -248,7 +248,10 @@ export class ProjectileSystem {
 
     // Cover structures (trailers/cars/dumpsters): a projectile that strikes a
     // live one deals its damage (chipping toward a crumble) and is consumed.
-    if (projDmg > 0 && this.combat.hitStructure(projectile.x, projectile.z, meta.radius, projDmg)) {
+    if (
+      projDmg > 0 &&
+      this.combat.hitStructure(projectile.x, projectile.z, meta.radius, projDmg, meta.dirX, meta.dirZ)
+    ) {
       this.ctx.broadcast(ServerMessage.ProjectileImpact, {
         ability: meta.ability,
         x: projectile.x,

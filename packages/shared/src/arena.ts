@@ -97,7 +97,7 @@ const COVER: CoverKind[] = [
   // cars and dumpsters scale down by size. These crumble when their HP is gone.
   { assetId: 'prop.arena.trailer', radius: 2, height: 2.8, count: 2, destructible: true },
   { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, count: 1, destructible: true },
-  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1, destructible: true },
+  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 2, destructible: true },
   { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1, destructible: true },
   // Scrap heaps: destructible cover with a fixed 125 HP (small but tougher than
   // its size alone would scale to).

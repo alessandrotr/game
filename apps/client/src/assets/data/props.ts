@@ -42,6 +42,7 @@ const SIDING_OLIVE = '#7c8163'; // faded olive trailer
 const TIN = '#857c6f'; // dull metal roof
 const CHAR = '#221f1c'; // charred black (burned vehicles)
 const CHAR_RUST = '#46342a'; // charred + rust
+const CAR_WHEEL = '#4a443f'; // rubber grey — lighter than the charred body so wheels read
 const GLASS_DK = '#33403c'; // broken / blown-out window glass
 const TRASH = '#534b3d'; // refuse mound
 const BAG = '#23211d'; // black garbage bags
@@ -448,6 +449,18 @@ const trailer = prop('arena.trailer', 'Trailer', trailerParts(SIDING));
 const trailerTeal = prop('arena.trailer.teal', 'Trailer', trailerParts(SIDING_TEAL));
 const trailerOlive = prop('arena.trailer.olive', 'Trailer', trailerParts(SIDING_OLIVE));
 
+/** One upright car tyre — the tyre-stack torus, sized to the sedan and tagged
+ *  `wheel` so the renderer rolls it. Default torus axle is local Z (the car's
+ *  side axis), so it stands and rolls without a base rotation. */
+const wheel = (position: Vec3): PlaceholderPart => ({
+  shape: 'torus',
+  args: [0.27, 0.13, 10, 20],
+  position,
+  color: CAR_WHEEL,
+  castShadow: false,
+  name: 'wheel',
+});
+
 /** A burned-out sedan: charred shell, melted-flat tyres, blown windows, a faint
  *  smoulder still glowing in the engine bay. ~3.4u long. */
 const burnedCar = prop('arena.car.burned', 'Burned Car', [
@@ -459,10 +472,14 @@ const burnedCar = prop('arena.car.burned', 'Burned Car', [
   box([1, 0.5, 0.06], [0.3, 0.9, 0.78], RUST, ns), // side rust
   box([1, 0.5, 0.06], [0.3, 0.9, -0.78], RUST, ns),
   box([1, 0.9, 0.06], [-0.25, 0.95, 0.78], CHAR_RUST, { rotation: [0, 0.4, 0], castShadow: false }), // door, ajar
-  cyl(0.4, 0.4, 0.3, 10, [1.1, 0.3, 0.7], CHAR, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
-  cyl(0.4, 0.4, 0.3, 10, [1.1, 0.3, -0.7], CHAR, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
-  cyl(0.4, 0.4, 0.3, 10, [-1.1, 0.3, 0.7], CHAR, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
-  cyl(0.4, 0.4, 0.3, 10, [-1.1, 0.3, -0.7], CHAR, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
+  // Wheels: the same torus tyre as the tyre stack, stood upright. Named so the
+  // renderer can roll them (spin about the torus's local-Z axle) when shoved.
+  // Default torus orientation is already upright with its axle along Z (the
+  // car's side axis), so no base rotation is needed.
+  wheel([1.1, 0.3, 0.7]),
+  wheel([1.1, 0.3, -0.7]),
+  wheel([-1.1, 0.3, 0.7]),
+  wheel([-1.1, 0.3, -0.7]),
   box([0.5, 0.1, 0.6], [1.35, 0.95, 0], '#5a2a14', {
     emissive: FIRE,
     emissiveIntensity: 0.5,
