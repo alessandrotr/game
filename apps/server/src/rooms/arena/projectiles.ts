@@ -42,6 +42,10 @@ interface ProjectileMeta {
   /** Composable effects run against the player this projectile hits (ability
    *  projectiles); when present they supersede the flat `damage`. */
   onHit?: LeafEffect[];
+  /** If true, the projectile pierces players (damages each once, keeps flying);
+   *  it still stops on cover. `hit` tracks the players already pierced. */
+  pierce?: boolean;
+  hit?: Set<string>;
   traveled: number;
   spawnedAt: number;
 }
@@ -77,13 +81,14 @@ export class ProjectileSystem {
     onHit: LeafEffect[],
     count = 1,
     intervalMs = 0,
+    pierce = false,
   ): void {
-    this.fireAbilityShot(owner, vfx, dirX, dirZ, speed, range, radius, onHit);
+    this.fireAbilityShot(owner, vfx, dirX, dirZ, speed, range, radius, onHit, pierce);
     for (let i = 1; i < count; i++) {
       this.ctx.setTimeout(() => {
         const live = this.ctx.state.players.get(owner.sessionId);
         if (live && live.alive)
-          this.fireAbilityShot(live, vfx, dirX, dirZ, speed, range, radius, onHit);
+          this.fireAbilityShot(live, vfx, dirX, dirZ, speed, range, radius, onHit, pierce);
       }, i * intervalMs);
     }
   }
@@ -98,9 +103,15 @@ export class ProjectileSystem {
     range: number,
     radius: number,
     onHit: LeafEffect[],
+    pierce = false,
   ): void {
     const id = this.spawn(owner, vfx, dirX, dirZ, speed, range, radius, 0);
-    this.meta.get(id)!.onHit = onHit;
+    const meta = this.meta.get(id)!;
+    meta.onHit = onHit;
+    if (pierce) {
+      meta.pierce = true;
+      meta.hit = new Set();
+    }
   }
 
   /** Spawn a basic-attack projectile (ranged auto-attacks). */
@@ -263,11 +274,13 @@ export class ProjectileSystem {
     }
 
     // Collide with the first eligible player (MapSchema isn't a standard
-    // iterable, so use forEach and capture the first hit).
+    // iterable, so use forEach and capture the first hit). A piercing projectile
+    // skips players it has already struck.
     const hitRadiusSq = (meta.radius + PLAYER_RADIUS) * (meta.radius + PLAYER_RADIUS);
     let hitId: string | null = null;
     this.ctx.state.players.forEach((target, targetId) => {
       if (hitId || targetId === meta.ownerId || !target.alive) return;
+      if (meta.hit?.has(targetId)) return; // already pierced this one
       const dx = target.x - projectile.x;
       const dz = target.z - projectile.z;
       if (dx * dx + dz * dz <= hitRadiusSq) hitId = targetId;
@@ -289,6 +302,11 @@ export class ProjectileSystem {
         // Auto-attack projectile: a plain direct hit.
         this.combat.dealDamage(target, meta.damage, meta.ownerId);
       }
+    }
+    // Piercing: record this enemy and keep flying; otherwise the hit consumes it.
+    if (meta.pierce) {
+      meta.hit!.add(hitId);
+      return false;
     }
     return true;
   }

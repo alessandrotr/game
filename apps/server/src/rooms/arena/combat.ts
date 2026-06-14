@@ -371,8 +371,8 @@ export class CombatSystem {
     addShield: (t, a, d, f) => this.addShield(t, a, d, f),
     applyStatus: (t, s, f) => this.applyStatus(t, s, f),
     displace: (e, dx, dz, dist, sp, dmg, from) => this.displace(e, dx, dz, dist, sp, dmg, from),
-    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh, count, interval) =>
-      this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh, count, interval),
+    spawnProjectile: (o, v, dx, dz, sp, r, rad, oh, count, interval, pierce) =>
+      this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh, count, interval, pierce),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
     forEachAllyInRadius: (x, z, r, caster, fn) => this.forEachAllyInRadius(x, z, r, caster, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),

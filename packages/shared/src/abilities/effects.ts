@@ -115,6 +115,9 @@ export type Effect =
       count?: number;
       /** Delay between burst shots, in milliseconds (only used when `count` > 1). */
       intervalMs?: number;
+      /** If true, the projectile pierces players — it damages each enemy once and
+       *  keeps flying (it still stops on objects/cover). Default: stops on first hit. */
+      pierce?: boolean;
     }
   | {
       type: 'aoe';

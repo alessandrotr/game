@@ -52,6 +52,7 @@ export interface EffectRuntime {
     onHit: LeafEffect[],
     count?: number,
     intervalMs?: number,
+    pierce?: boolean,
   ): void;
   /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x,z). */
   forEachEnemyInRadius(
@@ -198,6 +199,7 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
           effect.onHit,
           effect.count,
           effect.intervalMs,
+          effect.pierce,
         );
         break;
       case 'aoe': {

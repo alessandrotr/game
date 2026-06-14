@@ -168,10 +168,10 @@ export const ABILITY_REGISTRY = {
     cooldownMs: 3500,
     manaCost: 20,
     castTimeMs: 0,
-    range: 12,
+    range: 10,
     damage: 10,
     // A fast gap-closing lunge that hits anything it ploughs through for 10.
-    effects: [{ type: 'dash', distance: 12, speed: 34, damage: 10 }],
+    effects: [{ type: 'dash', distance: 10, speed: 34, damage: 10 }],
   },
   shield_wall: {
     id: 'shield_wall',
@@ -299,6 +299,8 @@ export const ABILITY_REGISTRY = {
         radius: 0.6,
         vfx: 'pinning_arrow',
         onHit: [{ type: 'damage', amount: 80 }],
+        // Piercing: damages each enemy it passes through, only stopping on cover.
+        pierce: true,
       },
     ],
   },

@@ -72,7 +72,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     name: 'Priest',
     role: 'Support Healer',
     description: 'Sustains allies with heals while contributing steady damage.',
-    stats: { health: 320, mana: 180, moveSpeed: 9, attackDamage: 25, difficulty: 2 },
+    stats: { health: 380, mana: 180, moveSpeed: 9, attackDamage: 25, difficulty: 2 },
     abilities: ['smite', 'heal', 'renew', 'condemn'],
     color: '#e8c45a',
   },
