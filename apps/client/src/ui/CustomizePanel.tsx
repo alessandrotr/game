@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import {
   Check,
   ChevronRight,
+  Eye,
   Footprints,
   Lock,
   ShoppingBag,
@@ -17,6 +18,7 @@ import {
   classCosmeticsOf,
   cosmeticsOfType,
   getClassDefinition,
+  getCosmetic,
   getCosmeticOfType,
   xpProgress,
   type CharacterClass,
@@ -164,29 +166,69 @@ function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   );
 }
 
-/** Compact corner state badge (Equipped / Owned) — one consistent treatment, so
- *  state reads the same across every category instead of per-rarity colors. */
-function StateBadge({ state }: { state: 'equipped' | 'owned' }) {
-  if (state === 'equipped') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
-        <Check size={10} /> Equipped
-      </span>
-    );
+/** The conic/solid gradient + spin speed that mimics each pedestal effect in
+ *  pure CSS (no WebGL) — cheap and reliable for the store grid thumbnails. */
+function pedestalRingStyle(c: Cosmetic & { type: 'pedestal' }): { background: string; animation?: string } {
+  const a = c.color;
+  const b = c.color2 ?? c.color;
+  switch (c.effect) {
+    case 'prism':
+      return {
+        background: 'conic-gradient(from 0deg, #ff5d5d, #ffd24d, #4dff8a, #4dd2ff, #9a6cff, #ff5dff, #ff5d5d)',
+        animation: 'spin 7s linear infinite',
+      };
+    case 'vortex':
+      return { background: `conic-gradient(from 0deg, ${a}, ${b}, ${a}, ${b}, ${a})`, animation: 'spin 3.5s linear infinite' };
+    case 'aurora':
+      return { background: `conic-gradient(from 0deg, ${a}, ${b}, ${a})`, animation: 'spin 9s linear infinite' };
+    case 'holo':
+      return {
+        background: `repeating-conic-gradient(${a} 0deg 10deg, transparent 10deg 22deg)`,
+        animation: 'spin 6s linear infinite',
+      };
+    default: // 'ring' | 'pulse' — solid color ring (pulse adds a ping layer)
+      return { background: a };
   }
+}
+
+/** Animated CSS pedestal thumbnail for the store grid — a glowing ring whose
+ *  motion hints at the real in-game shader effect. */
+function PedestalThumb({ c }: { c: Cosmetic & { type: 'pedestal' } }) {
+  const ring = pedestalRingStyle(c);
   return (
-    <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/60">
-      Owned
+    <span className="relative grid h-16 w-16 place-items-center">
+      {c.effect === 'pulse' && (
+        <span
+          className="absolute inset-0 rounded-full"
+          style={{ boxShadow: `0 0 0 2px ${c.color}`, animation: 'ping 1.8s cubic-bezier(0,0,0.2,1) infinite' }}
+        />
+      )}
+      {/* Gradient disc → masked to a ring by the dark center on top. */}
+      <span
+        className="grid h-16 w-16 place-items-center rounded-full"
+        style={{ ...ring, boxShadow: `0 0 16px ${c.color}aa` }}
+      >
+        <span className="h-11 w-11 rounded-full bg-[#0c0e16]" />
+      </span>
     </span>
   );
 }
 
-/** Quiet rarity tag — a small hued dot + muted label. Rarity is a secondary
- *  signal here; category is the primary one. */
+/** Modern rarity chip — a gradient pill tinted by the rarity color, with a soft
+ *  glow + bevel. Reads instantly without turning the card into a rainbow. */
 function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
+  const c = RARITY[rarity];
   return (
-    <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
-      <span className="h-2 w-2 rounded-full" style={{ background: RARITY[rarity] }} />
+    <span
+      className="inline-flex shrink-0 items-center rounded-full border px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.12em] backdrop-blur-sm"
+      style={{
+        color: `color-mix(in srgb, ${c} 75%, #ffffff)`,
+        borderColor: `${c}66`,
+        background: `linear-gradient(135deg, ${c}40, ${c}12)`,
+        boxShadow: `0 0 10px ${c}40, inset 0 1px 0 ${c}33`,
+        textShadow: `0 0 6px ${c}66`,
+      }}
+    >
       {rarity}
     </span>
   );
@@ -222,44 +264,66 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
     classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id),
   );
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
+  const previewing = useCustomizeStore((s) => s.previewId === c.id);
   const equipped = isEquipped(c, loadout);
   const act = cardAction(c, owned, equipped, loadout);
-  const onClick = () =>
-    owned
-      ? equipCosmetic(characterClass, c)
-      : useCosmeticsStore.getState().unlock(characterClass, c.id);
+  // Clicking the card previews it on the avatar (owned or not). The button (which
+  // stops propagation) is the only thing that unlocks/equips — equip needs ownership.
+  const preview = () => useCustomizeStore.getState().setPreview(c.id);
+  const onAction = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (owned) equipCosmetic(characterClass, c);
+    else useCosmeticsStore.getState().unlock(characterClass, c.id);
+    preview();
+  };
 
   return (
     <div
-      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 transition hover:-translate-y-0.5 ${
+      role="button"
+      tabIndex={0}
+      onClick={preview}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          preview();
+        }
+      }}
+      aria-pressed={previewing}
+      title={`Preview ${c.name}`}
+      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
         equipped
           ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]'
-          : 'border-white/10 hover:border-white/20'
+          : previewing
+            ? 'border-white/40'
+            : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <div className="relative grid h-20 place-items-center bg-black/20">
-        <Swatch c={c} size={52} />
-        <span className="absolute right-2 top-2">
-          {equipped ? <StateBadge state="equipped" /> : owned ? <StateBadge state="owned" /> : null}
+      <div className="relative grid h-24 place-items-center bg-black/20">
+        {c.type === 'pedestal' ? <PedestalThumb c={c} /> : <Swatch c={c} size={52} />}
+        {/* Rarity tag — bottom-left of the thumbnail. */}
+        <span className="absolute bottom-2 left-2">
+          <RarityTag rarity={c.rarity} />
         </span>
-        {!owned && (
-          <span className="absolute left-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-black/50 text-white/55">
-            <Lock size={11} />
+        {equipped && (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
+            <Check size={10} /> Equipped
+          </span>
+        )}
+        {previewing && !equipped && (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
+            <Eye size={10} /> Preview
           </span>
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-semibold text-text">{c.name}</span>
-          <RarityTag rarity={c.rarity} />
-        </div>
+        <span className="truncate text-sm font-semibold text-text">{c.name}</span>
         <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
           {c.description}
         </p>
         <Button
           variant={act.variant}
           size="sm"
-          onClick={onClick}
+          onClick={onAction}
           disabled={act.disabled}
           className="mt-auto w-full gap-1.5"
         >
@@ -539,8 +603,17 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const username = useAuthStore((s) => s.username);
   const progress = useAuthStore((s) => s.progress);
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
+  const previewId = useCustomizeStore((s) => s.previewId);
   const def = getClassDefinition(characterClass);
-  const title = loadout.titleId ? getCosmeticOfType(loadout.titleId, 'title')?.text : undefined;
+
+  // A previewed cosmetic overrides its slot on the avatar (try-before-equip),
+  // without touching the equipped/persisted loadout.
+  const preview = previewId ? getCosmetic(previewId) : undefined;
+  const skinId = preview?.type === 'skin' ? preview.id : loadout.skinId;
+  const dyeId = preview?.type === 'dye' ? preview.id : loadout.dyeId;
+  const pedestalId = preview?.type === 'pedestal' ? preview.id : loadout.pedestalId;
+  const titleId = preview?.type === 'title' ? preview.id : loadout.titleId;
+  const title = titleId ? getCosmeticOfType(titleId, 'title')?.text : undefined;
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
   const sessionId = useGameStore.getState().sessionId;
@@ -551,13 +624,13 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 
   return (
     <div className="relative min-h-[300px] overflow-hidden border-b border-white/5 bg-linear-to-b from-black/30 to-black/55 md:border-b-0 md:border-r">
-      <ClassPreview
-        characterClass={characterClass}
-        skinId={loadout.skinId}
-        dyeId={loadout.dyeId}
-        pedestalId={loadout.pedestalId}
-      />
+      <ClassPreview characterClass={characterClass} skinId={skinId} dyeId={dyeId} pedestalId={pedestalId} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
+        {preview && (
+          <div className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
+            Previewing
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <LevelBadge level={level} size="md" className="shrink-0" />
           <div className="min-w-0">

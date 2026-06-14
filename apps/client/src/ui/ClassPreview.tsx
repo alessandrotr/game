@@ -41,7 +41,19 @@ interface ClassPreviewProps {
   /** Equipped/previewed pedestal cosmetic id (drives its color + shader effect).
    *  Defaults to a neutral gray ring when absent. */
   pedestalId?: string;
+  /** Framing for the full (non-lite) showcase. `'center'` keeps the model
+   *  centered; `'top'` pulls the camera back and tilts the look-point down so the
+   *  whole model sits in the upper part of a full-height canvas, leaving the
+   *  lower area clear for overlaid UI. */
+  align?: 'center' | 'top';
 }
+
+/** Camera + orbit framing per `align` for the full showcase. `'top'` sits the
+ *  model higher and smaller so a bottom UI panel can overlay the rest. */
+const FRAMING = {
+  center: { position: [0, 1.5, 4] as const, fov: 42, target: [0, 0.95, 0] as const },
+  top: { position: [0, 1.7, 5.6] as const, fov: 38, target: [0, 0.35, 0] as const },
+};
 
 function ClassPreviewImpl({
   characterClass,
@@ -50,6 +62,7 @@ function ClassPreviewImpl({
   skinId,
   dyeId,
   pedestalId,
+  align = 'center',
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -87,8 +100,10 @@ function ClassPreviewImpl({
     );
   }
 
+  const frame = FRAMING[align];
+
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.5, 4], fov: 42 }}>
+    <Canvas shadows dpr={[1, 2]} camera={{ position: frame.position, fov: frame.fov }}>
       <color attach="background" args={['#0a0b12']} />
       <fog attach="fog" args={['#0a0b12', 6, 16]} />
 
@@ -116,7 +131,7 @@ function ClassPreviewImpl({
 
       <OrbitControls
         makeDefault
-        target={[0, 0.95, 0]}
+        target={frame.target}
         enablePan={false}
         enableDamping
         autoRotate

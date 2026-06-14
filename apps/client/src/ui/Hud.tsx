@@ -3,6 +3,8 @@ import { useHudStore } from '../store/useHudStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
+import { ZombieMatchmaking } from './ZombieMatchmaking';
+import { CoopOverlay } from './CoopOverlay';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
 import { WaveAnnouncement, ZombieHud } from './ZombieHud';
@@ -71,6 +73,11 @@ export function Hud() {
       {/* Town matchmaking — self-positions its top-right trigger (hidden with the
           HUD) and renders its own critical modals (ready-check) unconditionally. */}
       {!inArena && <Matchmaking />}
+      {/* Co-op Zombie matchmaking — a separate town trigger + squad menu. */}
+      {!inArena && <ZombieMatchmaking />}
+
+      {/* Co-op death flow (spectate / defeat) — self-gates on a co-op zombie run. */}
+      {inArena && <CoopOverlay />}
 
       {/* Perf stats overlay (top-right) — self-gates on the setting. */}
       <PerfOverlay />

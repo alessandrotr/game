@@ -261,6 +261,33 @@ export interface LobbyView {
   red: LobbySlotView[];
 }
 
+/** A co-op zombie lobby's lifecycle stage. */
+export type ZombieLobbyStatus = 'queuing' | 'playing';
+
+/** One member seat in a co-op zombie lobby. */
+export interface ZombieLobbySlotView {
+  /** Matchmaking-room session id of the occupant. */
+  sessionId: string;
+  name: string;
+  characterClass: CharacterClass;
+  /** Join order (0 = host). */
+  index: number;
+}
+
+/** A co-op zombie lobby as seen by the browser / lobby detail. */
+export interface ZombieLobbyView {
+  id: string;
+  name: string;
+  /** Matchmaking-room session id of the host (who can start the match). */
+  hostId: string;
+  /** Private lobbies are hidden from the browser and joined only via `code`. */
+  isPrivate: boolean;
+  /** Share code for a private lobby ('' for public). */
+  code: string;
+  status: ZombieLobbyStatus;
+  members: ZombieLobbySlotView[];
+}
+
 /** Replicated room state. Mirrors `ArenaState` in the server schema. */
 export interface ArenaStateView {
   /** Keyed by Colyseus session id. */

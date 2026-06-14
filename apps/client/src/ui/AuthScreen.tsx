@@ -118,35 +118,50 @@ export function AuthScreen() {
             </div>
           ) : (
             <form onSubmit={onSubmit} className="flex flex-col gap-3">
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                autoComplete="email"
-                required
-                aria-label="Email"
-              />
-              {isRegister && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="auth-email" className="text-sm font-medium text-muted">
+                  Email
+                </label>
                 <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Display name"
-                  maxLength={24}
-                  autoComplete="username"
+                  id="auth-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  autoComplete="email"
                   required
-                  aria-label="Display name"
                 />
+              </div>
+              {isRegister && (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="auth-username" className="text-sm font-medium text-muted">
+                    Display name
+                  </label>
+                  <Input
+                    id="auth-username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Display name"
+                    maxLength={24}
+                    autoComplete="username"
+                    required
+                  />
+                </div>
               )}
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={isRegister ? 'Password (min 8 characters)' : 'Password'}
-                autoComplete={isRegister ? 'new-password' : 'current-password'}
-                required
-                aria-label="Password"
-              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="auth-password" className="text-sm font-medium text-muted">
+                  Password
+                </label>
+                <Input
+                  id="auth-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={isRegister ? 'Password (min 8 characters)' : 'Password'}
+                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  required
+                />
+              </div>
               <Button
                 type="submit"
                 variant="gold"

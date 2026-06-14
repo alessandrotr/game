@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../store/useGameStore';
+import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCameraYaw, getCameraPitch, getCameraZoom } from '../store/cameraControl';
 import { getCamera } from '../tuning';
@@ -33,6 +34,20 @@ export function CameraRig() {
     const { sessionId, players } = useGameStore.getState();
     const me = sessionId ? players.get(sessionId) : undefined;
 
+    // Co-op spectating: when dead and watching the squad, follow the chosen
+    // (living) teammate instead of our own corpse — fall back to any survivor.
+    const coop = useCoopStore.getState();
+    if (coop.phase === 'spectating' && me && !me.alive) {
+      const watched = coop.spectateTargetId ? players.get(coop.spectateTargetId) : undefined;
+      const focus =
+        watched && watched.alive ? watched : livingTeammates(players, sessionId)[0];
+      if (focus) {
+        target.set(focus.x, 0, focus.z);
+        applyOrbit(camera, target, desired, me, delta);
+        return;
+      }
+    }
+
     // Prefer the client-predicted transform so the camera tracks smooth local
     // motion; fall back to the server snapshot before prediction starts.
     const local = getLocalRenderTransform();
@@ -44,26 +59,39 @@ export function CameraRig() {
       return;
     }
 
-    const cam = getCamera();
-    // Base orientation: blue looks down +Z, red is mirrored 180°. The user yaw
-    // offset orbits the view on top of that.
-    const baseYaw = me?.team === 'red' ? Math.PI : 0;
-    const yaw = baseYaw + getCameraYaw();
-    // Tilt: orbit up/down at a constant radius from the player. The base pitch
-    // comes from the tuned height/distance; the user offset adds a small ± tilt.
-    const radius = Math.hypot(cam.distance, cam.height) * getCameraZoom();
-    const basePitch = Math.atan2(cam.height, cam.distance);
-    const pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, basePitch + getCameraPitch()));
-    const horiz = radius * Math.cos(pitch);
-    desired.set(
-      target.x + Math.sin(yaw) * horiz,
-      target.y + radius * Math.sin(pitch),
-      target.z + Math.cos(yaw) * horiz,
-    );
-    const t = 1 - Math.exp(-cam.followSmoothing * delta);
-    camera.position.lerp(desired, t);
-    camera.lookAt(target);
+    applyOrbit(camera, target, desired, me, delta);
   });
 
   return null;
+}
+
+/** Position the camera at the tuned orbit around `target` and look at it. Shared
+ *  by the normal follow and the co-op spectate follow. `me` only supplies the
+ *  per-team base yaw (the local player's side), so spectating keeps your view. */
+function applyOrbit(
+  camera: { position: Vector3; lookAt: (v: Vector3) => void },
+  target: Vector3,
+  desired: Vector3,
+  me: { team?: string } | undefined,
+  delta: number,
+): void {
+  const cam = getCamera();
+  // Base orientation: blue looks down +Z, red is mirrored 180°. The user yaw
+  // offset orbits the view on top of that.
+  const baseYaw = me?.team === 'red' ? Math.PI : 0;
+  const yaw = baseYaw + getCameraYaw();
+  // Tilt: orbit up/down at a constant radius from the player. The base pitch
+  // comes from the tuned height/distance; the user offset adds a small ± tilt.
+  const radius = Math.hypot(cam.distance, cam.height) * getCameraZoom();
+  const basePitch = Math.atan2(cam.height, cam.distance);
+  const pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, basePitch + getCameraPitch()));
+  const horiz = radius * Math.cos(pitch);
+  desired.set(
+    target.x + Math.sin(yaw) * horiz,
+    target.y + radius * Math.sin(pitch),
+    target.z + Math.cos(yaw) * horiz,
+  );
+  const t = 1 - Math.exp(-cam.followSmoothing * delta);
+  camera.position.lerp(desired, t);
+  camera.lookAt(target);
 }

@@ -15,6 +15,9 @@ export const TOWN_ROOM = 'town';
 export const ZOMBIE_ROOM = 'zombie';
 /** Singleton lobby/matchmaking room: owns the replicated list of lobbies. */
 export const MATCHMAKING_ROOM = 'matchmaking';
+/** Singleton co-op Zombie matchmaking room: owns the replicated list of co-op
+ *  zombie lobbies (separate from the team-vs-team {@link MATCHMAKING_ROOM}). */
+export const ZOMBIE_MATCHMAKING_ROOM = 'zombie_matchmaking';
 
 /** Town square half-extent in world units (matches the town map's `halfSize`). */
 export const TOWN_HALF_SIZE = 46;
@@ -371,6 +374,21 @@ export const LOBBY_NAME_MAX_LENGTH = 32;
 
 /** Hard cap on concurrent lobbies (a runaway-creation backstop). */
 export const MAX_LOBBIES = 50;
+
+// ---------------------------------------------------------------------------
+// Co-op Zombie matchmaking — one shared squad (up to 5) holds out against the
+// horde. Rooms are public (listed) or private (hidden, joined by a share code);
+// the host launches when ready (1–5 players). See ZombieMatchmakingRoom.
+// ---------------------------------------------------------------------------
+
+/** Max players in a co-op zombie squad. */
+export const ZOMBIE_COOP_MAX_PLAYERS = 5;
+
+/** Length of a private co-op lobby's share code (uppercase letters + digits). */
+export const ZOMBIE_LOBBY_CODE_LENGTH = 4;
+
+/** Alphabet for share codes — omits easily-confused chars (0/O, 1/I). */
+export const ZOMBIE_LOBBY_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /**
  * WebSocket close code the server uses when a newer session for the same account

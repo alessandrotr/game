@@ -12,8 +12,10 @@ import {
   ARENA_PORTAL_POINT,
   GROUND_Y,
   MANA_REGEN,
+  MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
   PLAYER_RADIUS,
+  ZOMBIE_COOP_MAX_PLAYERS,
   TICK_MS,
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
@@ -179,6 +181,12 @@ export class ArenaRoom extends AvatarRoom {
   /** Zombie survival mode: endless escalating hordes spawn from the portal and
    *  hunt the players. Set in `onCreate` from the room's mode option. */
   private zombieMode = false;
+  /** Co-op matchmade zombie run (from the zombie matchmaking room): death is final
+   *  and the run ends when the whole squad falls. False for the drop-in zombie room. */
+  private coopZombie = false;
+  /** Latches once the co-op run is over (all players fell) so the game-over
+   *  broadcast + room teardown fire exactly once. */
+  private coopOver = false;
   /** The wave director (zombie mode only) — owns the level/horde lifecycle. */
   private zombieDirector?: ZombieDirector;
   /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
@@ -225,13 +233,17 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(sessionId);
   }
 
-  override onCreate(options?: { mode?: LobbyMode | typeof ZOMBIE_MODE }): void {
+  override onCreate(options?: { mode?: LobbyMode | typeof ZOMBIE_MODE; coop?: boolean }): void {
     this.setState(new ArenaState());
 
     // Zombie survival is the arena sim under a distinct handler (the `mode`
     // baked into that handler's `define` options arrives here). Flag it before
     // building systems so the wave director and forced auto-attack are in place.
     this.zombieMode = options?.mode === ZOMBIE_MODE;
+    // Co-op matchmade squad (from ZombieMatchmakingRoom): death is final (no
+    // respawn) and the run ends when everyone falls. The drop-in/portal zombie
+    // room (no `coop`) keeps the old respawn behaviour.
+    this.coopZombie = this.zombieMode && !!options?.coop;
 
     // Pick a per-match seed and build this arena's procedural cover. The seed is
     // replicated so every client rebuilds the identical layout (obstacles +
@@ -262,6 +274,13 @@ export class ArenaRoom extends AvatarRoom {
       // is ignored for humans (see the handler), so only zombies ever swing.
       this.state.zombieMode = true;
       this.autoAttackEnabled = true;
+      // Matchmade co-op run: cap the squad and hide from public join (reservation
+      // only). Death is final + the run ends when all fall (see the tick loop).
+      if (this.coopZombie) {
+        this.state.coopZombie = true;
+        this.maxClients = ZOMBIE_COOP_MAX_PLAYERS;
+        this.setPrivate(true);
+      }
       this.zombieDirector = new ZombieDirector(this.buildContext(), {
         spawnZombie: (level) => this.spawnZombie(level),
         aliveZombies: () => this.countAliveZombies(),
@@ -929,6 +948,10 @@ export class ArenaRoom extends AvatarRoom {
           }
           return;
         }
+        // Co-op zombie run: death is final — no respawn. The dead player stays in
+        // the room (alive=false) to spectate or quit; the all-fallen check below
+        // ends the run.
+        if (this.coopZombie) return;
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -1061,7 +1084,30 @@ export class ArenaRoom extends AvatarRoom {
     // periodic damage). Run after combat so they read this tick's positions.
     this.pickables.update();
     this.groundZones.update();
+    // Co-op run: once every member has fallen, end the run (defeat → town).
+    if (this.coopZombie) this.checkCoopGameOver();
     this.state.tick++;
+  }
+
+  /** Co-op zombie: when no human player is left alive, broadcast the game-over
+   *  (the wave reached) so clients show the defeat screen, then tear the room down
+   *  after a short linger. Latched so it fires exactly once, and only once at
+   *  least one human has joined (so an empty just-created room doesn't end). */
+  private checkCoopGameOver(): void {
+    if (this.coopOver) return;
+    let humans = 0;
+    let aliveHumans = 0;
+    this.state.players.forEach((player, id) => {
+      if (this.bots.has(id)) return; // zombies don't count
+      humans += 1;
+      if (player.alive) aliveHumans += 1;
+    });
+    if (humans === 0 || aliveHumans > 0) return;
+    this.coopOver = true;
+    this.broadcast(ServerMessage.ZombieGameOver, {
+      level: this.zombieDirector?.currentLevel() ?? this.state.zombieLevel,
+    });
+    this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
   }
 
   /** Free the shared Rapier physics world when the room is torn down. */

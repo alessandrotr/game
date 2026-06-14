@@ -198,6 +198,9 @@ export class ArenaState extends Schema {
   @type('number') layoutSeed = 0;
   /** Zombie survival mode is active — drives the client's wave HUD. */
   @type('boolean') zombieMode = false;
+  /** Co-op matchmade zombie run (death is final; drives the client's co-op
+   *  death/spectate flow). False for the drop-in zombie room. */
+  @type('boolean') coopZombie = false;
   /** Current zombie wave/level (1-based; 0 before the first horde). */
   @type('number') zombieLevel = 0;
   /** Zombies left to defeat this level (alive + not-yet-spawned); 0 between levels. */

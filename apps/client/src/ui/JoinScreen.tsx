@@ -7,12 +7,10 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
-import { TownBackdrop } from '../scene/TownBackdrop';
 import { AudioControl } from './AudioControl';
 import { CharacterSelect } from './CharacterSelect';
 import { ClassPreview } from './ClassPreview';
 import { Button, LevelBadge } from './primitives';
-import { ScreenHeader } from './ScreenHeader';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 
 /** Difficulty pips (UO-flavored). */
@@ -61,20 +59,29 @@ export function JoinScreen() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto">
-      <TownBackdrop />
-      {/* Scrim over the live scene so the select UI stays legible. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-black/65" />
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Full-width, full-height 3D space. The model is framed small and high so
+          every piece of UI can overlay it: account controls up top, the class
+          identity + selection + entry in a panel pinned to the bottom. */}
+      <section className="relative h-dvh w-full overflow-hidden bg-[#0a0b12]">
+        <ClassPreview
+          characterClass={selectedClass}
+          skinId={loadout.skinId}
+          dyeId={loadout.dyeId}
+          pedestalId={loadout.pedestalId}
+          align="top"
+        />
 
-      <div className="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 py-7">
-        <ScreenHeader
-          className="relative mb-6"
-          titleClassName="text-4xl sm:text-5xl"
-          subtitle="Choose your champion · enter the town"
-        >
-          <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted sm:absolute sm:right-0 sm:top-1 sm:mt-0">
+        {/* Top bar: wordmark + account controls, overlaid on the scene. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-4 sm:p-5">
+          <div className="pointer-events-auto">
+            <h1 className="font-display text-2xl tracking-[0.35em] indent-[0.35em] text-gold drop-shadow-[0_2px_12px_rgba(200,162,74,0.4)] sm:text-3xl">
+              ARENA
+            </h1>
+          </div>
+          <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 text-xs text-muted">
             <AudioControl />
-            <span>
+            <span className="hidden sm:inline">
               {guest ? (
                 'Playing as guest'
               ) : (
@@ -92,49 +99,44 @@ export function JoinScreen() {
               {guest ? 'Exit' : 'Sign out'}
             </Button>
           </div>
-        </ScreenHeader>
+        </div>
 
-        <div className="grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
-          {/* 3D model showcase — its frame + glow track the selected class color,
-              so the hero, the chosen card, and the name read as one identity. */}
-          <section className="relative min-h-[42vh] overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45)] lg:min-h-0">
-            <ClassPreview
-              characterClass={selectedClass}
-              skinId={loadout.skinId}
-              dyeId={loadout.dyeId}
-              pedestalId={loadout.pedestalId}
-            />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5">
-              <div className="flex items-end justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-6">
-                  <LevelBadge level={level} size="lg" />
-                  <div className="min-w-0">
-                    <h2
-                      className="font-display text-3xl leading-none tracking-wider drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
-                      style={{ color: def.color }}
-                    >
-                      {def.name}
-                    </h2>
-                    <span
-                      className="mt-2 block h-0.5 w-10 rounded-full"
-                      style={{ background: def.color }}
-                    />
-                    <p className="mt-2 text-sm text-muted">{def.role}</p>
-                  </div>
+        <div className="pointer-events-none absolute right-4 top-20 z-20 rounded-full bg-black/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/45 backdrop-blur-sm">
+          drag to rotate · scroll to zoom
+        </div>
+
+        {/* Bottom panel — class identity, selection, and entry, overlaid on the
+            lower half of the scene. Scrolls internally on short / mobile screens
+            while the model stays framed above; ENTER stays pinned at the bottom. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex max-h-[70dvh] justify-center">
+          <div className="pointer-events-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-b-0 border-white/10 bg-panel/85 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
+            {/* Identity header — frame accent tracks the selected class color. */}
+            <div
+              className="flex items-end justify-between gap-3 border-b border-white/10 px-5 py-3"
+              style={{ background: `linear-gradient(to bottom, ${def.color}1a, transparent)` }}
+            >
+              <div className="flex min-w-0 items-center gap-4">
+                <LevelBadge level={level} size="lg" />
+                <div className="min-w-0">
+                  <h2
+                    className="font-display text-2xl leading-none tracking-wider drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                    style={{ color: def.color }}
+                  >
+                    {def.name}
+                  </h2>
+                  <p className="mt-1.5 text-sm text-muted">{def.role}</p>
                 </div>
-                <Difficulty level={def.stats.difficulty} />
               </div>
+              <Difficulty level={def.stats.difficulty} />
             </div>
-            <div className="pointer-events-none absolute right-4 top-4 rounded-full bg-black/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/45 backdrop-blur-sm">
-              drag to rotate · scroll to zoom
+
+            {/* Selection — scrolls if it overflows the capped panel height. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+              <CharacterSelect />
             </div>
-          </section>
 
-          {/* Selection + entry */}
-          <section className="flex flex-col gap-4">
-            <CharacterSelect />
-
-            <form onSubmit={onSubmit} className="flex flex-col gap-2">
+            {/* Entry — pinned below the scroll area so it's always reachable. */}
+            <form onSubmit={onSubmit} className="flex flex-col gap-2 border-t border-white/10 p-4">
               <Button
                 type="submit"
                 variant="gold"
@@ -151,9 +153,9 @@ export function JoinScreen() {
                 </div>
               )}
             </form>
-          </section>
+          </div>
         </div>
-      </div>
+      </section>
 
       {guest && <UpgradeAccountDialog />}
     </div>

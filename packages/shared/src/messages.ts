@@ -44,6 +44,16 @@ export enum ClientMessage {
   AcceptMatch = 'accept_match',
   /** Matchmaking: decline the ready-check (returns others to the open lobby). */
   DeclineMatch = 'decline_match',
+  /** Co-op zombie: create a squad lobby (name + public/private). */
+  ZombieCreateLobby = 'z_create_lobby',
+  /** Co-op zombie: join a public squad lobby from the browser (by id). */
+  ZombieJoinLobby = 'z_join_lobby',
+  /** Co-op zombie: join a private squad lobby by its share code. */
+  ZombieJoinByCode = 'z_join_code',
+  /** Co-op zombie: leave the squad lobby you're in. */
+  ZombieLeaveLobby = 'z_leave_lobby',
+  /** Co-op zombie: host launches the run (1–5 players). */
+  ZombieStartMatch = 'z_start_match',
   /** Dev-only: live-tune authoritative movement "feel" for the room. */
   DevTune = 'dev_tune',
   /** Dev-only: live-tune ability balance (global base and/or per-class overrides). */
@@ -106,6 +116,9 @@ export enum ServerMessage {
   /** A thrown pickable (molotov / grenade) burst on impact (drives the blast VFX,
    *  sized to its radius; the server has already applied the area damage). */
   Detonation = 'detonation',
+  /** Co-op zombie run ended (every player fell). Carries the wave reached for the
+   *  defeat screen; the client returns to town. */
+  ZombieGameOver = 'zombie_game_over',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -154,6 +167,11 @@ export interface ClientMessagePayloads {
   [ClientMessage.LeaveLobby]: Record<string, never>;
   [ClientMessage.AcceptMatch]: Record<string, never>;
   [ClientMessage.DeclineMatch]: Record<string, never>;
+  [ClientMessage.ZombieCreateLobby]: { name: string; isPrivate: boolean };
+  [ClientMessage.ZombieJoinLobby]: { lobbyId: string };
+  [ClientMessage.ZombieJoinByCode]: { code: string };
+  [ClientMessage.ZombieLeaveLobby]: Record<string, never>;
+  [ClientMessage.ZombieStartMatch]: Record<string, never>;
   [ClientMessage.RequestLeaderboard]: Record<string, never>;
   [ClientMessage.Emote]: { emote: string };
   /** New aim direction for the active channel (normalized server-side). */
@@ -242,4 +260,6 @@ export interface ServerMessagePayloads {
   /** A thrown pickable burst: its kind, world point, and blast radius (the VFX is
    *  sized to the radius). The server has already applied the area damage. */
   [ServerMessage.Detonation]: { kind: string; x: number; z: number; radius: number };
+  /** Co-op zombie run ended — the wave the squad reached (for the defeat screen). */
+  [ServerMessage.ZombieGameOver]: { level: number };
 }

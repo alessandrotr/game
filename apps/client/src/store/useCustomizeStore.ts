@@ -6,10 +6,16 @@ export type CustomizeTab = 'profile' | 'store';
 interface CustomizeStore {
   open: boolean;
   tab: CustomizeTab;
+  /** Cosmetic id being previewed on the showcase avatar (try-before-equip). Not
+   *  persisted or equipped — purely a visual try-on. `null` = show the equipped
+   *  look. Cleared when the hub closes or the tab changes. */
+  previewId: string | null;
   /** Open the hub (optionally to a specific tab). */
   show: (tab?: CustomizeTab) => void;
   setOpen: (open: boolean) => void;
   setTab: (tab: CustomizeTab) => void;
+  /** Preview a cosmetic on the avatar (pass null to clear). */
+  setPreview: (id: string | null) => void;
 }
 
 /**
@@ -20,7 +26,9 @@ interface CustomizeStore {
 export const useCustomizeStore = create<CustomizeStore>((set) => ({
   open: false,
   tab: 'profile',
-  show: (tab) => set((s) => ({ open: true, tab: tab ?? s.tab })),
-  setOpen: (open) => set({ open }),
-  setTab: (tab) => set({ tab }),
+  previewId: null,
+  show: (tab) => set((s) => ({ open: true, tab: tab ?? s.tab, previewId: null })),
+  setOpen: (open) => set((s) => ({ open, previewId: open ? s.previewId : null })),
+  setTab: (tab) => set({ tab, previewId: null }),
+  setPreview: (id) => set({ previewId: id }),
 }));

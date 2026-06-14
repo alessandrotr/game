@@ -5,6 +5,7 @@ import {
   MATCHMAKING_ROOM,
   SESSION_SUPERSEDED_CODE,
   TOWN_ROOM,
+  ZOMBIE_MATCHMAKING_ROOM,
   ZOMBIE_ROOM,
   ClientMessage,
   ServerMessage,
@@ -25,11 +26,14 @@ import {
   type ServerMessagePayloads,
   type Team,
   type VfxAssetId,
+  type ZombieLobbyView,
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
 import { useSpeechStore } from '../store/useSpeechStore';
 import { useLobbyStore } from '../store/useLobbyStore';
+import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
+import { useCoopStore } from '../store/useCoopStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
@@ -93,6 +97,8 @@ interface RawState {
   layoutSeed?: number;
   /** Zombie survival mode flag + wave counters (arena rooms only). */
   zombieMode?: boolean;
+  /** Co-op matchmade zombie run (death is final). */
+  coopZombie?: boolean;
   zombieLevel?: number;
   zombiesRemaining?: number;
   zombiesAlive?: number;
@@ -419,6 +425,7 @@ function bailToJoinScreen(reason: unknown): void {
   const current = room;
   room = null;
   disconnectMatchmaking();
+  disconnectZombieMatchmaking();
   useGameStore.getState().reset();
   useGameStore.getState().setStatus('error', 'Lost sync with the server — please rejoin.');
   if (current) void current.leave().catch(() => {});
@@ -444,6 +451,7 @@ function wireRoom(joined: Room): void {
   setTelemetryContext({ sessionId: joined.sessionId, room: joined.name });
   useConnectionStore.getState().setLost(false);
   clearSnapshots(); // fresh interpolation timeline per room (no cross-room bleed)
+  useCoopStore.getState().reset(); // fresh co-op death/spectate state per room
   // A teleport (portal/scene change) cancels any pending move order — arrive
   // idle and wait for the next command, rather than resuming a stale walk.
   clearDestination();
@@ -474,6 +482,7 @@ function wireRoom(joined: Room): void {
           raw.zombieLevel ?? 0,
           raw.zombiesRemaining ?? 0,
           raw.zombiesAlive ?? 0,
+          raw.coopZombie ?? false,
         );
       // Feed the interpolation buffer used to render remote players smoothly.
       const now = performance.now();
@@ -527,6 +536,10 @@ function wireRoom(joined: Room): void {
     // 100-damage area blast — this is the explosion VFX).
     useEffectsStore.getState().spawn('vfx.car_explosion', [msg.x, 0, msg.z]);
   });
+  joined.onMessage(ServerMessage.ZombieGameOver, (msg) => {
+    // Co-op squad wiped — show the defeat screen (CoopOverlay returns to town).
+    useCoopStore.getState().setGameOver(msg.level);
+  });
   joined.onMessage(ServerMessage.Detonation, (msg) => {
     // A thrown pickable burst (server already applied the area damage). The
     // grenade gets the bigger fireball; the molotov a smaller fire pop (its
@@ -575,6 +588,8 @@ function teardownSession(): void {
   setTelemetryContext({}); // no active session/room to tag reports with
   useConnectionStore.getState().setLost(false);
   disconnectMatchmaking(); // drop the parallel lobby connection too
+  disconnectZombieMatchmaking();
+  useCoopStore.getState().reset();
   useGameStore.getState().reset();
   useChatStore.getState().clear();
   useSpeechStore.getState().clear();
@@ -653,8 +668,9 @@ function wireMatchmaking(joined: Room): void {
     useLobbyStore.getState().setLobbies(snapshotLobbies(state as unknown as RawMmState));
   });
   joined.onMessage(ServerMessage.MatchFound, (msg) => {
-    // Tear down the lobby connection, then consume the seat into the arena.
+    // Tear down both lobby connections, then consume the seat into the arena.
     disconnectMatchmaking();
+    disconnectZombieMatchmaking();
     useMatchResultStore.getState().clear();
     void joinByReservation(msg.reservation);
   });
@@ -704,6 +720,115 @@ export function disconnectMatchmaking(): void {
   const current = mmRoom;
   mmRoom = null;
   useLobbyStore.getState().reset();
+  if (current) void current.leave().catch(() => {});
+}
+
+// --- Co-op Zombie matchmaking connection (parallel to the town room) --------
+
+/** The co-op zombie lobby connection, kept open alongside the town room (a second
+ *  singleton registry, separate from the team-vs-team {@link mmRoom}). */
+let zmmRoom: Room | null = null;
+let zmmGeneration = 0;
+
+/** Structural view of the runtime co-op zombie matchmaking state. */
+interface RawZombieSlot {
+  sessionId: string;
+  name: string;
+  characterClass: ZombieLobbyView['members'][number]['characterClass'];
+  index: number;
+}
+interface RawZombieLobby {
+  id: string;
+  name: string;
+  hostId: string;
+  isPrivate: boolean;
+  code: string;
+  status: ZombieLobbyView['status'];
+  members: { forEach(cb: (slot: RawZombieSlot) => void): void };
+}
+interface RawZombieMmState {
+  lobbies: { forEach(cb: (lobby: RawZombieLobby, key: string) => void): void };
+}
+
+function snapshotZombieLobbies(state: RawZombieMmState): ZombieLobbyView[] {
+  const lobbies: ZombieLobbyView[] = [];
+  state.lobbies.forEach((lobby) => {
+    const members: ZombieLobbyView['members'] = [];
+    lobby.members.forEach((m) =>
+      members.push({
+        sessionId: m.sessionId,
+        name: m.name,
+        characterClass: m.characterClass,
+        index: m.index,
+      }),
+    );
+    members.sort((a, b) => a.index - b.index);
+    lobbies.push({
+      id: lobby.id,
+      name: lobby.name,
+      hostId: lobby.hostId,
+      isPrivate: lobby.isPrivate,
+      code: lobby.code,
+      status: lobby.status,
+      members,
+    });
+  });
+  return lobbies;
+}
+
+function wireZombieMatchmaking(joined: Room): void {
+  joined.onStateChange((state) => {
+    useZombieLobbyStore
+      .getState()
+      .setLobbies(snapshotZombieLobbies(state as unknown as RawZombieMmState));
+  });
+  joined.onMessage(ServerMessage.MatchFound, (msg) => {
+    // The host started the run: drop the lobby connection and consume the seat.
+    disconnectZombieMatchmaking();
+    useMatchResultStore.getState().clear();
+    void joinByReservation(msg.reservation);
+  });
+  joined.onMessage(ServerMessage.LobbyError, (msg) => {
+    useZombieLobbyStore.getState().setError(msg.message);
+  });
+  joined.onError((code, message) => {
+    console.error(`[z-mm] room error ${code}: ${message ?? ''}`.trim());
+    reportClientError('matchmaking-error', { message: message ?? `z-mm room error ${code}`, code });
+  });
+  joined.onLeave(() => {
+    if (zmmRoom === joined) zmmRoom = null;
+    useZombieLobbyStore.getState().reset();
+  });
+}
+
+/** Open the co-op zombie lobby connection (idempotent). */
+export async function connectZombieMatchmaking(): Promise<void> {
+  if (!client || !joinOptions || zmmRoom) return;
+  const generation = zmmGeneration;
+  try {
+    const joined = await client.joinOrCreate(ZOMBIE_MATCHMAKING_ROOM, joinOptions);
+    if (generation !== zmmGeneration) {
+      void joined.leave().catch(() => {});
+      return;
+    }
+    zmmRoom = joined;
+    useZombieLobbyStore.getState().setSession(joined.sessionId);
+    wireZombieMatchmaking(joined);
+  } catch (err) {
+    console.error('[z-mm] failed to connect to zombie matchmaking:', err);
+    reportClientError('matchmaking-error', {
+      message: 'failed to connect to zombie matchmaking',
+      reason: err,
+    });
+  }
+}
+
+/** Close the co-op zombie lobby connection and clear its UI. */
+export function disconnectZombieMatchmaking(): void {
+  zmmGeneration++;
+  const current = zmmRoom;
+  zmmRoom = null;
+  useZombieLobbyStore.getState().reset();
   if (current) void current.leave().catch(() => {});
 }
 
@@ -758,7 +883,10 @@ export async function connectToRoom(
     store.setStatus('connected');
     wireRoom(room);
     // Open the lobby browser connection alongside the town hub.
-    if (roomType === 'town') void connectMatchmaking();
+    if (roomType === 'town') {
+      void connectMatchmaking();
+      void connectZombieMatchmaking();
+    }
   } catch (err) {
     room = null;
     const message = err instanceof Error ? err.message : 'Failed to connect';
@@ -792,6 +920,7 @@ export async function travelTo(
   // Matchmaking only exists in town: drop it when leaving for the arena (it's
   // reopened below when arriving in town).
   disconnectMatchmaking();
+  disconnectZombieMatchmaking();
   try {
     // Leave the old world without waiting out the close round-trip — but detach
     // its listeners first so its late onLeave/onError/onStateChange can't bleed
@@ -819,7 +948,10 @@ export async function travelTo(
     store.setRoom(roomType);
     store.setStatus('connected');
     wireRoom(room);
-    if (roomType === 'town') void connectMatchmaking();
+    if (roomType === 'town') {
+      void connectMatchmaking();
+      void connectZombieMatchmaking();
+    }
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
@@ -837,6 +969,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   traveling = true;
   store.setTransitioning(true, 'Entering the arena…');
   disconnectMatchmaking(); // belt-and-braces: the match-found handler already did
+  disconnectZombieMatchmaking();
   try {
     // Detach + non-blocking leave of the old world (see travelTo).
     if (room) {
@@ -897,6 +1030,33 @@ export function sendAcceptMatch(): void {
 /** Decline the ready-check (returns the others to the open lobby). */
 export function sendDeclineMatch(): void {
   mmRoom?.send(ClientMessage.DeclineMatch, {});
+}
+
+// --- Co-op Zombie matchmaking intents (sent on the zombie lobby connection) ---
+
+/** Create a co-op zombie squad lobby (public or private). */
+export function sendZombieCreateLobby(name: string, isPrivate: boolean): void {
+  zmmRoom?.send(ClientMessage.ZombieCreateLobby, { name, isPrivate });
+}
+
+/** Join a public co-op squad lobby from the browser. */
+export function sendZombieJoinLobby(lobbyId: string): void {
+  zmmRoom?.send(ClientMessage.ZombieJoinLobby, { lobbyId });
+}
+
+/** Join a private co-op squad lobby by its share code. */
+export function sendZombieJoinByCode(code: string): void {
+  zmmRoom?.send(ClientMessage.ZombieJoinByCode, { code });
+}
+
+/** Leave the co-op squad lobby you're in. */
+export function sendZombieLeaveLobby(): void {
+  zmmRoom?.send(ClientMessage.ZombieLeaveLobby, {});
+}
+
+/** Host: launch the co-op run (1–5 players). */
+export function sendZombieStartMatch(): void {
+  zmmRoom?.send(ClientMessage.ZombieStartMatch, {});
 }
 
 /** Play an emote (dance), replicated to everyone in the room. */
