@@ -115,6 +115,94 @@ function BeamFor({ sessionId }: { sessionId: string }) {
   );
 }
 
+// --- Sanctuary field: a holy ground ring around a player carrying a `field`
+// status, sized to the status' radius (its damage area). ----------------------
+
+const fieldFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;                       // 0 centre → 1 at the edge
+    float ring = smoothstep(0.08, 0.0, abs(r - 0.93)); // bright rim just inside the radius
+    float fill = smoothstep(1.0, 0.0, r) * 0.16;        // faint interior glow
+    float swirl = 0.65 + 0.35 * noise(p * 9.0 + uTime * 1.6);
+    float v = (ring + fill) * swirl * (1.0 - smoothstep(0.98, 1.04, r));
+    vec3 col = mix(vec3(1.0, 0.82, 0.4), vec3(1.0, 0.97, 0.8), ring);
+    gl_FragColor = vec4(col * (0.8 + v * 1.6), clamp(v, 0.0, 1.0));
+  }
+`;
+
+function FieldFor({ sessionId }: { sessionId: string }) {
+  const group = useRef<Group>(null);
+  const matRef = useRef<ShaderMaterial>(null);
+  const isLocal = useGameStore.getState().sessionId === sessionId;
+  const uniforms = useMemo(() => ({ uTime: { value: Math.random() * 10 } }), []);
+  useUTime(matRef);
+
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const p = useGameStore.getState().players.get(sessionId);
+    const field = p?.statuses.find((s) => s.kind === 'field');
+    if (!p || !p.alive || !field) {
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+    let x = p.x;
+    let z = p.z;
+    if (isLocal) {
+      const t = getLocalRenderTransform();
+      if (t.active) {
+        x = t.x;
+        z = t.z;
+      }
+    } else {
+      const s = sampleTransform(sessionId, performance.now() - INTERP_DELAY_MS);
+      if (s) {
+        x = s.x;
+        z = s.z;
+      }
+    }
+    g.position.set(x, 0.06, z);
+    // The disc is a unit radius (plane 2×2); scale it to the field's radius so the
+    // ring lands on the actual damage area.
+    g.scale.set(field.magnitude, 1, field.magnitude);
+  });
+
+  return (
+    <group ref={group} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[2, 2]} />
+        <shaderMaterial
+          ref={matRef}
+          vertexShader={UV_VERTEX}
+          fragmentShader={fieldFrag}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/** One field aura per player (each self-hides unless that player has a field). */
+export function FieldAuras() {
+  const ids = useGameStore((s) => s.playerIds);
+  return (
+    <>
+      {ids.map((id) => (
+        <FieldFor key={id} sessionId={id} />
+      ))}
+    </>
+  );
+}
+
 /** One beam per player (each self-hides unless that player is channelling). */
 export function ChannelBeams() {
   const ids = useGameStore((s) => s.playerIds);

@@ -61,6 +61,8 @@ function statusPhrase(s: StatusSpec): string {
       return `increases damage taken by ${pct(s.magnitude, 'increase')}% ${dur}`;
     case 'empower':
       return `empowers your next hit with +${s.magnitude ?? 0} damage`;
+    case 'field':
+      return `forms a field dealing ${s.tickAmount ?? 0} damage every ${secs(s.tickMs ?? 500)}s to nearby enemies ${dur}`;
     case 'dot':
       return `deals ${s.tickAmount ?? 0} damage every ${secs(s.tickMs ?? 1000)}s ${dur}`;
     case 'hot':
@@ -112,6 +114,8 @@ function effectLine(effect: Effect): string {
     }
     case 'dash':
       return `Dashes ${effect.distance} units in the aimed direction.`;
+    case 'heal_allies':
+      return `Heals you and nearby allies for ${effect.amount} health.`;
     default: {
       // A bare leaf — capitalize its phrase into a sentence.
       const p = leafPhrase(effect);

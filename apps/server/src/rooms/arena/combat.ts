@@ -128,19 +128,28 @@ export class CombatSystem {
     unitTargetId?: string,
   ): void {
     const unitTarget = unitTargetId ? this.ctx.state.players.get(unitTargetId) : undefined;
-    const cast: CastContext = { caster: player, dirX, dirZ, targetX, targetZ, unitTarget };
+    const cast: CastContext = {
+      caster: player,
+      dirX,
+      dirZ,
+      targetX,
+      targetZ,
+      unitTarget,
+      ability: config.id,
+    };
     runCast(config.effects, cast, this.effectRuntime);
   }
 
   /** Resolve a hit on a player: scale by vulnerability, drain any absorb shield,
    *  apply the remainder via the combat core, broadcast, and schedule respawn on
-   *  a kill. */
-  dealDamage(target: Player, amount: number, fromId: string): void {
+   *  a kill. `ability` (the source ability id) lets a restricted empower apply
+   *  only to its ability. */
+  dealDamage(target: Player, amount: number, fromId: string, ability?: string): void {
     if (!target.alive || amount <= 0) return;
     const now = this.ctx.now();
-    // An `empower` buff on the attacker adds flat damage to this one hit, then
-    // is consumed (the archer's Tumble empowers the next ability/projectile).
-    const total = amount + this.consumeEmpower(fromId, target.sessionId);
+    // An `empower` buff on the attacker adds flat damage to this one hit, then is
+    // consumed (the archer's Tumble = any next hit; the priest's Blessing = Q only).
+    const total = amount + this.consumeEmpower(fromId, target.sessionId, ability);
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = total * damageTakenMultiplier(target);
     if (target.shield > 0) {
@@ -197,20 +206,20 @@ export class CombatSystem {
   }
 
   /** Flat bonus damage from an `empower` buff on the attacker, consumed on use.
-   *  Returns 0 when the attacker has none (or is hitting itself). */
-  private consumeEmpower(fromId: string, targetId: string): number {
+   *  A restricted empower (`status.ability` set) applies only when `ability`
+   *  matches; an unrestricted one applies to any hit. Returns 0 otherwise. */
+  private consumeEmpower(fromId: string, targetId: string, ability?: string): number {
     if (fromId === targetId) return 0;
     const attacker = this.ctx.state.players.get(fromId);
     if (!attacker) return 0;
-    let bonus = 0;
     for (const s of attacker.statuses) {
-      if (s.kind === 'empower') {
-        bonus = s.magnitude;
-        break;
+      if (s.kind === 'empower' && (s.ability === '' || s.ability === ability)) {
+        const bonus = s.magnitude;
+        this.removeStatuses(attacker, 'empower');
+        return bonus;
       }
     }
-    if (bonus > 0) this.removeStatuses(attacker, 'empower');
-    return bonus;
+    return 0;
   }
 
   /** Heal a target and broadcast the healing feedback. */
@@ -243,6 +252,7 @@ export class CombatSystem {
     s.tickAmount = spec.tickAmount ?? 0;
     s.nextTickAt = spec.tickMs ? now + spec.tickMs : 0;
     s.sourceId = fromId;
+    s.ability = spec.ability ?? '';
     target.statuses.push(s);
     // A stun/root cancels in-progress movement so it reads as a hard stop.
     if (spec.kind === 'stun' || spec.kind === 'root')
@@ -294,9 +304,18 @@ export class CombatSystem {
         list.splice(i, 1);
         continue;
       }
-      if ((s.kind === 'dot' || s.kind === 'hot') && s.tickMs > 0 && now >= s.nextTickAt) {
-        if (s.kind === 'dot') this.dealDamage(player, s.tickAmount, s.sourceId);
-        else this.healTarget(player, s.tickAmount);
+      if ((s.kind === 'dot' || s.kind === 'hot' || s.kind === 'field') && s.tickMs > 0 && now >= s.nextTickAt) {
+        if (s.kind === 'dot') {
+          this.dealDamage(player, s.tickAmount, s.sourceId);
+        } else if (s.kind === 'hot') {
+          this.healTarget(player, s.tickAmount);
+        } else {
+          // `field`: a damaging aura — tick every enemy within `magnitude` of the
+          // carrier (it follows the player, so the field tracks them).
+          this.forEachEnemyInRadius(player.x, player.z, s.magnitude, player.sessionId, (enemy) =>
+            this.dealDamage(enemy, s.tickAmount, player.sessionId),
+          );
+        }
         s.nextTickAt += s.tickMs;
       }
     }
@@ -320,10 +339,28 @@ export class CombatSystem {
     });
   }
 
+  /** Invoke `fn` for every living ALLY (same team as `caster`, excluding the
+   *  caster) within `radius` of (x, z) — used by friendly AoE heals. */
+  forEachAllyInRadius(
+    x: number,
+    z: number,
+    radius: number,
+    caster: Player,
+    fn: (target: Player) => void,
+  ): void {
+    const hitSq = (radius + PLAYER_RADIUS) * (radius + PLAYER_RADIUS);
+    this.ctx.state.players.forEach((target, id) => {
+      if (id === caster.sessionId || !target.alive || target.team !== caster.team) return;
+      const dx = target.x - x;
+      const dz = target.z - z;
+      if (dx * dx + dz * dz <= hitSq) fn(target);
+    });
+  }
+
   /** The executor's view of the world — every ability side effect funnels through
    *  these hooks (declared once; abilities never touch this). */
   readonly effectRuntime: EffectRuntime = {
-    dealDamage: (t, a, f) => this.dealDamage(t, a, f),
+    dealDamage: (t, a, f, ab) => this.dealDamage(t, a, f, ab),
     heal: (t, a) => this.healTarget(t, a),
     addShield: (t, a, d, f) => this.addShield(t, a, d, f),
     applyStatus: (t, s, f) => this.applyStatus(t, s, f),
@@ -331,6 +368,7 @@ export class CombatSystem {
     spawnProjectile: (o, v, dx, dz, sp, r, rad, oh, count, interval) =>
       this.projectiles.spawnProjectile(o, v, dx, dz, sp, r, rad, oh, count, interval),
     forEachEnemyInRadius: (x, z, r, ex, fn) => this.forEachEnemyInRadius(x, z, r, ex, fn),
+    forEachAllyInRadius: (x, z, r, caster, fn) => this.forEachAllyInRadius(x, z, r, caster, fn),
     triggerBarrelsInRadius: (x, z, r, from) => this.barrels.triggerInRadius(x, z, r, from),
     pushDestructiblesInRadius: (x, z, r, from, amount) =>
       this.destructibles.pushInRadius(x, z, r, from, amount),

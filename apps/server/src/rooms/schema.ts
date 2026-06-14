@@ -17,10 +17,12 @@ export class StatusEffect extends Schema {
   @type('number') nextTickAt = 0;
   /** HP changed per tick for dot/hot. */
   @type('number') tickAmount = 0;
-  /** Tick interval (ms) for dot/hot. */
+  /** Tick interval (ms) for dot/hot/field. */
   @type('number') tickMs = 0;
   /** Session id of the applier ('' if environmental). */
   @type('string') sourceId = '';
+  /** For `empower`: the ability id the bonus is restricted to ('' = any hit). */
+  @type('string') ability = '';
 }
 
 /**

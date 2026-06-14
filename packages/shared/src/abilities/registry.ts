@@ -303,60 +303,57 @@ export const ABILITY_REGISTRY = {
     ],
   },
 
-  // === Priest — support: a silencing smite, self-heal, an ally HoT, a targeted stun ===
+  // === Priest — support: a hit+heal burst, a damaging field, a shield/empower, a beam ===
+  // Q — Smite: a ground burst that damages enemies + objects and heals the priest
+  // and nearby allies.
   smite: {
     id: 'smite',
     name: 'Smite',
     icon: 'Sun',
-    aim: 'direction',
-    cooldownMs: 5000,
-    manaCost: 25,
+    aim: 'point',
+    cooldownMs: 2000,
+    manaCost: 30,
     castTimeMs: 0,
-    range: 28,
-    damage: 22,
-    projectileSpeed: 26,
-    projectileRange: 22,
-    projectileRadius: 0.7,
+    range: 16,
+    damage: 24,
+    healAmount: 16,
+    aoeRadius: 2,
     effects: [
-      {
-        type: 'projectile',
-        speed: 26,
-        range: 22,
-        radius: 0.7,
-        vfx: 'holy_bolt',
-        onHit: [
-          { type: 'damage', amount: 22 },
-          { type: 'status', status: { kind: 'silence', durationMs: 1500 } },
-        ],
-      },
+      { type: 'aoe', at: 'point', radius: 2, onHit: [{ type: 'damage', amount: 24 }] },
+      { type: 'heal_allies', at: 'point', radius: 2, amount: 16 },
     ],
   },
+  // W — Sanctuary: a damaging field that follows the priest for 3s.
   heal: {
     id: 'heal',
-    name: 'Heal',
-    icon: 'HeartPulse',
+    name: 'Sanctuary',
+    icon: 'Waves',
     aim: 'self',
     cooldownMs: 10000,
-    manaCost: 40,
-    castTimeMs: 600,
-    range: 0,
-    damage: 0,
-    healAmount: 40,
-    effects: [{ type: 'heal', amount: 40 }],
+    manaCost: 60,
+    castTimeMs: 0,
+    range: 3,
+    damage: 4,
+    aoeRadius: 3,
+    effects: [
+      // A self `field` status: ticks 4 to enemies within radius 3 every 0.5s for 3s.
+      { type: 'status', status: { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 4, magnitude: 3 } },
+    ],
   },
+  // E — Blessing: a shield, plus +20 damage on the priest's NEXT Smite (Q only).
   renew: {
     id: 'renew',
-    name: 'Renew',
-    icon: 'Heart',
-    aim: 'unit',
+    name: 'Blessing',
+    icon: 'Shield',
+    aim: 'self',
     cooldownMs: 8000,
-    manaCost: 35,
+    manaCost: 40,
     castTimeMs: 0,
-    range: 20,
+    range: 0,
     damage: 0,
     effects: [
-      // Heal-over-time on the locked target (falls back to self if none locked).
-      { type: 'status', status: { kind: 'hot', durationMs: 5000, tickMs: 1000, tickAmount: 12 } },
+      { type: 'shield', amount: 20, durationMs: 6000 },
+      { type: 'status', status: { kind: 'empower', durationMs: 6000, magnitude: 20, ability: 'smite' } },
     ],
   },
   condemn: {
@@ -368,14 +365,14 @@ export const ABILITY_REGISTRY = {
     manaCost: 100,
     castTimeMs: 0,
     range: 18,
-    damage: 12,
-    // A sustained beam: an 18-long, 1-wide ray that deals 12 the instant it hits
-    // a target, then 12 every 0.5s for 3s. The priest may move and re-aim with the
-    // mouse while channelling, but can't cast anything else; re-pressing R
-    // interrupts it. Handled by the server's channel system (not the instant
-    // effect executor), so no `effects`.
+    damage: 5,
+    // A sustained beam: an 18-long, 1-wide ray that deals 5 damage every 0.2s for
+    // 3s (a target is hit the instant it enters, then each tick). The priest may
+    // move and re-aim with the mouse while channelling, but can't cast anything
+    // else; re-pressing R interrupts it. Handled by the server's channel system
+    // (not the instant effect executor), so no `effects`.
     channelMs: 3000,
-    channelTickMs: 500,
+    channelTickMs: 200,
     beamWidth: 1,
     effects: [],
   },

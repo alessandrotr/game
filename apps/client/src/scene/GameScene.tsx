@@ -27,7 +27,7 @@ import { PerfMeter } from './PerfMeter';
 import { MouseMove } from './MouseMove';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
-import { ChannelBeams, ChannelAim } from './ChannelBeams';
+import { ChannelBeams, ChannelAim, FieldAuras } from './ChannelBeams';
 import { CursorTracker } from './CursorTracker';
 import { DestinationMarker } from './DestinationMarker';
 import { ArenaLights } from './ArenaLights';
@@ -196,6 +196,7 @@ export function GameScene() {
           <StatusIndicators />
           <ChannelBeams />
           <ChannelAim />
+          <FieldAuras />
           <FloatingCombatText />
         </>
       )}

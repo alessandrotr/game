@@ -32,6 +32,7 @@ export type StatusKind =
   | 'attack_speed' // auto-attack interval × (1 / magnitude)
   | 'damage_amp' // damage TAKEN × magnitude (>1 = vulnerable)
   | 'empower' // adds `magnitude` flat damage to the carrier's NEXT damaging hit, then consumed
+  | 'field' // a damaging aura: ticks `tickAmount` to enemies within `magnitude` of the carrier
   | 'dot' // damage over time (tickAmount every tickMs)
   | 'hot' // heal over time (tickAmount every tickMs)
   | 'shield'; // tracks the lifetime of an absorb shield
@@ -46,6 +47,7 @@ export const STATUS_KINDS: readonly StatusKind[] = [
   'attack_speed',
   'damage_amp',
   'empower',
+  'field',
   'dot',
   'hot',
   'shield',
@@ -63,10 +65,12 @@ export interface StatusSpec {
    * this is the absorb amount.
    */
   magnitude?: number;
-  /** Tick interval for `dot`/`hot`, in milliseconds. */
+  /** Tick interval for `dot`/`hot`/`field`, in milliseconds. */
   tickMs?: number;
-  /** HP changed per tick for `dot`/`hot`. */
+  /** HP changed per tick for `dot`/`hot`/`field`. */
   tickAmount?: number;
+  /** For `empower`: restrict the bonus to this ability id (omit = any next hit). */
+  ability?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +128,14 @@ export type Effect =
       vfx?: string;
       /** Effects applied to every enemy inside `radius`. */
       onHit: LeafEffect[];
+    }
+  | {
+      /** Heal the caster plus every ALLY (same team) within `radius` of the
+       *  centre — the friendly counterpart to `aoe`. */
+      type: 'heal_allies';
+      at: 'caster' | 'point' | 'unit';
+      radius: number;
+      amount: number;
     }
   | {
       type: 'dash';

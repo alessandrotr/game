@@ -17,8 +17,10 @@ export type EffectActor = Player;
 
 /** Everything an effect can ask the world to do. Implemented by the room. */
 export interface EffectRuntime {
-  /** Deal `amount` damage to `target`, credited to `fromId` (shield + amp applied). */
-  dealDamage(target: EffectActor, amount: number, fromId: string): void;
+  /** Deal `amount` damage to `target`, credited to `fromId` (shield + amp applied).
+   *  `ability` (the id of the ability dealing it) lets a Q-restricted empower
+   *  bonus apply only to the right ability. */
+  dealDamage(target: EffectActor, amount: number, fromId: string, ability?: string): void;
   /** Heal `target` by `amount` and broadcast healing feedback. */
   heal(target: EffectActor, amount: number, fromId: string): void;
   /** Grant `target` an absorb shield of `amount` for `durationMs`. */
@@ -59,6 +61,15 @@ export interface EffectRuntime {
     exceptId: string,
     fn: (target: EffectActor) => void,
   ): void;
+  /** Invoke `fn` for every living ALLY (same team as `caster`, excluding the
+   *  caster) within `radius` of (x,z). */
+  forEachAllyInRadius(
+    x: number,
+    z: number,
+    radius: number,
+    caster: EffectActor,
+    fn: (target: EffectActor) => void,
+  ): void;
   /** Detonate any interactive barrels within `radius` of (x,z), credited to `fromId`. */
   triggerBarrelsInRadius(x: number, z: number, radius: number, fromId: string): void;
   /** Physically shove any destructibles (tires/barrels/building parts) within
@@ -90,6 +101,9 @@ export interface CastContext {
   targetZ?: number;
   /** Locked target (`aim:'unit'`); undefined falls back to the caster. */
   unitTarget?: EffectActor;
+  /** The ability id being resolved — carried into damage so a Q-restricted
+   *  empower applies only to its ability. */
+  ability?: string;
 }
 
 /** The single-target frame a {@link LeafEffect} resolves against. */
@@ -99,6 +113,8 @@ interface LeafFrame {
   /** Where the effect emanates from (for knockback direction). */
   originX: number;
   originZ: number;
+  /** Ability id driving this damage (for empower restriction); undefined = none. */
+  ability?: string;
 }
 
 /** Apply one leaf effect to its current target. The whole switch over leaf kinds
@@ -107,7 +123,7 @@ function runLeaf(effect: LeafEffect, frame: LeafFrame, rt: EffectRuntime): void 
   const { caster, target } = frame;
   switch (effect.type) {
     case 'damage':
-      rt.dealDamage(target, effect.amount, caster.sessionId);
+      rt.dealDamage(target, effect.amount, caster.sessionId, frame.ability);
       break;
     case 'heal':
       rt.heal(target, effect.amount, caster.sessionId);
@@ -154,8 +170,9 @@ function runLeaves(
   originX: number,
   originZ: number,
   rt: EffectRuntime,
+  ability?: string,
 ): void {
-  const frame: LeafFrame = { caster, target, originX, originZ };
+  const frame: LeafFrame = { caster, target, originX, originZ, ability };
   for (const e of effects) runLeaf(e, frame, rt);
 }
 
@@ -200,7 +217,7 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
             const len = Math.hypot(vx, vz);
             if (len > 1e-3 && (vx * fx + vz * fz) / len < cosHalf) return; // behind the arc
           }
-          runLeaves(effect.onHit, caster, target, cx, cz, rt);
+          runLeaves(effect.onHit, caster, target, cx, cz, rt, ctx.ability);
         });
         // Barrels caught in the blast launch + detonate too.
         rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
@@ -209,6 +226,15 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId, sumLeafDamage(effect.onHit));
         // Cover structures (trailers/cars/dumpsters) take the blast's damage.
         rt.damageStructuresInRadius(cx, cz, effect.radius, sumLeafDamage(effect.onHit));
+        break;
+      }
+      case 'heal_allies': {
+        // The friendly counterpart to `aoe`: heal the caster + same-team allies
+        // within radius of the centre (caster / ground point / locked unit).
+        const hx = effect.at === 'point' ? (ctx.targetX ?? caster.x) : effect.at === 'unit' ? (ctx.unitTarget?.x ?? caster.x) : caster.x;
+        const hz = effect.at === 'point' ? (ctx.targetZ ?? caster.z) : effect.at === 'unit' ? (ctx.unitTarget?.z ?? caster.z) : caster.z;
+        rt.heal(caster, effect.amount, caster.sessionId); // the priest always heals himself
+        rt.forEachAllyInRadius(hx, hz, effect.radius, caster, (ally) => rt.heal(ally, effect.amount, caster.sessionId));
         break;
       }
       case 'dash':
@@ -222,7 +248,7 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         break;
       default:
         // A bare leaf: apply to the locked target (unit aim) or the caster.
-        runLeaves([effect], caster, ctx.unitTarget ?? caster, caster.x, caster.z, rt);
+        runLeaves([effect], caster, ctx.unitTarget ?? caster, caster.x, caster.z, rt, ctx.ability);
         break;
     }
   }
