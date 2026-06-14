@@ -3,7 +3,6 @@ import {
   PICKABLE_DROP_CHANCE,
   PICKABLE_GROUND_TTL_MS,
   PICKABLE_GROUND_Y,
-  PICKABLE_KINDS,
   PICKABLE_PICKUP_RADIUS,
   ServerMessage,
   isPickableKind,
@@ -37,12 +36,11 @@ export class PickableSystem {
     private readonly groundZones: GroundZoneSystem,
   ) {}
 
-  /** Roll for a drop when a drum is destroyed: a 50% chance to spawn a random
-   *  pickable (molotov / grenade) at the drum's position. */
+  /** Roll for a drop when a drum is destroyed: a 50% chance to spawn a molotov at
+   *  the drum's position (grenades don't drop from drums). */
   spawnFromDrum(x: number, z: number): void {
     if (Math.random() >= PICKABLE_DROP_CHANCE) return;
-    const kind = PICKABLE_KINDS[Math.floor(Math.random() * PICKABLE_KINDS.length)] ?? 'grenade';
-    this.spawnGround(kind, x, z);
+    this.spawnGround('molotov', x, z);
   }
 
   /** Create a loose pickable on the ground (replicated + TTL-tracked). */

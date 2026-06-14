@@ -168,10 +168,10 @@ export const ABILITY_REGISTRY = {
     cooldownMs: 3500,
     manaCost: 20,
     castTimeMs: 0,
-    range: 10,
+    range: 12,
     damage: 10,
     // A fast gap-closing lunge that hits anything it ploughs through for 10.
-    effects: [{ type: 'dash', distance: 10, speed: 34, damage: 10 }],
+    effects: [{ type: 'dash', distance: 12, speed: 34, damage: 10 }],
   },
   shield_wall: {
     id: 'shield_wall',
