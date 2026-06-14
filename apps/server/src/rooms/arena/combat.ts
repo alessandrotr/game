@@ -2,8 +2,8 @@ import {
   PLAYER_RADIUS,
   RESPAWN_DELAY_MS,
   XP_PER_KILL,
-  ZOMBIE_SKIN_ID,
   ZOMBIE_XP_PER_KILL,
+  isZombieSkin,
   ServerMessage,
   damageTakenMultiplier,
   levelForXp,
@@ -204,7 +204,7 @@ export class CombatSystem {
         // A zombie is a wave enemy, not a PvP kill: it grants reduced XP and
         // does NOT count toward the killer's kill tally (so it never inflates
         // career/scoreboard kills).
-        const isZombieKill = target.skinId === ZOMBIE_SKIN_ID;
+        const isZombieKill = isZombieSkin(target.skinId);
         const beforeLevel = killer.level;
         if (!isZombieKill) killer.kills += 1;
         killer.xp += isZombieKill ? ZOMBIE_XP_PER_KILL : XP_PER_KILL;

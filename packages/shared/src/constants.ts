@@ -474,6 +474,17 @@ export const ZOMBIE_XP_PER_KILL = 10;
 /** Skin id the server tags zombies with; the client maps it to the zombie GLB
  *  (a Mixamo-rigged shambling model) in place of the warrior body. */
 export const ZOMBIE_SKIN_ID = 'skin.zombie';
+/** Skin id for the Sprinter variant; the client maps it to the zombie-sprinter
+ *  GLB. A fast, fragile rusher (see below). */
+export const ZOMBIE_SPRINTER_SKIN_ID = 'skin.zombie.sprinter';
+/** Chance a horde slot spawns a Sprinter in place of a normal zombie. */
+export const ZOMBIE_SPRINTER_SPAWN_CHANCE = 0.35;
+/** A Sprinter moves this much faster (world units/s) than a same-level zombie —
+ *  a random amount in this range is rolled per spawn. */
+export const ZOMBIE_SPRINTER_SPEED_MIN = 2;
+export const ZOMBIE_SPRINTER_SPEED_MAX = 3;
+/** A Sprinter carries this fraction of a same-level zombie's health (a bit less). */
+export const ZOMBIE_SPRINTER_HP_MULT = 0.7;
 /** Breather between a cleared level and the next horde, in milliseconds. */
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */
@@ -507,6 +518,17 @@ export function zombieMaxAlive(level: number): number {
 /** A zombie's max health at `level` (base + linear per-level toughening). */
 export function zombieHealthForLevel(level: number): number {
   return ZOMBIE_BASE_HP + Math.max(0, level - 1) * ZOMBIE_HP_PER_LEVEL;
+}
+
+/** A Sprinter's max health at `level` — a fraction of a normal zombie's. */
+export function zombieSprinterHealthForLevel(level: number): number {
+  return Math.max(1, Math.round(zombieHealthForLevel(level) * ZOMBIE_SPRINTER_HP_MULT));
+}
+
+/** True for any zombie-family skin (base zombie or the Sprinter variant) — wave
+ *  enemies that grant reduced XP and don't count as PvP kills. */
+export function isZombieSkin(skinId: string): boolean {
+  return skinId === ZOMBIE_SKIN_ID || skinId === ZOMBIE_SPRINTER_SKIN_ID;
 }
 
 /** A zombie's move speed at `level`: base, stepped up by 1 every

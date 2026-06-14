@@ -1,6 +1,7 @@
 import {
   CLASS_TO_ASSET,
   ZOMBIE_SKIN_ID,
+  ZOMBIE_SPRINTER_SKIN_ID,
   getCosmeticOfType,
   type CharacterClass,
   type CharacterDescriptor,
@@ -52,6 +53,28 @@ registerSkin({
     kind: 'gltf',
     url: '/models/characters/zombie-run.glb',
     scale: 1.05, // ~2.07u model → matches the warrior's on-screen height
+    offset: [0, 0, 0],
+    yaw: 0,
+    clips: {
+      walk: 'Armature|mixamo.com|Layer0',
+      run: 'Armature|mixamo.com|Layer0',
+    },
+  },
+});
+
+/**
+ * Sprinter skin: the fast, fragile zombie variant — its own Mixamo-rigged GLB
+ * with the same single-clip layout as the base zombie (so any locomotion drives
+ * its run, speed-matched to the Sprinter's quicker pace). Tagged via
+ * {@link ZOMBIE_SPRINTER_SKIN_ID}.
+ */
+registerSkin({
+  id: ZOMBIE_SPRINTER_SKIN_ID,
+  baseId: 'char.warrior',
+  render: {
+    kind: 'gltf',
+    url: '/models/characters/zombie-sprinter.glb',
+    scale: 1.05,
     offset: [0, 0, 0],
     yaw: 0,
     clips: {

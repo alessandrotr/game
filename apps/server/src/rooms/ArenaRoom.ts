@@ -21,12 +21,17 @@ import {
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MODE,
   ZOMBIE_SKIN_ID,
+  ZOMBIE_SPRINTER_SKIN_ID,
+  ZOMBIE_SPRINTER_SPAWN_CHANCE,
+  ZOMBIE_SPRINTER_SPEED_MIN,
+  ZOMBIE_SPRINTER_SPEED_MAX,
   ZOMBIE_SPEED_JITTER,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
   ZOMBIE_WANDER_REROLL_MAX_MS,
   ZOMBIE_WANDER_REROLL_MIN_MS,
   zombieHealthForLevel,
+  zombieSprinterHealthForLevel,
   zombieMaxAlive,
   zombieSpeedForLevel,
   ClientMessage,
@@ -1270,12 +1275,15 @@ export class ArenaRoom extends AvatarRoom {
     // Hard backstop above the director's own (level-scaled) cap — corpses can
     // briefly inflate the map — so a bug can never let zombies grow without bound.
     if (this.bots.size >= zombieMaxAlive(level) + 24) return;
+    // Each horde slot has a chance to be a Sprinter instead: faster, fragile.
+    const isSprinter = Math.random() < ZOMBIE_SPRINTER_SPAWN_CHANCE;
     const id = `zombie-${++this.botSeq}`;
     const player = new Player();
     player.sessionId = id;
-    player.name = 'Zombie';
+    player.name = isSprinter ? 'Sprinter' : 'Zombie';
     player.characterClass = 'warrior'; // melee auto-attack (drives stats/attacks)
-    player.skinId = ZOMBIE_SKIN_ID; // the client swaps in the zombie GLB
+    // The client maps the skin to the matching GLB (zombie / sprinter).
+    player.skinId = isSprinter ? ZOMBIE_SPRINTER_SKIN_ID : ZOMBIE_SKIN_ID;
     player.team = 'red';
     this.resetPlayer(player);
     // Override the team spawn with the portal mouth (+ jitter so a pulse fans
@@ -1284,7 +1292,7 @@ export class ArenaRoom extends AvatarRoom {
     const jitter = () => (Math.random() * 2 - 1) * 1.6;
     player.x = clamp(ARENA_PORTAL_POINT.x + jitter(), -limit, limit);
     player.z = clamp(ARENA_PORTAL_POINT.z + jitter(), -limit, limit);
-    player.maxHp = zombieHealthForLevel(level);
+    player.maxHp = isSprinter ? zombieSprinterHealthForLevel(level) : zombieHealthForLevel(level);
     player.hp = player.maxHp;
 
     this.state.players.set(id, player);
@@ -1292,6 +1300,13 @@ export class ArenaRoom extends AvatarRoom {
     this.grounded.set(id, true);
     this.cooldowns.set(id, {});
     this.bots.set(id, makeZombieProfile());
-    this.zombieAiFor(id); // roll this zombie's speed/wander personality
+    const ai = this.zombieAiFor(id); // roll this zombie's speed/wander personality
+    // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
+    // replacing the usual ±jitter so the extra speed is exactly in range.
+    if (isSprinter) {
+      ai.speedOffset =
+        ZOMBIE_SPRINTER_SPEED_MIN +
+        Math.random() * (ZOMBIE_SPRINTER_SPEED_MAX - ZOMBIE_SPRINTER_SPEED_MIN);
+    }
   }
 }
