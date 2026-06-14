@@ -31,7 +31,17 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
-import { Button, Dialog, DialogClose, DialogContent, DialogTitle, IconButton, LevelBadge, Meter, StatTile } from './primitives';
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  LevelBadge,
+  Meter,
+  StatTile,
+} from './primitives';
 import { STAT_COLORS } from './theme';
 
 // ---------------------------------------------------------------------------
@@ -191,7 +201,12 @@ function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loa
   if (!owned) return { label: 'Unlock', variant: 'gold' as const, icon: Lock, disabled: false };
   if (c.type === 'emote') {
     return equipped
-      ? { label: `Key ${loadout.emotes.indexOf(c.id) + 1}`, variant: 'goldOutline' as const, icon: Check, disabled: false }
+      ? {
+          label: `Key ${loadout.emotes.indexOf(c.id) + 1}`,
+          variant: 'goldOutline' as const,
+          icon: Check,
+          disabled: false,
+        }
       : { label: 'Bind', variant: 'panel' as const, icon: undefined, disabled: false };
   }
   return equipped
@@ -203,17 +218,23 @@ function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loa
  *  only strong color is the item's own (a pedestal's hue); state reads from the
  *  badge + gold equipped ring, not a per-rarity wash. */
 function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
-  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id));
+  const owned = useCosmeticsStore((s) =>
+    classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id),
+  );
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const equipped = isEquipped(c, loadout);
   const act = cardAction(c, owned, equipped, loadout);
   const onClick = () =>
-    owned ? equipCosmetic(characterClass, c) : useCosmeticsStore.getState().unlock(characterClass, c.id);
+    owned
+      ? equipCosmetic(characterClass, c)
+      : useCosmeticsStore.getState().unlock(characterClass, c.id);
 
   return (
     <div
       className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 transition hover:-translate-y-0.5 ${
-        equipped ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]' : 'border-white/10 hover:border-white/20'
+        equipped
+          ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]'
+          : 'border-white/10 hover:border-white/20'
       }`}
     >
       <div className="relative grid h-20 place-items-center bg-black/20">
@@ -232,8 +253,16 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
           <span className="truncate text-sm font-semibold text-text">{c.name}</span>
           <RarityTag rarity={c.rarity} />
         </div>
-        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">{c.description}</p>
-        <Button variant={act.variant} size="sm" onClick={onClick} disabled={act.disabled} className="mt-auto w-full gap-1.5">
+        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
+          {c.description}
+        </p>
+        <Button
+          variant={act.variant}
+          size="sm"
+          onClick={onClick}
+          disabled={act.disabled}
+          className="mt-auto w-full gap-1.5"
+        >
           {act.icon && <act.icon size={13} />} {act.label}
         </Button>
       </div>
@@ -256,7 +285,8 @@ function CategorySection({
 }) {
   const items = cosmeticsOfType(type);
   const ownedHere = useCosmeticsStore(
-    (s) => items.filter((c) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id)).length,
+    (s) =>
+      items.filter((c) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id)).length,
   );
   if (items.length === 0) return null;
   return (
@@ -265,7 +295,9 @@ function CategorySection({
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold">
           <Icon size={15} aria-hidden />
         </span>
-        <h3 className="font-display text-sm font-bold uppercase tracking-[0.18em] text-text">{label}</h3>
+        <h3 className="font-display text-sm font-bold uppercase tracking-[0.18em] text-text">
+          {label}
+        </h3>
         <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted">
           {ownedHere}/{items.length}
         </span>
@@ -287,7 +319,10 @@ type StoreFilter = 'all' | CosmeticType;
 function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const [filter, setFilter] = useState<StoreFilter>('all');
   const ownedCount = useCosmeticsStore(
-    (s) => classCosmeticsOf(s.byClass, characterClass).owned.filter((id) => COSMETICS.some((c) => c.id === id)).length,
+    (s) =>
+      classCosmeticsOf(s.byClass, characterClass).owned.filter((id) =>
+        COSMETICS.some((c) => c.id === id),
+      ).length,
   );
   const shown = filter === 'all' ? CATEGORIES : CATEGORIES.filter((cat) => cat.type === filter);
 
@@ -295,7 +330,12 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
     <div className="flex min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-2.5">
         <div className="flex gap-1">
-          <FilterChip active={filter === 'all'} label="All" count={COSMETICS.length} onClick={() => setFilter('all')} />
+          <FilterChip
+            active={filter === 'all'}
+            label="All"
+            count={COSMETICS.length}
+            onClick={() => setFilter('all')}
+          />
           {CATEGORIES.map((cat) => (
             <FilterChip
               key={cat.type}
@@ -307,13 +347,20 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
           ))}
         </div>
         <span className="ml-auto text-[11px] text-muted">
-          <span className="font-semibold text-text">{ownedCount}</span> / {COSMETICS.length} unlocked
+          <span className="font-semibold text-text">{ownedCount}</span> / {COSMETICS.length}{' '}
+          unlocked
         </span>
       </div>
 
       <div className="overflow-y-auto px-5 py-4">
         {shown.map((cat) => (
-          <CategorySection key={cat.type} type={cat.type} label={cat.label} icon={cat.icon} characterClass={characterClass} />
+          <CategorySection
+            key={cat.type}
+            type={cat.type}
+            label={cat.label}
+            icon={cat.icon}
+            characterClass={characterClass}
+          />
         ))}
       </div>
     </div>
@@ -321,7 +368,17 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
 }
 
 /** A store category filter chip. */
-function FilterChip({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
+function FilterChip({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -354,7 +411,9 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
       title={`${c.name} · ${c.rarity}`}
       style={equipped ? { borderColor: accent, background: `${accent}14` } : undefined}
       className={`group relative flex items-center gap-2.5 rounded-xl border p-2 pr-3 text-left transition ${
-        equipped ? 'text-text' : 'border-white/10 bg-black/25 text-muted hover:border-white/25 hover:text-text'
+        equipped
+          ? 'text-text'
+          : 'border-white/10 bg-black/25 text-muted hover:border-white/25 hover:text-text'
       }`}
     >
       <Swatch c={c} size={36} />
@@ -382,7 +441,9 @@ function NoneTile({ active, onClear }: { active: boolean; onClear: () => void })
       onClick={onClear}
       aria-pressed={active}
       className={`flex items-center gap-2.5 rounded-xl border p-2 pr-3 text-left transition ${
-        active ? 'border-gold/50 bg-gold/10 text-gold' : 'border-white/10 bg-black/25 text-muted hover:text-text'
+        active
+          ? 'border-gold/50 bg-gold/10 text-gold'
+          : 'border-white/10 bg-black/25 text-muted hover:text-text'
       }`}
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-dashed border-white/20 text-[10px] uppercase text-muted">
@@ -394,13 +455,27 @@ function NoneTile({ active, onClear }: { active: boolean; onClear: () => void })
 }
 
 /** Section header with the slot name + a "browse store" affordance. */
-function SlotHeader({ title, icon: Icon, onBrowse }: { title: string; icon: typeof Tag; onBrowse: () => void }) {
+function SlotHeader({
+  title,
+  icon: Icon,
+  onBrowse,
+}: {
+  title: string;
+  icon: typeof Tag;
+  onBrowse: () => void;
+}) {
   return (
     <div className="mb-2 flex items-center gap-2">
       <Icon size={14} className="text-gold/70" aria-hidden />
-      <span className="font-display text-[11px] uppercase tracking-[0.2em] text-gold/80">{title}</span>
+      <span className="font-display text-[11px] uppercase tracking-[0.2em] text-gold/80">
+        {title}
+      </span>
       <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
-      <button type="button" onClick={onBrowse} className="flex items-center gap-0.5 text-[11px] text-muted transition hover:text-gold">
+      <button
+        type="button"
+        onClick={onBrowse}
+        className="flex items-center gap-0.5 text-[11px] text-muted transition hover:text-gold"
+      >
         Store <ChevronRight size={12} />
       </button>
     </div>
@@ -465,7 +540,9 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const progress = useAuthStore((s) => s.progress);
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const def = getClassDefinition(characterClass);
-  const pedestal = loadout.pedestalId ? getCosmeticOfType(loadout.pedestalId, 'pedestal') : undefined;
+  const pedestal = loadout.pedestalId
+    ? getCosmeticOfType(loadout.pedestalId, 'pedestal')
+    : undefined;
   const title = loadout.titleId ? getCosmeticOfType(loadout.titleId, 'title')?.text : undefined;
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
@@ -477,13 +554,24 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 
   return (
     <div className="relative min-h-[300px] overflow-hidden border-b border-white/5 bg-linear-to-b from-black/30 to-black/55 md:border-b-0 md:border-r">
-      <ClassPreview characterClass={characterClass} skinId={loadout.skinId} dyeId={loadout.dyeId} pedestalColor={pedestal?.color} />
+      <ClassPreview
+        characterClass={characterClass}
+        skinId={loadout.skinId}
+        dyeId={loadout.dyeId}
+        pedestalColor={pedestal?.color}
+      />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
         <div className="flex items-center gap-3">
           <LevelBadge level={level} size="md" className="shrink-0" />
           <div className="min-w-0">
-            {title && <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/85">{title}</div>}
-            <div className="truncate font-display text-xl tracking-wide text-white">{username ?? 'Adventurer'}</div>
+            {title && (
+              <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/85">
+                {title}
+              </div>
+            )}
+            <div className="truncate font-display text-xl tracking-wide text-white">
+              {username ?? 'Adventurer'}
+            </div>
             <div className="truncate text-xs" style={{ color: def.color }}>
               {def.name} · {def.role}
             </div>
@@ -500,7 +588,8 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
             valueText={`${Math.round(into)} / ${span}`}
             labelClassName="text-[10px] uppercase tracking-wide text-white/70"
             valueClassName="text-[10px] text-white/60"
-            trackClassName="bg-black/55"
+            trackClassName="bg-white/15 ring-1 ring-inset ring-white/10"
+            className="flex flex-col gap-1"
           />
         </div>
       </div>
@@ -516,7 +605,9 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-3 mt-6 flex items-center gap-2.5 first:mt-0">
-      <span className="font-display text-[11px] uppercase tracking-[0.22em] text-gold/80">{children}</span>
+      <span className="font-display text-[11px] uppercase tracking-[0.22em] text-gold/80">
+        {children}
+      </span>
       <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
     </div>
   );
@@ -531,7 +622,8 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
   const setTab = useCustomizeStore((s) => s.setTab);
   const browse = () => setTab('store');
-  const clearSlot = (patch: Partial<Loadout>) => useCosmeticsStore.getState().equip(characterClass, patch);
+  const clearSlot = (patch: Partial<Loadout>) =>
+    useCosmeticsStore.getState().equip(characterClass, patch);
 
   const record = progress.find((p) => p.characterClass === characterClass);
   const kills = me?.kills ?? record?.kills ?? 0;
@@ -622,11 +714,15 @@ export function CustomizePanel() {
   const sessionId = useGameStore((s) => s.sessionId);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
   const characterClass =
-    (sessionId ? useGameStore.getState().players.get(sessionId)?.characterClass : undefined) ?? selectedClass;
+    (sessionId ? useGameStore.getState().players.get(sessionId)?.characterClass : undefined) ??
+    selectedClass;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="flex h-[88vh] max-h-[760px] max-w-5xl flex-col p-0 sm:max-w-5xl" aria-describedby={undefined}>
+      <DialogContent
+        className="flex h-[88vh] max-h-[760px] max-w-5xl flex-col p-0 sm:max-w-5xl"
+        aria-describedby={undefined}
+      >
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
           <DialogTitle className="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
             <Sparkles size={18} aria-hidden /> Champion

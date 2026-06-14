@@ -86,19 +86,17 @@ registerSkin({
 });
 
 /**
- * Fat skin: the slow, high-health tank. No dedicated GLB yet — placeholder reuses
- * the base zombie model scaled up (bulkier silhouette) with a sickly tint so it
- * reads as a distinct, heavier zombie. Swap `url` for a dedicated model when one
- * ships. Tagged via {@link ZOMBIE_FAT_SKIN_ID}.
+ * Fat skin: the slow, high-health tank — its own bulky Mixamo-rigged GLB, same
+ * single-clip layout as the other zombies (locomotion drives its run, speed-
+ * matched to the Fat's slow pace). Tagged via {@link ZOMBIE_FAT_SKIN_ID}.
  */
 registerSkin({
   id: ZOMBIE_FAT_SKIN_ID,
   baseId: 'char.warrior',
-  tint: '#7a8c5a',
   render: {
     kind: 'gltf',
-    url: '/models/characters/zombie-run.glb',
-    scale: 1.5, // visibly bulkier than a normal zombie
+    url: '/models/characters/zombie-fat.glb',
+    scale: 1.05, // matches the warrior's on-screen height (tune if it sits off)
     offset: [0, 0, 0],
     yaw: 0,
     clips: {

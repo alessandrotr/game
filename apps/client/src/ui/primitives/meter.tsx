@@ -51,9 +51,16 @@ export function Meter({
       aria-valuemin={0}
       aria-valuemax={Math.round(max)}
       aria-label={typeof label === 'string' ? label : undefined}
-      className={cn('overflow-hidden rounded-full', size === 'md' ? 'h-2' : 'h-1.5', trackClassName ?? 'bg-black/50')}
+      className={cn(
+        'overflow-hidden rounded-full',
+        size === 'md' ? 'h-2' : 'h-1.5',
+        trackClassName ?? 'bg-black/50',
+      )}
     >
-      <div className={cn('h-full rounded-full', fillClassName)} style={{ width: `${pct}%`, background: fill }} />
+      <div
+        className={cn('h-full rounded-full', fillClassName)}
+        style={{ width: `${pct}%`, background: fill }}
+      />
     </div>
   );
 
@@ -63,7 +70,9 @@ export function Meter({
         {(label != null || valueText != null) && (
           <div className={cn('flex justify-between', headerClassName)}>
             <span className={labelClassName}>{label}</span>
-            {valueText != null && <span className={cn('tabular-nums', valueClassName)}>{valueText}</span>}
+            {valueText != null && (
+              <span className={cn('tabular-nums', valueClassName)}>{valueText}</span>
+            )}
           </div>
         )}
         {track}
@@ -76,7 +85,9 @@ export function Meter({
       {label != null && <span className={cn('text-muted', labelClassName)}>{label}</span>}
       <div className="flex-1">{track}</div>
       {valueText != null && (
-        <span className={cn('text-right tabular-nums text-white/80', valueClassName)}>{valueText}</span>
+        <span className={cn('text-right tabular-nums text-white/80', valueClassName)}>
+          {valueText}
+        </span>
       )}
     </div>
   );
