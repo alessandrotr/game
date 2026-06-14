@@ -5,6 +5,7 @@ import {
   MATCHMAKING_ROOM,
   SESSION_SUPERSEDED_CODE,
   TOWN_ROOM,
+  ZOMBIE_ROOM,
   ClientMessage,
   ServerMessage,
   type AbilityKind,
@@ -81,6 +82,11 @@ interface RawState {
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
+  /** Zombie survival mode flag + wave counters (arena rooms only). */
+  zombieMode?: boolean;
+  zombieLevel?: number;
+  zombiesRemaining?: number;
+  zombiesAlive?: number;
 }
 
 // Strip any trailing slash so the Colyseus client builds clean URLs even if
@@ -422,6 +428,15 @@ function wireRoom(joined: Room): void {
         .applySnapshot(players, projectiles, barrels, destructibles, structures, raw.tick);
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.
       if (raw.layoutSeed) useGameStore.getState().setArenaSeed(raw.layoutSeed);
+      // Zombie survival: mirror the replicated wave counters for the HUD.
+      useGameStore
+        .getState()
+        .setZombie(
+          raw.zombieMode ?? false,
+          raw.zombieLevel ?? 0,
+          raw.zombiesRemaining ?? 0,
+          raw.zombiesAlive ?? 0,
+        );
       // Feed the interpolation buffer used to render remote players smoothly.
       const now = performance.now();
       recordSnapshots(players, now);
@@ -704,13 +719,26 @@ export async function connectToRoom(
 }
 
 /** Switch worlds (town ↔ arena) as the same character — used by portals. Keeps
- *  the UI on the game (no flash back to the join screen). */
-export async function travelTo(roomType: RoomType): Promise<void> {
+ *  the UI on the game (no flash back to the join screen). Pass `{ zombie: true }`
+ *  to enter the zombie-survival arena (a distinct co-op room handler); the client
+ *  still tracks it as the 'arena' room type, since it renders the same scene. */
+export async function travelTo(
+  roomType: RoomType,
+  options?: { zombie?: boolean },
+): Promise<void> {
   if (!client || !joinOptions || traveling) return;
+  const handler = options?.zombie ? ZOMBIE_ROOM : ROOM_HANDLER[roomType];
   const store = useGameStore.getState();
   traveling = true;
   // Cover the world swap with the branded loading screen.
-  store.setTransitioning(true, roomType === 'arena' ? 'Entering the arena…' : 'Returning to town…');
+  store.setTransitioning(
+    true,
+    options?.zombie
+      ? 'Entering the horde…'
+      : roomType === 'arena'
+        ? 'Entering the arena…'
+        : 'Returning to town…',
+  );
   // Matchmaking only exists in town: drop it when leaving for the arena (it's
   // reopened below when arriving in town).
   disconnectMatchmaking();
@@ -735,8 +763,8 @@ export async function travelTo(roomType: RoomType): Promise<void> {
   useMatchResultStore.getState().clear();
 
     const t0 = performance.now();
-    room = await client.joinOrCreate(ROOM_HANDLER[roomType], joinOptions);
-    console.debug(`[travel] join ${roomType} took ${Math.round(performance.now() - t0)}ms`);
+    room = await client.joinOrCreate(handler, joinOptions);
+    console.debug(`[travel] join ${handler} took ${Math.round(performance.now() - t0)}ms`);
     store.setSessionId(room.sessionId);
     store.setRoom(roomType);
     store.setStatus('connected');

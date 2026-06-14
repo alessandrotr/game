@@ -31,6 +31,15 @@ interface GameStore {
    *  Reactive so the scene rebuilds cover when a new arena is joined. */
   arenaSeed: number;
 
+  /** Zombie survival mode is active (drives the wave HUD). */
+  zombieMode: boolean;
+  /** Current zombie wave/level (0 before the first horde). */
+  zombieLevel: number;
+  /** Zombies left to defeat this level (alive + not-yet-spawned). */
+  zombiesRemaining: number;
+  /** Zombies currently alive in the arena. */
+  zombiesAlive: number;
+
   /**
    * Reactive lists of ids — change only when membership changes, so React
    * remounts meshes on join/leave (or projectile spawn/expire) but not on
@@ -68,6 +77,8 @@ interface GameStore {
   setRoom: (room: RoomType | null) => void;
   /** Set the arena layout seed (no-op if unchanged). */
   setArenaSeed: (seed: number) => void;
+  /** Sync the replicated zombie-wave counters (no-op if all unchanged). */
+  setZombie: (mode: boolean, level: number, remaining: number, alive: number) => void;
   /** Toggle the world-swap loading screen (with an optional tagline). */
   setTransitioning: (transitioning: boolean, label?: string) => void;
   /** Replace snapshot contents and refresh id lists if membership changed. */
@@ -106,6 +117,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   transitionLabel: 'Loading the arena…',
   tick: 0,
   arenaSeed: 0,
+  zombieMode: false,
+  zombieLevel: 0,
+  zombiesRemaining: 0,
+  zombiesAlive: 0,
   playerIds: [],
   projectileIds: [],
   barrelIds: [],
@@ -125,6 +140,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setRoom: (room) => set({ room }),
   setArenaSeed: (seed) => {
     if (get().arenaSeed !== seed) set({ arenaSeed: seed });
+  },
+  setZombie: (mode, level, remaining, alive) => {
+    const s = get();
+    if (
+      s.zombieMode !== mode ||
+      s.zombieLevel !== level ||
+      s.zombiesRemaining !== remaining ||
+      s.zombiesAlive !== alive
+    ) {
+      set({ zombieMode: mode, zombieLevel: level, zombiesRemaining: remaining, zombiesAlive: alive });
+    }
   },
   setTransitioning: (transitioning, label) =>
     set(label ? { transitioning, transitionLabel: label } : { transitioning }),
@@ -198,6 +224,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       transitioning: false,
       tick: 0,
       arenaSeed: 0,
+      zombieMode: false,
+      zombieLevel: 0,
+      zombiesRemaining: 0,
+      zombiesAlive: 0,
       playerIds: [],
       projectileIds: [],
       barrelIds: [],

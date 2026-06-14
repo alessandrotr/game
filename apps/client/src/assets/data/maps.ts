@@ -247,7 +247,12 @@ const town: MapDescriptor = {
     // --- Signpost at the spawn end of the street ---
     { assetId: 'prop.signpost', position: [3.5, 0, 14], rotation: [0, -0.5, 0] },
   ],
-  zones: [{ kind: 'portal', center: [0, 0, -14], radius: 2.5, label: 'Arena' }],
+  zones: [
+    { kind: 'portal', center: [0, 0, -14], radius: 2.5, label: 'Arena' },
+    // Zombie survival gate — set apart from the arena gate so the two read as
+    // distinct gateways. Travels straight into a co-op zombie arena.
+    { kind: 'portal', center: [8, 0, -14], radius: 2.2, label: 'Zombie Mode', mode: 'zombie' },
+  ],
 };
 
 export const MAPS: MapDescriptor[] = [arena, town];

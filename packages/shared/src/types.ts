@@ -235,4 +235,12 @@ export interface ArenaStateView {
   tick: number;
   /** Per-match seed for the procedural arena layout (see `generateArenaLayout`). */
   layoutSeed: number;
+  /** Zombie survival mode is active (drives the wave HUD). False in every other room. */
+  zombieMode: boolean;
+  /** Current zombie wave/level (1-based; 0 before the first horde starts). */
+  zombieLevel: number;
+  /** Zombies left to defeat this level (alive + not-yet-spawned). 0 between levels. */
+  zombiesRemaining: number;
+  /** Zombies currently alive in the arena (for the HUD's live count). */
+  zombiesAlive: number;
 }

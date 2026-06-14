@@ -161,4 +161,12 @@ export class ArenaState extends Schema {
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */
   @type('number') layoutSeed = 0;
+  /** Zombie survival mode is active — drives the client's wave HUD. */
+  @type('boolean') zombieMode = false;
+  /** Current zombie wave/level (1-based; 0 before the first horde). */
+  @type('number') zombieLevel = 0;
+  /** Zombies left to defeat this level (alive + not-yet-spawned); 0 between levels. */
+  @type('number') zombiesRemaining = 0;
+  /** Zombies currently alive in the arena. */
+  @type('number') zombiesAlive = 0;
 }

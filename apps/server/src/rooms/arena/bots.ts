@@ -93,6 +93,28 @@ export function makeBotProfile(difficulty: BotDifficulty): BotProfile {
   return { ...PROFILES[difficulty], nextDecisionAt: 0, engagedTargetId: '' };
 }
 
+/**
+ * A zombie's AI: a relentless melee chaser. It never kites, never flees, never
+ * uses abilities and reacts instantly — it just locks onto the nearest player
+ * and closes the distance until it's in striking range, then auto-attacks. The
+ * room drives the rest (the existing chase + auto-attack path); this profile
+ * only strips out everything a zombie shouldn't do.
+ */
+export function makeZombieProfile(): BotProfile {
+  return {
+    difficulty: 'hard', // reuse the tier type; the flags below define behaviour
+    decisionIntervalMs: 200,
+    aimErrorRad: 0,
+    useAbilities: false,
+    kite: false,
+    focusLowestHp: false,
+    retreatAtHpFrac: 0,
+    reactionDelayMs: 0,
+    nextDecisionAt: 0,
+    engagedTargetId: '',
+  };
+}
+
 /** What an ability is *for*, derived from its effects so the picker stays
  *  data-driven (no per-ability switch). */
 type AbilityRole = 'offense' | 'heal' | 'shield' | 'mobility';

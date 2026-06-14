@@ -9,7 +9,7 @@ import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { ARENA_ROOM, MATCHMAKING_ROOM, TOWN_ROOM } from '@arena/shared';
+import { ARENA_ROOM, MATCHMAKING_ROOM, TOWN_ROOM, ZOMBIE_MODE, ZOMBIE_ROOM } from '@arena/shared';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
 import { TownRoom } from './rooms/TownRoom.js';
 import { MatchmakingRoom } from './rooms/MatchmakingRoom.js';
@@ -105,6 +105,9 @@ const gameServer = new Server({
 
 gameServer.define(TOWN_ROOM, TownRoom);
 gameServer.define(ARENA_ROOM, ArenaRoom);
+// Zombie survival: the same arena room, under its own handler with the mode
+// baked into `onCreate`'s options — so its co-op rooms only match each other.
+gameServer.define(ZOMBIE_ROOM, ArenaRoom, { mode: ZOMBIE_MODE });
 gameServer.define(MATCHMAKING_ROOM, MatchmakingRoom);
 
 // Connect persistence (if configured) before accepting players.

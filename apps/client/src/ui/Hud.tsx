@@ -4,6 +4,7 @@ import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
+import { ZombieHud } from './ZombieHud';
 import { Leaderboard } from './Leaderboard';
 import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
@@ -39,6 +40,10 @@ export function Hud() {
             <CombatHud />
           </HudZone>
         )}
+
+        {/* Zombie-survival wave banner (top-center) — self-gates on zombie mode,
+            stays visible like the combat HUD since it's mission-critical. */}
+        {inArena && <ZombieHud />}
 
         {!hudHidden && (
           <>

@@ -9,11 +9,16 @@ import {
   isTeam,
   teamSizeForMode,
   AUTO_ATTACKS,
+  ARENA_PORTAL_POINT,
   GROUND_Y,
   MANA_REGEN,
   MAX_PLAYERS,
   PLAYER_RADIUS,
   TICK_MS,
+  ZOMBIE_CORPSE_MS,
+  ZOMBIE_MAX_ALIVE,
+  ZOMBIE_MODE,
+  zombieHealthForLevel,
   ClientMessage,
   type ClientMessagePayloads,
   ServerMessage,
@@ -47,7 +52,8 @@ import { BarrelSystem, BARREL_RADIUS } from './arena/barrels.js';
 import { DestructibleSystem } from './arena/destructibles.js';
 import { ArenaPhysics } from './arena/physics.js';
 import { CoverSystem } from './arena/cover.js';
-import { BotDirector, makeBotProfile, type BotProfile } from './arena/bots.js';
+import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
+import { ZombieDirector } from './arena/zombies.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError } from '../observability.js';
@@ -129,13 +135,23 @@ export class ArenaRoom extends AvatarRoom {
   >();
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
-  /** AI-controlled practice bots in this room, by synthetic session id. */
+  /** AI-controlled bots in this room (practice bots, or zombies in zombie mode),
+   *  by synthetic session id. */
   private readonly bots = new Map<string, BotProfile>();
   /** Monotonic counter for synthetic bot session ids. */
   private botSeq = 0;
   /** Auto-attack feature flag (off by default — abilities-only combat). Toggled
-   *  at runtime via {@link ClientMessage.SetAutoAttack}. */
+   *  at runtime via {@link ClientMessage.SetAutoAttack}; forced on in zombie mode
+   *  so zombies chase + strike (players still attack with abilities only). */
   private autoAttackEnabled = false;
+  /** Zombie survival mode: endless escalating hordes spawn from the portal and
+   *  hunt the players. Set in `onCreate` from the room's mode option. */
+  private zombieMode = false;
+  /** The wave director (zombie mode only) — owns the level/horde lifecycle. */
+  private zombieDirector?: ZombieDirector;
+  /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
+   *  it at (a brief linger so the death pose plays before it vanishes). */
+  private readonly zombieCorpseAt = new Map<string, number>();
 
   /** This match's live collision set for movement and projectiles: static cover
    *  (scrap) plus a circle for every alive destructible structure. Mutated by the
@@ -165,8 +181,13 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(sessionId);
   }
 
-  override onCreate(options?: { mode?: LobbyMode }): void {
+  override onCreate(options?: { mode?: LobbyMode | typeof ZOMBIE_MODE }): void {
     this.setState(new ArenaState());
+
+    // Zombie survival is the arena sim under a distinct handler (the `mode`
+    // baked into that handler's `define` options arrives here). Flag it before
+    // building systems so the wave director and forced auto-attack are in place.
+    this.zombieMode = options?.mode === ZOMBIE_MODE;
 
     // Pick a per-match seed and build this arena's procedural cover. The seed is
     // replicated so every client rebuilds the identical layout (obstacles +
@@ -191,6 +212,18 @@ export class ArenaRoom extends AvatarRoom {
       this.maxClients = 2 * teamSizeForMode(options.mode);
       this.setPrivate(true);
       this.match.configureRanked(options.mode);
+    } else if (this.zombieMode) {
+      // Co-op survival: players (blue) hold out against zombie hordes (red).
+      // Auto-attack must be on for zombies to chase + strike; the Attack message
+      // is ignored for humans (see the handler), so only zombies ever swing.
+      this.state.zombieMode = true;
+      this.autoAttackEnabled = true;
+      this.zombieDirector = new ZombieDirector(this.buildContext(), {
+        spawnZombie: (level) => this.spawnZombie(level),
+        aliveZombies: () => this.countAliveZombies(),
+        humansPresent: () => this.countHumans() > 0,
+      });
+      this.zombieDirector.start(this.simTime);
     }
 
     // Movement / jump / chat / emote / set-name come from AvatarRoom.
@@ -198,6 +231,7 @@ export class ArenaRoom extends AvatarRoom {
 
     this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
       if (!this.autoAttackEnabled) return; // feature flag off — abilities-only combat
+      if (this.zombieMode) return; // players fight zombies with abilities only
       const player = this.state.players.get(client.sessionId);
       if (!player || !player.alive) return;
       const targetId = String(message?.targetId ?? '');
@@ -266,10 +300,10 @@ export class ArenaRoom extends AvatarRoom {
     }, TICK_MS);
   }
 
-  /** Build the shared context and wire the combat / projectile / match systems.
-   *  Called once after `setState`, so the systems share the room's live maps. */
-  private buildSystems(): void {
-    const ctx: ArenaContext = {
+  /** Build the {@link ArenaContext} seam — the shared world view (live maps by
+   *  reference + broadcast/clock closures) every arena system reads through. */
+  private buildContext(): ArenaContext {
+    return {
       state: this.state,
       tuning: this.tuning,
       obstacles: this.obstacles,
@@ -287,6 +321,12 @@ export class ArenaRoom extends AvatarRoom {
       respawnAt: this.respawnAt,
       displacements: this.displacements,
     };
+  }
+
+  /** Wire the combat / projectile / match systems over a shared context. Called
+   *  once after `setState`, so the systems share the room's live maps. */
+  private buildSystems(): void {
+    const ctx = this.buildContext();
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
@@ -729,6 +769,10 @@ export class ArenaRoom extends AvatarRoom {
     const dt = deltaMs / 1000;
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
 
+    // Zombie waves: spawn/advance hordes before the bot AI runs, so freshly
+    // spawned zombies pick a target and start chasing this same tick.
+    if (this.zombieDirector) this.zombieDirector.update(this.simTime);
+
     // AI bots decide their intent first — they write the same `destinations` /
     // `attackTargets` / cast seams human input does, consumed by the loop below.
     if (this.bots.size > 0) this.botDirector.update(this.simTime, this.bots);
@@ -744,6 +788,17 @@ export class ArenaRoom extends AvatarRoom {
         this.stopChannel(sessionId);
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
+        // Zombies don't respawn — let the death pose play, then remove the
+        // entity so the level's "all dead" check can clear and advance.
+        if (this.zombieMode && this.bots.has(sessionId)) {
+          const removeAt = this.zombieCorpseAt.get(sessionId);
+          if (removeAt === undefined) {
+            this.zombieCorpseAt.set(sessionId, this.simTime + ZOMBIE_CORPSE_MS);
+          } else if (this.simTime >= removeAt) {
+            this.removeBot(sessionId);
+          }
+          return;
+        }
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -876,6 +931,7 @@ export class ArenaRoom extends AvatarRoom {
   /** Toggle the auto-attack feature flag. Disabling clears any in-progress
    *  attack orders so nothing keeps swinging after the flag flips off. */
   private setAutoAttackEnabled(enabled: boolean): void {
+    if (this.zombieMode) return; // forced on for the whole room — ignore toggles
     this.autoAttackEnabled = enabled;
     if (!enabled) {
       this.attackTargets.clear();
@@ -916,7 +972,7 @@ export class ArenaRoom extends AvatarRoom {
    *  full {@link Player} the existing simulation drives; only the AI decisions
    *  (in {@link BotDirector}) and this lifecycle are bot-specific. */
   private setBotPopulation(message: ClientMessagePayloads[ClientMessage.BotControl]): void {
-    if (this.match.ranked) return;
+    if (this.match.ranked || this.zombieMode) return;
     const count = clamp(Math.floor(Number(message?.count) || 0), 0, MAX_BOTS);
     const difficulty: BotDifficulty =
       message?.difficulty === 'easy' || message?.difficulty === 'hard'
@@ -969,6 +1025,58 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(id);
     this.attackReadyAt.delete(id);
     this.displacements.delete(id);
+    this.zombieCorpseAt.delete(id);
     this.bots.delete(id);
+  }
+
+  // --- Zombie survival ---------------------------------------------------
+
+  /** Living human (non-bot) players in the room — waves pause when this hits 0. */
+  private countHumans(): number {
+    let n = 0;
+    this.state.players.forEach((_player, id) => {
+      if (!this.bots.has(id)) n += 1;
+    });
+    return n;
+  }
+
+  /** Zombies currently alive (corpses awaiting removal are excluded). */
+  private countAliveZombies(): number {
+    let n = 0;
+    this.bots.forEach((_profile, id) => {
+      if (this.state.players.get(id)?.alive) n += 1;
+    });
+    return n;
+  }
+
+  /** Spawn one zombie for `level`: a red-team melee bot that pours out of the
+   *  arena portal with level-scaled health and a relentless-chaser AI profile.
+   *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
+   *  the rest; death + removal are handled in the tick loop. */
+  private spawnZombie(level: number): void {
+    // Hard backstop above the director's own cap (corpses can briefly inflate
+    // the map) so a bug can never let zombies grow without bound.
+    if (this.bots.size >= ZOMBIE_MAX_ALIVE * 2) return;
+    const id = `zombie-${++this.botSeq}`;
+    const player = new Player();
+    player.sessionId = id;
+    player.name = 'Zombie';
+    player.characterClass = 'warrior'; // melee auto-attack
+    player.team = 'red';
+    this.resetPlayer(player);
+    // Override the team spawn with the portal mouth (+ jitter so a pulse fans
+    // out instead of stacking), then apply level-scaled health.
+    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const jitter = () => (Math.random() * 2 - 1) * 1.6;
+    player.x = clamp(ARENA_PORTAL_POINT.x + jitter(), -limit, limit);
+    player.z = clamp(ARENA_PORTAL_POINT.z + jitter(), -limit, limit);
+    player.maxHp = zombieHealthForLevel(level);
+    player.hp = player.maxHp;
+
+    this.state.players.set(id, player);
+    this.verticalVelocity.set(id, 0);
+    this.grounded.set(id, true);
+    this.cooldowns.set(id, {});
+    this.bots.set(id, makeZombieProfile());
   }
 }

@@ -208,6 +208,9 @@ export interface MapZone {
   radius: number;
   /** Optional on-ground label. */
   label?: string;
+  /** A `portal` zone's destination. Omitted = the opposite world (town↔arena);
+   *  `'zombie'` = the zombie-survival arena (a distinct co-op room). */
+  mode?: 'zombie';
 }
 
 export interface MapDescriptor {

@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 export type ZoneName =
   | 'top-left'
   | 'top-right'
+  | 'top-center'
   | 'bottom-left'
   | 'bottom-center'
   | 'bottom-right'
@@ -27,6 +28,7 @@ export type ZoneName =
 const ZONE_CLASS: Record<ZoneName, string> = {
   'top-left': 'absolute left-4 top-4 flex w-64 flex-col items-stretch gap-2',
   'top-right': 'absolute right-4 top-16 flex flex-col items-end gap-2',
+  'top-center': 'absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1',
   'bottom-left': 'absolute bottom-4 left-4',
   'bottom-center': 'absolute bottom-4 left-1/2 -translate-x-1/2',
   'bottom-right': 'absolute bottom-4 right-4',

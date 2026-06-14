@@ -8,6 +8,11 @@ import type { CharacterClass } from './assets.js';
 /** Registered Colyseus room handler names. */
 export const ARENA_ROOM = 'arena';
 export const TOWN_ROOM = 'town';
+/** Zombie survival mode — the arena simulation under a distinct handler so its
+ *  co-op rooms `joinOrCreate`-match each other and never mix with the public
+ *  free-for-all arena. Registered against the same room class, with `mode:
+ *  'zombie'` baked into the handler's options (see the server's `define`). */
+export const ZOMBIE_ROOM = 'zombie';
 /** Singleton lobby/matchmaking room: owns the replicated list of lobbies. */
 export const MATCHMAKING_ROOM = 'matchmaking';
 
@@ -399,6 +404,60 @@ const RED_SPAWNS: readonly SpawnPoint[] = [
 /** Spawn anchors for a team (blue at +Z, red at −Z). */
 export function arenaSpawnsForTeam(team: Team): readonly SpawnPoint[] {
   return team === 'red' ? RED_SPAWNS : BLUE_SPAWNS;
+}
+
+// ---------------------------------------------------------------------------
+// Zombie survival mode — endless, escalating hordes that pour out of the arena
+// portal and chase the players. Each level is one horde; clearing it (every
+// zombie dead) starts the next, with an exponentially larger horde. Shared so
+// the server's wave director and the client's HUD agree on the curve.
+// ---------------------------------------------------------------------------
+
+/** Mode tag carried in the room's `onCreate` options for a zombie room. */
+export const ZOMBIE_MODE = 'zombie';
+
+/**
+ * Where zombies spawn from: the arena's town portal (its return-to-town gate at
+ * the −Z edge — the visible gateway in the arena map). They stream out of here
+ * and hunt the players, who spawn at the opposite (+Z) end.
+ */
+export const ARENA_PORTAL_POINT: SpawnPoint = { x: 0, z: -ARENA_HALF_SIZE + 2 };
+
+/** Zombies in the first level's horde (level 1). */
+export const ZOMBIE_BASE_HORDE = 5;
+/** Per-level multiplier on the horde size — the count grows exponentially. */
+export const ZOMBIE_GROWTH = 1.5;
+/**
+ * Hard cap on zombies alive at once. The horde for high levels can be huge, so
+ * it streams in: spawns pause at this cap and resume as zombies die, until the
+ * level's whole quota has been sent. Keeps entity counts (and the sim cost)
+ * bounded no matter how high the level climbs.
+ */
+export const ZOMBIE_MAX_ALIVE = 24;
+/** Zombies released per spawn pulse (a trickle out of the portal). */
+export const ZOMBIE_SPAWN_BATCH = 2;
+/** Delay between spawn pulses, in milliseconds. */
+export const ZOMBIE_SPAWN_INTERVAL_MS = 600;
+/** Breather between a cleared level and the next horde, in milliseconds. */
+export const ZOMBIE_LEVEL_BREAK_MS = 5000;
+/** Grace before the first horde so the player can get oriented, in milliseconds. */
+export const ZOMBIE_FIRST_DELAY_MS = 3000;
+/** A zombie's base health (level 1). Low — hordes are a threat by numbers. */
+export const ZOMBIE_BASE_HP = 45;
+/** Added to a zombie's health per level, so later hordes are also tougher. */
+export const ZOMBIE_HP_PER_LEVEL = 6;
+/** How long a slain zombie's corpse lingers (death pose) before removal, in ms. */
+export const ZOMBIE_CORPSE_MS = 800;
+
+/** Total zombies in the horde for `level` (exponential growth, rounded). */
+export function zombieHordeSize(level: number): number {
+  if (level < 1) return 0;
+  return Math.round(ZOMBIE_BASE_HORDE * ZOMBIE_GROWTH ** (level - 1));
+}
+
+/** A zombie's max health at `level` (base + linear per-level toughening). */
+export function zombieHealthForLevel(level: number): number {
+  return ZOMBIE_BASE_HP + Math.max(0, level - 1) * ZOMBIE_HP_PER_LEVEL;
 }
 
 /** How long an emote (dance) plays before returning to idle, in milliseconds. */
