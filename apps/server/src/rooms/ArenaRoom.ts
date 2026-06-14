@@ -18,6 +18,7 @@ import {
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
+  ZOMBIE_SKIN_ID,
   ZOMBIE_SPEED,
   zombieHealthForLevel,
   ClientMessage,
@@ -1136,7 +1137,8 @@ export class ArenaRoom extends AvatarRoom {
     const player = new Player();
     player.sessionId = id;
     player.name = 'Zombie';
-    player.characterClass = 'warrior'; // melee auto-attack
+    player.characterClass = 'warrior'; // melee auto-attack (drives stats/attacks)
+    player.skinId = ZOMBIE_SKIN_ID; // the client swaps in the zombie GLB
     player.team = 'red';
     this.resetPlayer(player);
     // Override the team spawn with the portal mouth (+ jitter so a pulse fans

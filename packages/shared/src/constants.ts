@@ -440,9 +440,12 @@ export const ZOMBIE_SPAWN_BATCH = 2;
  *  pours out unevenly — bursts and lulls instead of a metronomic trickle. */
 export const ZOMBIE_SPAWN_INTERVAL_MIN_MS = 350;
 export const ZOMBIE_SPAWN_INTERVAL_MAX_MS = 1100;
-/** Zombie chase/move speed (world units/second) — a touch slower than a player
- *  so a player can kite a horde but never fully shake it. */
-export const ZOMBIE_SPEED = 8;
+/** Zombie chase/move speed (world units/second) — a slow shamble, well under a
+ *  player's pace, so they're a threat by numbers and persistence, not speed. */
+export const ZOMBIE_SPEED = 4;
+/** Skin id the server tags zombies with; the client maps it to the zombie GLB
+ *  (a Mixamo-rigged shambling model) in place of the warrior body. */
+export const ZOMBIE_SKIN_ID = 'skin.zombie';
 /** Breather between a cleared level and the next horde, in milliseconds. */
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */
