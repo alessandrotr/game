@@ -169,9 +169,10 @@ export class ArenaRoom extends AvatarRoom {
    *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
   private readonly zombieAi = new Map<string, { speedOffset: number; wander: number; wanderUntil: number }>();
 
-  /** This match's live collision set for movement and projectiles: static cover
-   *  (scrap) plus a circle for every alive destructible structure. Mutated by the
-   *  cover system — a crumbled structure's circle is removed so it stops blocking. */
+  /** This match's live collision set for movement and projectiles: a circle for
+   *  every alive destructible structure (trailers, cars, dumpsters, scrap heaps).
+   *  Mutated by the cover system — a crumbled structure's circle is removed so it
+   *  stops blocking. */
   private obstacles: ArenaObstacle[] = [];
 
   /** Live-tunable balance for this room (per-room copy of the shared canon). */

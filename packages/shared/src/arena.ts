@@ -81,6 +81,8 @@ interface CoverKind {
   /** HP-bearing: becomes a destructible `CoverStructure` (crumbles when killed)
    *  instead of a static obstacle+prop. HP is scaled from radius/height. */
   destructible?: boolean;
+  /** Override the size-scaled HP with a fixed value (destructible kinds only). */
+  maxHp?: number;
 }
 
 /** A decorative kind: placed for flavor, no collision (footprint is spacing only). */
@@ -97,8 +99,9 @@ const COVER: CoverKind[] = [
   { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, count: 1, destructible: true },
   { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1, destructible: true },
   { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1, destructible: true },
-  // Static cover (no HP — never destructible).
-  { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1 },
+  // Scrap heaps: destructible cover with a fixed 125 HP (small but tougher than
+  // its size alone would scale to).
+  { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1, destructible: true, maxHp: 125 },
 ];
 
 /** Burning barrels per side (mirrored) — interactive, destructible entities. */
@@ -202,7 +205,7 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
       if (kind.destructible) {
-        const maxHp = structureHp(kind.radius, kind.height);
+        const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
         structures.push(
           { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp },
           { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp },
