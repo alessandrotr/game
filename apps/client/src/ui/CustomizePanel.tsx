@@ -462,19 +462,46 @@ function SingleSlot({
 
 function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const username = useAuthStore((s) => s.username);
+  const progress = useAuthStore((s) => s.progress);
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const def = getClassDefinition(characterClass);
   const pedestal = loadout.pedestalId ? getCosmeticOfType(loadout.pedestalId, 'pedestal') : undefined;
   const title = loadout.titleId ? getCosmeticOfType(loadout.titleId, 'title')?.text : undefined;
 
+  // Level + XP — overlaid on the canvas next to / below the name (both tabs).
+  const sessionId = useGameStore.getState().sessionId;
+  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+  const record = progress.find((p) => p.characterClass === characterClass);
+  const level = me?.level ?? record?.level ?? 1;
+  const { span, into } = xpProgress(level, me?.xp ?? record?.xp ?? 0);
+
   return (
     <div className="relative min-h-[300px] overflow-hidden border-b border-white/5 bg-linear-to-b from-black/30 to-black/55 md:border-b-0 md:border-r">
       <ClassPreview characterClass={characterClass} skinId={loadout.skinId} dyeId={loadout.dyeId} pedestalColor={pedestal?.color} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
-        {title && <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/85">{title}</div>}
-        <div className="font-display text-xl tracking-wide text-white">{username ?? 'Adventurer'}</div>
-        <div className="text-xs" style={{ color: def.color }}>
-          {def.name} · {def.role}
+        <div className="flex items-center gap-3">
+          <LevelBadge level={level} size="md" className="shrink-0" />
+          <div className="min-w-0">
+            {title && <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/85">{title}</div>}
+            <div className="truncate font-display text-xl tracking-wide text-white">{username ?? 'Adventurer'}</div>
+            <div className="truncate text-xs" style={{ color: def.color }}>
+              {def.name} · {def.role}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <Meter
+            layout="stacked"
+            size="md"
+            value={into}
+            max={span}
+            fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
+            label="XP"
+            valueText={`${Math.round(into)} / ${span}`}
+            labelClassName="text-[10px] uppercase tracking-wide text-white/70"
+            valueClassName="text-[10px] text-white/60"
+            trackClassName="bg-black/55"
+          />
         </div>
       </div>
     </div>
@@ -485,10 +512,10 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 // Profile — career stats + appearance editor for the current class
 // ---------------------------------------------------------------------------
 
-/** A section divider with a heading (e.g. "Appearance"). */
+/** A section divider with a heading (e.g. "Career", "Appearance"). */
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-3 mt-6 flex items-center gap-2.5">
+    <div className="mb-3 mt-6 flex items-center gap-2.5 first:mt-0">
       <span className="font-display text-[11px] uppercase tracking-[0.22em] text-gold/80">{children}</span>
       <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
     </div>
@@ -506,49 +533,24 @@ function ProfileContent({ characterClass }: { characterClass: CharacterClass }) 
   const browse = () => setTab('store');
   const clearSlot = (patch: Partial<Loadout>) => useCosmeticsStore.getState().equip(characterClass, patch);
 
-  const def = getClassDefinition(characterClass);
   const record = progress.find((p) => p.characterClass === characterClass);
-  const level = me?.level ?? record?.level ?? 1;
   const kills = me?.kills ?? record?.kills ?? 0;
   const deaths = me?.deaths ?? record?.deaths ?? 0;
-  const { span, into } = xpProgress(level, me?.xp ?? record?.xp ?? 0);
   const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
   const ownedEmotes = cosmeticsOfType('emote').filter((c) => owned.includes(c.id));
 
   return (
     <div className="overflow-y-auto px-5 py-4">
-      {/* Identity + career stats. */}
-      <div className="flex items-center gap-3">
-        <LevelBadge level={level} size="md" />
-        <div className="min-w-0">
-          <div className="font-display text-base tracking-wide text-white">{def.name}</div>
-          <div className="text-xs text-muted">{def.role}</div>
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <Meter
-          layout="stacked"
-          size="md"
-          value={into}
-          max={span}
-          fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
-          label="XP"
-          valueText={`${Math.round(into)} / ${span}`}
-          labelClassName="text-[10px] uppercase tracking-wide text-muted"
-          valueClassName="text-[10px] text-white/60"
-          trackClassName="bg-black/45"
-        />
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      {/* Career stats (identity + level + XP live on the canvas to the left). */}
+      <GroupHeading>Career</GroupHeading>
+      <div className="grid grid-cols-3 gap-2 text-center">
         <StatTile label="Kills" value={kills} color={STAT_COLORS.positive} />
         <StatTile label="Deaths" value={deaths} color={STAT_COLORS.negative} />
         <StatTile label="K/D" value={kd} color={STAT_COLORS.text} />
       </div>
 
       {record && (
-        <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+        <div className="mt-2 grid grid-cols-2 gap-2 text-center">
           <StatTile label="Wins" value={record.wins} color={STAT_COLORS.positive} />
           <StatTile label="Losses" value={record.losses} color={STAT_COLORS.negative} />
         </div>

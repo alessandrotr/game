@@ -25,6 +25,9 @@ import {
   ZOMBIE_SPRINTER_SPAWN_CHANCE,
   ZOMBIE_SPRINTER_SPEED_MIN,
   ZOMBIE_SPRINTER_SPEED_MAX,
+  ZOMBIE_FAT_SKIN_ID,
+  ZOMBIE_FAT_SPEED_PENALTY,
+  ZOMBIE_FAT_ATTACK_BONUS_MS,
   ZOMBIE_SPEED_JITTER,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
@@ -32,6 +35,8 @@ import {
   ZOMBIE_WANDER_REROLL_MIN_MS,
   zombieHealthForLevel,
   zombieSprinterHealthForLevel,
+  zombieFatHealthForLevel,
+  zombieFatChanceForLevel,
   zombieMaxAlive,
   zombieSpeedForLevel,
   ClientMessage,
@@ -182,7 +187,10 @@ export class ArenaRoom extends AvatarRoom {
   /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
    *  lateral chase-wander bias that re-rolls on its own clock — so a horde spreads
    *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
-  private readonly zombieAi = new Map<string, { speedOffset: number; wander: number; wanderUntil: number }>();
+  private readonly zombieAi = new Map<
+    string,
+    { speedOffset: number; wander: number; wanderUntil: number; attackBonusMs: number }
+  >();
 
   /** This match's live collision set for movement and projectiles: a circle for
    *  every alive destructible structure (trailers, cars, dumpsters, scrap heaps).
@@ -850,8 +858,15 @@ export class ArenaRoom extends AvatarRoom {
     // In range and armed: strike when the timer is ready. Zombies swing on a
     // slow, randomized interval; everyone else uses the class attack-speed timer.
     if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
+    // Zombies swing at a random moment in [MIN, MAX]; a variant's attack bonus
+    // (the Fat) shaves that down, floored so it can't reach zero.
     const interval = isZombie
-      ? ZOMBIE_ATTACK_MIN_MS + Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS)
+      ? Math.max(
+          150,
+          ZOMBIE_ATTACK_MIN_MS +
+            Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS) -
+            this.zombieAiFor(sessionId).attackBonusMs,
+        )
       : cfg.cooldownMs / attackSpeedMultiplier(attacker);
     this.attackReadyAt.set(sessionId, this.simTime + interval);
     this.animOneShots.set(sessionId, {
@@ -1246,13 +1261,16 @@ export class ArenaRoom extends AvatarRoom {
 
   /** This zombie's movement personality (lazily created — covers any spawned
    *  before this map existed, though `spawnZombie` seeds it). */
-  private zombieAiFor(id: string): { speedOffset: number; wander: number; wanderUntil: number } {
+  private zombieAiFor(
+    id: string,
+  ): { speedOffset: number; wander: number; wanderUntil: number; attackBonusMs: number } {
     let ai = this.zombieAi.get(id);
     if (!ai) {
       ai = {
         speedOffset: (Math.random() * 2 - 1) * ZOMBIE_SPEED_JITTER,
         wander: Math.random() * 2 - 1,
         wanderUntil: this.simTime + this.rollWanderInterval(),
+        attackBonusMs: 0,
       };
       this.zombieAi.set(id, ai);
     }
@@ -1275,24 +1293,45 @@ export class ArenaRoom extends AvatarRoom {
     // Hard backstop above the director's own (level-scaled) cap — corpses can
     // briefly inflate the map — so a bug can never let zombies grow without bound.
     if (this.bots.size >= zombieMaxAlive(level) + 24) return;
-    // Each horde slot has a chance to be a Sprinter instead: faster, fragile.
-    const isSprinter = Math.random() < ZOMBIE_SPRINTER_SPAWN_CHANCE;
+    // Roll this horde slot's variant: a Sprinter (fast, fragile), a Fat (slow,
+    // tanky, quicker swings), or a normal zombie. One roll partitions the chances
+    // so each variant keeps its exact marginal probability (Sprinter 35%, Fat a
+    // level-scaling 20→35%); the remainder is a normal zombie.
+    const roll = Math.random();
+    const fatChance = zombieFatChanceForLevel(level);
+    const variant: 'sprinter' | 'fat' | 'normal' =
+      roll < ZOMBIE_SPRINTER_SPAWN_CHANCE
+        ? 'sprinter'
+        : roll < ZOMBIE_SPRINTER_SPAWN_CHANCE + fatChance
+          ? 'fat'
+          : 'normal';
+
     const id = `zombie-${++this.botSeq}`;
     const player = new Player();
     player.sessionId = id;
-    player.name = isSprinter ? 'Sprinter' : 'Zombie';
+    player.name = variant === 'sprinter' ? 'Sprinter' : variant === 'fat' ? 'Fat' : 'Zombie';
     player.characterClass = 'warrior'; // melee auto-attack (drives stats/attacks)
-    // The client maps the skin to the matching GLB (zombie / sprinter).
-    player.skinId = isSprinter ? ZOMBIE_SPRINTER_SKIN_ID : ZOMBIE_SKIN_ID;
+    // The client maps the skin to the matching GLB (zombie / sprinter / fat).
+    player.skinId =
+      variant === 'sprinter'
+        ? ZOMBIE_SPRINTER_SKIN_ID
+        : variant === 'fat'
+          ? ZOMBIE_FAT_SKIN_ID
+          : ZOMBIE_SKIN_ID;
     player.team = 'red';
     this.resetPlayer(player);
     // Override the team spawn with the portal mouth (+ jitter so a pulse fans
-    // out instead of stacking), then apply level-scaled health.
+    // out instead of stacking), then apply the variant's level-scaled health.
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
     const jitter = () => (Math.random() * 2 - 1) * 1.6;
     player.x = clamp(ARENA_PORTAL_POINT.x + jitter(), -limit, limit);
     player.z = clamp(ARENA_PORTAL_POINT.z + jitter(), -limit, limit);
-    player.maxHp = isSprinter ? zombieSprinterHealthForLevel(level) : zombieHealthForLevel(level);
+    player.maxHp =
+      variant === 'sprinter'
+        ? zombieSprinterHealthForLevel(level)
+        : variant === 'fat'
+          ? zombieFatHealthForLevel(level)
+          : zombieHealthForLevel(level);
     player.hp = player.maxHp;
 
     this.state.players.set(id, player);
@@ -1301,12 +1340,16 @@ export class ArenaRoom extends AvatarRoom {
     this.cooldowns.set(id, {});
     this.bots.set(id, makeZombieProfile());
     const ai = this.zombieAiFor(id); // roll this zombie's speed/wander personality
-    // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
-    // replacing the usual ±jitter so the extra speed is exactly in range.
-    if (isSprinter) {
+    if (variant === 'sprinter') {
+      // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
+      // replacing the usual ±jitter so the extra speed is exactly in range.
       ai.speedOffset =
         ZOMBIE_SPRINTER_SPEED_MIN +
         Math.random() * (ZOMBIE_SPRINTER_SPEED_MAX - ZOMBIE_SPRINTER_SPEED_MIN);
+    } else if (variant === 'fat') {
+      // A Fat is slower than a same-level zombie and swings a touch sooner.
+      ai.speedOffset = -ZOMBIE_FAT_SPEED_PENALTY;
+      ai.attackBonusMs = ZOMBIE_FAT_ATTACK_BONUS_MS;
     }
   }
 }

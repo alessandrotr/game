@@ -485,13 +485,31 @@ export const ZOMBIE_SPRINTER_SPEED_MIN = 2;
 export const ZOMBIE_SPRINTER_SPEED_MAX = 3;
 /** A Sprinter carries this fraction of a same-level zombie's health (a bit less). */
 export const ZOMBIE_SPRINTER_HP_MULT = 0.7;
+
+/** Skin id for the Fat variant; the client maps it to its (bulky) model. A
+ *  slow, heavily-armoured tank — lots of health, slightly quicker swings. */
+export const ZOMBIE_FAT_SKIN_ID = 'skin.zombie.fat';
+/** A Fat has this many times a same-level zombie's health. */
+export const ZOMBIE_FAT_HP_MULT = 3;
+/** A Fat moves this much slower (world units/s) than a same-level zombie. */
+export const ZOMBIE_FAT_SPEED_PENALTY = 2;
+/** A Fat's swing lands this many ms sooner than a normal zombie's (0.1s faster). */
+export const ZOMBIE_FAT_ATTACK_BONUS_MS = 100;
+/** Base chance a horde slot spawns a Fat in place of a normal zombie. */
+export const ZOMBIE_FAT_BASE_SPAWN_CHANCE = 0.2;
+/** The Fat spawn chance rises by this much every {@link ZOMBIE_FAT_SPAWN_LEVEL_STEP}
+ *  levels, capped at {@link ZOMBIE_FAT_SPAWN_CHANCE_MAX}. */
+export const ZOMBIE_FAT_SPAWN_CHANCE_STEP = 0.05;
+export const ZOMBIE_FAT_SPAWN_LEVEL_STEP = 4;
+export const ZOMBIE_FAT_SPAWN_CHANCE_MAX = 0.35;
 /** Breather between a cleared level and the next horde, in milliseconds. */
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */
 export const ZOMBIE_FIRST_DELAY_MS = 3000;
-/** A zombie strike lands on a randomized interval in this range (ms) — slow,
- *  lumbering swings on its own erratic cadence (not the class auto-attack timer). */
-export const ZOMBIE_ATTACK_MIN_MS = 800;
+/** A zombie strike lands on a randomized interval in this range (ms) — while in
+ *  range of a player it swings at any random moment between these two bounds (not
+ *  the class auto-attack timer). */
+export const ZOMBIE_ATTACK_MIN_MS = 400;
 export const ZOMBIE_ATTACK_MAX_MS = 3500;
 /** Wind-up before a zombie's FIRST swing after reaching its prey, in ms — so it
  *  doesn't bite the instant it's in range (it rears back, giving a beat to react
@@ -525,10 +543,29 @@ export function zombieSprinterHealthForLevel(level: number): number {
   return Math.max(1, Math.round(zombieHealthForLevel(level) * ZOMBIE_SPRINTER_HP_MULT));
 }
 
-/** True for any zombie-family skin (base zombie or the Sprinter variant) — wave
- *  enemies that grant reduced XP and don't count as PvP kills. */
+/** A Fat's max health at `level` — a multiple of a normal zombie's. */
+export function zombieFatHealthForLevel(level: number): number {
+  return Math.round(zombieHealthForLevel(level) * ZOMBIE_FAT_HP_MULT);
+}
+
+/** Chance a horde slot spawns a Fat at `level`: a base that steps up with level,
+ *  capped (lvl 1–4 → 20%, 5–8 → 25%, …, capped at 35%). */
+export function zombieFatChanceForLevel(level: number): number {
+  const steps = Math.floor(Math.max(0, level - 1) / ZOMBIE_FAT_SPAWN_LEVEL_STEP);
+  return Math.min(
+    ZOMBIE_FAT_SPAWN_CHANCE_MAX,
+    ZOMBIE_FAT_BASE_SPAWN_CHANCE + ZOMBIE_FAT_SPAWN_CHANCE_STEP * steps,
+  );
+}
+
+/** True for any zombie-family skin (base zombie, Sprinter, or Fat) — wave enemies
+ *  that grant reduced XP and don't count as PvP kills. */
 export function isZombieSkin(skinId: string): boolean {
-  return skinId === ZOMBIE_SKIN_ID || skinId === ZOMBIE_SPRINTER_SKIN_ID;
+  return (
+    skinId === ZOMBIE_SKIN_ID ||
+    skinId === ZOMBIE_SPRINTER_SKIN_ID ||
+    skinId === ZOMBIE_FAT_SKIN_ID
+  );
 }
 
 /** A zombie's move speed at `level`: base, stepped up by 1 every

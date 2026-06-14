@@ -2,6 +2,7 @@ import {
   CLASS_TO_ASSET,
   ZOMBIE_SKIN_ID,
   ZOMBIE_SPRINTER_SKIN_ID,
+  ZOMBIE_FAT_SKIN_ID,
   getCosmeticOfType,
   type CharacterClass,
   type CharacterDescriptor,
@@ -75,6 +76,29 @@ registerSkin({
     kind: 'gltf',
     url: '/models/characters/zombie-sprinter.glb',
     scale: 1.05,
+    offset: [0, 0, 0],
+    yaw: 0,
+    clips: {
+      walk: 'Armature|mixamo.com|Layer0',
+      run: 'Armature|mixamo.com|Layer0',
+    },
+  },
+});
+
+/**
+ * Fat skin: the slow, high-health tank. No dedicated GLB yet — placeholder reuses
+ * the base zombie model scaled up (bulkier silhouette) with a sickly tint so it
+ * reads as a distinct, heavier zombie. Swap `url` for a dedicated model when one
+ * ships. Tagged via {@link ZOMBIE_FAT_SKIN_ID}.
+ */
+registerSkin({
+  id: ZOMBIE_FAT_SKIN_ID,
+  baseId: 'char.warrior',
+  tint: '#7a8c5a',
+  render: {
+    kind: 'gltf',
+    url: '/models/characters/zombie-run.glb',
+    scale: 1.5, // visibly bulkier than a normal zombie
     offset: [0, 0, 0],
     yaw: 0,
     clips: {
