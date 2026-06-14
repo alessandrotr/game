@@ -17,6 +17,7 @@ import {
   TICK_MS,
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
+  ZOMBIE_ATTACK_WINDUP_MS,
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
@@ -739,14 +740,29 @@ export class ArenaRoom extends AvatarRoom {
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + ndx * step, -limit, limit);
       attacker.z = clamp(attacker.z + ndz * step, -limit, limit);
+      // Out of range: re-arm a zombie's first-swing wind-up so it can't bite the
+      // instant it closes back in (the in-range branch sees no timer → winds up).
+      if (isZombie) this.attackReadyAt.delete(sessionId);
       return;
     }
 
-    // In range: strike when the attack timer is ready. Zombies swing on a fast,
-    // randomized interval (frantic mauling); everyone else uses the class
-    // attack-speed timer (buffs shorten it).
-    if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
     const isZombie = this.zombieMode && this.bots.has(sessionId);
+
+    // A zombie that JUST reached its prey winds up first — no instant 0-delay hit.
+    // The next time it's ready the strike below lands; a telegraph pose plays
+    // through the wind-up. (Re-armed in the chase branch each time it re-engages.)
+    if (isZombie && !this.attackReadyAt.has(sessionId)) {
+      this.attackReadyAt.set(sessionId, this.simTime + ZOMBIE_ATTACK_WINDUP_MS);
+      this.animOneShots.set(sessionId, {
+        name: 'attack',
+        until: this.simTime + ZOMBIE_ATTACK_WINDUP_MS,
+      });
+      return;
+    }
+
+    // In range and armed: strike when the timer is ready. Zombies swing on a
+    // slow, randomized interval; everyone else uses the class attack-speed timer.
+    if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
     const interval = isZombie
       ? ZOMBIE_ATTACK_MIN_MS + Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS)
       : cfg.cooldownMs / attackSpeedMultiplier(attacker);

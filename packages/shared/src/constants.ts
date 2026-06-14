@@ -458,8 +458,12 @@ export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 export const ZOMBIE_FIRST_DELAY_MS = 3000;
 /** A zombie strike lands on a randomized interval in this range (ms) — slow,
  *  lumbering swings on its own erratic cadence (not the class auto-attack timer). */
-export const ZOMBIE_ATTACK_MIN_MS = 1000;
-export const ZOMBIE_ATTACK_MAX_MS = 2000;
+export const ZOMBIE_ATTACK_MIN_MS = 2000;
+export const ZOMBIE_ATTACK_MAX_MS = 3500;
+/** Wind-up before a zombie's FIRST swing after reaching its prey, in ms — so it
+ *  doesn't bite the instant it's in range (it rears back, giving a beat to react
+ *  or step away). Re-armed each time it closes back into range. */
+export const ZOMBIE_ATTACK_WINDUP_MS = 700;
 /** A zombie's base health (level 1). Low — hordes are a threat by numbers. */
 export const ZOMBIE_BASE_HP = 45;
 /** Added to a zombie's health per level, so later hordes are also tougher. */
