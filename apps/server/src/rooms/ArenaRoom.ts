@@ -15,6 +15,8 @@ import {
   MAX_PLAYERS,
   PLAYER_RADIUS,
   TICK_MS,
+  ZOMBIE_ATTACK_MAX_MS,
+  ZOMBIE_ATTACK_MIN_MS,
   ZOMBIE_CORPSE_MS,
   ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
@@ -740,16 +742,18 @@ export class ArenaRoom extends AvatarRoom {
       return;
     }
 
-    // In range: strike when the attack timer is ready (attack-speed buffs shorten
-    // the interval).
+    // In range: strike when the attack timer is ready. Zombies swing on a fast,
+    // randomized interval (frantic mauling); everyone else uses the class
+    // attack-speed timer (buffs shorten it).
     if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
-    this.attackReadyAt.set(
-      sessionId,
-      this.simTime + cfg.cooldownMs / attackSpeedMultiplier(attacker),
-    );
+    const isZombie = this.zombieMode && this.bots.has(sessionId);
+    const interval = isZombie
+      ? ZOMBIE_ATTACK_MIN_MS + Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS)
+      : cfg.cooldownMs / attackSpeedMultiplier(attacker);
+    this.attackReadyAt.set(sessionId, this.simTime + interval);
     this.animOneShots.set(sessionId, {
       name: 'attack',
-      until: this.simTime + Math.min(cfg.cooldownMs, 400),
+      until: this.simTime + Math.min(interval, 400),
     });
     if (cfg.kind === 'ranged') {
       // The projectile resolves the hit (player / barrel / structure) on impact.
