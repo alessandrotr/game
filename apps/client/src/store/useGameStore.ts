@@ -103,10 +103,15 @@ interface GameStore {
   reset: () => void;
 }
 
-/** Signature of the alive-structure set: changes only when one crumbles. */
+/** Signature of the alive-structure set + their positions (quarter-unit rounded):
+ *  changes when one crumbles AND when a car rolls, so the local predictor's
+ *  collision circles follow a moving car instead of sticking at its old spot. */
 function aliveStructureSig(structures: Map<string, CoverStructureView>): string {
   let sig = '';
-  for (const [id, s] of structures) if (!s.destroyed) sig += id + ';';
+  for (const [id, s] of structures) {
+    if (s.destroyed) continue;
+    sig += `${id}:${Math.round(s.x * 4)}:${Math.round(s.z * 4)};`;
+  }
   return sig;
 }
 

@@ -60,7 +60,7 @@ export const PICKABLES: Record<PickableKind, PickableDef> = {
     throwSpeed: 18,
     projectileRadius: 0.5,
     impact: { radius: 4, damage: 12 },
-    puddle: { radius: 4, tickDamage: 10, tickMs: 500, durationMs: 2500 },
+    puddle: { radius: 4, tickDamage: 5, tickMs: 500, durationMs: 5000 },
   },
   // A bigger one-shot burst (6 radius / 32 dmg), no lingering field.
   grenade: {
