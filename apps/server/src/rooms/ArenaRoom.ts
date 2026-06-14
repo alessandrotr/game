@@ -19,10 +19,10 @@ import {
   ZOMBIE_ATTACK_MIN_MS,
   ZOMBIE_ATTACK_WINDUP_MS,
   ZOMBIE_CORPSE_MS,
-  ZOMBIE_MAX_ALIVE,
   ZOMBIE_MODE,
   ZOMBIE_SKIN_ID,
   zombieHealthForLevel,
+  zombieMaxAlive,
   zombieSpeedForLevel,
   ClientMessage,
   type ClientMessagePayloads,
@@ -1169,9 +1169,9 @@ export class ArenaRoom extends AvatarRoom {
    *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
    *  the rest; death + removal are handled in the tick loop. */
   private spawnZombie(level: number): void {
-    // Hard backstop above the director's own cap (corpses can briefly inflate
-    // the map) so a bug can never let zombies grow without bound.
-    if (this.bots.size >= ZOMBIE_MAX_ALIVE * 2) return;
+    // Hard backstop above the director's own (level-scaled) cap — corpses can
+    // briefly inflate the map — so a bug can never let zombies grow without bound.
+    if (this.bots.size >= zombieMaxAlive(level) + 24) return;
     const id = `zombie-${++this.botSeq}`;
     const player = new Player();
     player.sessionId = id;

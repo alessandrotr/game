@@ -409,8 +409,9 @@ export function arenaSpawnsForTeam(team: Team): readonly SpawnPoint[] {
 // ---------------------------------------------------------------------------
 // Zombie survival mode — endless, escalating hordes that pour out of the arena
 // portal and chase the players. Each level is one horde; clearing it (every
-// zombie dead) starts the next, with an exponentially larger horde. Shared so
-// the server's wave director and the client's HUD agree on the curve.
+// zombie dead) starts the next, with a LINEARLY larger horde (capped so endless
+// high levels stay playable). Shared so the server's wave director and the
+// client's HUD agree on the curve.
 // ---------------------------------------------------------------------------
 
 /** Mode tag carried in the room's `onCreate` options for a zombie room. */
@@ -424,16 +425,21 @@ export const ZOMBIE_MODE = 'zombie';
 export const ARENA_PORTAL_POINT: SpawnPoint = { x: 0, z: -ARENA_HALF_SIZE + 2 };
 
 /** Zombies in the first level's horde (level 1). */
-export const ZOMBIE_BASE_HORDE = 5;
-/** Per-level multiplier on the horde size — the count grows exponentially. */
-export const ZOMBIE_GROWTH = 1.5;
+export const ZOMBIE_BASE_HORDE = 16;
+/** Added to the horde size each level — linear growth (lvl L ⇒ base + (L-1)·step). */
+export const ZOMBIE_HORDE_PER_LEVEL = 14;
+/** Ceiling on a level's horde size, so endless high levels don't balloon past
+ *  what's playable (reached around level 17 with the values above). */
+export const ZOMBIE_MAX_HORDE = 250;
 /**
- * Hard cap on zombies alive at once. The horde for high levels can be huge, so
- * it streams in: spawns pause at this cap and resume as zombies die, until the
- * level's whole quota has been sent. Keeps entity counts (and the sim cost)
- * bounded no matter how high the level climbs.
+ * The concurrent-alive ("closing in") cap scales with level, with NO ceiling:
+ * later levels swarm harder. A level's horde streams in — spawns pause at this
+ * cap and resume as zombies die — so the cap shapes pressure while the total
+ * (above) shapes length. Effectively bounded by the level's horde size.
  */
-export const ZOMBIE_MAX_ALIVE = 24;
+export const ZOMBIE_BASE_MAX_ALIVE = 16;
+/** Added to the concurrent-alive cap each level. */
+export const ZOMBIE_MAX_ALIVE_PER_LEVEL = 2;
 /** Zombies released per spawn pulse (a trickle out of the portal). */
 export const ZOMBIE_SPAWN_BATCH = 2;
 /** Delay between spawn pulses is randomized within this range (ms) so a horde
@@ -471,10 +477,15 @@ export const ZOMBIE_HP_PER_LEVEL = 6;
 /** How long a slain zombie's corpse lingers (death pose) before removal, in ms. */
 export const ZOMBIE_CORPSE_MS = 800;
 
-/** Total zombies in the horde for `level` (exponential growth, rounded). */
+/** Total zombies in the horde for `level` (linear growth, capped). */
 export function zombieHordeSize(level: number): number {
   if (level < 1) return 0;
-  return Math.round(ZOMBIE_BASE_HORDE * ZOMBIE_GROWTH ** (level - 1));
+  return Math.min(ZOMBIE_MAX_HORDE, ZOMBIE_BASE_HORDE + ZOMBIE_HORDE_PER_LEVEL * (level - 1));
+}
+
+/** Zombies allowed alive at once at `level` (scales with level, no ceiling). */
+export function zombieMaxAlive(level: number): number {
+  return ZOMBIE_BASE_MAX_ALIVE + ZOMBIE_MAX_ALIVE_PER_LEVEL * Math.max(0, level - 1);
 }
 
 /** A zombie's max health at `level` (base + linear per-level toughening). */

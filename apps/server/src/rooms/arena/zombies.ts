@@ -1,11 +1,11 @@
 import {
   ZOMBIE_FIRST_DELAY_MS,
   ZOMBIE_LEVEL_BREAK_MS,
-  ZOMBIE_MAX_ALIVE,
   ZOMBIE_SPAWN_BATCH,
   ZOMBIE_SPAWN_INTERVAL_MAX_MS,
   ZOMBIE_SPAWN_INTERVAL_MIN_MS,
   zombieHordeSize,
+  zombieMaxAlive,
 } from '@arena/shared';
 import type { ArenaContext } from './context.js';
 
@@ -76,9 +76,11 @@ export class ZombieDirector {
     if (this.phase === 'intermission') {
       if (now >= this.phaseUntil) this.beginLevel(now);
     } else {
-      // Stream the horde out in pulses, throttled by time and the alive cap.
-      if (this.quota > 0 && now >= this.nextSpawnAt && alive < ZOMBIE_MAX_ALIVE) {
-        const room = ZOMBIE_MAX_ALIVE - alive;
+      // Stream the horde out in pulses, throttled by time and the (level-scaled)
+      // alive cap.
+      const cap = zombieMaxAlive(this.level);
+      if (this.quota > 0 && now >= this.nextSpawnAt && alive < cap) {
+        const room = cap - alive;
         const batch = Math.min(ZOMBIE_SPAWN_BATCH, this.quota, room);
         for (let i = 0; i < batch; i++) this.hooks.spawnZombie(this.level);
         this.quota -= batch;
