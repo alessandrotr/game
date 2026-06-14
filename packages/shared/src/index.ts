@@ -8,5 +8,6 @@ export * from './locomotion.js';
 export * from './assets.js';
 export * from './classes.js';
 export * from './types.js';
+export * from './cosmetics.js';
 export * from './messages.js';
 export * from './chat.js';

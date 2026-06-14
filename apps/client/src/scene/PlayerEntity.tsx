@@ -10,6 +10,7 @@ import {
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
   collideObstacles,
+  getCosmeticOfType,
   isRooted,
   isStunned,
   stepLocomotion,
@@ -82,6 +83,10 @@ interface PlayerEntityProps {
  */
 export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const group = useRef<Group>(null);
+  // Only the body turns to face movement; the node itself never rotates, so the
+  // billboarded nameplate / HP bar (and the ground rings) sit perfectly still
+  // over the player instead of swinging a frame behind the body's turn.
+  const body = useRef<Group>(null);
   const hpFill = useRef<Mesh>(null);
   // The floating health bar (background + fill); hidden while dead.
   const hpBar = useRef<Group>(null);
@@ -95,14 +100,18 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Team halo only reads as meaningful in the arena (town is teamless/FFA).
   const inArena = useGameStore((s) => s.room === 'arena');
   const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
+  // Equipped title can change live (equip broadcast), so read it reactively —
+  // the selector only re-renders this entity when the title id actually changes.
+  const titleId = useGameStore((s) => s.players.get(sessionId)?.titleId ?? '');
+  const title = titleId ? getCosmeticOfType(titleId, 'title')?.text : undefined;
   // Max HP is constant per class, so this selector only re-renders on a class
   // change — it drives how many segment ticks the floating bar is divided into.
   const maxHp = useGameStore((s) => s.players.get(sessionId)?.maxHp ?? 0);
   const chunkCount = Math.max(1, Math.round(maxHp / HP_PER_CHUNK));
   const bubble = useSpeechStore((s) => s.bubbles[sessionId]);
   const descriptor = useMemo(
-    () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId),
-    [player?.characterClass, player?.skinId],
+    () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId, player?.dyeId),
+    [player?.characterClass, player?.skinId, player?.dyeId],
   );
 
   // Predicted local-player state (lazily initialized from the first snapshot).
@@ -293,7 +302,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       node.position.x = pos.x;
       node.position.z = pos.z;
-      node.rotation.y = predictedRot.current;
+      if (body.current) body.current.rotation.y = predictedRot.current;
       setLocalRenderTransform(pos.x, pos.z, predictedRot.current);
     } else {
       // Remote: render ~INTERP_DELAY in the past, interpolating between the two
@@ -303,7 +312,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         node.position.x = s.x;
         node.position.y = s.y;
         node.position.z = s.z;
-        node.rotation.y = s.rotation;
+        if (body.current) body.current.rotation.y = s.rotation;
       }
     }
 
@@ -376,7 +385,11 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
   return (
     <group ref={group}>
-      <CharacterModel descriptor={descriptor} getAnimation={getAnimation} getSpeed={getSpeed} />
+      {/* Only the body turns to face movement (see `body` ref) — the nameplate,
+          HP bar, and ground rings below stay rotation-free so they don't wobble. */}
+      <group ref={body}>
+        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} getSpeed={getSpeed} />
+      </group>
 
       {/* Pickable object carried over the head (molotov / grenade). */}
       <HeldItem sessionId={sessionId} />
@@ -466,6 +479,20 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         >
           {player?.name ?? ''}
         </Text>
+        {/* Equipped title, sitting just above the name. */}
+        {title && (
+          <Text
+            position={[0, 0.56, 0]}
+            fontSize={0.2}
+            color="#e8b24a"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.015}
+            outlineColor="#000000"
+          >
+            {title}
+          </Text>
+        )}
       </Billboard>
     </group>
   );

@@ -1,9 +1,10 @@
 import { type FormEvent } from 'react';
 import { Diamond, Loader2 } from 'lucide-react';
-import { getClassDefinition } from '@arena/shared';
+import { classCosmeticsOf, getClassDefinition, getCosmeticOfType } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
+import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
 import { TownBackdrop } from '../scene/TownBackdrop';
@@ -45,6 +46,12 @@ export function JoinScreen() {
   const def = getClassDefinition(selectedClass);
   // Account's level on the selected class (unplayed classes default to 1).
   const level = progress.find((p) => p.characterClass === selectedClass)?.level ?? 1;
+  // Reflect the selected class's equipped look (skin / dye / pedestal).
+  const byClass = useCosmeticsStore((s) => s.byClass);
+  const loadout = classCosmeticsOf(byClass, selectedClass).loadout;
+  const pedestalColor = loadout.pedestalId
+    ? getCosmeticOfType(loadout.pedestalId, 'pedestal')?.color
+    : undefined;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -94,7 +101,12 @@ export function JoinScreen() {
           {/* 3D model showcase — its frame + glow track the selected class color,
               so the hero, the chosen card, and the name read as one identity. */}
           <section className="relative min-h-[42vh] overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.45)] lg:min-h-0">
-            <ClassPreview />
+            <ClassPreview
+              characterClass={selectedClass}
+              skinId={loadout.skinId}
+              dyeId={loadout.dyeId}
+              pedestalColor={pedestalColor}
+            />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5">
               <div className="flex items-end justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-6">

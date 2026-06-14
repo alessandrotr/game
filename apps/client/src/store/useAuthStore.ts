@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ClassProgressView } from '@arena/shared';
+import type { AuthResult, ClassProgressView } from '@arena/shared';
 import {
   decodeToken,
   fetchMe,
@@ -9,6 +9,13 @@ import {
   upgradeAccount as upgradeAccountRequest,
 } from '../network/auth';
 import { setTelemetryUser } from '../network/telemetry';
+import { useCosmeticsStore } from './useCosmeticsStore';
+
+/** Seed the cosmetics store from an auth response so the equipped loadout is
+ *  available immediately (before connecting to a room). */
+function hydrateCosmetics(res: AuthResult): void {
+  useCosmeticsStore.getState().hydrate(res.cosmetics);
+}
 
 const TOKEN_KEY = 'arena.auth.token';
 
@@ -83,6 +90,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const me = await fetchMe(token);
       saveToken(me.token);
       tagTelemetryUser(me.token, me.username);
+      hydrateCosmetics(me);
       set({
         status: 'authed',
         token: me.token,
@@ -104,6 +112,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const res = await loginAccount(email, password);
       saveToken(res.token);
       tagTelemetryUser(res.token, res.username);
+      hydrateCosmetics(res);
       set({
         status: 'authed',
         token: res.token,
@@ -123,6 +132,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const res = await registerAccount(email, username, password);
       saveToken(res.token);
       tagTelemetryUser(res.token, res.username);
+      hydrateCosmetics(res);
       set({
         status: 'authed',
         token: res.token,
@@ -142,6 +152,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const res = await guestLogin();
       saveToken(res.token);
       tagTelemetryUser(res.token, res.username);
+      hydrateCosmetics(res);
       set({
         status: 'authed',
         token: res.token,
@@ -163,6 +174,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const res = await upgradeAccountRequest(token, email, username, password);
       saveToken(res.token);
       tagTelemetryUser(res.token, res.username);
+      hydrateCosmetics(res);
       set({
         status: 'authed',
         token: res.token,

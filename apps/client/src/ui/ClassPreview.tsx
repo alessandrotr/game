@@ -2,7 +2,7 @@ import { memo, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
-import { getClassDefinition, type CharacterClass } from '@arena/shared';
+import { type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
@@ -50,13 +50,31 @@ interface ClassPreviewProps {
   /** Auto-rotate the lite bust about Y. Defaults on; pass false for a still pose
    *  (e.g. the combat HUD portrait, where a spinning model is distracting). */
   spin?: boolean;
+  /** Equipped/previewed skin cosmetic id (class-bound). */
+  skinId?: string;
+  /** Equipped/previewed dye cosmetic id (tints the body). */
+  dyeId?: string;
+  /** Override the pedestal ring color (defaults to the class color). */
+  pedestalColor?: string;
 }
 
-function ClassPreviewImpl({ characterClass, lite = false, spin = true }: ClassPreviewProps) {
+function ClassPreviewImpl({
+  characterClass,
+  lite = false,
+  spin = true,
+  skinId,
+  dyeId,
+  pedestalColor,
+}: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
-  const def = getClassDefinition(selected);
-  const descriptor = useMemo(() => resolveCharacter(selected), [selected]);
+  const descriptor = useMemo(
+    () => resolveCharacter(selected, skinId, dyeId),
+    [selected, skinId, dyeId],
+  );
+  // Default pedestal is a neutral gray for every class; an equipped pedestal
+  // cosmetic (or an explicit override) recolors it.
+  const pedestal = pedestalColor ?? '#8b91a8';
 
   if (lite) {
     const bust = (
@@ -64,7 +82,7 @@ function ClassPreviewImpl({ characterClass, lite = false, spin = true }: ClassPr
         <group key={selected}>
           <CharacterModel descriptor={descriptor} />
         </group>
-        <Pedestal color={def.color} />
+        <Pedestal color={pedestal} />
       </>
     );
     return (
@@ -105,7 +123,7 @@ function ClassPreviewImpl({ characterClass, lite = false, spin = true }: ClassPr
       <group key={selected}>
         <CharacterModel descriptor={descriptor} />
       </group>
-      <Pedestal color={def.color} />
+      <Pedestal color={pedestal} />
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={6} blur={2.4} far={4} />
 
       <OrbitControls

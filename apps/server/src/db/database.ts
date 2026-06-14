@@ -38,6 +38,8 @@ export const SCHEMA: readonly string[] = [
      is_guest BOOLEAN NOT NULL DEFAULT false,
      guest_id TEXT UNIQUE,
      camera_prefs JSONB,
+     cosmetics_owned JSONB,
+     cosmetics_loadout JSONB,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
@@ -83,6 +85,9 @@ const LEGACY_MIGRATIONS: readonly string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS players_email_key ON players(lower(email)) WHERE email IS NOT NULL`,
   // Per-account UI prefs (camera locks). Added to existing account tables.
   `ALTER TABLE players ADD COLUMN IF NOT EXISTS camera_prefs JSONB`,
+  // Per-account cosmetics (owned ids + equipped loadout). Added to existing tables.
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS cosmetics_owned JSONB`,
+  `ALTER TABLE players ADD COLUMN IF NOT EXISTS cosmetics_loadout JSONB`,
   // Guest accounts: a temporary identity (no email/password) created lazily on a
   // guest's first match, upgraded in place when they register. email/password
   // become nullable so guest rows can exist without credentials.

@@ -1,13 +1,16 @@
 import { useEffect } from 'react';
-import { EMOTES } from '@arena/shared';
+import { getCosmeticOfType, isEmote } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+import { useCharacterStore } from '../store/useCharacterStore';
+import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { sendEmote } from '../network/colyseus';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 
 /**
- * Number keys (1, 2, …) play emotes (dances), in both town and arena. Sends the
- * emote to the server (so everyone sees it) and pushes it locally so the
- * predicted local player dances with zero latency. Ignored while typing.
+ * Number keys (1, 2, …) play the emotes the player has bound in their loadout,
+ * in both town and arena. Key N triggers the Nth bound emote (resolving its
+ * cosmetic id to an animation). Sends it to the server (so everyone sees it) and
+ * pushes it locally for zero-latency local playback. Ignored while typing.
  */
 export function useEmotes(enabled: boolean): void {
   useEffect(() => {
@@ -17,12 +20,18 @@ export function useEmotes(enabled: boolean): void {
       if (!match) return;
       const el = document.activeElement;
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
-      const emote = EMOTES[Number(match[1]) - 1];
-      if (!emote) return;
-      e.preventDefault();
-      sendEmote(emote);
+      // Emotes are bound per class — read the loadout for the class the player is
+      // currently in-world as (falling back to the selected class).
       const sid = useGameStore.getState().sessionId;
-      if (sid) pushAnimationEvent(sid, emote);
+      const cls =
+        (sid ? useGameStore.getState().players.get(sid)?.characterClass : undefined) ??
+        useCharacterStore.getState().selectedClass;
+      const cosmeticId = useCosmeticsStore.getState().loadoutFor(cls).emotes[Number(match[1]) - 1];
+      const anim = cosmeticId ? getCosmeticOfType(cosmeticId, 'emote')?.anim : undefined;
+      if (!anim || !isEmote(anim)) return;
+      e.preventDefault();
+      sendEmote(anim);
+      if (sid) pushAnimationEvent(sid, anim);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
-import type { AuthResult } from '@arena/shared';
+import type { AuthResult, CosmeticsState } from '@arena/shared';
 import { getPool } from './db/database.js';
+import { getCosmetics } from './db/cosmetics.js';
 import { captureServerError } from './observability.js';
 import {
   allProgress,
@@ -47,7 +48,13 @@ export function registerAuthRoutes(app: Express): void {
  */
 function guest(_req: Request, res: Response): void {
   const name = randomGuestName();
-  res.status(201).json({ token: signGuestToken(newGuestId(), name), username: name, progress: [], guest: true });
+  res.status(201).json({
+    token: signGuestToken(newGuestId(), name),
+    username: name,
+    progress: [],
+    cosmetics: DEFAULT_COSMETICS,
+    guest: true,
+  });
 }
 
 /**
@@ -91,7 +98,8 @@ async function upgrade(req: Request, res: Response): Promise<void> {
     const pid = await ensureGuestAccount(db, claims.gid, claims.name);
     const acc = await upgradeGuest(db, pid, email, username, hashPassword(password));
     const progress = await allProgress(db, acc.id).catch(() => []);
-    res.json(result(acc.id, acc.username, progress));
+    const cosmetics = await getCosmetics(db, acc.id).catch(() => DEFAULT_COSMETICS);
+    res.json(result(acc.id, acc.username, progress, cosmetics));
   } catch (err) {
     if (err instanceof EmailTakenError) {
       res.status(409).json({ error: 'That email is already registered.' });
@@ -164,7 +172,8 @@ async function login(req: Request, res: Response): Promise<void> {
     }
     await touchLastSeen(db, acc.id).catch(() => {});
     const progress = await allProgress(db, acc.id);
-    res.json(result(acc.id, acc.username, progress));
+    const cosmetics = await getCosmetics(db, acc.id).catch(() => DEFAULT_COSMETICS);
+    res.json(result(acc.id, acc.username, progress, cosmetics));
   } catch (err) {
     captureServerError(err, {
       message: '[auth] login failed:',
@@ -188,16 +197,36 @@ async function me(req: Request, res: Response): Promise<void> {
     // they've played a match) so we can replay any earned progress.
     const pid = db ? await findGuestId(db, claims.gid).catch(() => null) : null;
     const progress = pid !== null && db ? await allProgress(db, pid).catch(() => []) : [];
-    res.json({ token: signGuestToken(claims.gid, claims.name), username: claims.name, progress, guest: true });
+    const cosmetics = pid !== null && db ? await getCosmetics(db, pid).catch(() => DEFAULT_COSMETICS) : DEFAULT_COSMETICS;
+    res.json({
+      token: signGuestToken(claims.gid, claims.name),
+      username: claims.name,
+      progress,
+      cosmetics,
+      guest: true,
+    });
     return;
   }
   const progress = db && claims.pid !== undefined ? await allProgress(db, claims.pid).catch(() => []) : [];
-  res.json(result(claims.pid!, claims.name, progress));
+  const cosmetics =
+    db && claims.pid !== undefined
+      ? await getCosmetics(db, claims.pid).catch(() => DEFAULT_COSMETICS)
+      : DEFAULT_COSMETICS;
+  res.json(result(claims.pid!, claims.name, progress, cosmetics));
 }
 
+/** A fresh account's cosmetics: no characters customized yet (client fills in
+ *  per-class defaults). */
+const DEFAULT_COSMETICS: CosmeticsState = {};
+
 /** Build the standard auth response (issues a fresh account token). */
-function result(pid: number, username: string, progress: AuthResult['progress']): AuthResult {
-  return { token: signToken(pid, username), username, progress, guest: false };
+function result(
+  pid: number,
+  username: string,
+  progress: AuthResult['progress'],
+  cosmetics: CosmeticsState = DEFAULT_COSMETICS,
+): AuthResult {
+  return { token: signToken(pid, username), username, progress, cosmetics, guest: false };
 }
 
 /** Extract a Bearer token from the Authorization header. */

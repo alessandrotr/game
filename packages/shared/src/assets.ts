@@ -145,6 +145,8 @@ export interface CharacterDescriptor {
   /** Playable class, or omitted for NPCs. */
   class?: CharacterClass;
   render: RenderSource;
+  /** Optional cosmetic tint (a dye color), multiplied into the body materials. */
+  tint?: string;
   /** Weapon held in the character's grip, by id. */
   weaponId?: WeaponAssetId;
   /** Logical animation name → animation asset id. */

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useCameraPrefsStore } from './store/useCameraPrefsStore';
+import { useCosmeticsStore } from './store/useCosmeticsStore';
 import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
@@ -45,9 +46,12 @@ export default function App() {
     void restore();
   }, [restore]);
 
-  // Pull the account's saved camera-lock prefs once signed in.
+  // Pull the account's saved camera-lock prefs + cosmetics once signed in.
   useEffect(() => {
-    if (authStatus === 'authed') void useCameraPrefsStore.getState().loadForAccount();
+    if (authStatus === 'authed') {
+      void useCameraPrefsStore.getState().loadForAccount();
+      void useCosmeticsStore.getState().loadForAccount();
+    }
   }, [authStatus]);
 
   const minLoading = useMinimumDuration(1200); // floor the intro splash

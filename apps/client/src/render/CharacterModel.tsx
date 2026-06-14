@@ -1,7 +1,7 @@
 import { Suspense, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import type { Group, Mesh, MeshStandardMaterial, SkinnedMesh } from 'three';
+import { Color, type Group, type Mesh, type MeshStandardMaterial, type SkinnedMesh } from 'three';
 import type {
   AnimationName,
   CharacterDescriptor,
@@ -56,6 +56,7 @@ export function CharacterModel({
           <Suspense fallback={null}>
             <GltfCharacter
               model={descriptor.render}
+              tint={descriptor.tint}
               getAnimation={getAnimation}
               getSpeed={getSpeed}
               phase={phase}
@@ -113,11 +114,14 @@ function PlaceholderCharacter({
  *  procedural fallback (idle bob / cast pulse / death) when the model has none. */
 function GltfCharacter({
   model,
+  tint,
   getAnimation,
   getSpeed,
   phase,
 }: {
   model: GltfModel;
+  /** Cosmetic body tint (a dye/skin color), blended into the materials. */
+  tint?: string;
   getAnimation: () => AnimationName;
   getSpeed?: () => number;
   phase: number;
@@ -125,6 +129,9 @@ function GltfCharacter({
   const { scene, animations } = useGLTF(model.url);
   const instance = useMemo(() => {
     const clone = cloneSkinned(scene);
+    // A tint must own its materials: SkeletonUtils.clone shares them with the
+    // cached GLTF, so recoloring in place would dye every player of this class.
+    const tintColor = tint ? new Color(tint) : null;
     // GLB meshes don't cast/receive shadows unless told to. Also disable frustum
     // culling on skinned meshes so their shadow isn't dropped when the bind-pose
     // bounds fall outside the shadow camera.
@@ -138,17 +145,22 @@ function GltfCharacter({
       // shading (a metal surface only shows reflections, and there's no env map
       // in town) — so they look flat and ignore lights/shadows. Force them matte
       // so they light + receive shadows like the placeholder characters.
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const mat of mats) {
-        const std = mat as MeshStandardMaterial;
-        if (std && 'metalness' in std) {
-          std.metalness = 0.3;
-          if (std.roughness < 0.5) std.roughness = 0.8;
+      const apply = (mat: MeshStandardMaterial): MeshStandardMaterial => {
+        const out = tintColor ? (mat.clone() as MeshStandardMaterial) : mat;
+        if ('metalness' in out) {
+          out.metalness = 0.3;
+          if (out.roughness < 0.5) out.roughness = 0.8;
         }
-      }
+        // Blend toward the tint so the dye reads as a hue without flattening detail.
+        if (tintColor && out.color) out.color.lerp(tintColor, 0.55);
+        return out;
+      };
+      mesh.material = Array.isArray(mesh.material)
+        ? mesh.material.map((m) => apply(m as MeshStandardMaterial))
+        : apply(mesh.material as MeshStandardMaterial);
     });
     return clone;
-  }, [scene]);
+  }, [scene, tint]);
   const root = useRef<Group>(null);
   // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
   // character animates without drifting — its world position is driven by the

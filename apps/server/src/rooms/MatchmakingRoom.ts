@@ -12,8 +12,10 @@ import { MatchmakingState, type Lobby } from './mmSchema.js';
 import { BaseGameRoom } from './BaseGameRoom.js';
 import {
   resolveClass,
+  resolveDyeId,
   resolveName,
   resolveSkinId,
+  resolveTitleId,
   sessionKeyOf,
   type JoinOptions,
 } from './util/identity.js';
@@ -86,6 +88,8 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
       name: resolveName(claims, options),
       characterClass: resolveClass(options),
       skinId: resolveSkinId(options),
+      dyeId: resolveDyeId(options),
+      titleId: resolveTitleId(options),
       sessionKey: sessionKeyOf(options),
     });
   }
@@ -176,6 +180,8 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
           name: slot.name,
           characterClass: slot.characterClass,
           skinId: identity?.skinId ?? '',
+          dyeId: identity?.dyeId ?? '',
+          titleId: identity?.titleId ?? '',
           team: slot.team,
           sessionKey: identity?.sessionKey ?? '',
         });

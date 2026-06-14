@@ -7,6 +7,7 @@ import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
 import { WaveAnnouncement, ZombieHud } from './ZombieHud';
 import { Leaderboard } from './Leaderboard';
+import { CustomizePanel } from './CustomizePanel';
 import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
 import { GameMenu } from './hud/GameMenu';
@@ -80,6 +81,7 @@ export function Hud() {
       <WaveAnnouncement />
       <Paperdoll />
       <Leaderboard />
+      <CustomizePanel />
       <SettingsPanel />
       <ControlsHelp />
       {guest && <UpgradeAccountDialog />}

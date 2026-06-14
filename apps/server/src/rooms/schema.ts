@@ -49,6 +49,10 @@ export class Player extends Schema {
   @type('string') characterClass = 'warrior';
   /** Optional skin asset id layered on top of the class appearance. */
   @type('string') skinId = '';
+  /** Equipped dye cosmetic id ('' = none) — tints the body. */
+  @type('string') dyeId = '';
+  /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
+  @type('string') titleId = '';
   /**
    * Authoritative animation state (idle/run/attack/cast/hit/die). Remote clients
    * play this directly; the local client predicts its own for responsiveness.

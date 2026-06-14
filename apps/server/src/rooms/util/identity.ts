@@ -1,4 +1,4 @@
-import { isCharacterClass, type CharacterClass } from '@arena/shared';
+import { getCosmetic, isCharacterClass, type CharacterClass } from '@arena/shared';
 import type { TokenClaims } from '../../auth.js';
 
 /**
@@ -20,6 +20,8 @@ export interface JoinOptions {
   name?: string;
   characterClass?: string;
   skinId?: string;
+  dyeId?: string;
+  titleId?: string;
   team?: string;
   sessionKey?: string;
 }
@@ -44,6 +46,24 @@ export function resolveClass(options?: JoinOptions): CharacterClass {
 /** The skin id, coerced to a bounded string. */
 export function resolveSkinId(options?: JoinOptions): string {
   return String(options?.skinId ?? '').slice(0, MAX_SKIN_ID_LENGTH);
+}
+
+/** A cosmetic id from join options, accepted only if it's a known cosmetic of
+ *  the expected type (else ''). Appearance only — ownership is enforced when the
+ *  loadout is persisted over HTTP. */
+function resolveCosmeticId(id: string | undefined, type: 'dye' | 'title'): string {
+  const clean = String(id ?? '').slice(0, MAX_SKIN_ID_LENGTH);
+  return getCosmetic(clean)?.type === type ? clean : '';
+}
+
+/** The equipped dye cosmetic id, validated against the catalog. */
+export function resolveDyeId(options?: JoinOptions): string {
+  return resolveCosmeticId(options?.dyeId, 'dye');
+}
+
+/** The equipped title cosmetic id, validated against the catalog. */
+export function resolveTitleId(options?: JoinOptions): string {
+  return resolveCosmeticId(options?.titleId, 'title');
 }
 
 /** The tab/session key (used for single-session enforcement), coerced to string. */

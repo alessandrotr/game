@@ -34,6 +34,7 @@ import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useCosmeticsStore, type Appearance } from '../store/useCosmeticsStore';
 import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
@@ -147,6 +148,8 @@ function snapshotState(state: RawState): {
       alive: player.alive,
       characterClass: player.characterClass,
       skinId: player.skinId,
+      dyeId: player.dyeId ?? '',
+      titleId: player.titleId ?? '',
       animState: player.animState,
       attackTargetId: player.attackTargetId,
       level: player.level,
@@ -387,6 +390,8 @@ let joinOptions: {
   name: string;
   characterClass: CharacterClass;
   skinId?: string;
+  dyeId?: string;
+  titleId?: string;
   sessionKey: string;
 } | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
@@ -719,14 +724,17 @@ export function leaveToCharacterSelect(): void {
 export async function connectToRoom(
   roomType: RoomType,
   characterClass: CharacterClass,
-  skinId?: string,
 ): Promise<void> {
   const { token, username } = useAuthStore.getState();
+  // The look the player joins with comes from their equipped loadout for this class.
+  const look = useCosmeticsStore.getState().appearanceFor(characterClass);
   joinOptions = {
     token: token ?? '',
     name: username ?? 'Adventurer',
     characterClass,
-    skinId,
+    skinId: look.skinId,
+    dyeId: look.dyeId,
+    titleId: look.titleId,
     sessionKey: TAB_SESSION,
   };
   const store = useGameStore.getState();
@@ -891,6 +899,17 @@ export function sendDeclineMatch(): void {
 /** Play an emote (dance), replicated to everyone in the room. */
 export function sendEmote(emote: string): void {
   room?.send(ClientMessage.Emote, { emote });
+}
+
+/** Update the player's live appearance (skin/dye/title) so everyone in the room
+ *  sees it immediately. Also kept in `joinOptions` so a room change carries it. */
+export function sendEquipLoadout(look: Appearance): void {
+  if (joinOptions) {
+    joinOptions.skinId = look.skinId;
+    joinOptions.dyeId = look.dyeId;
+    joinOptions.titleId = look.titleId;
+  }
+  room?.send(ClientMessage.EquipLoadout, look);
 }
 
 export function requestLeaderboard(): void {

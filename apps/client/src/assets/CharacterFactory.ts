@@ -1,6 +1,7 @@
 import {
   CLASS_TO_ASSET,
   ZOMBIE_SKIN_ID,
+  getCosmeticOfType,
   type CharacterClass,
   type CharacterDescriptor,
   type PlaceholderPart,
@@ -9,13 +10,16 @@ import { assets } from './registry';
 
 /**
  * A skin layers cosmetic overrides on top of a base character. Recolors are
- * keyed by part `name`; a full `render` swap (e.g. a GLTF skin) is also allowed.
+ * keyed by part `name`; a body `tint` (visible on rigged GLB models too) and a
+ * full `render` swap (e.g. a GLTF skin) are also allowed.
  */
 export interface SkinDefinition {
   id: string;
   baseId: CharacterDescriptor['id'];
-  /** Part name → replacement color. */
+  /** Part name → replacement color (placeholder bodies). */
   recolor?: Record<string, string>;
+  /** Body tint multiplied into the materials (rigged + placeholder). */
+  tint?: string;
   /** Replace the entire render source (future GLTF skins). */
   render?: CharacterDescriptor['render'];
 }
@@ -26,7 +30,8 @@ export function registerSkin(skin: SkinDefinition): void {
   skins.set(skin.id, skin);
 }
 
-/** Built-in example skin proving the override path end to end. */
+/** Built-in example skin proving the override path end to end. (No skins ship in
+ *  the store yet — they'll be added gradually; this keeps the path exercised.) */
 registerSkin({
   id: 'skin.warrior.gold',
   baseId: 'char.warrior',
@@ -69,20 +74,29 @@ function applyRecolor(
 
 /**
  * Resolve the character a player should render from their replicated state.
- * Gameplay code only knows class + optional skin id; this is the single place
- * that turns that into a concrete (possibly skin-modified) descriptor.
+ * Gameplay code only knows class + optional skin/dye ids; this is the single
+ * place that turns that into a concrete (skin- and dye-modified) descriptor.
+ * A dye is applied on top of the skin (its tint/recolor wins).
  */
 export function resolveCharacter(
   characterClass: CharacterClass,
   skinId?: string,
+  dyeId?: string,
 ): CharacterDescriptor {
-  const base = assets.getCharacter(CLASS_TO_ASSET[characterClass]);
+  let result = assets.getCharacter(CLASS_TO_ASSET[characterClass]);
 
-  if (!skinId) return base;
-  const skin = skins.get(skinId);
-  if (!skin) return base;
+  const skin = skinId ? skins.get(skinId) : undefined;
+  if (skin) {
+    if (skin.render) result = { ...result, render: skin.render };
+    if (skin.tint) result = { ...result, tint: skin.tint };
+    if (skin.recolor) result = applyRecolor(result, skin.recolor);
+  }
 
-  let result = skin.render ? { ...base, render: skin.render } : base;
-  if (skin.recolor) result = applyRecolor(result, skin.recolor);
+  const dye = dyeId ? getCosmeticOfType(dyeId, 'dye') : undefined;
+  if (dye) {
+    result = { ...result, tint: dye.color };
+    if (dye.recolor) result = applyRecolor(result, dye.recolor);
+  }
+
   return result;
 }

@@ -7,6 +7,7 @@
 import type { AnimationName, CharacterClass } from './assets.js';
 import type { LobbyMode, Team } from './constants.js';
 import type { StatusKind } from './abilities/effects.js';
+import type { CosmeticsState } from './cosmetics.js';
 
 /** Replicated active status effect. Mirrors `StatusEffect` in the server schema. */
 export interface StatusView {
@@ -43,6 +44,10 @@ export interface PlayerView {
   characterClass: CharacterClass;
   /** Optional skin asset id applied on top of the class's base appearance. */
   skinId: string;
+  /** Equipped dye cosmetic id ('' = none) — tints the body. */
+  dyeId: string;
+  /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
+  titleId: string;
   /** Authoritative animation state; remote clients render this directly. */
   animState: AnimationName;
   /** Side this player fights for in a team match ('blue' in town / FFA). */
@@ -194,6 +199,8 @@ export interface AuthResult {
   token: string;
   username: string;
   progress: ClassProgressView[];
+  /** Per-class cosmetics: each character's owned ids + equipped loadout. */
+  cosmetics: CosmeticsState;
   /** True when this is a guest session (temporary identity, not yet registered). */
   guest?: boolean;
 }

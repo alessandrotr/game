@@ -16,6 +16,7 @@ import { MatchmakingRoom } from './rooms/MatchmakingRoom.js';
 import { closeDatabase, initDatabase } from './db/database.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerPrefsRoutes } from './prefsRoutes.js';
+import { registerCosmeticsRoutes } from './cosmeticsRoutes.js';
 import { registerTelemetryRoutes } from './telemetryRoutes.js';
 
 // Load apps/server/.env (Node ≥20.12) so local dev can set DATABASE_URL without
@@ -66,6 +67,8 @@ app.get('/health', (_req, res) => {
 registerAuthRoutes(app);
 // Per-account UI preferences (camera locks).
 registerPrefsRoutes(app);
+// Per-account cosmetics (owned items + equipped loadout).
+registerCosmeticsRoutes(app);
 // Client-error telemetry sink (self-hosted crash reporting → server logs).
 registerTelemetryRoutes(app);
 

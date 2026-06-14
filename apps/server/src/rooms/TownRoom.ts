@@ -19,7 +19,14 @@ import { reviveFull } from '../combat.js';
 import { ChatLog } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { findGuestId, getProgress, topPlayers } from '../db/players.js';
-import { resolveClass, resolveName, resolveSkinId, type JoinOptions } from './util/identity.js';
+import {
+  resolveClass,
+  resolveDyeId,
+  resolveName,
+  resolveSkinId,
+  resolveTitleId,
+  type JoinOptions,
+} from './util/identity.js';
 import { applyGravity, stepMove } from './util/locomotion.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
 import { verifyToken, type TokenClaims } from '../auth.js';
@@ -114,6 +121,8 @@ export class TownRoom extends AvatarRoom {
     player.name = resolveName(claims, options);
     player.characterClass = resolveClass(options);
     player.skinId = resolveSkinId(options);
+    player.dyeId = resolveDyeId(options);
+    player.titleId = resolveTitleId(options);
     // Seed max HP/mana from the class so the floating bar (and its chunk ticks)
     // looks identical to the arena, even though town is non-combat.
     const stats = getClassDefinition(player.characterClass as CharacterClass).stats;

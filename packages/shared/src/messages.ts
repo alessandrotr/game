@@ -61,6 +61,9 @@ export enum ClientMessage {
   /** Update the aim direction of an in-progress channel (e.g. the priest beam),
    *  sent continuously while channelling so the ray tracks the cursor. */
   AimChannel = 'aim_channel',
+  /** Update the player's equipped appearance live (skin / dye / title) so
+   *  everyone in the room sees it immediately. Persistence is over HTTP. */
+  EquipLoadout = 'equip_loadout',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -155,6 +158,8 @@ export interface ClientMessagePayloads {
   [ClientMessage.Emote]: { emote: string };
   /** New aim direction for the active channel (normalized server-side). */
   [ClientMessage.AimChannel]: { dirX: number; dirZ: number };
+  /** The appearance-affecting subset of the loadout (cosmetic ids; '' = none). */
+  [ClientMessage.EquipLoadout]: { skinId: string; dyeId: string; titleId: string };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
   [ClientMessage.DevTune]: {
     jumpForce: number;

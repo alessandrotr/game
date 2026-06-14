@@ -1,5 +1,12 @@
 import { type Client } from '@colyseus/core';
-import { EMOTE_MS, ClientMessage, ServerMessage, isEmote } from '@arena/shared';
+import {
+  EMOTE_MS,
+  ClientMessage,
+  ServerMessage,
+  getCosmetic,
+  isEmote,
+  type ClientMessagePayloads,
+} from '@arena/shared';
 import type { ArenaState, Player } from './schema.js';
 import { BaseGameRoom } from './BaseGameRoom.js';
 import { computeAnimState, type AnimOneShot } from '../animation.js';
@@ -98,6 +105,25 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         until: this.simTime + EMOTE_MS,
       });
     });
+
+    // Live appearance update — replicates skin/dye/title to everyone in the room
+    // the instant the player equips. Persistence is the client's HTTP PUT; this
+    // only mutates the replicated schema, so it accepts any valid cosmetic id of
+    // the right type (ownership is enforced where the loadout is saved).
+    this.onMessage<ClientMessagePayloads[ClientMessage.EquipLoadout]>(
+      ClientMessage.EquipLoadout,
+      (client, message) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
+        const skin = getCosmetic(String(message?.skinId ?? ''));
+        // A skin must match this player's class to apply.
+        player.skinId =
+          skin?.type === 'skin' && skin.characterClass === player.characterClass ? skin.id : '';
+        player.dyeId = getCosmetic(String(message?.dyeId ?? ''))?.type === 'dye' ? message.dyeId : '';
+        player.titleId =
+          getCosmetic(String(message?.titleId ?? ''))?.type === 'title' ? message.titleId : '';
+      },
+    );
   }
 
   // --- Shared lifecycle / sim helpers ------------------------------------
