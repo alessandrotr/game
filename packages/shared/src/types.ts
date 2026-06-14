@@ -56,6 +56,11 @@ export interface PlayerView {
   deaths: number;
   /** Active status effects (CC / buffs / debuffs). Drives over-head indicators. */
   statuses: StatusView[];
+  /** Ability id of an in-progress channel ('' if none) + its aim direction —
+   *  drives the beam VFX (e.g. the priest's Judgment ray). */
+  channelAbility: string;
+  channelDirX: number;
+  channelDirZ: number;
 }
 
 /** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded

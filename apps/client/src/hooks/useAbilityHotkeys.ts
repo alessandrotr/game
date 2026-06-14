@@ -161,8 +161,36 @@ export function useAbilityHotkeys(enabled: boolean): void {
       useAbilityTargeting.getState().cancel();
       aimingCode.current = null;
 
-      // Mirror the server's gates so the optimistic cooldown display stays true.
       const config = ABILITIES[ability];
+
+      // Channelled abilities (the priest beam): press to start, press again to
+      // interrupt. While a channel is active, every OTHER ability is locked out.
+      if (config.channelMs) {
+        if (me.channelAbility === ability) {
+          sendCast(ability, 0, 1); // re-press interrupts (server ignores the dir)
+          return;
+        }
+        if (isOnCooldown(ability) || me.mana < config.manaCost) return;
+        const t = getLocalRenderTransform();
+        const cur = getCursorGround();
+        let dx = cur.x - t.x;
+        let dz = cur.z - t.z;
+        const len = Math.hypot(dx, dz);
+        if (len > 1e-3) {
+          dx /= len;
+          dz /= len;
+        } else {
+          dx = Math.sin(t.rotation);
+          dz = Math.cos(t.rotation);
+        }
+        sendCast(ability, dx, dz);
+        triggerCooldown(ability, config.cooldownMs);
+        pushAnimationEvent(me.sessionId, 'cast');
+        return;
+      }
+      if (me.channelAbility) return; // locked out while channelling
+
+      // Mirror the server's gates so the optimistic cooldown display stays true.
       if (isOnCooldown(ability) || me.mana < config.manaCost) return;
 
       if (config.aim === 'direction' || config.aim === 'point') {

@@ -63,6 +63,12 @@ export class Player extends Schema {
   /** Team side in a team match ('blue' in town and for unassigned joins). Kept
    *  last so existing replicated field offsets are unchanged. */
   @type('string') team = 'blue';
+  /** Ability id of an in-progress channel (e.g. the priest beam), '' if none —
+   *  drives the client beam VFX. */
+  @type('string') channelAbility = '';
+  /** Current aim direction of the active channel (normalized). */
+  @type('number') channelDirX = 0;
+  @type('number') channelDirZ = 1;
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

@@ -146,6 +146,9 @@ function snapshotState(state: RawState): {
         nextTickAt: s.nextTickAt,
         sourceId: s.sourceId,
       })),
+      channelAbility: player.channelAbility ?? '',
+      channelDirX: player.channelDirX ?? 0,
+      channelDirZ: player.channelDirZ ?? 1,
     });
   });
 
@@ -256,7 +259,8 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   // Priest
   heal: { id: 'vfx.heal', at: 'caster', y: 0.1, follow: true },
   renew: { id: 'vfx.heal', at: 'unit', y: 0.1, follow: true }, // sticks to the healed target
-  condemn: { id: 'vfx.condemn', at: 'unit', y: 0 },
+  // Judgment (condemn) is a channelled beam — its visual is the sustained ray
+  // (scene/ChannelBeams), not a one-shot cast burst.
 };
 
 /** Impact burst spawned when a projectile is blocked by cover, keyed by the
@@ -857,6 +861,12 @@ export function sendCast(
   targetId?: string,
 ): void {
   room?.send(ClientMessage.CastAbility, { ability, dirX, dirZ, tx, tz, targetId });
+}
+
+/** Stream a new aim direction for the active channel (the priest beam) so the
+ *  ray tracks the cursor while channelling. */
+export function sendAimChannel(dirX: number, dirZ: number): void {
+  room?.send(ClientMessage.AimChannel, { dirX, dirZ });
 }
 
 /** Send a global chat message to the current room. */

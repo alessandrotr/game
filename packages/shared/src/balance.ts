@@ -95,6 +95,9 @@ export const ABILITY_FIELD_META = {
   projectileRadius: { min: 0, max: 3, step: 0.05, label: 'Projectile Radius' },
   healAmount: { min: 0, max: 200, step: 1, label: 'Heal Amount' },
   aoeRadius: { min: 0, max: 15, step: 0.1, label: 'AoE Radius' },
+  channelMs: { min: 0, max: 10_000, step: 100, label: 'Channel Time', display: 'seconds' },
+  channelTickMs: { min: 50, max: 2_000, step: 50, label: 'Channel Tick', display: 'seconds' },
+  beamWidth: { min: 0, max: 5, step: 0.1, label: 'Beam Width' },
 } satisfies Partial<Record<keyof AbilityConfig, FieldMeta>>;
 
 export type TunableAbilityField = keyof typeof ABILITY_FIELD_META;
@@ -132,6 +135,9 @@ export const abilityConfigSchema = z
     projectileRadius: num(ABILITY_FIELD_META.projectileRadius).optional(),
     healAmount: num(ABILITY_FIELD_META.healAmount).optional(),
     aoeRadius: num(ABILITY_FIELD_META.aoeRadius).optional(),
+    channelMs: num(ABILITY_FIELD_META.channelMs).optional(),
+    channelTickMs: num(ABILITY_FIELD_META.channelTickMs).optional(),
+    beamWidth: num(ABILITY_FIELD_META.beamWidth).optional(),
     aim: z.enum(['self', 'direction', 'point', 'unit']).optional(),
   })
   // passthrough (not strict): an `AbilityDef` also carries id/name/icon/effects;

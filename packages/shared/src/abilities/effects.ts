@@ -176,6 +176,13 @@ export interface AbilityConfig {
   /** Primary heal/AoE display values (tuning/UI only). */
   healAmount?: number;
   aoeRadius?: number;
+  /** Channelled abilities (e.g. a sustained beam): total channel duration (ms),
+   *  the damage-tick interval (ms), and the beam's width (world units). Presence
+   *  of `channelMs` marks the ability as a toggled channel — the server runs it
+   *  as a sustained effect (re-press to interrupt), not a one-shot cast. */
+  channelMs?: number;
+  channelTickMs?: number;
+  beamWidth?: number;
   /** How the ability is aimed (drives the client targeting flow). */
   aim?: AbilityAim;
 }

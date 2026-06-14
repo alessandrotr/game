@@ -361,19 +361,22 @@ export const ABILITY_REGISTRY = {
   },
   condemn: {
     id: 'condemn',
-    name: 'Condemn',
-    icon: 'Skull',
-    aim: 'unit',
-    cooldownMs: 15000,
-    manaCost: 50,
+    name: 'Judgment',
+    icon: 'Sun',
+    aim: 'direction',
+    cooldownMs: 12000,
+    manaCost: 100,
     castTimeMs: 0,
-    range: 18,
-    damage: 35,
-    effects: [
-      // A targeted nuke + hard stun — the showcase for unit-targeted CC.
-      { type: 'damage', amount: 35 },
-      { type: 'status', status: { kind: 'stun', durationMs: 1500 } },
-    ],
+    range: 12,
+    damage: 12,
+    // A sustained beam: a 12-long, 0.6-wide ray that ticks 12 damage every 0.5s
+    // for 3s. The priest may move and re-aim with the mouse while channelling,
+    // but can't cast anything else; re-pressing R interrupts it. Handled by the
+    // server's channel system (not the instant effect executor), so no `effects`.
+    channelMs: 3000,
+    channelTickMs: 500,
+    beamWidth: 0.6,
+    effects: [],
   },
 } satisfies Record<string, AbilityDef>;
 

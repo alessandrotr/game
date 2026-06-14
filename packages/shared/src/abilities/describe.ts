@@ -122,13 +122,21 @@ function effectLine(effect: Effect): string {
 
 /** Build the full tooltip model for an ability. */
 export function describeAbility(def: AbilityDef): AbilityTooltip {
+  const lines = def.effects.map(effectLine);
+  // Channelled abilities carry no `effects` (the server runs them as a sustained
+  // beam); describe them from their channel fields instead.
+  if (def.channelMs) {
+    lines.push(
+      `Channels a ${def.range}-long beam for ${secs(def.channelMs)}s, dealing ${def.damage} damage every ${secs(def.channelTickMs ?? 500)}s to enemies in its path. Move and re-aim freely; re-press to stop.`,
+    );
+  }
   return {
     name: def.name,
-    aimLabel: AIM_LABEL[def.aim ?? 'self'],
+    aimLabel: def.channelMs ? 'Channelled' : AIM_LABEL[def.aim ?? 'self'],
     cooldownMs: def.cooldownMs,
     manaCost: def.manaCost,
     castTimeMs: def.castTimeMs,
     range: def.range,
-    lines: def.effects.map(effectLine),
+    lines,
   };
 }

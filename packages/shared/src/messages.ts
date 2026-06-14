@@ -55,6 +55,9 @@ export enum ClientMessage {
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
   Emote = 'emote',
+  /** Update the aim direction of an in-progress channel (e.g. the priest beam),
+   *  sent continuously while channelling so the ray tracks the cursor. */
+  AimChannel = 'aim_channel',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -143,6 +146,8 @@ export interface ClientMessagePayloads {
   [ClientMessage.DeclineMatch]: Record<string, never>;
   [ClientMessage.RequestLeaderboard]: Record<string, never>;
   [ClientMessage.Emote]: { emote: string };
+  /** New aim direction for the active channel (normalized server-side). */
+  [ClientMessage.AimChannel]: { dirX: number; dirZ: number };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
   [ClientMessage.DevTune]: {
     jumpForce: number;
