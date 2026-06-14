@@ -44,8 +44,6 @@ const RARITY: Record<CosmeticRarity, string> = {
   epic: '#9a6cff',
   legendary: '#e8b24a',
 };
-const RARITY_ORDER: Record<CosmeticRarity, number> = { legendary: 3, epic: 2, rare: 1, common: 0 };
-
 /** Icon per cosmetic type (used on swatches + category headers). */
 const TYPE_ICON: Record<CosmeticType, typeof Tag> = {
   skin: User,
@@ -57,10 +55,20 @@ const TYPE_ICON: Record<CosmeticType, typeof Tag> = {
 
 /** The display color a cosmetic "is" (its own color, or its rarity accent). */
 function colorOf(c: Cosmetic): string {
+  // Only items that *are* a color carry one (pedestals/dyes/skins). Emotes and
+  // titles stay neutral so the grid doesn't turn into a rainbow — their rarity
+  // reads from the small dot/label instead.
   if (c.type === 'dye' || c.type === 'pedestal') return c.color;
   if (c.type === 'skin') return getClassDefinition(c.characterClass).color;
-  return RARITY[c.rarity];
+  return '#9aa3b8';
 }
+
+/** Category display metadata, in store order. */
+const CATEGORIES: { type: CosmeticType; label: string; icon: typeof Tag }[] = [
+  { type: 'pedestal', label: 'Pedestals', icon: Footprints },
+  { type: 'emote', label: 'Emotes', icon: Smile },
+  { type: 'title', label: 'Titles', icon: Tag },
+];
 
 // ---------------------------------------------------------------------------
 // Equip helpers (everything is scoped to a single class' wardrobe)
@@ -146,14 +154,12 @@ function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   );
 }
 
-/** Compact corner state badge (Equipped / Owned). */
-function StateBadge({ state, accent }: { state: 'equipped' | 'owned'; accent: string }) {
+/** Compact corner state badge (Equipped / Owned) — one consistent treatment, so
+ *  state reads the same across every category instead of per-rarity colors. */
+function StateBadge({ state }: { state: 'equipped' | 'owned' }) {
   if (state === 'equipped') {
     return (
-      <span
-        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black"
-        style={{ background: accent }}
-      >
+      <span className="inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
         <Check size={10} /> Equipped
       </span>
     );
@@ -161,6 +167,17 @@ function StateBadge({ state, accent }: { state: 'equipped' | 'owned'; accent: st
   return (
     <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/60">
       Owned
+    </span>
+  );
+}
+
+/** Quiet rarity tag — a small hued dot + muted label. Rarity is a secondary
+ *  signal here; category is the primary one. */
+function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
+      <span className="h-2 w-2 rounded-full" style={{ background: RARITY[rarity] }} />
+      {rarity}
     </span>
   );
 }
@@ -182,32 +199,27 @@ function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loa
     : { label: 'Equip', variant: 'panel' as const, icon: undefined, disabled: false };
 }
 
-/** A premium storefront card: rarity-framed, with state badge + single CTA. */
+/** A calm storefront card: neutral frame, quiet rarity tag, single CTA. The
+ *  only strong color is the item's own (a pedestal's hue); state reads from the
+ *  badge + gold equipped ring, not a per-rarity wash. */
 function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id));
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const equipped = isEquipped(c, loadout);
-  const accent = RARITY[c.rarity];
   const act = cardAction(c, owned, equipped, loadout);
   const onClick = () =>
     owned ? equipCosmetic(characterClass, c) : useCosmeticsStore.getState().unlock(characterClass, c.id);
 
   return (
     <div
-      className="group relative flex flex-col overflow-hidden rounded-2xl border bg-panel/40 transition hover:-translate-y-0.5"
-      style={{
-        borderColor: equipped ? accent : 'rgb(255 255 255 / 0.08)',
-        boxShadow: equipped ? `0 0 0 1px ${accent}, 0 10px 30px -8px ${accent}55` : undefined,
-      }}
+      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 transition hover:-translate-y-0.5 ${
+        equipped ? 'border-gold/70 shadow-[0_0_0_1px_var(--color-gold)]' : 'border-white/10 hover:border-white/20'
+      }`}
     >
-      <span className="h-1 w-full" style={{ background: accent }} />
-      <div
-        className="relative grid h-24 place-items-center"
-        style={{ background: `radial-gradient(120% 120% at 50% 0%, ${accent}26, transparent 70%)` }}
-      >
-        <Swatch c={c} size={56} />
+      <div className="relative grid h-20 place-items-center bg-black/20">
+        <Swatch c={c} size={52} />
         <span className="absolute right-2 top-2">
-          {equipped ? <StateBadge state="equipped" accent={accent} /> : owned ? <StateBadge state="owned" accent={accent} /> : null}
+          {equipped ? <StateBadge state="equipped" /> : owned ? <StateBadge state="owned" /> : null}
         </span>
         {!owned && (
           <span className="absolute left-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-black/50 text-white/55">
@@ -215,14 +227,12 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate text-sm font-semibold text-text">{c.name}</span>
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>
-            {c.rarity}
-          </span>
+          <RarityTag rarity={c.rarity} />
         </div>
-        <p className="mb-2 line-clamp-2 min-h-[2rem] text-[11px] leading-snug text-muted">{c.description}</p>
+        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">{c.description}</p>
         <Button variant={act.variant} size="sm" onClick={onClick} disabled={act.disabled} className="mt-auto w-full gap-1.5">
           {act.icon && <act.icon size={13} />} {act.label}
         </Button>
@@ -231,76 +241,70 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
   );
 }
 
-/** Big featured spotlight at the top of the store. */
-function FeaturedHero({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
-  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id));
-  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
-  const equipped = isEquipped(c, loadout);
-  const accent = RARITY[c.rarity];
-  const act = cardAction(c, owned, equipped, loadout);
-  const onClick = () =>
-    owned ? equipCosmetic(characterClass, c) : useCosmeticsStore.getState().unlock(characterClass, c.id);
+/** A labelled category block: an obvious header (icon + name + owned/total) over
+ *  that category's card grid. This is the primary structure of the store. */
+function CategorySection({
+  type,
+  label,
+  icon: Icon,
+  characterClass,
+}: {
+  type: CosmeticType;
+  label: string;
+  icon: typeof Tag;
+  characterClass: CharacterClass;
+}) {
+  const items = cosmeticsOfType(type);
+  const ownedHere = useCosmeticsStore(
+    (s) => items.filter((c) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id)).length,
+  );
+  if (items.length === 0) return null;
   return (
-    <div
-      className="relative mb-5 flex items-center gap-4 overflow-hidden rounded-2xl border p-4"
-      style={{ borderColor: `${accent}66`, background: `linear-gradient(110deg, ${accent}1f, transparent 60%)` }}
-    >
-      <Swatch c={c} size={72} />
-      <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: accent }}>
-          <Sparkles size={12} /> Featured · {c.rarity}
-        </div>
-        <div className="truncate font-display text-lg tracking-wide text-white">{c.name}</div>
-        <p className="line-clamp-1 text-[12px] text-muted">{c.description}</p>
+    <section className="mb-6 last:mb-0">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold">
+          <Icon size={15} aria-hidden />
+        </span>
+        <h3 className="font-display text-sm font-bold uppercase tracking-[0.18em] text-text">{label}</h3>
+        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted">
+          {ownedHere}/{items.length}
+        </span>
+        <span className="h-px flex-1 bg-linear-to-r from-white/12 to-transparent" />
       </div>
-      <Button variant={act.variant} size="md" onClick={onClick} disabled={act.disabled} className="shrink-0 gap-1.5">
-        {act.icon && <act.icon size={14} />} {act.label}
-      </Button>
-    </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {items.map((c) => (
+          <StoreCard key={c.id} c={c} characterClass={characterClass} />
+        ))}
+      </div>
+    </section>
   );
 }
 
 type StoreFilter = 'all' | CosmeticType;
-const STORE_FILTERS: { id: StoreFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'pedestal', label: 'Pedestals' },
-  { id: 'emote', label: 'Emotes' },
-  { id: 'title', label: 'Titles' },
-];
 
-/** Tab content: the storefront — featured spotlight, category filter, grid. */
+/** Tab content: the storefront — a category filter over clearly-labelled
+ *  category sections. "All" shows every section stacked; a filter narrows to one. */
 function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const [filter, setFilter] = useState<StoreFilter>('all');
   const ownedCount = useCosmeticsStore(
     (s) => classCosmeticsOf(s.byClass, characterClass).owned.filter((id) => COSMETICS.some((c) => c.id === id)).length,
   );
-
-  const items = (filter === 'all' ? [...COSMETICS] : [...cosmeticsOfType(filter)]).sort(
-    (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity],
-  );
-  const featured = [...COSMETICS].sort((a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity])[0];
+  const shown = filter === 'all' ? CATEGORIES : CATEGORIES.filter((cat) => cat.type === filter);
 
   return (
     <div className="flex min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-2.5">
         <div className="flex gap-1">
-          {STORE_FILTERS.map((f) => {
-            const active = f.id === filter;
-            const count = f.id === 'all' ? COSMETICS.length : cosmeticsOfType(f.id).length;
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFilter(f.id)}
-                aria-pressed={active}
-                className={`rounded-lg px-2.5 py-1 text-xs transition ${
-                  active ? 'bg-gold/15 font-semibold text-gold' : 'text-muted hover:text-text'
-                }`}
-              >
-                {f.label} <span className="opacity-50">{count}</span>
-              </button>
-            );
-          })}
+          <FilterChip active={filter === 'all'} label="All" count={COSMETICS.length} onClick={() => setFilter('all')} />
+          {CATEGORIES.map((cat) => (
+            <FilterChip
+              key={cat.type}
+              active={filter === cat.type}
+              label={cat.label}
+              count={cosmeticsOfType(cat.type).length}
+              onClick={() => setFilter(cat.type)}
+            />
+          ))}
         </div>
         <span className="ml-auto text-[11px] text-muted">
           <span className="font-semibold text-text">{ownedCount}</span> / {COSMETICS.length} unlocked
@@ -308,14 +312,27 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
       </div>
 
       <div className="overflow-y-auto px-5 py-4">
-        {filter === 'all' && featured && <FeaturedHero c={featured} characterClass={characterClass} />}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {items.map((c) => (
-            <StoreCard key={c.id} c={c} characterClass={characterClass} />
-          ))}
-        </div>
+        {shown.map((cat) => (
+          <CategorySection key={cat.type} type={cat.type} label={cat.label} icon={cat.icon} characterClass={characterClass} />
+        ))}
       </div>
     </div>
+  );
+}
+
+/** A store category filter chip. */
+function FilterChip({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-lg px-2.5 py-1 text-xs transition ${
+        active ? 'bg-gold/15 font-semibold text-gold' : 'text-muted hover:text-text'
+      }`}
+    >
+      {label} <span className="opacity-50">{count}</span>
+    </button>
   );
 }
 
