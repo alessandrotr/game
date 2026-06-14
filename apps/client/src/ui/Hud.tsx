@@ -5,7 +5,7 @@ import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
-import { ZombieHud } from './ZombieHud';
+import { WaveAnnouncement, ZombieHud } from './ZombieHud';
 import { Leaderboard } from './Leaderboard';
 import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
@@ -77,6 +77,7 @@ export function Hud() {
       {/* Transient / critical overlays — always rendered, above the hide gate. */}
       <MatchResult />
       <LevelUpToast />
+      <WaveAnnouncement />
       <Paperdoll />
       <Leaderboard />
       <SettingsPanel />
