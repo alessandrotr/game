@@ -118,6 +118,9 @@ export type Effect =
       /** If true, the projectile pierces players — it damages each enemy once and
        *  keeps flying (it still stops on objects/cover). Default: stops on first hit. */
       pierce?: boolean;
+      /** Max enemies a piercing projectile hits before it's consumed (the Nth hit
+       *  stops it). Only meaningful with `pierce`; omitted = unlimited (pierces all). */
+      pierceMax?: number;
     }
   | {
       type: 'aoe';

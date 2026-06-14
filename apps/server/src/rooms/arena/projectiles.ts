@@ -45,6 +45,9 @@ interface ProjectileMeta {
   /** If true, the projectile pierces players (damages each once, keeps flying);
    *  it still stops on cover. `hit` tracks the players already pierced. */
   pierce?: boolean;
+  /** Max enemies a piercing projectile hits before it's consumed (omitted =
+   *  unlimited). The hit that reaches this count stops the projectile. */
+  pierceMax?: number;
   hit?: Set<string>;
   /** For thrown pickables: a callback run at the projectile's final position when
    *  it's consumed (hit anything) or reaches its range — the AoE burst lives here,
@@ -86,13 +89,14 @@ export class ProjectileSystem {
     count = 1,
     intervalMs = 0,
     pierce = false,
+    pierceMax?: number,
   ): void {
-    this.fireAbilityShot(owner, vfx, dirX, dirZ, speed, range, radius, onHit, pierce);
+    this.fireAbilityShot(owner, vfx, dirX, dirZ, speed, range, radius, onHit, pierce, pierceMax);
     for (let i = 1; i < count; i++) {
       this.ctx.setTimeout(() => {
         const live = this.ctx.state.players.get(owner.sessionId);
         if (live && live.alive)
-          this.fireAbilityShot(live, vfx, dirX, dirZ, speed, range, radius, onHit, pierce);
+          this.fireAbilityShot(live, vfx, dirX, dirZ, speed, range, radius, onHit, pierce, pierceMax);
       }, i * intervalMs);
     }
   }
@@ -108,12 +112,14 @@ export class ProjectileSystem {
     radius: number,
     onHit: LeafEffect[],
     pierce = false,
+    pierceMax?: number,
   ): void {
     const id = this.spawn(owner, vfx, dirX, dirZ, speed, range, radius, 0);
     const meta = this.meta.get(id)!;
     meta.onHit = onHit;
     if (pierce) {
       meta.pierce = true;
+      meta.pierceMax = pierceMax;
       meta.hit = new Set();
     }
   }
@@ -335,9 +341,11 @@ export class ProjectileSystem {
         this.combat.dealDamage(target, meta.damage, meta.ownerId);
       }
     }
-    // Piercing: record this enemy and keep flying; otherwise the hit consumes it.
+    // Piercing: record this enemy and keep flying — unless it has now hit its
+    // cap (the Nth enemy stops it). Without piercing the first hit consumes it.
     if (meta.pierce) {
       meta.hit!.add(hitId);
+      if (meta.pierceMax !== undefined && meta.hit!.size >= meta.pierceMax) return true;
       return false;
     }
     return true;

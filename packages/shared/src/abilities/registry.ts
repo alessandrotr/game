@@ -77,8 +77,8 @@ export const ABILITY_REGISTRY = {
     manaCost: 40,
     castTimeMs: 0,
     range: 50,
-    damage: 30,
-    // A long-range, fast "sniper" bolt.
+    damage: 36,
+    // A long-range, fast "sniper" bolt that punches through enemies.
     projectileSpeed: 65,
     projectileRange: 50,
     projectileRadius: 0.6,
@@ -89,7 +89,10 @@ export const ABILITY_REGISTRY = {
         range: 50,
         radius: 0.6,
         vfx: VFX_ARCANE,
-        onHit: [{ type: 'damage', amount: 30 }],
+        onHit: [{ type: 'damage', amount: 36 }],
+        // Pierces enemies (not objects), damaging each; the 3rd hit stops it.
+        pierce: true,
+        pierceMax: 3,
       },
     ],
   },

@@ -326,6 +326,10 @@ export const PLAYER_MAX_MANA = 100;
 /** Mana restored per second. */
 export const MANA_REGEN = 12;
 
+/** Mana regenerates this much faster in zombie mode (survival leans on abilities,
+ *  so casters refill quicker). */
+export const ZOMBIE_MANA_REGEN_MULT = 1.5;
+
 /** Delay before a defeated player respawns, in milliseconds. */
 export const RESPAWN_DELAY_MS = 4000;
 
@@ -509,10 +513,12 @@ export const ZOMBIE_SPRINTER_HP_MULT = 0.7;
 export const ZOMBIE_FAT_SKIN_ID = 'skin.zombie.fat';
 /** A Fat has this many times a same-level zombie's health. */
 export const ZOMBIE_FAT_HP_MULT = 3;
+/** Flat health shaved off a Fat after the multiplier (tuning down its bulk). */
+export const ZOMBIE_FAT_HP_REDUCTION = 50;
 /** A Fat moves this much slower (world units/s) than a same-level zombie. */
 export const ZOMBIE_FAT_SPEED_PENALTY = 2;
-/** A Fat's swing lands this many ms sooner than a normal zombie's (0.1s faster). */
-export const ZOMBIE_FAT_ATTACK_BONUS_MS = 100;
+/** A Fat's swing lands this many ms sooner than a normal zombie's (0.2s faster). */
+export const ZOMBIE_FAT_ATTACK_BONUS_MS = 200;
 /** Base chance a horde slot spawns a Fat in place of a normal zombie. */
 export const ZOMBIE_FAT_BASE_SPAWN_CHANCE = 0.2;
 /** The Fat spawn chance rises by this much every {@link ZOMBIE_FAT_SPAWN_LEVEL_STEP}
@@ -561,9 +567,13 @@ export function zombieSprinterHealthForLevel(level: number): number {
   return Math.max(1, Math.round(zombieHealthForLevel(level) * ZOMBIE_SPRINTER_HP_MULT));
 }
 
-/** A Fat's max health at `level` — a multiple of a normal zombie's. */
+/** A Fat's max health at `level` — a multiple of a normal zombie's, less a flat
+ *  reduction (clamped to at least 1). */
 export function zombieFatHealthForLevel(level: number): number {
-  return Math.round(zombieHealthForLevel(level) * ZOMBIE_FAT_HP_MULT);
+  return Math.max(
+    1,
+    Math.round(zombieHealthForLevel(level) * ZOMBIE_FAT_HP_MULT) - ZOMBIE_FAT_HP_REDUCTION,
+  );
 }
 
 /** Chance a horde slot spawns a Fat at `level`: a base that steps up with level,

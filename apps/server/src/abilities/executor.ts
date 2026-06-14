@@ -53,6 +53,7 @@ export interface EffectRuntime {
     count?: number,
     intervalMs?: number,
     pierce?: boolean,
+    pierceMax?: number,
   ): void;
   /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x,z). */
   forEachEnemyInRadius(
@@ -200,6 +201,7 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
           effect.count,
           effect.intervalMs,
           effect.pierce,
+          effect.pierceMax,
         );
         break;
       case 'aoe': {

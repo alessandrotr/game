@@ -12,6 +12,7 @@ import {
   ARENA_PORTAL_POINT,
   GROUND_Y,
   MANA_REGEN,
+  ZOMBIE_MANA_REGEN_MULT,
   MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
   PLAYER_RADIUS,
@@ -962,7 +963,7 @@ export class ArenaRoom extends AvatarRoom {
         return;
       }
 
-      regenMana(player, MANA_REGEN, dt);
+      regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1), dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
 
