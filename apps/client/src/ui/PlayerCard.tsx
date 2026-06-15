@@ -54,7 +54,7 @@ export function PlayerCard() {
     >
       {claimable > 0 && (
         <span
-          className="absolute -right-1 -top-1 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1.5 text-[10px] font-bold text-black shadow-lg ring-1 ring-panel/50"
+          className="absolute -right-1 -top-1 z-10 grid size-4 place-items-center rounded-full bg-gold px-1.5 text-[10px] font-bold text-black shadow-lg ring-1 ring-panel/50"
           aria-label={`${claimable} items to unlock`}
         >
           {claimable}
