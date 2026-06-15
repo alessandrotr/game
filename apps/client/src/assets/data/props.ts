@@ -25,6 +25,7 @@ const PINE = '#2e6b40';
 const METAL = '#5f656e';
 const WATER = '#3f7fb0';
 const WINDOW = '#ffe1a0';
+const GLASS_ROOM = '#f2cf94'; // warm lit interior seen through the glass
 const LANTERN = '#ffd27a';
 const CLOTH = '#a23b3b';
 // Team accents for the left (blue) / right (red) sides of town.
@@ -96,18 +97,57 @@ const pyramid = (r: number, h: number, y: number, color: string): PlaceholderPar
   cone(r, h, 4, [0, y, 0], color, { rotation: [0, Math.PI / 4, 0] });
 
 /**
- * A framed shader-glass window on a building's +Z face, centred at (x, y) with
- * the wall surface at local depth `z`. Returns a small set of primitives — a
- * recessed dark frame, the glass pane (rendered with the shared fresnel glass
- * material, no transmission so it stays cheap), and a cross mullion for a paned
- * look. Faces are kept slightly proud/recessed of each other to avoid z-fighting.
+ * A framed shader-glass window on a building wall. The window sits on the wall
+ * selected by `yaw` (0 → +Z front, π → −Z back, ±π/2 → ±X sides); `s` is the
+ * lateral offset along that wall, `y` the centre height, and `d` the distance
+ * from the prop origin out to the wall face.
+ *
+ * Returns a dark recessed interior, a transparent glass pane (shared fresnel
+ * material — no transmission, so it's cheap), and four dark frame bars around
+ * it. Every piece is pushed PROUD of the wall and offset in depth from its
+ * neighbours: coplanar/overlapping faces are what z-fight and shimmer as the
+ * camera moves, so nothing shares a plane.
  */
-const glassWindow = (w: number, h: number, x: number, y: number, z: number): PlaceholderPart[] => [
-  box([w + 0.16, h + 0.16, 0.06], [x, y, z - 0.04], WOOD_DARK, { castShadow: false }),
-  box([w, h, 0.04], [x, y, z], WINDOW, { material: 'glass', castShadow: false }),
-  box([0.05, h, 0.05], [x, y, z + 0.03], WOOD_DARK, { castShadow: false }),
-  box([w, 0.05, 0.05], [x, y, z + 0.03], WOOD_DARK, { castShadow: false }),
-];
+const glassWindow = (
+  w: number,
+  h: number,
+  s: number,
+  y: number,
+  d: number,
+  yaw = 0,
+): PlaceholderPart[] => {
+  // Outward normal and along-wall tangent for this face.
+  const n: [number, number] = [Math.sin(yaw), Math.cos(yaw)];
+  const t: [number, number] = [Math.cos(yaw), -Math.sin(yaw)];
+  // Place a part at lateral offset `lo`, vertical `vo`, depth `dep` past the wall.
+  const at = (lo: number, vo: number, dep: number): Vec3 => [
+    t[0] * (s + lo) + n[0] * (d + dep),
+    y + vo,
+    t[1] * (s + lo) + n[1] * (d + dep),
+  ];
+  const rot: Vec3 = [0, yaw, 0];
+  const bar: P = { castShadow: false, rotation: rot };
+  const fy = h / 2 + 0.07;
+  const fx = w / 2 + 0.07;
+  return [
+    // Warm lit interior behind the glass — what you see "inside" the house
+    // through the clear pane. Softly emissive so it glows at dusk.
+    box([w + 0.02, h + 0.02, 0.04], at(0, 0, 0.03), GLASS_ROOM, {
+      emissive: GLASS_ROOM,
+      emissiveIntensity: 0.85,
+      castShadow: false,
+      rotation: rot,
+    }),
+    // Transparent glass pane, inset behind the frame's front edge.
+    box([w, h, 0.04], at(0, 0, 0.12), WINDOW, { material: 'glass', castShadow: false, rotation: rot }),
+    // Frame: top/bottom run the full width; left/right span only the opening so
+    // the four bars butt at the corners instead of overlapping (no corner z-fight).
+    box([w + 0.28, 0.12, 0.12], at(0, fy, 0.13), WOOD_DARK, bar),
+    box([w + 0.28, 0.12, 0.12], at(0, -fy, 0.13), WOOD_DARK, bar),
+    box([0.12, h, 0.12], at(-fx, 0, 0.13), WOOD_DARK, bar),
+    box([0.12, h, 0.12], at(fx, 0, 0.13), WOOD_DARK, bar),
+  ];
+};
 
 const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDescriptor => ({
   id: `prop.${id}`,
@@ -117,33 +157,79 @@ const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDe
 
 // --- Buildings -------------------------------------------------------------
 
-/** A cozy cottage: stone footing, plaster walls, peaked roof, glowing windows. */
-const house = prop('building.house', 'Cottage', [
-  box([3.2, 0.4, 3.2], [0, 0.2, 0], STONE),
-  box([2.9, 2, 2.9], [0, 1.4, 0], PLASTER),
-  // Corner posts sit PROUD of the wall (outer face ~1.6 vs the wall's 1.45) so
-  // their faces aren't coplanar with the plaster — coplanar faces z-fight and
-  // shimmer as the camera moves. Proud beams also read as Tudor framing.
-  box([0.24, 2, 0.24], [1.5, 1.4, 1.5], TIMBER, { castShadow: false }),
-  box([0.24, 2, 0.24], [-1.5, 1.4, 1.5], TIMBER, { castShadow: false }),
-  box([0.24, 2, 0.24], [1.5, 1.4, -1.5], TIMBER, { castShadow: false }),
-  box([0.24, 2, 0.24], [-1.5, 1.4, -1.5], TIMBER, { castShadow: false }),
-  pyramid(2.55, 1.6, 3.2, ROOF_RED),
-  box([0.75, 1.2, 0.08], [0, 0.8, 1.46], WOOD_DARK),
-  ...glassWindow(0.55, 0.55, -0.85, 1.6, 1.46),
-  ...glassWindow(0.55, 0.55, 0.85, 1.6, 1.46),
-  box([0.45, 1, 0.45], [0.95, 3.1, -0.7], STONE_DARK),
-]);
+interface HouseOpts {
+  footing: Vec3; // [w, h, d] stone base
+  wall: Vec3; // [w, h, d] plaster body
+  wallColor: string;
+  roofR: number;
+  roofH: number;
+  roofColor: string;
+  /** Tudor corner posts (the bigger cottage has them, the small one doesn't). */
+  posts?: boolean;
+  chimney: Vec3; // [x, y, z] chimney centre
+}
+
+/**
+ * One reusable cottage. Every house in town is built from this — same door, same
+ * framed glass windows on the front and BOTH side walls — so they stay visually
+ * consistent (no "this one's missing a window") and there's a single place to
+ * tweak the look. Variety comes from the opts (size, wall/roof colour, posts),
+ * not from re-modelling each house by hand.
+ */
+function townHouse(id: string, opts: HouseOpts): PropDescriptor {
+  const fh = opts.footing[1];
+  const wallH = opts.wall[1];
+  const wy = fh + wallH / 2; // wall centre height
+  const halfW = opts.wall[0] / 2;
+  const halfD = opts.wall[2] / 2;
+  const roofY = fh + wallH + opts.roofH / 2; // cone centre = wall top + half height
+  const winY = fh + wallH * 0.62; // window centre height
+  const parts: PlaceholderPart[] = [
+    box(opts.footing, [0, fh / 2, 0], STONE),
+    box(opts.wall, [0, wy, 0], opts.wallColor),
+  ];
+  if (opts.posts) {
+    // Posts sit proud of the wall so their faces aren't coplanar with the
+    // plaster (coplanar faces z-fight); reads as Tudor framing.
+    const px = halfW + 0.05;
+    const pz = halfD + 0.05;
+    for (const [sx, sz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]] as const) {
+      parts.push(box([0.24, wallH, 0.24], [sx * px, wy, sz * pz], TIMBER, { castShadow: false }));
+    }
+  }
+  parts.push(
+    pyramid(opts.roofR, opts.roofH, roofY, opts.roofColor),
+    // Front door.
+    box([0.75, 1.2, 0.08], [0, fh + 0.6, halfD + 0.02], WOOD_DARK),
+    // Two windows flanking the door (front only — no side windows).
+    ...glassWindow(0.55, 0.6, -halfW * 0.52, winY, halfD),
+    ...glassWindow(0.55, 0.6, halfW * 0.52, winY, halfD),
+    box([0.45, 1, 0.45], opts.chimney, STONE_DARK),
+  );
+  return prop(id, 'Cottage', parts);
+}
+
+const house = townHouse('building.house', {
+  footing: [3.2, 0.4, 3.2],
+  wall: [2.9, 2, 2.9],
+  wallColor: PLASTER,
+  roofR: 2.55,
+  roofH: 1.6,
+  roofColor: ROOF_RED,
+  posts: true,
+  chimney: [0.95, 3.1, -0.7],
+});
 
 /** A second cottage variant (slate roof, warmer walls) for visual variety. */
-const cottage = prop('building.cottage', 'Cottage', [
-  box([3, 0.4, 2.8], [0, 0.2, 0], STONE),
-  box([2.7, 1.9, 2.5], [0, 1.35, 0], PLASTER_WARM),
-  pyramid(2.35, 1.5, 3.05, ROOF_BROWN),
-  box([0.7, 1.15, 0.08], [0, 0.78, 1.31], WOOD_DARK),
-  ...glassWindow(0.5, 0.5, 0.8, 1.55, 1.31),
-  box([0.4, 0.95, 0.4], [-0.9, 3, -0.6], STONE_DARK),
-]);
+const cottage = townHouse('building.cottage', {
+  footing: [3, 0.4, 2.8],
+  wall: [2.7, 1.9, 2.5],
+  wallColor: PLASTER_WARM,
+  roofR: 2.35,
+  roofH: 1.5,
+  roofColor: ROOF_BROWN,
+  chimney: [-0.9, 3, -0.6],
+});
 
 /** The tavern: two storeys with a jettied upper floor and a hanging sign. */
 const inn = prop('building.inn', 'The Wandering Inn', [

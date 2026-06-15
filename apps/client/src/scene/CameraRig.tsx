@@ -21,10 +21,6 @@ const GUN_POS_SMOOTH = 24;
  *  open, fast-reading feel of an FPS. */
 const GUN_FOV = 90;
 const FOLLOW_FOV = 55;
-/** Top-down gun view: how far ahead of the player (along aim) the camera looks,
- *  and how fast that lead point eases so quick aim swings don't jerk the view. */
-const GUN_CAM_LEAD = 5;
-const GUN_CAM_LEAD_SMOOTH = 6;
 
 /** Set the camera's vertical FOV (no-op if unchanged — avoids a per-frame
  *  projection-matrix rebuild). */
@@ -54,8 +50,6 @@ export function CameraRig() {
   const target = new Vector3();
   // Smoothed first-person eye position in gun mode (null until it initializes).
   const eye = useRef<Vector3 | null>(null);
-  // Smoothed top-down aim-lead point in gun mode (null until it initializes).
-  const leadTarget = useRef<Vector3 | null>(null);
 
   useFrame((_, delta) => {
     const { sessionId, players } = useGameStore.getState();
@@ -85,7 +79,6 @@ export function CameraRig() {
       // mouse-look yaw/pitch; the body faces the same way (see PlayerEntity), and
       // the local model is hidden so we're not inside it.
       if (camera instanceof PerspectiveCamera) setFov(camera, GUN_FOV);
-      leadTarget.current = null;
       const aim = getFpsAim();
       const yaw = isFpsEngaged() ? aim.yaw : local.rotation;
       const pitch = isFpsEngaged() ? aim.pitch : 0;
@@ -106,22 +99,15 @@ export function CameraRig() {
       return;
     }
     if (gunMode && local.active && gunView === 'topdown') {
-      // Top-down: a locked over-the-shoulder shooter cam that leads toward the
-      // aim (the body faces the cursor), smoothed so quick swings glide.
+      // Top-down: a fixed, predictable shooter cam centered on the player — no
+      // aim-lead. Same orbit as the normal follow, just with locked orientation.
       if (camera instanceof PerspectiveCamera) setFov(camera, FOLLOW_FOV);
       eye.current = null;
-      const aheadX = local.x + Math.sin(local.rotation) * GUN_CAM_LEAD;
-      const aheadZ = local.z + Math.cos(local.rotation) * GUN_CAM_LEAD;
-      leadTarget.current ??= new Vector3(aheadX, 0, aheadZ);
-      const k = 1 - Math.exp(-GUN_CAM_LEAD_SMOOTH * delta);
-      leadTarget.current.x = MathUtils.lerp(leadTarget.current.x, aheadX, k);
-      leadTarget.current.z = MathUtils.lerp(leadTarget.current.z, aheadZ, k);
-      target.set(leadTarget.current.x, 0, leadTarget.current.z);
+      target.set(local.x, 0, local.z);
       applyOrbit(camera, target, desired, me, delta, true /* lockOrientation */);
       return;
     }
     eye.current = null; // reset so re-entering gun mode starts fresh
-    leadTarget.current = null;
     if (camera instanceof PerspectiveCamera) setFov(camera, FOLLOW_FOV);
 
     if (local.active) {
