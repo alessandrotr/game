@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Heart, Droplet, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { ChevronLeft, ChevronRight, Heart, Droplet, type LucideIcon } from 'lucide-react';
 import {
   CLASS_LIST,
   classCosmeticsOf,
@@ -13,7 +13,7 @@ import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
 import { AssetLoadingBar } from './AssetLoadingBar';
-import { Badge, Card, LevelBadge, Meter } from './primitives';
+import { Badge, Card, IconButton, LevelBadge, Meter } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 
@@ -112,8 +112,10 @@ function AbilityBadge({ ability }: { ability: AbilityKind }) {
   );
 }
 
-/** Class cards (gold-accented) + the selected class's stats/abilities. Each card
- *  shows the account's level on that class (from persisted progression). */
+/** A swipeable carousel of the playable classes — the slide on screen IS the
+ *  picked character. Navigate with the arrows, the dots, ← / → keys, or by
+ *  dragging. Below sits the current class's stats/abilities. One 3D portrait
+ *  (the visible class swaps inside a single canvas), showing its equipped look. */
 export function CharacterSelect() {
   const selected = useCharacterStore((s) => s.selectedClass);
   const setSelected = useCharacterStore((s) => s.setSelectedClass);
@@ -121,67 +123,116 @@ export function CharacterSelect() {
   const byClass = useCosmeticsStore((s) => s.byClass);
   const def = getClassDefinition(selected);
 
-  // Front-run the class GLB downloads so the portraits (and the loading bar over
-  // them) have something to show immediately.
+  // Front-run the class GLB downloads so the portrait (and the loading bar over
+  // it) have something to show immediately.
   useEffect(() => {
     preloadCharacterModels();
   }, []);
 
-  // Level reached per class (classes never played default to 1).
+  const count = CLASS_LIST.length;
+  const idx = Math.max(
+    0,
+    CLASS_LIST.findIndex((c) => c.id === selected),
+  );
+  /** Step to another slide, wrapping around — this is what changes the pick. */
+  const go = (delta: number) => setSelected(CLASS_LIST[(idx + delta + count) % count]!.id);
+
   const levelByClass = new Map(progress.map((p) => [p.characterClass, p.level]));
+  const level = levelByClass.get(selected) ?? 1;
+  const loadout = classCosmeticsOf(byClass, selected).loadout;
+
+  // Drag-to-swipe: remember where a press began; on release, a horizontal throw
+  // past the threshold flips to the previous / next class.
+  const dragX = useRef<number | null>(null);
+  const onPointerDown = (e: ReactPointerEvent) => {
+    dragX.current = e.clientX;
+  };
+  const onPointerUp = (e: ReactPointerEvent) => {
+    if (dragX.current === null) return;
+    const dx = e.clientX - dragX.current;
+    dragX.current = null;
+    if (dx > 40) go(-1);
+    else if (dx < -40) go(1);
+  };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {CLASS_LIST.map((c) => {
-          const isSelected = c.id === selected;
-          const level = levelByClass.get(c.id) ?? 1;
-          // Each card shows that class's own equipped look (skin / dye / pedestal).
-          const loadout = classCosmeticsOf(byClass, c.id).loadout;
-          return (
-            <button
-              type="button"
-              key={c.id}
-              onClick={() => setSelected(c.id)}
-              aria-pressed={isSelected}
-              // Selected card uses the gold accent (border + faint tint) so the
-              // chosen class reads clearly — no per-class color.
-              style={
-                isSelected
-                  ? { borderColor: 'var(--color-gold)', background: 'rgba(200,162,74,0.08)' }
-                  : undefined
-              }
-              className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
-                isSelected
-                  ? ''
-                  : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-black/40'
-              }`}
-            >
-              {/* Live 3D portrait of this class with its equipped cosmetics. The
-                  selected one slowly rotates; the rest hold a still pose. */}
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
-                <ClassPreview
-                  characterClass={c.id}
-                  skinId={loadout.skinId}
-                  dyeId={loadout.dyeId}
-                  pedestalId={loadout.pedestalId}
-                  lite
-                  spin={isSelected}
-                />
-              </div>
-              <span className="min-w-0 flex-1">
-                <span className="block font-display text-sm tracking-wide text-white">
-                  {c.name}
-                </span>
-                <span className="block truncate text-[11px] text-muted">{c.role}</span>
-              </span>
-              <LevelBadge level={level} size="xs" className="shrink-0" />
-            </button>
-          );
-        })}
-        {/* Progress over the portraits while the class GLBs download. */}
-        <AssetLoadingBar label="Loading champions…" />
+      <div
+        className="relative select-none"
+        role="group"
+        aria-label="Choose your champion"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            go(-1);
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            go(1);
+          }
+        }}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={() => (dragX.current = null)}
+      >
+        <div className="relative h-52 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+          {/* The visible class swaps INSIDE this one canvas (no per-class context).
+              pointer-events-none so the swipe is handled by the container. */}
+          <div className="pointer-events-none absolute inset-0">
+            <ClassPreview
+              characterClass={selected}
+              skinId={loadout.skinId}
+              dyeId={loadout.dyeId}
+              pedestalId={loadout.pedestalId}
+              lite
+              spin
+            />
+          </div>
+          {/* Identity overlay: who this slide is + your level on them. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-linear-to-t from-black/85 via-black/30 to-transparent p-3">
+            <div className="min-w-0">
+              <div className="font-display text-lg tracking-wide text-white">{def.name}</div>
+              <div className="truncate text-[11px] text-muted">{def.role}</div>
+            </div>
+            <LevelBadge level={level} size="sm" className="shrink-0" />
+          </div>
+          {/* Progress over the portrait while the class GLBs download. */}
+          <AssetLoadingBar label="Loading champion…" />
+        </div>
+
+        {/* Prev / next. */}
+        <IconButton
+          icon={ChevronLeft}
+          aria-label="Previous class"
+          variant="panel"
+          onClick={() => go(-1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full"
+        />
+        <IconButton
+          icon={ChevronRight}
+          aria-label="Next class"
+          variant="panel"
+          onClick={() => go(1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
+        />
       </div>
+
+      {/* Slide indicator — click a dot to jump straight to that class. */}
+      <div className="flex items-center justify-center gap-1.5">
+        {CLASS_LIST.map((c, i) => (
+          <button
+            key={c.id}
+            type="button"
+            aria-label={`Select ${c.name}`}
+            aria-current={i === idx}
+            onClick={() => setSelected(c.id)}
+            className={`h-1.5 rounded-full transition-all ${
+              i === idx ? 'w-5 bg-gold' : 'w-1.5 bg-white/25 hover:bg-white/40'
+            }`}
+          />
+        ))}
+      </div>
+
       <ClassInfo def={def} />
     </div>
   );
