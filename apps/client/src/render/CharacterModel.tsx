@@ -59,6 +59,12 @@ interface CharacterModelProps {
   getAnimation?: () => AnimationName;
   /** Live ground speed (world units/sec); scales the run clip so feet don't slide. */
   getSpeed?: () => number;
+  /**
+   * Cheap-render mode for crowds (zombie hordes): the body casts NO shadows and
+   * is frustum-culled when off-screen, so dozens of rigged bodies don't each add
+   * a shadow-pass draw + skinning cost every frame. Off for players (crisp look).
+   */
+  lightweight?: boolean;
 }
 
 /**
@@ -70,6 +76,7 @@ export function CharacterModel({
   descriptor,
   getAnimation = ALWAYS_IDLE,
   getSpeed,
+  lightweight = false,
 }: CharacterModelProps) {
   const phase = useMemo(() => seedOf(descriptor.id), [descriptor.id]);
   const weapon = descriptor.weaponId ? assets.getWeapon(descriptor.weaponId) : undefined;
@@ -85,6 +92,7 @@ export function CharacterModel({
               getAnimation={getAnimation}
               getSpeed={getSpeed}
               phase={phase}
+              lightweight={lightweight}
             />
           </Suspense>
         </AssetErrorBoundary>
@@ -143,6 +151,7 @@ function GltfCharacter({
   getAnimation,
   getSpeed,
   phase,
+  lightweight = false,
 }: {
   model: GltfModel;
   /** Cosmetic body tint (a dye/skin color), blended into the materials. */
@@ -150,6 +159,7 @@ function GltfCharacter({
   getAnimation: () => AnimationName;
   getSpeed?: () => number;
   phase: number;
+  lightweight?: boolean;
 }) {
   const { scene, animations } = useGLTF(model.url);
   const instance = useMemo(() => {
@@ -157,15 +167,17 @@ function GltfCharacter({
     // A tint must own its materials: SkeletonUtils.clone shares them with the
     // cached GLTF, so recoloring in place would dye every player of this class.
     const tintColor = tint ? new Color(tint) : null;
-    // GLB meshes don't cast/receive shadows unless told to. Also disable frustum
-    // culling on skinned meshes so their shadow isn't dropped when the bind-pose
-    // bounds fall outside the shadow camera.
+    // Players cast/receive shadows and disable frustum culling on skinned meshes
+    // so their shadow isn't dropped when the bind-pose bounds fall outside the
+    // shadow camera. Lightweight bodies (zombie hordes) cast NO shadows and STAY
+    // frustum-culled, so dozens of them don't each add a shadow draw + skinning
+    // cost — and off-screen ones aren't rendered at all.
     clone.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      if ((mesh as SkinnedMesh).isSkinnedMesh) mesh.frustumCulled = false;
+      mesh.castShadow = !lightweight;
+      mesh.receiveShadow = !lightweight;
+      if ((mesh as SkinnedMesh).isSkinnedMesh) mesh.frustumCulled = lightweight;
       // Meshy/AI exports often mark materials fully metallic, which kills diffuse
       // shading (a metal surface only shows reflections, and there's no env map
       // in town) — so they look flat and ignore lights/shadows. Force them matte
@@ -185,7 +197,7 @@ function GltfCharacter({
         : apply(mesh.material as MeshStandardMaterial);
     });
     return clone;
-  }, [scene, tint]);
+  }, [scene, tint, lightweight]);
   const root = useRef<Group>(null);
   // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
   // character animates without drifting — its world position is driven by the

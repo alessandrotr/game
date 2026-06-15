@@ -408,7 +408,14 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       {/* Only the body turns to face movement (see `body` ref) — the nameplate,
           HP bar, and ground rings below stay rotation-free so they don't wobble. */}
       <group ref={body}>
-        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} getSpeed={getSpeed} />
+        {/* Zombies render lightweight (no shadows, frustum-culled) — dozens of
+            rigged hordlings would otherwise flood the shadow pass + skinning. */}
+        <CharacterModel
+          descriptor={descriptor}
+          getAnimation={getAnimation}
+          getSpeed={getSpeed}
+          lightweight={isZombieSkin(player?.skinId ?? '')}
+        />
       </group>
 
       {/* Pickable object carried over the head (molotov / grenade). */}
