@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Heart, Droplet, type LucideIcon } from 'lucide-react';
 import {
   CLASS_LIST,
@@ -9,7 +10,9 @@ import {
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
+import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
+import { AssetLoadingBar } from './AssetLoadingBar';
 import { Badge, Card, LevelBadge, Meter } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
@@ -118,12 +121,18 @@ export function CharacterSelect() {
   const byClass = useCosmeticsStore((s) => s.byClass);
   const def = getClassDefinition(selected);
 
+  // Front-run the class GLB downloads so the portraits (and the loading bar over
+  // them) have something to show immediately.
+  useEffect(() => {
+    preloadCharacterModels();
+  }, []);
+
   // Level reached per class (classes never played default to 1).
   const levelByClass = new Map(progress.map((p) => [p.characterClass, p.level]));
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="relative grid grid-cols-1 gap-2 sm:grid-cols-2">
         {CLASS_LIST.map((c) => {
           const isSelected = c.id === selected;
           const level = levelByClass.get(c.id) ?? 1;
@@ -170,6 +179,8 @@ export function CharacterSelect() {
             </button>
           );
         })}
+        {/* Progress over the portraits while the class GLBs download. */}
+        <AssetLoadingBar label="Loading champions…" />
       </div>
       <ClassInfo def={def} />
     </div>
