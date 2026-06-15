@@ -5,6 +5,9 @@ import {
   ServerMessage,
   getCosmetic,
   isEmote,
+  isUnlocked,
+  type Cosmetic,
+  type CosmeticType,
   type ClientMessagePayloads,
 } from '@arena/shared';
 import type { ArenaState, Player } from './schema.js';
@@ -108,22 +111,25 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
 
     // Live appearance update — replicates skin/dye/title to everyone in the room
     // the instant the player equips. Persistence is the client's HTTP PUT; this
-    // only mutates the replicated schema, so it accepts any valid cosmetic id of
-    // the right type (ownership is enforced where the loadout is saved).
+    // only mutates the replicated schema. Each id must be the right type and meet
+    // its unlock level for this player (so nothing above-level can be shown).
     this.onMessage<ClientMessagePayloads[ClientMessage.EquipLoadout]>(
       ClientMessage.EquipLoadout,
       (client, message) => {
         const player = this.state.players.get(client.sessionId);
         if (!player) return;
-        const skin = getCosmetic(String(message?.skinId ?? ''));
-        // A skin must match this player's class to apply.
-        player.skinId =
-          skin?.type === 'skin' && skin.characterClass === player.characterClass ? skin.id : '';
-        player.dyeId = getCosmetic(String(message?.dyeId ?? ''))?.type === 'dye' ? message.dyeId : '';
-        player.pedestalId =
-          getCosmetic(String(message?.pedestalId ?? ''))?.type === 'pedestal' ? message.pedestalId : '';
-        player.titleId =
-          getCosmetic(String(message?.titleId ?? ''))?.type === 'title' ? message.titleId : '';
+        // Resolve a requested id if it's the right type, unlocked at the player's
+        // level, and (for skins) matches their class — else clear the slot.
+        const resolve = (id: unknown, type: CosmeticType): string => {
+          const c: Cosmetic | undefined = getCosmetic(String(id ?? ''));
+          if (!c || c.type !== type || !isUnlocked(c, player.level)) return '';
+          if (c.type === 'skin' && c.characterClass !== player.characterClass) return '';
+          return c.id;
+        };
+        player.skinId = resolve(message?.skinId, 'skin');
+        player.dyeId = resolve(message?.dyeId, 'dye');
+        player.pedestalId = resolve(message?.pedestalId, 'pedestal');
+        player.titleId = resolve(message?.titleId, 'title');
       },
     );
   }

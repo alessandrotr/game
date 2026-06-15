@@ -20,6 +20,8 @@ import {
   getClassDefinition,
   getCosmetic,
   getCosmeticOfType,
+  isUnlocked,
+  requiredLevelFor,
   xpProgress,
   type CharacterClass,
   type Cosmetic,
@@ -266,9 +268,15 @@ function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
 // Store
 // ---------------------------------------------------------------------------
 
-/** The CTA verb + style for an item's current state. */
-function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loadout) {
-  if (!owned) return { label: 'Unlock', variant: 'gold' as const, icon: Lock, disabled: false };
+/** The CTA verb + style for an item's current state (level-gated). */
+function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loadout, level: number) {
+  if (!owned) {
+    // Locked until the class reaches the required level.
+    if (!isUnlocked(c, level)) {
+      return { label: `Lv ${requiredLevelFor(c)}`, variant: 'panel' as const, icon: Lock, disabled: true };
+    }
+    return { label: 'Unlock', variant: 'gold' as const, icon: Lock, disabled: false };
+  }
   if (c.type === 'emote') {
     return equipped
       ? {
@@ -287,22 +295,31 @@ function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loa
 /** A calm storefront card: neutral frame, quiet rarity tag, single CTA. The
  *  only strong color is the item's own (a pedestal's hue); state reads from the
  *  badge + gold equipped ring, not a per-rarity wash. */
-function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
+function StoreCard({
+  c,
+  characterClass,
+  level,
+}: {
+  c: Cosmetic;
+  characterClass: CharacterClass;
+  level: number;
+}) {
   const owned = useCosmeticsStore((s) =>
     classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id),
   );
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const previewing = useCustomizeStore((s) => s.previewId === c.id);
   const equipped = isEquipped(c, loadout);
-  const act = cardAction(c, owned, equipped, loadout);
+  const locked = !owned && !isUnlocked(c, level);
+  const act = cardAction(c, owned, equipped, loadout, level);
   const [hovered, setHovered] = useState(false);
   // Clicking the card previews it on the avatar (owned or not). The button (which
-  // stops propagation) is the only thing that unlocks/equips — equip needs ownership.
+  // stops propagation) unlocks/equips — equip needs ownership, unlock needs level.
   const preview = () => useCustomizeStore.getState().setPreview(c.id);
   const onAction = (e: MouseEvent) => {
     e.stopPropagation();
     if (owned) equipCosmetic(characterClass, c);
-    else useCosmeticsStore.getState().unlock(characterClass, c.id);
+    else if (!locked) useCosmeticsStore.getState().unlock(characterClass, c.id);
     preview();
   };
 
@@ -326,26 +343,33 @@ function StoreCard({ c, characterClass }: { c: Cosmetic; characterClass: Charact
       }`}
     >
       <div className="relative grid h-24 place-items-center bg-black/20">
-        {c.type === 'pedestal' ? (
-          <PedestalThumb c={c} hovered={hovered} />
-        ) : c.type === 'title' ? (
-          <TitleThumb c={c} />
-        ) : (
-          <Swatch c={c} size={52} />
-        )}
+        <div className={locked ? 'opacity-40 grayscale' : undefined}>
+          {c.type === 'pedestal' ? (
+            <PedestalThumb c={c} hovered={hovered && !locked} />
+          ) : c.type === 'title' ? (
+            <TitleThumb c={c} />
+          ) : (
+            <Swatch c={c} size={52} />
+          )}
+        </div>
         {/* Rarity tag — bottom-left of the thumbnail. */}
         <span className="absolute bottom-2 left-2">
           <RarityTag rarity={c.rarity} />
         </span>
-        {equipped && (
+        {locked ? (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur-sm">
+            <Lock size={10} /> Lv {requiredLevelFor(c)}
+          </span>
+        ) : equipped ? (
           <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
             <Check size={10} /> Equipped
           </span>
-        )}
-        {previewing && !equipped && (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
-            <Eye size={10} /> Preview
-          </span>
+        ) : (
+          previewing && (
+            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
+              <Eye size={10} /> Preview
+            </span>
+          )
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
@@ -374,11 +398,13 @@ function CategorySection({
   label,
   icon: Icon,
   characterClass,
+  level,
 }: {
   type: CosmeticType;
   label: string;
   icon: typeof Tag;
   characterClass: CharacterClass;
+  level: number;
 }) {
   const items = cosmeticsOfType(type);
   const ownedHere = useCosmeticsStore(
@@ -402,7 +428,7 @@ function CategorySection({
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((c) => (
-          <StoreCard key={c.id} c={c} characterClass={characterClass} />
+          <StoreCard key={c.id} c={c} characterClass={characterClass} level={level} />
         ))}
       </div>
     </section>
@@ -421,6 +447,15 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
         COSMETICS.some((c) => c.id === id),
       ).length,
   );
+  // This class's level gates what can be unlocked (live value if playing it,
+  // else the persisted per-class level).
+  const progress = useAuthStore((s) => s.progress);
+  const sessionId = useGameStore((s) => s.sessionId);
+  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+  const level =
+    (me?.characterClass === characterClass ? me.level : undefined) ??
+    progress.find((p) => p.characterClass === characterClass)?.level ??
+    1;
   const shown = filter === 'all' ? CATEGORIES : CATEGORIES.filter((cat) => cat.type === filter);
 
   return (
@@ -459,6 +494,7 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
             label={cat.label}
             icon={cat.icon}
             characterClass={characterClass}
+            level={level}
           />
         ))}
       </div>

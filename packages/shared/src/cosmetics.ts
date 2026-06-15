@@ -26,6 +26,12 @@ interface BaseCosmetic {
   rarity: CosmeticRarity;
   /** Owned by every account from the start (the starter set). */
   default?: boolean;
+  /**
+   * Class level needed before this can be unlocked. Omit to use the per-rarity
+   * default ({@link RARITY_UNLOCK_LEVEL}); set it to override one item. See
+   * {@link requiredLevelFor}.
+   */
+  requiredLevel?: number;
   /** Future economy: soft-currency price. Unset = free to claim for now. */
   cost?: number;
 }
@@ -173,6 +179,36 @@ export function cosmeticsOfType<T extends CosmeticType>(type: T): Extract<Cosmet
   return COSMETICS.filter((c) => c.type === type) as Extract<Cosmetic, { type: T }>[];
 }
 
+// ---------------------------------------------------------------------------
+// Unlock progression
+//
+// MAINTENANCE: this is the whole pacing dial. An item's unlock level comes from
+// its `rarity` via this table by default — so changing an item's `rarity` moves
+// its accent color AND its unlock level together. Override one item with an
+// explicit `requiredLevel`. Re-tune the entire game's curve by editing the table.
+// ---------------------------------------------------------------------------
+
+/** Class level required to unlock an item, by rarity (the default; override per
+ *  item with `requiredLevel`). */
+export const RARITY_UNLOCK_LEVEL: Record<CosmeticRarity, number> = {
+  common: 5,
+  rare: 15,
+  epic: 22,
+  legendary: 30,
+};
+
+/** The class level an item needs before it can be claimed. Default/starter items
+ *  are always level 1; otherwise an explicit `requiredLevel`, else the rarity. */
+export function requiredLevelFor(c: Cosmetic): number {
+  if (c.default) return 1;
+  return c.requiredLevel ?? RARITY_UNLOCK_LEVEL[c.rarity];
+}
+
+/** Whether a class at `level` has reached an item's unlock requirement. */
+export function isUnlocked(c: Cosmetic, level: number): boolean {
+  return level >= requiredLevelFor(c);
+}
+
 /** Ids every character owns from the start (the `default` items). */
 export const DEFAULT_OWNED: readonly string[] = COSMETICS.filter((c) => c.default).map((c) => c.id);
 
@@ -208,12 +244,19 @@ export function defaultClassCosmetics(): ClassCosmetics {
 
 /**
  * Coerce an untrusted `owned` list into known cosmetic ids, always including
- * the defaults. Used on both sides of the wire.
+ * the defaults. When `level` is given (server-side, the class's level), items
+ * above their unlock requirement are dropped — so a client can't claim early.
+ * Used on both sides of the wire.
  */
-export function sanitizeOwned(raw: unknown): string[] {
+export function sanitizeOwned(raw: unknown, level?: number): string[] {
   const ids = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
   const set = new Set<string>(DEFAULT_OWNED);
-  for (const id of ids) if (BY_ID.has(id)) set.add(id);
+  for (const id of ids) {
+    const c = BY_ID.get(id);
+    if (!c) continue;
+    if (level !== undefined && !isUnlocked(c, level)) continue; // not yet unlocked
+    set.add(id);
+  }
   return [...set];
 }
 
@@ -251,19 +294,28 @@ export function sanitizeLoadout(
   };
 }
 
-/** Sanitize one character's wardrobe (owned set + equipped loadout). */
-export function sanitizeClassCosmetics(raw: unknown, characterClass: CharacterClass): ClassCosmetics {
+/** Sanitize one character's wardrobe (owned set + equipped loadout). Pass the
+ *  class's `level` (server-side) to enforce unlock requirements. */
+export function sanitizeClassCosmetics(
+  raw: unknown,
+  characterClass: CharacterClass,
+  level?: number,
+): ClassCosmetics {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Partial<ClassCosmetics>;
-  const owned = sanitizeOwned(obj.owned);
+  const owned = sanitizeOwned(obj.owned, level);
   return { owned, loadout: sanitizeLoadout(obj.loadout, owned, characterClass) };
 }
 
-/** Sanitize a full per-class cosmetics state, keeping only known classes. */
-export function sanitizeState(raw: unknown): CosmeticsState {
+/** Sanitize a full per-class cosmetics state, keeping only known classes. Pass
+ *  per-class `levels` (server-side) to enforce unlock requirements. */
+export function sanitizeState(
+  raw: unknown,
+  levels?: Partial<Record<CharacterClass, number>>,
+): CosmeticsState {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const state: CosmeticsState = {};
   for (const cls of CHARACTER_CLASSES) {
-    if (obj[cls] != null) state[cls] = sanitizeClassCosmetics(obj[cls], cls);
+    if (obj[cls] != null) state[cls] = sanitizeClassCosmetics(obj[cls], cls, levels?.[cls]);
   }
   return state;
 }

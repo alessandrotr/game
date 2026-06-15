@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import type { AuthResult, CosmeticsState } from '@arena/shared';
+import type { AuthResult, CharacterClass, CosmeticsState } from '@arena/shared';
 import { getPool } from './db/database.js';
 import { getCosmetics } from './db/cosmetics.js';
 import { captureServerError } from './observability.js';
@@ -98,7 +98,7 @@ async function upgrade(req: Request, res: Response): Promise<void> {
     const pid = await ensureGuestAccount(db, claims.gid, claims.name);
     const acc = await upgradeGuest(db, pid, email, username, hashPassword(password));
     const progress = await allProgress(db, acc.id).catch(() => []);
-    const cosmetics = await getCosmetics(db, acc.id).catch(() => DEFAULT_COSMETICS);
+    const cosmetics = await getCosmetics(db, acc.id, levelsOf(progress)).catch(() => DEFAULT_COSMETICS);
     res.json(result(acc.id, acc.username, progress, cosmetics));
   } catch (err) {
     if (err instanceof EmailTakenError) {
@@ -197,7 +197,10 @@ async function me(req: Request, res: Response): Promise<void> {
     // they've played a match) so we can replay any earned progress.
     const pid = db ? await findGuestId(db, claims.gid).catch(() => null) : null;
     const progress = pid !== null && db ? await allProgress(db, pid).catch(() => []) : [];
-    const cosmetics = pid !== null && db ? await getCosmetics(db, pid).catch(() => DEFAULT_COSMETICS) : DEFAULT_COSMETICS;
+    const cosmetics =
+      pid !== null && db
+        ? await getCosmetics(db, pid, levelsOf(progress)).catch(() => DEFAULT_COSMETICS)
+        : DEFAULT_COSMETICS;
     res.json({
       token: signGuestToken(claims.gid, claims.name),
       username: claims.name,
@@ -210,7 +213,7 @@ async function me(req: Request, res: Response): Promise<void> {
   const progress = db && claims.pid !== undefined ? await allProgress(db, claims.pid).catch(() => []) : [];
   const cosmetics =
     db && claims.pid !== undefined
-      ? await getCosmetics(db, claims.pid).catch(() => DEFAULT_COSMETICS)
+      ? await getCosmetics(db, claims.pid, levelsOf(progress)).catch(() => DEFAULT_COSMETICS)
       : DEFAULT_COSMETICS;
   res.json(result(claims.pid!, claims.name, progress, cosmetics));
 }
@@ -218,6 +221,13 @@ async function me(req: Request, res: Response): Promise<void> {
 /** A fresh account's cosmetics: no characters customized yet (client fills in
  *  per-class defaults). */
 const DEFAULT_COSMETICS: CosmeticsState = {};
+
+/** Per-class levels from the account's progress (gates cosmetic unlocks). */
+function levelsOf(progress: AuthResult['progress']): Partial<Record<CharacterClass, number>> {
+  const levels: Partial<Record<CharacterClass, number>> = {};
+  for (const p of progress) levels[p.characterClass] = p.level;
+  return levels;
+}
 
 /** Build the standard auth response (issues a fresh account token). */
 function result(

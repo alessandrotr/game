@@ -30,6 +30,19 @@ async function request(path: string, init: RequestInit): Promise<AuthResult> {
   return data as AuthResult;
 }
 
+/** Current live player count (concurrent connections) for the login screen's
+ *  online counter. Resolves to 0 if the server is unreachable. */
+export async function fetchOnlineCount(): Promise<number> {
+  try {
+    const res = await fetch(`${HTTP_BASE}/online`);
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { online?: number };
+    return typeof data.online === 'number' ? data.online : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function registerAccount(
   email: string,
   username: string,

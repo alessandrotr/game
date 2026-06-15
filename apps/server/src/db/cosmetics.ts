@@ -6,6 +6,7 @@ import {
   type Loadout,
 } from '@arena/shared';
 import type { Queryable } from './database.js';
+import { allProgress } from './players.js';
 
 /**
  * Per-account, **per-class** cosmetics repository: each character's owned-ids set
@@ -28,8 +29,23 @@ function safeParse(s: string): unknown {
   }
 }
 
-/** Read an account's per-class cosmetics, defaulting + sanitizing anything unset. */
-export async function getCosmetics(db: Queryable, playerId: number): Promise<CosmeticsState> {
+/** Per-class character level (drives unlock requirements when sanitizing). */
+type ClassLevels = Partial<Record<CharacterClass, number>>;
+
+/** Build the per-class level map for an account (for unlock-gating). */
+export async function classLevels(db: Queryable, playerId: number): Promise<ClassLevels> {
+  const levels: ClassLevels = {};
+  for (const p of await allProgress(db, playerId)) levels[p.characterClass] = p.level;
+  return levels;
+}
+
+/** Read an account's per-class cosmetics, defaulting + sanitizing anything unset.
+ *  Pass `levels` to drop anything claimed above its unlock requirement. */
+export async function getCosmetics(
+  db: Queryable,
+  playerId: number,
+  levels?: ClassLevels,
+): Promise<CosmeticsState> {
   const { rows } = await db.query(
     'SELECT cosmetics_owned, cosmetics_loadout FROM players WHERE id = $1',
     [playerId],
@@ -42,20 +58,22 @@ export async function getCosmetics(db: Queryable, playerId: number): Promise<Cos
     if (ownedMap[cls] == null && loadoutMap[cls] == null) continue;
     raw[cls] = { owned: ownedMap[cls], loadout: loadoutMap[cls] };
   }
-  return sanitizeState(raw);
+  return sanitizeState(raw, levels);
 }
 
 /**
  * Persist an account's per-class cosmetics. The whole state is re-sanitized (so a
- * loadout can never reference an unowned cosmetic, and a skin must match its
- * class), then split back into the two columns. Returns the stored (clean) state.
+ * loadout can never reference an unowned cosmetic, a skin must match its class,
+ * and — with `levels` — nothing is claimed above its unlock requirement), then
+ * split back into the two columns. Returns the stored (clean) state.
  */
 export async function saveCosmetics(
   db: Queryable,
   playerId: number,
   state: unknown,
+  levels?: ClassLevels,
 ): Promise<CosmeticsState> {
-  const clean = sanitizeState(state);
+  const clean = sanitizeState(state, levels);
   const ownedMap: Partial<Record<CharacterClass, string[]>> = {};
   const loadoutMap: Partial<Record<CharacterClass, Loadout>> = {};
   for (const cls of CHARACTER_CLASSES) {

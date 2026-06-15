@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/node';
 import { createServer } from 'node:http';
 import express, { type RequestHandler } from 'express';
 import cors from 'cors';
-import { Server } from '@colyseus/core';
+import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
 import RAPIER from '@dimforge/rapier3d-compat';
@@ -69,6 +69,22 @@ app.use(express.json({ limit: '16kb' }));
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Public live player count for the login screen's "online" counter. No auth —
+// it's a single aggregate number, nothing sensitive. We sum the clients in the
+// world rooms (town/arena/zombie) rather than raw CCU: a player holds several
+// parallel connections (their world room + matchmaking lobbies), so CCU counted
+// each person ~3×. They're in exactly one world room, so this is one-per-player.
+const WORLD_ROOMS = new Set<string>([TOWN_ROOM, ARENA_ROOM, ZOMBIE_ROOM]);
+app.get('/online', async (_req, res) => {
+  try {
+    const rooms = await matchMaker.query({});
+    const online = rooms.reduce((n, r) => (WORLD_ROOMS.has(r.name) ? n + r.clients : n), 0);
+    res.json({ online });
+  } catch {
+    res.json({ online: 0 });
+  }
 });
 
 // Email/password account auth (register, login, session check).

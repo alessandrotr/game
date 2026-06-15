@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { sanitizeState } from '@arena/shared';
 import { getPool } from './db/database.js';
-import { getCosmetics, saveCosmetics } from './db/cosmetics.js';
+import { classLevels, getCosmetics, saveCosmetics } from './db/cosmetics.js';
 import { verifyToken } from './auth.js';
 
 /**
@@ -39,7 +39,8 @@ async function getAll(req: Request, res: Response): Promise<void> {
     return;
   }
   try {
-    res.json(await getCosmetics(db, claims.pid));
+    const levels = await classLevels(db, claims.pid);
+    res.json(await getCosmetics(db, claims.pid, levels));
   } catch (err) {
     console.error('[cosmetics] load failed:', err);
     res.status(500).json({ error: 'Failed to load cosmetics.' });
@@ -63,7 +64,8 @@ async function putAll(req: Request, res: Response): Promise<void> {
     return;
   }
   try {
-    res.json(await saveCosmetics(db, claims.pid, req.body));
+    const levels = await classLevels(db, claims.pid);
+    res.json(await saveCosmetics(db, claims.pid, req.body, levels));
   } catch (err) {
     console.error('[cosmetics] save failed:', err);
     res.status(500).json({ error: 'Failed to save cosmetics.' });

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { TownBackdrop } from '../scene/TownBackdrop';
 import { Button, Input } from './primitives';
+import { OnlinePlayersCounter } from './OnlinePlayersCounter';
 import { ScreenHeader } from './ScreenHeader';
 
 type Mode = 'guest' | 'login' | 'register';
@@ -51,7 +52,7 @@ export function AuthScreen() {
       <div className="relative flex min-h-full items-center justify-center p-5">
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-panel/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md">
           <ScreenHeader
-            className="mb-6"
+            className="mb-4"
             subtitle={
               mode === 'guest'
                 ? 'Jump straight into the world'
@@ -178,6 +179,10 @@ export function AuthScreen() {
               )}
             </form>
           )}
+          {/* Live player count — shown for every tab. */}
+          <div className="mt-6">
+            <OnlinePlayersCounter />
+          </div>
         </div>
       </div>
     </div>

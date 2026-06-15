@@ -65,4 +65,31 @@ describe('cosmetics repository (per class)', () => {
     expect(state.warrior?.owned.sort()).toEqual([...DEFAULT_OWNED].sort());
     expect((state as Record<string, unknown>).wizard).toBeUndefined();
   });
+
+  // pedestal.pulse is rare → unlocks at RARITY_UNLOCK_LEVEL.rare (15).
+  it('rejects claiming an item above the class level', async () => {
+    const state = await saveCosmetics(
+      db,
+      pid,
+      { warrior: { owned: [...DEFAULT_OWNED, 'pedestal.pulse'], loadout: {} } },
+      { warrior: 10 }, // below the rare unlock level
+    );
+    expect(state.warrior?.owned).not.toContain('pedestal.pulse');
+  });
+
+  it('allows claiming an item once the class level is high enough', async () => {
+    const state = await saveCosmetics(
+      db,
+      pid,
+      { warrior: { owned: [...DEFAULT_OWNED, 'pedestal.pulse'], loadout: { pedestalId: 'pedestal.pulse' } } },
+      { warrior: 15 },
+    );
+    expect(state.warrior?.owned).toContain('pedestal.pulse');
+    expect(state.warrior?.loadout.pedestalId).toBe('pedestal.pulse');
+  });
+
+  it('keeps starter (default) items even at level 1', async () => {
+    const state = await saveCosmetics(db, pid, { warrior: { owned: [...DEFAULT_OWNED], loadout: {} } }, { warrior: 1 });
+    expect(state.warrior?.owned.sort()).toEqual([...DEFAULT_OWNED].sort());
+  });
 });
