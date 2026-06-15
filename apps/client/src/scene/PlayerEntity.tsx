@@ -29,7 +29,6 @@ import { clearLocalDash, getLocalDash } from '../store/dashState';
 import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
-import { useEffectsStore } from '../store/useEffectsStore';
 import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
@@ -92,8 +91,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const hpFill = useRef<Mesh>(null);
   // The floating health bar (background + fill); hidden while dead.
   const hpBar = useRef<Group>(null);
-  // Tracks the alive→dead edge so the death burst fires exactly once.
-  const wasAlive = useRef(true);
 
   // Class/skin/name are assigned at join and don't change — read once at mount.
   const player = useGameStore.getState().players.get(sessionId);
@@ -161,13 +158,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     // The floating health bar freezes mid-frame when a player dies (the update
     // below early-returns), so it would read full of HP. Hide it while dead.
     if (hpBar.current) hpBar.current.visible = latest.alive;
-
-    // On the alive→dead edge, burst a death VFX at the body so the kill reads
-    // unmistakably (fires once; covers every cause — hits, dots, environment).
-    if (wasAlive.current && !latest.alive) {
-      useEffectsStore.getState().spawn('vfx.death', [node.position.x, 1.1, node.position.z]);
-    }
-    wasAlive.current = latest.alive;
 
     if (!latest.alive) {
       // A dead target is no longer attackable — drop the local highlight.
