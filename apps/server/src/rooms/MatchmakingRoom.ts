@@ -15,6 +15,7 @@ import {
   resolveDyeId,
   resolveName,
   resolvePedestalId,
+  resolveRimId,
   resolveSkinId,
   resolveTitleId,
   sessionKeyOf,
@@ -92,6 +93,7 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
       dyeId: resolveDyeId(options),
       pedestalId: resolvePedestalId(options),
       titleId: resolveTitleId(options),
+      rimId: resolveRimId(options),
       sessionKey: sessionKeyOf(options),
     });
   }
@@ -185,6 +187,7 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
           dyeId: identity?.dyeId ?? '',
           pedestalId: identity?.pedestalId ?? '',
           titleId: identity?.titleId ?? '',
+          rimId: identity?.rimId ?? '',
           team: slot.team,
           sessionKey: identity?.sessionKey ?? '',
         });

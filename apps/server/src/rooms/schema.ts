@@ -81,6 +81,10 @@ export class Player extends Schema {
    *  `PlayerView.holding`; a `PickableKind` by construction. Kept last so existing
    *  replicated field offsets are unchanged. */
   @type('string') holding = '';
+  /** Equipped avatar-rim cosmetic id — the 2D frame drawn around this player's
+   *  portrait/avatar in UI. Defaults to the standard frame. Kept last so existing
+   *  replicated field offsets are unchanged. */
+  @type('string') rimId = 'rim.standard';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

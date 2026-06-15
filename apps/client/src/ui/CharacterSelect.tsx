@@ -13,7 +13,8 @@ import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
 import { AssetLoadingBar } from './AssetLoadingBar';
-import { Badge, Card, IconButton, LevelBadge, Meter } from './primitives';
+import { AvatarFrame } from './AvatarFrame';
+import { Badge, Card, IconButton, Meter } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 
@@ -175,7 +176,14 @@ export function CharacterSelect() {
         onPointerUp={onPointerUp}
         onPointerLeave={() => (dragX.current = null)}
       >
-        <div className="relative h-52 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+        {/* Big branded showcase: the portrait inside the equipped round avatar rim,
+            with your level on this class as a gem riding the ring. */}
+        <AvatarFrame
+          rimId={loadout.rimId}
+          level={level}
+          size="lg"
+          className="mx-auto aspect-square w-60"
+        >
           {/* The visible class swaps INSIDE this one canvas (no per-class context).
               pointer-events-none so the swipe is handled by the container. */}
           <div className="pointer-events-none absolute inset-0">
@@ -188,17 +196,9 @@ export function CharacterSelect() {
               spin={false}
             />
           </div>
-          {/* Identity overlay: who this slide is + your level on them. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-linear-to-t from-black/85 via-black/30 to-transparent p-3">
-            <div className="min-w-0">
-              <div className="font-display text-lg tracking-wide text-white">{def.name}</div>
-              <div className="truncate text-[11px] text-muted">{def.role}</div>
-            </div>
-            <LevelBadge level={level} size="sm" className="shrink-0" />
-          </div>
           {/* Progress over the portrait while the class GLBs download. */}
           <AssetLoadingBar label="Loading champion…" />
-        </div>
+        </AvatarFrame>
 
         {/* Prev / next. */}
         <IconButton
@@ -217,8 +217,14 @@ export function CharacterSelect() {
         />
       </div>
 
+      {/* Identity caption: who this slide is (the level gem sits on the ring above). */}
+      <div className="mt-3 text-center">
+        <div className="font-display text-xl tracking-wide text-white">{def.name}</div>
+        <div className="text-[11px] uppercase tracking-[0.22em] text-muted">{def.role}</div>
+      </div>
+
       {/* Slide indicator — click a dot to jump straight to that class. */}
-      <div className="flex items-center justify-center gap-1.5">
+      <div className="mt-1 flex items-center justify-center gap-1.5">
         {CLASS_LIST.map((c, i) => (
           <button
             key={c.id}

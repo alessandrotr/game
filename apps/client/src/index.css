@@ -199,6 +199,41 @@ canvas {
   }
 }
 
+/* Avatar-rim chrome (modern-neon frame around the character portrait). A diagonal
+   sheen sweeps the glass; pulse rims breathe their glow; prismatic rims cycle hue. */
+@keyframes rim-sheen {
+  0% {
+    transform: translateX(-160%) skewX(-18deg);
+  }
+  60%,
+  100% {
+    transform: translateX(360%) skewX(-18deg);
+  }
+}
+@keyframes rim-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes rim-prismatic {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+.rim-sheen {
+  animation: rim-sheen 4.5s ease-in-out infinite;
+}
+.rim-pulse {
+  animation: rim-pulse 2.2s ease-in-out infinite;
+}
+.rim-prismatic {
+  animation: rim-prismatic 6s linear infinite;
+}
+
 /* XP-gain popup over the combat-HUD portrait: pop in, hold, float up + fade.
    (X stays centered via translateX(-50%); only Y + scale + opacity animate.) */
 @keyframes xp-pop {

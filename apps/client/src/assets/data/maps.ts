@@ -121,7 +121,7 @@ const town: MapDescriptor = {
     { assetId: 'prop.wall', position: [21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
 
     // --- Buildings lining the streets, facing inward ---
-    { assetId: 'prop.building.inn.blue', position: [-13, 0, 2], rotation: [0, HALF_PI, 0] },
+    { assetId: 'prop.building.inn.blue', position: [-13, 0, 5.5], rotation: [0, HALF_PI, 0] },
     { assetId: 'prop.building.smithy.red', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
     // Team-themed by side: blue on the left (x < 0), red on the right (x > 0).
     { assetId: 'prop.building.tower.blue', position: [-20, 0, -16], rotation: [0, 0.5, 0] },
@@ -216,7 +216,7 @@ const town: MapDescriptor = {
     { assetId: 'prop.tree.pine', position: [-13.9, 0, 29] },
     { assetId: 'prop.tree.pine', position: [-6.3, 0, -16.4], scale: 1.16 },
     { assetId: 'prop.tree', position: [-12.1, 0, -13], scale: 1.06 },
-    { assetId: 'prop.tree.pine', position: [-12.4, 0, 5.4] },
+    { assetId: 'prop.tree.pine', position: [-16.5, 0, 5.5] },
     { assetId: 'prop.bush', position: [-1.6, 0, -33.5] },
     { assetId: 'prop.rock', position: [-5.3, 0, -21.7], scale: 1.28 },
     { assetId: 'prop.rock', position: [-5.5, 0, 15.1], scale: 0.98 },

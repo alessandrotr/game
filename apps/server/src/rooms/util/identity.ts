@@ -23,6 +23,7 @@ export interface JoinOptions {
   dyeId?: string;
   pedestalId?: string;
   titleId?: string;
+  rimId?: string;
   team?: string;
   sessionKey?: string;
 }
@@ -52,7 +53,7 @@ export function resolveSkinId(options?: JoinOptions): string {
 /** A cosmetic id from join options, accepted only if it's a known cosmetic of
  *  the expected type (else ''). Appearance only — ownership is enforced when the
  *  loadout is persisted over HTTP. */
-function resolveCosmeticId(id: string | undefined, type: 'dye' | 'pedestal' | 'title'): string {
+function resolveCosmeticId(id: string | undefined, type: 'dye' | 'pedestal' | 'title' | 'rim'): string {
   const clean = String(id ?? '').slice(0, MAX_SKIN_ID_LENGTH);
   return getCosmetic(clean)?.type === type ? clean : '';
 }
@@ -70,6 +71,12 @@ export function resolvePedestalId(options?: JoinOptions): string {
 /** The equipped title cosmetic id, validated against the catalog. */
 export function resolveTitleId(options?: JoinOptions): string {
   return resolveCosmeticId(options?.titleId, 'title');
+}
+
+/** The equipped avatar-rim cosmetic id, validated against the catalog. Falls back
+ *  to the standard frame so every player always has a rim. */
+export function resolveRimId(options?: JoinOptions): string {
+  return resolveCosmeticId(options?.rimId, 'rim') || 'rim.standard';
 }
 
 /** The tab/session key (used for single-session enforcement), coerced to string. */

@@ -13,6 +13,8 @@ import { cooldownRemaining } from '../store/abilityCooldowns';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { ClassPreview } from './ClassPreview';
+import { AvatarFrame } from './AvatarFrame';
+import { rimColorOf } from './rim';
 
 /** The mutable DOM handles a slot exposes so the rAF loop can update it without React. */
 interface SlotEls {
@@ -85,6 +87,7 @@ export function CombatHud() {
     skinId: string;
     dyeId: string;
     pedestalId: string;
+    rimId: string;
   } | null>(null);
   const renderedLook = useRef<string>('');
 
@@ -124,11 +127,13 @@ export function CombatHud() {
 
       // Reflect equipped cosmetics in the portrait. Like the class, these rarely
       // change mid-match, so only re-render (a new key) when one actually does.
-      const look = me ? `${me.skinId}|${me.dyeId}|${me.pedestalId}` : '';
+      const look = me ? `${me.skinId}|${me.dyeId}|${me.pedestalId}|${me.rimId}` : '';
       if (look !== renderedLook.current) {
         renderedLook.current = look;
         setAppearance(
-          me ? { skinId: me.skinId, dyeId: me.dyeId, pedestalId: me.pedestalId } : null,
+          me
+            ? { skinId: me.skinId, dyeId: me.dyeId, pedestalId: me.pedestalId, rimId: me.rimId }
+            : null,
         );
       }
 
@@ -193,6 +198,8 @@ export function CombatHud() {
 
   if (!characterClass) return null;
   const loadout = CLASS_LOADOUTS[characterClass];
+  // Tint the level disc to match the equipped avatar rim (same token as PlayerCard).
+  const rimColor = rimColorOf(appearance?.rimId);
 
   return (
     <div className="pointer-events-none flex items-end gap-2.5">
@@ -214,22 +221,29 @@ export function CombatHud() {
             </span>
           ))}
         </div>
-        <div
-          ref={portrait}
-          className="h-full w-full overflow-hidden rounded-full border-2 border-gold/70 bg-black/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-[filter,opacity] duration-300"
-        >
-          <ClassPreview
-            characterClass={characterClass}
-            skinId={appearance?.skinId}
-            dyeId={appearance?.dyeId}
-            pedestalId={appearance?.pedestalId}
-            lite
-            spin={false}
-          />
+        {/* The equipped avatar rim frames the round portrait (fades on death). */}
+        <div ref={portrait} className="h-full w-full transition-[filter,opacity] duration-300">
+          <AvatarFrame rimId={appearance?.rimId} size="sm" className="h-full w-full">
+            <ClassPreview
+              characterClass={characterClass}
+              skinId={appearance?.skinId}
+              dyeId={appearance?.dyeId}
+              pedestalId={appearance?.pedestalId}
+              lite
+              spin={false}
+            />
+          </AvatarFrame>
         </div>
-        {/* Level disc, LoL-style, riding the portrait's lower edge. */}
-        <div className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border border-gold/70 bg-linear-to-b from-panel to-bg shadow-md">
-          <span ref={levelText} className="font-display text-[11px] font-bold leading-none text-gold tabular-nums">
+        {/* Level disc, LoL-style, riding the portrait's lower edge — tinted to the rim. */}
+        <div
+          className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border bg-linear-to-b from-panel to-bg shadow-md"
+          style={{ borderColor: `${rimColor}b3`, boxShadow: `0 0 8px ${rimColor}59` }}
+        >
+          <span
+            ref={levelText}
+            className="font-display text-[11px] font-bold leading-none tabular-nums"
+            style={{ color: rimColor }}
+          >
             1
           </span>
         </div>

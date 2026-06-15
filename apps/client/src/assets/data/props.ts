@@ -148,8 +148,6 @@ const inn = prop('building.inn', 'The Wandering Inn', [
   box([0.6, 0.6, 0.06], [-1.4, 3.3, 2.12], WINDOW, glow(1.1)),
   box([0.6, 0.6, 0.06], [1.4, 3.3, 2.12], WINDOW, glow(1.1)),
   box([0.55, 1.1, 0.55], [2, 5, -1.2], STONE_DARK),
-  box([0.12, 0.12, 0.9], [2.6, 2.5, 1.6], WOOD, { castShadow: false }),
-  box([0.9, 0.6, 0.08], [2.6, 2.05, 2.05], WOOD, { emissive: LANTERN, emissiveIntensity: 0.3 }),
 ]);
 
 /** Blacksmith: heavy stone shop with a big smoking chimney + ember glow. */

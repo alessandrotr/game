@@ -19,6 +19,8 @@ import { TownLights } from './TownLights';
 import { Fountain } from './Fountain';
 import { TownLeaderboardTablet } from './TownLeaderboardTablet';
 import { TownPodiums } from './TownPodiums';
+import { TownDuelAltar } from './TownDuelAltar';
+import { TownBreachRift } from './TownBreachRift';
 import { PlayerEntity } from './PlayerEntity';
 import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
@@ -169,6 +171,8 @@ export function GameScene() {
           <Fountain position={[0, 0, -2]} />
           <TownLeaderboardTablet />
           <TownPodiums />
+          <TownDuelAltar />
+          <TownBreachRift />
         </>
       )}
 

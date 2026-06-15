@@ -19,6 +19,7 @@ export interface Appearance {
   dyeId: string;
   pedestalId: string;
   titleId: string;
+  rimId: string;
 }
 
 interface CosmeticsStore {
@@ -68,7 +69,13 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
 
   appearanceFor: (characterClass) => {
     const loadout = classCosmeticsOf(get().byClass, characterClass).loadout;
-    return { skinId: loadout.skinId, dyeId: loadout.dyeId, pedestalId: loadout.pedestalId, titleId: loadout.titleId };
+    return {
+      skinId: loadout.skinId,
+      dyeId: loadout.dyeId,
+      pedestalId: loadout.pedestalId,
+      titleId: loadout.titleId,
+      rimId: loadout.rimId,
+    };
   },
 
   hydrate: (state) => set({ byClass: sanitizeState(state) }),
@@ -108,6 +115,7 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
       dyeId: loadout.dyeId,
       pedestalId: loadout.pedestalId,
       titleId: loadout.titleId,
+      rimId: loadout.rimId,
     });
     scheduleSave(get);
   },

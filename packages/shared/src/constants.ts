@@ -221,7 +221,7 @@ export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[]
   { x: -21.5, z: -25.5, radius: 2.5 },
   { x: 21.5, z: -25.5, radius: 2.5 },
   // Buildings.
-  { x: -13, z: 2, radius: 2.4 }, // inn
+  { x: -13, z: 5.5, radius: 2.4 }, // inn
   { x: 13, z: 6, radius: 1.7 }, // smithy
   { x: -20, z: -16, radius: 1.5 }, // tower
   { x: 20, z: -16, radius: 1.5 }, // tower
@@ -276,7 +276,7 @@ export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[]
   { x: -13.9, z: 29, radius: 0.5 },
   { x: -6.3, z: -16.4, radius: 0.5 },
   { x: -12.1, z: -13, radius: 0.5 },
-  { x: -12.4, z: 5.4, radius: 0.5 },
+  { x: -16.5, z: 5.5, radius: 0.5 },
   { x: -5.3, z: -21.7, radius: 0.95 },
   { x: -5.5, z: 15.1, radius: 0.85 },
   { x: 7.5, z: -19.8, radius: 0.5 },

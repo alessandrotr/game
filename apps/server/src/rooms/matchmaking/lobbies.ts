@@ -11,6 +11,7 @@ export interface Identity {
   dyeId: string;
   pedestalId: string;
   titleId: string;
+  rimId: string;
   /** The tab/session key, carried into the arena seat reservation. */
   sessionKey: string;
 }

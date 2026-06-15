@@ -50,6 +50,8 @@ export interface PlayerView {
   pedestalId: string;
   /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
   titleId: string;
+  /** Equipped avatar-rim cosmetic id — the 2D frame around this player's avatar. */
+  rimId: string;
   /** Authoritative animation state; remote clients render this directly. */
   animState: AnimationName;
   /** Side this player fights for in a team match ('blue' in town / FFA). */

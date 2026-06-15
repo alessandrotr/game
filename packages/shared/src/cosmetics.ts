@@ -13,7 +13,7 @@
 
 import { CHARACTER_CLASSES, type AnimationName, type CharacterClass } from './assets.js';
 
-export type CosmeticType = 'skin' | 'emote' | 'dye' | 'pedestal' | 'title';
+export type CosmeticType = 'skin' | 'emote' | 'dye' | 'pedestal' | 'title' | 'rim';
 
 /** Display tier — drives the card accent in the store. */
 export type CosmeticRarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -81,12 +81,31 @@ export interface TitleCosmetic extends BaseCosmetic {
   color: string;
 }
 
+/** Visual treatment of an avatar rim — the client maps each to a frame renderer.
+ *  `solid` is a single-color neon edge; `gradient` blends `color`→`color2`;
+ *  `pulse` animates the glow; `prismatic` cycles a full spectrum. */
+export type RimEffect = 'solid' | 'gradient' | 'pulse' | 'prismatic';
+
+/** An avatar frame/border drawn around the character portrait (and around a
+ *  player's avatar anywhere it appears in 2D UI). Purely a 2D UI cosmetic — it
+ *  never touches the 3D scene. The branded, store-facing collectible. */
+export interface RimCosmetic extends BaseCosmetic {
+  type: 'rim';
+  /** Primary edge / glow color. */
+  color: string;
+  /** Second color for gradient / animated edges. */
+  color2?: string;
+  /** Visual treatment (defaults to `solid`). */
+  effect?: RimEffect;
+}
+
 export type Cosmetic =
   | SkinCosmetic
   | EmoteCosmetic
   | DyeCosmetic
   | PedestalCosmetic
-  | TitleCosmetic;
+  | TitleCosmetic
+  | RimCosmetic;
 
 /**
  * One character's equipped cosmetics. Ids reference {@link COSMETICS}; an empty
@@ -100,6 +119,8 @@ export interface Loadout {
   dyeId: string;
   pedestalId: string;
   titleId: string;
+  /** Avatar frame/border (2D UI). Always set — defaults to `rim.standard`. */
+  rimId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,8 +176,25 @@ const TITLES: TitleCosmetic[] = [
   { id: 'title.legend', type: 'title', text: 'Legend', color: '#e8b24a', name: 'Legend', description: 'Spoken of in hushed tones.', rarity: 'legendary', requiredLevel: 40 },
 ];
 
+const RIMS: RimCosmetic[] = [
+  // Standard issue — the starter frame everyone owns (neutral steel edge).
+  { id: 'rim.standard', type: 'rim', effect: 'solid', color: '#9aa3b8', name: 'Standard Issue', description: 'The frame every recruit ships with.', rarity: 'common', default: true },
+  // Common band (2–5): single-color neon edges.
+  { id: 'rim.cobalt', type: 'rim', effect: 'solid', color: '#4a8bff', name: 'Cobalt', description: 'A cold electric-blue edge.', rarity: 'common', requiredLevel: 3 },
+  { id: 'rim.viper', type: 'rim', effect: 'solid', color: '#3fb87a', name: 'Viper', description: 'Toxic-green trim with a sharp glow.', rarity: 'common', requiredLevel: 5 },
+  // Rare band (10–15): brighter, gradient edges.
+  { id: 'rim.plasma', type: 'rim', effect: 'gradient', color: '#22e1ff', color2: '#4a8bff', name: 'Plasma', description: 'A charged cyan-to-blue gradient.', rarity: 'rare', requiredLevel: 11 },
+  { id: 'rim.inferno', type: 'rim', effect: 'gradient', color: '#ffb43a', color2: '#ff3a3a', name: 'Inferno', description: 'Molten amber bleeding into red.', rarity: 'rare', requiredLevel: 14 },
+  // Epic band (16–25): animated pulse + dual-tone.
+  { id: 'rim.void', type: 'rim', effect: 'pulse', color: '#9a6cff', name: 'Void', description: 'A pulsing violet halo.', rarity: 'epic', requiredLevel: 18 },
+  { id: 'rim.nebula', type: 'rim', effect: 'gradient', color: '#ff4d8d', color2: '#4a8bff', name: 'Nebula', description: 'Stardust pinks drift into deep blue.', rarity: 'epic', requiredLevel: 24 },
+  // Legendary band (26–40): the showpieces.
+  { id: 'rim.apex', type: 'rim', effect: 'pulse', color: '#e8b24a', color2: '#fff1c4', name: 'Apex', description: 'A breathing gold corona for the elite.', rarity: 'legendary', requiredLevel: 30 },
+  { id: 'rim.prismatic', type: 'rim', effect: 'prismatic', color: '#ff4d8d', name: 'Prismatic', description: 'A rotating spectrum of pure, shifting light.', rarity: 'legendary', requiredLevel: 38 },
+];
+
 /** The full cosmetics catalog, in display order within each type. */
-export const COSMETICS: readonly Cosmetic[] = [...EMOTES, ...PEDESTALS, ...TITLES];
+export const COSMETICS: readonly Cosmetic[] = [...EMOTES, ...PEDESTALS, ...TITLES, ...RIMS];
 
 const BY_ID = new Map<string, Cosmetic>(COSMETICS.map((c) => [c.id, c]));
 
@@ -262,6 +300,7 @@ export const DEFAULT_LOADOUT: Loadout = {
   dyeId: '',
   pedestalId: '',
   titleId: 'title.novice',
+  rimId: 'rim.standard',
 };
 
 /** Max emotes bindable to number keys (1..N). */
@@ -334,6 +373,7 @@ export function sanitizeLoadout(
     dyeId: equipped(obj.dyeId, 'dye'),
     pedestalId: equipped(obj.pedestalId, 'pedestal'),
     titleId: equipped(obj.titleId, 'title') || (ownedSet.has('title.novice') ? 'title.novice' : ''),
+    rimId: equipped(obj.rimId, 'rim') || (ownedSet.has('rim.standard') ? 'rim.standard' : ''),
   };
 }
 

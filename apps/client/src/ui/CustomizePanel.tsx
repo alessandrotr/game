@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Eye,
   Footprints,
+  Frame,
   Lock,
   ShoppingBag,
   Smile,
@@ -38,6 +39,8 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
+import { AvatarFrame } from './AvatarFrame';
+import { rimColorOf } from './rim';
 import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
 import {
   EmoteThumbStage,
@@ -74,6 +77,7 @@ const TYPE_ICON: Record<CosmeticType, typeof Tag> = {
   pedestal: Footprints,
   emote: Smile,
   title: Tag,
+  rim: Frame,
 };
 
 /** The display color a cosmetic "is" (its own color, or its rarity accent). */
@@ -81,12 +85,13 @@ function colorOf(c: Cosmetic): string {
   // Only items that *are* a color carry one (pedestals/dyes/skins). Emotes and
   // titles stay neutral so the grid doesn't turn into a rainbow — their rarity
   // reads from the small dot/label instead.
-  if (c.type === 'dye' || c.type === 'pedestal') return c.color;
+  if (c.type === 'dye' || c.type === 'pedestal' || c.type === 'rim') return c.color;
   return '#9aa3b8';
 }
 
 /** Category display metadata, in store order. */
 const CATEGORIES: { type: CosmeticType; label: string; icon: typeof Tag }[] = [
+  { type: 'rim', label: 'Avatar Rims', icon: Frame },
   { type: 'pedestal', label: 'Pedestals', icon: Footprints },
   { type: 'emote', label: 'Emotes', icon: Smile },
   { type: 'title', label: 'Titles', icon: Tag },
@@ -106,6 +111,8 @@ function isEquipped(c: Cosmetic, loadout: Loadout): boolean {
       return loadout.pedestalId === c.id;
     case 'title':
       return loadout.titleId === c.id;
+    case 'rim':
+      return loadout.rimId === c.id;
     case 'emote':
       return loadout.emotes.includes(c.id);
   }
@@ -129,6 +136,10 @@ function equipCosmetic(characterClass: CharacterClass, c: Cosmetic): void {
     case 'title':
       store.equip(characterClass, { titleId: on ? '' : c.id });
       break;
+    case 'rim':
+      // Toggling a rim off reverts to the standard frame (sanitize defaults '').
+      store.equip(characterClass, { rimId: on ? '' : c.id });
+      break;
     case 'emote': {
       const bound = loadout.emotes;
       const next = bound.includes(c.id)
@@ -149,6 +160,16 @@ function equipCosmetic(characterClass: CharacterClass, c: Cosmetic): void {
 function Swatch({ c, size = 44 }: { c: Cosmetic; size?: number }) {
   const color = colorOf(c);
   const Icon = TYPE_ICON[c.type];
+  if (c.type === 'rim') {
+    // The actual rim chrome as its own swatch (framing a small dark portrait stand-in).
+    return (
+      <AvatarFrame rimId={c.id} size="sm" style={{ width: size, height: size }}>
+        <div className="grid h-full w-full place-items-center bg-[#0c0e16]">
+          <User size={size * 0.34} className="text-white/30" aria-hidden />
+        </div>
+      </AvatarFrame>
+    );
+  }
   if (c.type === 'pedestal') {
     return (
       <span
@@ -697,7 +718,7 @@ function SingleSlot({
 }: {
   title: string;
   icon: typeof Tag;
-  type: 'pedestal' | 'title';
+  type: 'pedestal' | 'title' | 'rim';
   characterClass: CharacterClass;
   equippedId: string;
   onClear: () => void;
@@ -741,6 +762,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const dyeId = preview?.type === 'dye' ? preview.id : loadout.dyeId;
   const pedestalId = preview?.type === 'pedestal' ? preview.id : loadout.pedestalId;
   const titleId = preview?.type === 'title' ? preview.id : loadout.titleId;
+  const rimId = preview?.type === 'rim' ? preview.id : loadout.rimId;
   const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
   // Previewing (clicking) an emote makes the showcase character perform it.
   const animation: AnimationName = preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
@@ -753,7 +775,9 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const { span, into } = xpProgress(level, me?.xp ?? record?.xp ?? 0);
 
   return (
-    <div className="relative min-h-[300px] overflow-hidden border-b border-white/5 bg-linear-to-b from-black/30 to-black/55 md:border-b-0 md:border-r">
+    // The equipped/previewed rim frames the whole showcase (panel shape so the
+    // full body + pedestal still read; a circle would crop them).
+    <AvatarFrame rimId={rimId} shape="panel" size="md" className="min-h-[300px]">
       <ClassPreview
         characterClass={characterClass}
         skinId={skinId}
@@ -768,7 +792,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
           </div>
         )}
         <div className="flex items-center gap-3">
-          <LevelBadge level={level} size="md" className="shrink-0" />
+          <LevelBadge level={level} size="md" color={rimColorOf(rimId)} className="shrink-0" />
           <div className="min-w-0">
             {title && (
               <div
@@ -802,7 +826,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
           />
         </div>
       </div>
-    </div>
+    </AvatarFrame>
   );
 }
 
@@ -822,6 +846,15 @@ function CustomizeContent({ characterClass }: { characterClass: CharacterClass }
 
   return (
     <div className="h-full overflow-y-auto px-5 py-4">
+      <SingleSlot
+        title="Avatar Rim"
+        icon={Frame}
+        type="rim"
+        characterClass={characterClass}
+        equippedId={loadout.rimId}
+        onClear={() => clearSlot({ rimId: '' })}
+        onBrowse={browse}
+      />
       <SingleSlot
         title="Pedestal"
         icon={Footprints}

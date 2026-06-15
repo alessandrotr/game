@@ -9,6 +9,8 @@ import { useGameStore } from '../store/useGameStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
+import { AvatarFrame } from './AvatarFrame';
+import { rimColorOf } from './rim';
 import { Card, Meter } from './primitives';
 import { STAT_COLORS } from './theme';
 
@@ -29,6 +31,7 @@ export function PlayerCard() {
   const def = getClassDefinition(me.characterClass);
   const { span, into } = xpProgress(me.level, me.xp);
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title') : undefined;
+  const rimColor = rimColorOf(me.rimId);
   // Items reachable at this level but not yet claimed → a "go to the store" nudge.
   const owned = classCosmeticsOf(byClass, me.characterClass).owned;
   const claimable = claimableCount(owned, me.characterClass, me.level);
@@ -64,7 +67,7 @@ export function PlayerCard() {
         {/* Circular auto-rotating champion portrait with a level disc on its
             lower edge — the same identity token as the combat HUD ability panel. */}
         <div className="relative h-14 w-14 shrink-0">
-          <div className="h-full w-full overflow-hidden rounded-full border-2 border-gold/70 bg-black/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
+          <AvatarFrame rimId={me.rimId} size="sm" className="h-full w-full">
             <ClassPreview
               characterClass={me.characterClass}
               skinId={me.skinId}
@@ -73,9 +76,16 @@ export function PlayerCard() {
               lite
               spin={false}
             />
-          </div>
-          <div className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border border-gold/70 bg-linear-to-b from-panel to-bg shadow-md">
-            <span className="font-display text-[11px] font-bold leading-none text-gold tabular-nums">
+          </AvatarFrame>
+          {/* Level disc — same 24px token as the arena/zombie HUD, tinted to the rim. */}
+          <div
+            className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border bg-linear-to-b from-panel to-bg shadow-md"
+            style={{ borderColor: `${rimColor}b3`, boxShadow: `0 0 8px ${rimColor}59` }}
+          >
+            <span
+              className="font-display text-[11px] font-bold leading-none tabular-nums"
+              style={{ color: rimColor }}
+            >
               {me.level}
             </span>
           </div>

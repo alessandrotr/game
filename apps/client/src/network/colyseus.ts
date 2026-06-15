@@ -157,6 +157,7 @@ function snapshotState(state: RawState): {
       dyeId: player.dyeId ?? '',
       pedestalId: player.pedestalId ?? '',
       titleId: player.titleId ?? '',
+      rimId: player.rimId ?? 'rim.standard',
       animState: player.animState,
       attackTargetId: player.attackTargetId,
       level: player.level,
@@ -401,6 +402,7 @@ let joinOptions: {
   dyeId?: string;
   pedestalId?: string;
   titleId?: string;
+  rimId?: string;
   sessionKey: string;
 } | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
@@ -874,6 +876,7 @@ export async function connectToRoom(
     dyeId: look.dyeId,
     pedestalId: look.pedestalId,
     titleId: look.titleId,
+    rimId: look.rimId,
     sessionKey: TAB_SESSION,
   };
   const store = useGameStore.getState();
@@ -1113,6 +1116,7 @@ export function sendEquipLoadout(look: Appearance): void {
     joinOptions.dyeId = look.dyeId;
     joinOptions.pedestalId = look.pedestalId;
     joinOptions.titleId = look.titleId;
+    joinOptions.rimId = look.rimId;
   }
   room?.send(ClientMessage.EquipLoadout, look);
 }

@@ -130,6 +130,8 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         player.dyeId = resolve(message?.dyeId, 'dye');
         player.pedestalId = resolve(message?.pedestalId, 'pedestal');
         player.titleId = resolve(message?.titleId, 'title');
+        // Avatar rim: fall back to the standard frame so a player always has one.
+        player.rimId = resolve(message?.rimId, 'rim') || 'rim.standard';
       },
     );
   }

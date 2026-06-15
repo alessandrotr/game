@@ -24,6 +24,7 @@ import {
   resolveDyeId,
   resolveName,
   resolvePedestalId,
+  resolveRimId,
   resolveSkinId,
   resolveTitleId,
   type JoinOptions,
@@ -125,6 +126,7 @@ export class TownRoom extends AvatarRoom {
     player.dyeId = resolveDyeId(options);
     player.pedestalId = resolvePedestalId(options);
     player.titleId = resolveTitleId(options);
+    player.rimId = resolveRimId(options);
     // Seed max HP/mana from the class so the floating bar (and its chunk ticks)
     // looks identical to the arena, even though town is non-combat.
     const stats = getClassDefinition(player.characterClass as CharacterClass).stats;

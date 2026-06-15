@@ -17,6 +17,7 @@ import {
   resolveDyeId,
   resolveName,
   resolvePedestalId,
+  resolveRimId,
   resolveSkinId,
   resolveTitleId,
   sessionKeyOf,
@@ -82,6 +83,7 @@ export class ZombieMatchmakingRoom extends BaseGameRoom<ZombieMatchmakingState> 
         dyeId: resolveDyeId(options),
         pedestalId: resolvePedestalId(options),
         titleId: resolveTitleId(options),
+        rimId: resolveRimId(options),
         sessionKey: sessionKeyOf(options),
       });
     } catch (err) {
@@ -206,6 +208,7 @@ export class ZombieMatchmakingRoom extends BaseGameRoom<ZombieMatchmakingState> 
           dyeId: identity?.dyeId ?? '',
           pedestalId: identity?.pedestalId ?? '',
           titleId: identity?.titleId ?? '',
+          rimId: identity?.rimId ?? '',
           team: 'blue', // co-op: one squad, all on blue
           sessionKey: identity?.sessionKey ?? '',
         });

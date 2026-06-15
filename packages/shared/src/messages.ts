@@ -177,7 +177,7 @@ export interface ClientMessagePayloads {
   /** New aim direction for the active channel (normalized server-side). */
   [ClientMessage.AimChannel]: { dirX: number; dirZ: number };
   /** The appearance-affecting subset of the loadout (cosmetic ids; '' = none). */
-  [ClientMessage.EquipLoadout]: { skinId: string; dyeId: string; pedestalId: string; titleId: string };
+  [ClientMessage.EquipLoadout]: { skinId: string; dyeId: string; pedestalId: string; titleId: string; rimId: string };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
   [ClientMessage.DevTune]: {
     jumpForce: number;
