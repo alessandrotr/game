@@ -1,12 +1,15 @@
 import { Heart, Droplet, type LucideIcon } from 'lucide-react';
 import {
   CLASS_LIST,
+  classCosmeticsOf,
   getClassDefinition,
   type AbilityKind,
   type ClassDefinition,
 } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useCosmeticsStore } from '../store/useCosmeticsStore';
+import { ClassPreview } from './ClassPreview';
 import { Badge, Card, LevelBadge, Meter } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
@@ -112,6 +115,7 @@ export function CharacterSelect() {
   const selected = useCharacterStore((s) => s.selectedClass);
   const setSelected = useCharacterStore((s) => s.setSelectedClass);
   const progress = useAuthStore((s) => s.progress);
+  const byClass = useCosmeticsStore((s) => s.byClass);
   const def = getClassDefinition(selected);
 
   // Level reached per class (classes never played default to 1).
@@ -123,6 +127,8 @@ export function CharacterSelect() {
         {CLASS_LIST.map((c) => {
           const isSelected = c.id === selected;
           const level = levelByClass.get(c.id) ?? 1;
+          // Each card shows that class's own equipped look (skin / dye / pedestal).
+          const loadout = classCosmeticsOf(byClass, c.id).loadout;
           return (
             <button
               type="button"
@@ -142,10 +148,18 @@ export function CharacterSelect() {
                   : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-black/40'
               }`}
             >
-              <span
-                className="h-8 w-1.5 shrink-0 rounded-full"
-                style={{ background: 'var(--color-gold)', boxShadow: '0 0 10px var(--color-gold)' }}
-              />
+              {/* Live 3D portrait of this class with its equipped cosmetics. The
+                  selected one slowly rotates; the rest hold a still pose. */}
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                <ClassPreview
+                  characterClass={c.id}
+                  skinId={loadout.skinId}
+                  dyeId={loadout.dyeId}
+                  pedestalId={loadout.pedestalId}
+                  lite
+                  spin={isSelected}
+                />
+              </div>
               <span className="min-w-0 flex-1">
                 <span className="block font-display text-sm tracking-wide text-white">
                   {c.name}

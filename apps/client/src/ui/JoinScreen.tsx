@@ -1,21 +1,17 @@
 import { type FormEvent } from 'react';
 import { Loader2 } from 'lucide-react';
-import { classCosmeticsOf } from '@arena/shared';
 import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
-import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
-import { useMediaQuery } from 'usehooks-ts';
-import { TownBackdrop } from '../scene/TownBackdrop';
 import { AudioControl } from './AudioControl';
 import { CharacterSelect } from './CharacterSelect';
-import { ClassPreview } from './ClassPreview';
 import { Button } from './primitives';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 
-/** Modern, Ultima-flavored character-select screen with a rotatable 3D model. */
+/** Character-select screen: a full-width panel of class cards (each a live 3D
+ *  portrait of that class in its equipped cosmetics) over the blurred town. */
 export function JoinScreen() {
   const status = useGameStore((s) => s.status);
   const error = useGameStore((s) => s.error);
@@ -26,13 +22,6 @@ export function JoinScreen() {
   const openUpgrade = useUpgradeStore((s) => s.setOpen);
 
   const connecting = status === 'connecting';
-  // Reflect the selected class's equipped look (skin / dye / pedestal).
-  const byClass = useCosmeticsStore((s) => s.byClass);
-  const loadout = classCosmeticsOf(byClass, selectedClass).loadout;
-
-  // Desktop (lg+) splits model left / UI right; mobile stacks model over panel.
-  // The model framing differs per layout, so resolve it in JS rather than CSS.
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -72,18 +61,12 @@ export function JoinScreen() {
     </>
   );
 
-  const hint = (
-    <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 text-center text-[10px] uppercase tracking-[0.2em] text-white/45 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-      drag to rotate · scroll to zoom
-    </div>
-  );
-
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {/* Live town behind everything, blurred + darkened so it reads as an
-          out-of-focus backdrop and keeps the UI / model legible. */}
-      <TownBackdrop />
-      <div className="pointer-events-none absolute inset-0 bg-black/55 backdrop-blur-md" />
+      {/* The live town backdrop is mounted by App (shared with the auth screen so
+          the transition is seamless). Here we only darken it with a gradient (no
+          blur, matching the auth screen) to keep the UI legible. */}
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black/70" />
 
       {/* Top bar — full width across the whole screen: wordmark on the left,
           account + volume controls all the way on the right. */}
@@ -115,51 +98,13 @@ export function JoinScreen() {
         </div>
       </div>
 
-      {isDesktop ? (
-        /* Desktop: two equal-height cards centered in the viewport — selection
-           on the left, model on the right. The model lives in its own card
-           (clipped) so it can never overlap the UI. `items-stretch` makes the
-           model card exactly as tall as the selection panel. */
-        <section className="relative flex h-dvh w-full items-center justify-center gap-8 px-8">
-          <div className="flex max-h-[88dvh] items-stretch gap-8">
-            <div className="flex w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
-              {panelBody}
-            </div>
-            <div className="relative w-xl overflow-hidden rounded-2xl border border-white/10">
-              <ClassPreview
-                characterClass={selectedClass}
-                skinId={loadout.skinId}
-                dyeId={loadout.dyeId}
-                pedestalId={loadout.pedestalId}
-                align="center"
-                transparent
-              />
-              {hint}
-            </div>
-          </div>
-        </section>
-      ) : (
-        /* Mobile: model on top, selection bottom sheet below it. */
-        <section className="relative flex h-dvh w-full flex-col">
-          <div className="relative min-h-0 flex-1">
-            <ClassPreview
-              characterClass={selectedClass}
-              skinId={loadout.skinId}
-              dyeId={loadout.dyeId}
-              pedestalId={loadout.pedestalId}
-              align="top"
-              transparent
-            />
-            {hint}
-          </div>
-
-          <div className="z-20 flex shrink-0 justify-center">
-            <div className="flex max-h-[60dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-b-0 border-white/10 bg-panel/90 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
-              {panelBody}
-            </div>
-          </div>
-        </section>
-      )}
+      {/* A single full-width selection panel; each class card carries its own
+          live 3D portrait, so there's no separate big model anymore. */}
+      <section className="relative flex h-dvh w-full items-center justify-center px-4 pb-6 pt-20 sm:px-8">
+        <div className="flex max-h-[84dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
+          {panelBody}
+        </div>
+      </section>
 
       {guest && <UpgradeAccountDialog />}
     </div>

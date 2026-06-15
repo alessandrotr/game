@@ -3,7 +3,6 @@ import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { Sparkles, Trophy, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
-import { TownBackdrop } from '../scene/TownBackdrop';
 import { Button, Input } from './primitives';
 import { OnlinePlayersCounter } from './OnlinePlayersCounter';
 import { ScreenHeader } from './ScreenHeader';
@@ -45,8 +44,9 @@ export function AuthScreen() {
 
   return (
     <div className="absolute inset-0 overflow-y-auto">
-      <TownBackdrop />
-      {/* Scrim: darken + vignette the live scene so the card stays legible. */}
+      {/* The town backdrop is mounted by App (shared with the character-select
+          screen so sign-in doesn't reload it). Here we only add the scrim that
+          darkens + vignettes the live scene so the card stays legible. */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
 
       <div className="relative flex min-h-full items-center justify-center p-5">

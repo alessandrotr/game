@@ -31,6 +31,7 @@ import { InteractionUI } from './ui/InteractionUI';
 import { ChatPanel } from './ui/ChatPanel';
 import { DevToolsGate } from './devtools';
 import { MusicDirector, useAudioUnlock } from './audio';
+import { TownBackdrop } from './scene/TownBackdrop';
 
 export default function App() {
   const status = useGameStore((s) => s.status);
@@ -94,41 +95,50 @@ export default function App() {
   if (authStatus === 'restoring' || minLoading) {
     return <LoadingScreen />;
   }
-  if (authStatus !== 'authed') {
-    return <AuthScreen />;
-  }
 
   return (
     <>
-      {/* Background music: menu theme on the JoinScreen, silence in-world (for now).
-          Mounted here (above the connected/JoinScreen branch) so it survives the
-          transition rather than restarting. */}
-      <MusicDirector />
+      {/* The town backdrop behind the pre-game menus (auth + character select).
+          Mounted once here at a stable position so signing in swaps only the
+          overlay on top — the town scene is never torn down and reloaded. It
+          unmounts when entering the world, where GameScene renders the live town. */}
+      {!connected && <TownBackdrop />}
 
-      {/* Dev-only tuning panels (tree-shaken from production builds). */}
-      <DevToolsGate />
-
-      {connected ? (
-        <ErrorBoundary
-          onError={() => {
-            // A render crash tears down the session → App falls back to JoinScreen,
-            // the same as a clean disconnect (rather than a white screen).
-            disconnect();
-            useGameStore.getState().reset();
-          }}
-        >
-          <GameScene />
-          <Hud />
-          <InteractionUI />
-          <ChatPanel />
-          {connectionLost && <ConnectionLost />}
-        </ErrorBoundary>
+      {authStatus !== 'authed' ? (
+        <AuthScreen />
       ) : (
-        <JoinScreen />
-      )}
+        <>
+          {/* Background music: menu theme on the JoinScreen, silence in-world
+              (for now). Mounted here (above the connected/JoinScreen branch) so it
+              survives the transition rather than restarting. */}
+          <MusicDirector />
 
-      {/* Cover the town↔arena swap so the wait reads as a deliberate load. */}
-      {transitioning && <LoadingScreen subtitle={transitionLabel} />}
+          {/* Dev-only tuning panels (tree-shaken from production builds). */}
+          <DevToolsGate />
+
+          {connected ? (
+            <ErrorBoundary
+              onError={() => {
+                // A render crash tears down the session → App falls back to
+                // JoinScreen, the same as a clean disconnect (not a white screen).
+                disconnect();
+                useGameStore.getState().reset();
+              }}
+            >
+              <GameScene />
+              <Hud />
+              <InteractionUI />
+              <ChatPanel />
+              {connectionLost && <ConnectionLost />}
+            </ErrorBoundary>
+          ) : (
+            <JoinScreen />
+          )}
+
+          {/* Cover the town↔arena swap so the wait reads as a deliberate load. */}
+          {transitioning && <LoadingScreen subtitle={transitionLabel} />}
+        </>
+      )}
     </>
   );
 }
