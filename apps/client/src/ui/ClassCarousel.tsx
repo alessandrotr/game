@@ -74,9 +74,7 @@ export function ClassCarousel() {
       {/* Details panel (pure DOM). */}
       <div className="flex flex-col gap-4">
         <div>
-          <h3 className="font-display text-3xl tracking-wider" style={{ color: cls.color }}>
-            {cls.name}
-          </h3>
+          <h3 className="font-display text-3xl tracking-wider text-text">{cls.name}</h3>
           <p className="text-sm uppercase tracking-[0.2em] text-muted">{cls.role}</p>
           <p className="mt-3 text-sm leading-relaxed text-text/90">{cls.description}</p>
         </div>

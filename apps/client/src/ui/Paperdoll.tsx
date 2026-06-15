@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
-import { STAT_COLORS, accentHeaderStyle } from './theme';
+import { STAT_COLORS } from './theme';
 
 /**
  * UO-style "paperdoll": click another player in town to inspect them. Shows a
@@ -40,19 +40,14 @@ export function Paperdoll() {
   return (
     <Card variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
       {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        style={accentHeaderStyle(def.color, '33')}
-      >
+      <div className="flex items-center justify-between px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <LevelBadge level={data.level} size="md" />
           <div className="min-w-0">
             <div className="truncate text-lg font-bold tracking-wide text-text">
               {data.name}
             </div>
-            <div className="text-xs font-medium" style={{ color: def.color }}>
-              {def.name}
-            </div>
+            <div className="text-xs font-medium text-muted">{def.name}</div>
             {title && (
               <div className="truncate text-[10px] uppercase tracking-wider" style={{ color: title.color }}>
                 {title.text}
@@ -83,7 +78,7 @@ export function Paperdoll() {
           size="md"
           value={into}
           max={span}
-          fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
+          fill={`linear-gradient(90deg, var(--color-gold-dark), ${STAT_COLORS.xpTip})`}
           label="XP"
           valueText={`${into} / ${span}`}
           headerClassName="mb-1 text-[11px] text-muted"

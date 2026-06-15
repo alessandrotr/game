@@ -90,7 +90,7 @@ export function PlayerCard() {
             </div>
           )}
           <div className="truncate text-[15px] font-semibold tracking-wide text-white">{me.name}</div>
-          <div className="truncate text-[11px]" style={{ color: def.color }}>
+          <div className="truncate text-[11px] text-muted">
             {def.name} · {def.role}
           </div>
         </div>
@@ -102,7 +102,7 @@ export function PlayerCard() {
           size="md"
           value={into}
           max={span}
-          fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
+          fill={`linear-gradient(90deg, var(--color-gold-dark), ${STAT_COLORS.xpTip})`}
           label="XP"
           valueText={`${Math.round(into)} / ${span}`}
           labelClassName="text-[10px] uppercase tracking-wide text-white/70"

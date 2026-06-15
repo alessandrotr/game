@@ -82,7 +82,6 @@ function colorOf(c: Cosmetic): string {
   // titles stay neutral so the grid doesn't turn into a rainbow — their rarity
   // reads from the small dot/label instead.
   if (c.type === 'dye' || c.type === 'pedestal') return c.color;
-  if (c.type === 'skin') return getClassDefinition(c.characterClass).color;
   return '#9aa3b8';
 }
 
@@ -782,7 +781,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
             <div className="truncate text-xl font-semibold tracking-wide text-white">
               {username ?? 'Adventurer'}
             </div>
-            <div className="truncate text-xs" style={{ color: def.color }}>
+            <div className="truncate text-xs text-muted">
               {def.name} · {def.role}
             </div>
           </div>
@@ -793,7 +792,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
             size="md"
             value={into}
             max={span}
-            fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
+            fill={`linear-gradient(90deg, var(--color-gold-dark), ${STAT_COLORS.xpTip})`}
             label="XP"
             valueText={`${Math.round(into)} / ${span}`}
             labelClassName="text-[10px] uppercase tracking-wide text-white/70"

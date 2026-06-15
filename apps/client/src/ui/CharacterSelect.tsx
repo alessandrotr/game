@@ -79,7 +79,7 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
       <SectionLabel>Stats</SectionLabel>
       <div className="flex flex-col gap-2">
         {STATS.map((s) => (
-          <StatRow key={s.stat} {...s} value={def.stats[s.stat]} color={def.color} />
+          <StatRow key={s.stat} {...s} value={def.stats[s.stat]} color="var(--color-gold)" />
         ))}
       </div>
 
@@ -129,9 +129,13 @@ export function CharacterSelect() {
               key={c.id}
               onClick={() => setSelected(c.id)}
               aria-pressed={isSelected}
-              // Selected card adopts the class color (border + faint tint) so the
-              // chosen class reads as one identity; gold stays for the CTA.
-              style={isSelected ? { borderColor: c.color, background: `${c.color}14` } : undefined}
+              // Selected card uses the gold accent (border + faint tint) so the
+              // chosen class reads clearly — no per-class color.
+              style={
+                isSelected
+                  ? { borderColor: 'var(--color-gold)', background: 'rgba(200,162,74,0.08)' }
+                  : undefined
+              }
               className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
                 isSelected
                   ? ''
@@ -140,7 +144,7 @@ export function CharacterSelect() {
             >
               <span
                 className="h-8 w-1.5 shrink-0 rounded-full"
-                style={{ background: c.color, boxShadow: `0 0 10px ${c.color}` }}
+                style={{ background: 'var(--color-gold)', boxShadow: '0 0 10px var(--color-gold)' }}
               />
               <span className="min-w-0 flex-1">
                 <span className="block font-display text-sm tracking-wide text-white">

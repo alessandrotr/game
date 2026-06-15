@@ -19,13 +19,12 @@ import {
   TableRow,
 } from './primitives';
 
-/** Resolve a class string to its display name + accent color (safe for unknowns). */
-function classInfo(characterClass: string): { name: string; color: string } {
+/** Resolve a class string to its display name (safe for unknowns). */
+function classInfo(characterClass: string): { name: string } {
   if (isCharacterClass(characterClass)) {
-    const def = getClassDefinition(characterClass);
-    return { name: def.name, color: def.color };
+    return { name: getClassDefinition(characterClass).name };
   }
-  return { name: characterClass || '—', color: '#8b91a8' };
+  return { name: characterClass || '—' };
 }
 
 const RANK_COLOR = ['#f5d061', '#cdd3e0', '#cd8c52']; // gold / silver / bronze
@@ -135,7 +134,7 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
               <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
               {me && <YouTag />}
             </div>
-            <div className="mt-0.5 truncate text-[11px]" style={{ color: cls.color }}>
+            <div className="mt-0.5 truncate text-[11px] text-muted">
               {cls.name}
             </div>
           </div>
@@ -166,7 +165,7 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
           <span className="truncate font-semibold text-text">{entry.name}</span>
           {me && <YouTag />}
         </div>
-        <div className="truncate text-[11px]" style={{ color: cls.color }}>
+        <div className="truncate text-[11px] text-muted">
           {cls.name}
         </div>
       </div>
