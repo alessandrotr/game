@@ -72,7 +72,7 @@ export const useHudStore = create<HudStore>((set) => ({
     set({ playerCardCompact: v });
   },
 
-  showPerf: load(KEY.showPerf, true),
+  showPerf: load(KEY.showPerf, false),
   setShowPerf: (v) => {
     save(KEY.showPerf, v);
     set({ showPerf: v });
