@@ -906,6 +906,31 @@ export async function connectToRoom(
   }
 }
 
+/** Resolve once the local player (with a resolved character class) is present in
+ *  the store — or after `timeoutMs` as a backstop so we never hang. Used to hold
+ *  a world-swap's loading cover up until the new character is actually
+ *  renderable: `joinOrCreate` resolves a beat before the first state sync, so
+ *  dropping the cover immediately briefly renders the scene with no class set,
+ *  which falls back to the default (warrior) model. */
+function waitForLocalPlayer(sessionId: string, timeoutMs = 2500): Promise<void> {
+  const ready = () => !!useGameStore.getState().players.get(sessionId)?.characterClass;
+  if (ready()) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      unsub();
+      clearTimeout(timer);
+      resolve();
+    };
+    const unsub = useGameStore.subscribe(() => {
+      if (ready()) finish();
+    });
+    const timer = setTimeout(finish, timeoutMs);
+  });
+}
+
 /** Switch worlds (town ↔ arena) as the same character — used by portals. Keeps
  *  the UI on the game (no flash back to the join screen). Pass `{ zombie: true }`
  *  to enter the zombie-survival arena (a distinct co-op room handler); the client
@@ -962,6 +987,9 @@ export async function travelTo(
       void connectMatchmaking();
       void connectZombieMatchmaking();
     }
+    // Keep the loading cover up until the new character is actually in the store,
+    // so the scene/HUD never flash the default model in the pre-first-sync gap.
+    await waitForLocalPlayer(room.sessionId);
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to travel');
@@ -1005,6 +1033,8 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     store.setRoom('arena');
     store.setStatus('connected');
     wireRoom(room);
+    // Hold the cover until the character is in the store (see waitForLocalPlayer).
+    await waitForLocalPlayer(room.sessionId);
   } catch (err) {
     room = null;
     store.setStatus('error', err instanceof Error ? err.message : 'Failed to join match');
