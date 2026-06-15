@@ -47,7 +47,7 @@ export function Paperdoll() {
         <div className="flex min-w-0 items-center gap-2.5">
           <LevelBadge level={data.level} size="md" />
           <div className="min-w-0">
-            <div className="truncate font-display text-lg font-bold tracking-wide text-text">
+            <div className="truncate text-lg font-bold tracking-wide text-text">
               {data.name}
             </div>
             <div className="text-xs font-medium" style={{ color: def.color }}>

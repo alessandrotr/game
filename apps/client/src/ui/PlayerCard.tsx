@@ -89,7 +89,7 @@ export function PlayerCard() {
               {title.text}
             </div>
           )}
-          <div className="truncate font-display text-[15px] tracking-wide text-white">{me.name}</div>
+          <div className="truncate text-[15px] font-semibold tracking-wide text-white">{me.name}</div>
           <div className="truncate text-[11px]" style={{ color: def.color }}>
             {def.name} · {def.role}
           </div>

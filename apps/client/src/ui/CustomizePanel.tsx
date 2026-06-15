@@ -265,7 +265,7 @@ function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
       >
         {c.text}
       </span>
-      <span className="max-w-full truncate font-display text-sm tracking-wide text-white">
+      <span className="max-w-full truncate text-sm font-semibold tracking-wide text-white">
         {username}
       </span>
       {/* A sliver of health bar to evoke the in-world nameplate. */}
@@ -779,7 +779,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
                 {title.text}
               </div>
             )}
-            <div className="truncate font-display text-xl tracking-wide text-white">
+            <div className="truncate text-xl font-semibold tracking-wide text-white">
               {username ?? 'Adventurer'}
             </div>
             <div className="truncate text-xs" style={{ color: def.color }}>
