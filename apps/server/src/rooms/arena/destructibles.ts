@@ -1,5 +1,6 @@
 import { type RigidBody } from '@dimforge/rapier3d-compat';
 import {
+  ARENA_HALF_SIZE,
   DAMAGE_COOLDOWN_MS,
   DESTRUCTIBLE_CONFIG,
   DRUM_HALF_HEIGHT,
@@ -14,6 +15,14 @@ import {
   type DestructibleCategoryConfig,
   type DestructibleKind,
 } from '@arena/shared';
+
+// --- Zombie-mode oil-drum respawn (mirrors the burning-barrel respawn) --------
+/** Min/max drums added per respawn wave. */
+const DRUM_RESPAWN_MIN_COUNT = 2;
+const DRUM_RESPAWN_MAX_COUNT = 4;
+/** Min/max delay (ms) between drum respawn waves. */
+const DRUM_RESPAWN_MIN_MS = 15_000;
+const DRUM_RESPAWN_MAX_MS = 25_000;
 import { DestructibleObject } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
@@ -61,6 +70,10 @@ export class DestructibleSystem {
   private readonly bodies = new Map<string, Body>();
   private seq = 0;
   private structureSeq = 0;
+  /** Zombie mode: drums respawn back up to this count (the initial drum total). */
+  private targetDrums = 0;
+  /** Sim time (ms) the next drum respawn wave is due (zombie mode only). */
+  private nextDrumRespawnAt = 0;
   /** Called when a drum is destroyed (HP ran out), with its position — lets the
    *  room roll for a pickable drop. Set via {@link onDrumDestroyed}. */
   private drumDestroyedCb?: (x: number, z: number) => void;
@@ -90,6 +103,64 @@ export class DestructibleSystem {
     this.structureSeq = 0;
     for (const p of tireStackPositions) this.spawnTireStack(p.x, p.z);
     for (const p of drumPositions) this.spawnDrum(p.x, p.z);
+    // Zombie mode keeps the map stocked: respawn destroyed drums back up to the
+    // initial count, in waves, like the burning barrels.
+    this.targetDrums = drumPositions.length;
+    this.nextDrumRespawnAt = this.ctx.now() + this.randomDrumRespawnDelay();
+  }
+
+  private randomDrumRespawnDelay(): number {
+    return DRUM_RESPAWN_MIN_MS + Math.random() * (DRUM_RESPAWN_MAX_MS - DRUM_RESPAWN_MIN_MS);
+  }
+
+  /** Count live drums (the destructible 'barrel'-category bodies). */
+  private drumCount(): number {
+    let n = 0;
+    for (const b of this.bodies.values()) if (b.category === 'barrel') n++;
+    return n;
+  }
+
+  /** Zombie mode: drop a wave of fresh drums onto open ground, up to the target. */
+  private respawnDrumWave(): void {
+    const want = DRUM_RESPAWN_MIN_COUNT + Math.floor(Math.random() * (DRUM_RESPAWN_MAX_COUNT - DRUM_RESPAWN_MIN_COUNT + 1));
+    const room = this.targetDrums - this.drumCount();
+    const n = Math.min(want, room);
+    const radius = DESTRUCTIBLE_CONFIG.barrel.radius;
+    for (let i = 0; i < n; i++) {
+      const spot = this.findOpenSpot(radius);
+      if (spot) this.spawnDrum(spot.x, spot.z);
+    }
+  }
+
+  /** A random point clear of cover, players and other props — or null if crowded. */
+  private findOpenSpot(radius: number): { x: number; z: number } | null {
+    const limit = ARENA_HALF_SIZE - 2;
+    for (let i = 0; i < 30; i++) {
+      const x = (Math.random() * 2 - 1) * limit;
+      const z = (Math.random() * 2 - 1) * limit;
+      let clear = true;
+      for (const o of this.ctx.obstacles) {
+        const dx = x - o.x;
+        const dz = z - o.z;
+        const r = o.radius + radius + 0.5;
+        if (dx * dx + dz * dz < r * r) { clear = false; break; }
+      }
+      if (!clear) continue;
+      this.ctx.state.players.forEach((p) => {
+        if (!p.alive) return;
+        const dx = x - p.x;
+        const dz = z - p.z;
+        if (dx * dx + dz * dz < 4) clear = false; // ~2u clearance from players
+      });
+      for (const b of this.bodies.values()) {
+        const dx = x - b.obj.x;
+        const dz = z - b.obj.z;
+        const r = b.radius + radius;
+        if (dx * dx + dz * dz < r * r) { clear = false; break; }
+      }
+      if (clear) return { x, z };
+    }
+    return null;
   }
 
   /** Create a dynamic rigid body + its replicated entity. Tires and drums are
@@ -321,6 +392,11 @@ export class DestructibleSystem {
   /** Replicate awake bodies' transforms (the room steps the shared world before
    *  this). Sleeping bodies write nothing — zero bandwidth while settled. */
   update(): void {
+    // Zombie mode: top the drums back up in periodic waves (like the barrels).
+    if (this.ctx.state.zombieMode && this.ctx.now() >= this.nextDrumRespawnAt) {
+      if (this.drumCount() < this.targetDrums) this.respawnDrumWave();
+      this.nextDrumRespawnAt = this.ctx.now() + this.randomDrumRespawnDelay();
+    }
     for (const body of this.bodies.values()) {
       if (body.rb.isSleeping()) {
         if (body.wasAwake) {

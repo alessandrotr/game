@@ -1,7 +1,14 @@
 import { Suspense, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { Color, type Group, type Mesh, type MeshStandardMaterial, type SkinnedMesh } from 'three';
+import {
+  Color,
+  type AnimationClip,
+  type Group,
+  type Mesh,
+  type MeshStandardMaterial,
+  type SkinnedMesh,
+} from 'three';
 import type {
   AnimationName,
   CharacterDescriptor,
@@ -23,6 +30,24 @@ function seedOf(id: string): number {
 /** Default animation source for static contexts (previews, NPCs) that don't
  *  drive a state machine. */
 const ALWAYS_IDLE = (): AnimationName => 'idle';
+
+/** Root-motion-stripped clips, cached per model URL. Stripping clones every clip
+ *  and filters its tracks — doing that per spawned entity (e.g. each zombie)
+ *  hitches the frame. The clips are immutable templates, and `useAnimations`
+ *  builds its own actions per mixer, so sharing them across instances is safe. */
+const STRIPPED_CLIPS = new Map<string, AnimationClip[]>();
+function strippedClipsFor(url: string, animations: AnimationClip[]): AnimationClip[] {
+  let cached = STRIPPED_CLIPS.get(url);
+  if (!cached) {
+    cached = animations.map((clip) => {
+      const stripped = clip.clone();
+      stripped.tracks = stripped.tracks.filter((t) => !t.name.endsWith('.position'));
+      return stripped;
+    });
+    STRIPPED_CLIPS.set(url, cached);
+  }
+  return cached;
+}
 
 interface CharacterModelProps {
   descriptor: CharacterDescriptor;
@@ -165,15 +190,7 @@ function GltfCharacter({
   // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
   // character animates without drifting — its world position is driven by the
   // server/prediction, not the clip. Keeps rotation tracks (the actual motion).
-  const inPlace = useMemo(
-    () =>
-      animations.map((clip) => {
-        const stripped = clip.clone();
-        stripped.tracks = stripped.tracks.filter((t) => !t.name.endsWith('.position'));
-        return stripped;
-      }),
-    [animations],
-  );
+  const inPlace = useMemo(() => strippedClipsFor(model.url, animations), [model.url, animations]);
   const { actions } = useAnimations(inPlace, root);
   const hasClips = inPlace.length > 0;
 

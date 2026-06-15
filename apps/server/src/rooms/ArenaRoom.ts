@@ -22,7 +22,6 @@ import {
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
   ZOMBIE_ATTACK_WINDUP_MS,
-  ZOMBIE_CORPSE_MS,
   ZOMBIE_MODE,
   ZOMBIE_SKIN_ID,
   ZOMBIE_SPRINTER_SKIN_ID,
@@ -841,11 +840,14 @@ export class ArenaRoom extends AvatarRoom {
           1,
           zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) + ai.speedOffset,
         );
-        // Steer off the straight line by a wander angle that ramps with distance
-        // (full when far, zero at attack range) so they spread while chasing but
-        // still converge to strike. Re-roll the bias on the AI's own clock.
+        // Arc off the straight line toward this zombie's COMMITTED flank side by
+        // an angle that ramps with distance (full when far, zero at attack range)
+        // so the horde curls around to swarm you, then spirals in to strike.
+        // Re-roll only the arc magnitude on the AI's clock — the side stays fixed
+        // (otherwise they'd average back into a straight-line conga).
         if (this.simTime >= ai.wanderUntil) {
-          ai.wander = Math.random() * 2 - 1;
+          const side = ai.wander >= 0 ? 1 : -1;
+          ai.wander = side * (0.55 + Math.random() * 0.45);
           ai.wanderUntil = this.simTime + this.rollWanderInterval();
         }
         const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
@@ -956,15 +958,11 @@ export class ArenaRoom extends AvatarRoom {
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
         player.holding = ''; // a carried object is lost on death
-        // Zombies don't respawn — let the death pose play, then remove the
-        // entity so the level's "all dead" check can clear and advance.
+        // Zombies don't respawn and have NO death animation — a slain zombie
+        // vanishes immediately. Avoids animating dozens of dying corpses on the
+        // client and clears the level's "all dead" check the instant it dies.
         if (this.zombieMode && this.bots.has(sessionId)) {
-          const removeAt = this.zombieCorpseAt.get(sessionId);
-          if (removeAt === undefined) {
-            this.zombieCorpseAt.set(sessionId, this.simTime + ZOMBIE_CORPSE_MS);
-          } else if (this.simTime >= removeAt) {
-            this.removeBot(sessionId);
-          }
+          this.removeBot(sessionId);
           return;
         }
         // Co-op zombie run: death is final — no respawn. The dead player stays in
@@ -1340,7 +1338,9 @@ export class ArenaRoom extends AvatarRoom {
     if (!ai) {
       ai = {
         speedOffset: (Math.random() * 2 - 1) * ZOMBIE_SPEED_JITTER,
-        wander: Math.random() * 2 - 1,
+        // Commit to a flank side (±) at spawn with a 0.55–1.0 arc magnitude — half
+        // the horde curls left, half right, so they encircle instead of trailing.
+        wander: (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.45),
         wanderUntil: this.simTime + this.rollWanderInterval(),
         attackBonusMs: 0,
       };

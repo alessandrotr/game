@@ -32,6 +32,14 @@ export function registerSkin(skin: SkinDefinition): void {
   skins.set(skin.id, skin);
 }
 
+/** GLTF render urls of every registered skin (the zombie/sprinter/fat bodies) —
+ *  for front-running their downloads so the first spawn doesn't hitch. */
+export function gltfSkinUrls(): string[] {
+  const urls: string[] = [];
+  for (const s of skins.values()) if (s.render?.kind === 'gltf') urls.push(s.render.url);
+  return urls;
+}
+
 /** Built-in example skin proving the override path end to end. (No skins ship in
  *  the store yet — they'll be added gradually; this keeps the path exercised.) */
 registerSkin({

@@ -510,15 +510,18 @@ export const ZOMBIE_SPEED_LEVEL_STEP = 4;
  *  horde doesn't move as one block — some shamble, some lunge ahead. */
 export const ZOMBIE_SPEED_JITTER = 1;
 
-// --- Chase wander: zombies steer off the straight line to their prey so they
-//     fan out and take varied paths instead of funneling into one tight stream
-//     (the offset shrinks to nothing as they close to attack range, so they
-//     still converge to strike). Re-rolled occasionally → a new path now and then.
-/** Max steering angle off the bee-line to the target, in radians (~34°). */
-export const ZOMBIE_WANDER_MAX_RAD = 0.6;
+// --- Chase wander: each zombie COMMITS to a flank side and arcs around its prey
+//     rather than trailing in a straight line — so a horde splits and swarms you
+//     from multiple angles instead of forming one easy-to-lead conga line. The
+//     arc shrinks to nothing as they close to attack range (the ramp), so they
+//     still spiral in and strike. A zombie keeps its side; only the magnitude
+//     re-rolls now and then.
+/** Max steering angle off the bee-line to the target, in radians (~63°) — a wide
+ *  arc so they curl around to surround. */
+export const ZOMBIE_WANDER_MAX_RAD = 1.1;
 /** Distance (world units) over which the wander ramps in: full at this far out,
- *  zero at attack range, so they only spread while genuinely chasing. */
-export const ZOMBIE_WANDER_FALLOFF = 8;
+ *  zero at attack range. Larger = they start curving around from further away. */
+export const ZOMBIE_WANDER_FALLOFF = 13;
 /** A zombie re-picks its wander bias on a randomized interval in this range (ms). */
 export const ZOMBIE_WANDER_REROLL_MIN_MS = 1500;
 export const ZOMBIE_WANDER_REROLL_MAX_MS = 4000;
@@ -551,13 +554,9 @@ export const ZOMBIE_FAT_HP_REDUCTION = 50;
 export const ZOMBIE_FAT_SPEED_PENALTY = 2;
 /** A Fat's swing lands this many ms sooner than a normal zombie's (0.2s faster). */
 export const ZOMBIE_FAT_ATTACK_BONUS_MS = 200;
-/** Base chance a horde slot spawns a Fat in place of a normal zombie. */
-export const ZOMBIE_FAT_BASE_SPAWN_CHANCE = 0.2;
-/** The Fat spawn chance rises by this much every {@link ZOMBIE_FAT_SPAWN_LEVEL_STEP}
- *  levels, capped at {@link ZOMBIE_FAT_SPAWN_CHANCE_MAX}. */
-export const ZOMBIE_FAT_SPAWN_CHANCE_STEP = 0.05;
-export const ZOMBIE_FAT_SPAWN_LEVEL_STEP = 4;
-export const ZOMBIE_FAT_SPAWN_CHANCE_MAX = 0.35;
+/** Chance a horde slot spawns a Fat in place of a normal zombie — flat at every
+ *  level (no per-level scaling). */
+export const ZOMBIE_FAT_SPAWN_CHANCE = 0.16;
 /** Breather between a cleared level and the next horde, in milliseconds. */
 export const ZOMBIE_LEVEL_BREAK_MS = 5000;
 /** Grace before the first horde so the player can get oriented, in milliseconds. */
@@ -584,9 +583,16 @@ export function zombieHordeSize(level: number): number {
   return Math.min(ZOMBIE_MAX_HORDE, ZOMBIE_BASE_HORDE + ZOMBIE_HORDE_PER_LEVEL * (level - 1));
 }
 
-/** Zombies allowed alive at once at `level` (scales with level, no ceiling). */
+/** Hard ceiling on concurrent-alive zombies — keeps the horde (and the per-tick
+ *  cost + client model count) bounded no matter how high the level climbs. */
+export const ZOMBIE_MAX_ALIVE_CAP = 36;
+
+/** Zombies allowed alive at once at `level` (scales with level, capped). */
 export function zombieMaxAlive(level: number): number {
-  return ZOMBIE_BASE_MAX_ALIVE + ZOMBIE_MAX_ALIVE_PER_LEVEL * Math.max(0, level - 1);
+  return Math.min(
+    ZOMBIE_MAX_ALIVE_CAP,
+    ZOMBIE_BASE_MAX_ALIVE + ZOMBIE_MAX_ALIVE_PER_LEVEL * Math.max(0, level - 1),
+  );
 }
 
 /** A zombie's max health at `level` (base + linear per-level toughening). */
@@ -608,14 +614,9 @@ export function zombieFatHealthForLevel(level: number): number {
   );
 }
 
-/** Chance a horde slot spawns a Fat at `level`: a base that steps up with level,
- *  capped (lvl 1–4 → 20%, 5–8 → 25%, …, capped at 35%). */
-export function zombieFatChanceForLevel(level: number): number {
-  const steps = Math.floor(Math.max(0, level - 1) / ZOMBIE_FAT_SPAWN_LEVEL_STEP);
-  return Math.min(
-    ZOMBIE_FAT_SPAWN_CHANCE_MAX,
-    ZOMBIE_FAT_BASE_SPAWN_CHANCE + ZOMBIE_FAT_SPAWN_CHANCE_STEP * steps,
-  );
+/** Chance a horde slot spawns a Fat — a flat 16% at every level (no scaling). */
+export function zombieFatChanceForLevel(_level: number): number {
+  return ZOMBIE_FAT_SPAWN_CHANCE;
 }
 
 /** True for any zombie-family skin (base zombie, Sprinter, or Fat) — wave enemies

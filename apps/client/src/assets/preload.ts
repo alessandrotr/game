@@ -1,5 +1,6 @@
 import { useGLTF } from '@react-three/drei';
 import { CHARACTERS } from './data/characters';
+import { gltfSkinUrls } from './CharacterFactory';
 
 /**
  * Kick off fetching the rigged class/character GLBs up front (drei caches per
@@ -12,4 +13,13 @@ export function preloadCharacterModels(): void {
   for (const c of CHARACTERS) {
     if (c.render.kind === 'gltf') useGLTF.preload(c.render.url);
   }
+}
+
+/**
+ * Front-run the zombie/sprinter/fat skin GLBs. Called when entering zombie mode
+ * so the first wave's models are already parsed — otherwise the first spawn of
+ * each variant hitches while its GLB downloads + parses on the main thread.
+ */
+export function preloadZombieModels(): void {
+  for (const url of gltfSkinUrls()) useGLTF.preload(url);
 }

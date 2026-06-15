@@ -46,6 +46,7 @@ import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
 import { clearSnapshots, recordSnapshots } from '../store/snapshotBuffer';
 import { clearDestination } from '../store/destinationState';
+import { preloadZombieModels } from '../assets/preload';
 import { reportClientError, setTelemetryContext } from './telemetry';
 
 /** Colyseus handler name for each world. */
@@ -946,6 +947,9 @@ export async function travelTo(
   if (!client || !joinOptions || traveling) return;
   const handler = options?.zombie ? ZOMBIE_ROOM : ROOM_HANDLER[roomType];
   const store = useGameStore.getState();
+  // Front-run the zombie GLBs so the first wave's models are parsed before they
+  // spawn (otherwise the first of each variant hitches on download + parse).
+  if (options?.zombie) preloadZombieModels();
   traveling = true;
   // Cover the world swap with the branded loading screen.
   store.setTransitioning(
