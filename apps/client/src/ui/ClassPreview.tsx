@@ -2,7 +2,7 @@ import { memo, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
-import { getCosmeticOfType, type CharacterClass } from '@arena/shared';
+import { getCosmeticOfType, type AnimationName, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
@@ -49,6 +49,9 @@ interface ClassPreviewProps {
   /** Skip the opaque canvas background + fog so whatever sits behind the canvas
    *  (e.g. the live town backdrop) shows through around the model. */
   transparent?: boolean;
+  /** Logical animation the model plays (e.g. an emote being previewed). Defaults
+   *  to idle. The full showcase drives this; the lite bust ignores it. */
+  animation?: AnimationName;
 }
 
 /** Camera + orbit framing per `align` for the full showcase. `'top'` pulls the
@@ -68,6 +71,7 @@ function ClassPreviewImpl({
   pedestalId,
   align = 'center',
   transparent = false,
+  animation = 'idle',
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -75,6 +79,11 @@ function ClassPreviewImpl({
     () => resolveCharacter(selected, skinId, dyeId),
     [selected, skinId, dyeId],
   );
+  // Stable getter that always reads the latest `animation` prop, so the GLTF
+  // animator (which captures the getter once) crossfades to a previewed emote.
+  const animRef = useRef(animation);
+  animRef.current = animation;
+  const getAnimation = useRef(() => animRef.current).current;
   // Resolve the equipped pedestal (color + shader effect); a neutral gray ring
   // is the default for every class when nothing is equipped.
   const ped = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal') : undefined;
@@ -138,7 +147,7 @@ function ClassPreviewImpl({
 
       {/* Remount on class change so the new model pops in cleanly. */}
       <group key={selected}>
-        <CharacterModel descriptor={descriptor} />
+        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
       </group>
       <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={6} blur={2.4} far={4} />

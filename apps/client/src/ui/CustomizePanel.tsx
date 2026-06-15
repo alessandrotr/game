@@ -23,6 +23,7 @@ import {
   isUnlocked,
   requiredLevelFor,
   xpProgress,
+  type AnimationName,
   type CharacterClass,
   type Cosmetic,
   type CosmeticRarity,
@@ -37,6 +38,12 @@ import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
 import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
+import {
+  EmoteThumbStage,
+  registerEmoteThumb,
+  setEmoteThumbHover,
+  type EmoteThumbHandle,
+} from '../render/emoteThumbnails';
 import {
   Button,
   Dialog,
@@ -223,6 +230,28 @@ function PedestalThumb({ c, hovered }: { c: Cosmetic & { type: 'pedestal' }; hov
   return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} hovered={hovered} />;
 }
 
+/** Emote thumbnail — the class character performing the emote while hovered (idle
+ *  otherwise), mirroring the pedestals' hover-to-play. Just a 2D canvas the shared
+ *  {@link EmoteThumbStage} blits into, so any number of emotes cost one WebGL
+ *  context total (not one per card). The stage owns the class/model. */
+function EmoteThumb({ anim, hovered }: { anim: AnimationName; hovered: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const handle = useRef<EmoteThumbHandle | null>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const h: EmoteThumbHandle = { canvas: ref.current, anim };
+    handle.current = h;
+    return registerEmoteThumb(h);
+  }, [anim]);
+
+  useEffect(() => {
+    if (handle.current) setEmoteThumbHover(handle.current, hovered);
+  }, [hovered]);
+
+  return <canvas ref={ref} className="absolute inset-0 h-full w-full" />;
+}
+
 /** Title thumbnail — a mini nameplate preview showing how the title reads above
  *  your name in-game (colored title over the player name + a hint of HP bar). */
 function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
@@ -343,13 +372,19 @@ function StoreCard({
       }`}
     >
       <div className="relative grid h-24 place-items-center bg-black/20">
-        <div className={locked ? 'opacity-40 grayscale' : undefined}>
+        <div className={`h-full w-full ${locked ? 'opacity-40 grayscale' : ''}`}>
           {c.type === 'pedestal' ? (
             <PedestalThumb c={c} hovered={hovered && !locked} />
           ) : c.type === 'title' ? (
-            <TitleThumb c={c} />
+            <div className="grid h-full place-items-center">
+              <TitleThumb c={c} />
+            </div>
+          ) : c.type === 'emote' ? (
+            <EmoteThumb anim={c.anim} hovered={hovered && !locked} />
           ) : (
-            <Swatch c={c} size={52} />
+            <div className="grid h-full place-items-center">
+              <Swatch c={c} size={52} />
+            </div>
           )}
         </div>
         {/* Rarity tag — bottom-left of the thumbnail. */}
@@ -556,6 +591,8 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
           <PedestalThumb c={c} hovered={hovered} />
         ) : c.type === 'title' ? (
           <TitleThumb c={c} />
+        ) : c.type === 'emote' ? (
+          <EmoteThumb anim={c.anim} hovered={hovered} />
         ) : (
           <Swatch c={c} size={40} />
         )}
@@ -705,6 +742,8 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const pedestalId = preview?.type === 'pedestal' ? preview.id : loadout.pedestalId;
   const titleId = preview?.type === 'title' ? preview.id : loadout.titleId;
   const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
+  // Previewing (clicking) an emote makes the showcase character perform it.
+  const animation: AnimationName = preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
   const sessionId = useGameStore.getState().sessionId;
@@ -720,6 +759,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
         skinId={skinId}
         dyeId={dyeId}
         pedestalId={pedestalId}
+        animation={animation}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
         {preview && (
@@ -882,6 +922,11 @@ export function CustomizePanel() {
             <IconButton icon={X} aria-label="Close" className="ml-auto" />
           </DialogClose>
         </div>
+
+        {/* One shared, hidden WebGL context renders every emote thumbnail (blit
+            into per-card 2D canvases), so the catalog scales without burning a
+            context per card. */}
+        <EmoteThumbStage characterClass={characterClass} />
 
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
           <Showcase characterClass={characterClass} />

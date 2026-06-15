@@ -8,7 +8,8 @@ interface CustomizeStore {
   tab: CustomizeTab;
   /** Cosmetic id being previewed on the showcase avatar (try-before-equip). Not
    *  persisted or equipped — purely a visual try-on. `null` = show the equipped
-   *  look. Cleared when the hub closes or the tab changes. */
+   *  look. For an emote, the showcase character plays it. Cleared when the hub
+   *  closes or the tab changes. */
   previewId: string | null;
   /** Open the hub (optionally to a specific tab). */
   show: (tab?: CustomizeTab) => void;

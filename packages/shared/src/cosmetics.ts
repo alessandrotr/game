@@ -11,7 +11,7 @@
  * `Player.skinId` carries the cosmetic id directly with no mapping.
  */
 
-import { CHARACTER_CLASSES, type CharacterClass } from './assets.js';
+import { CHARACTER_CLASSES, type AnimationName, type CharacterClass } from './assets.js';
 
 export type CosmeticType = 'skin' | 'emote' | 'dye' | 'pedestal' | 'title';
 
@@ -45,7 +45,7 @@ export interface SkinCosmetic extends BaseCosmetic {
 /** A dance/gesture bound to a number key. `anim` must be a rigged clip. */
 export interface EmoteCosmetic extends BaseCosmetic {
   type: 'emote';
-  anim: string;
+  anim: AnimationName;
 }
 
 /** A recolor: a body tint (visible on rigged models too) plus optional
