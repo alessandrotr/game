@@ -123,7 +123,7 @@ export function CharacterSelect() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {CLASS_LIST.map((c) => {
           const isSelected = c.id === selected;
           const level = levelByClass.get(c.id) ?? 1;

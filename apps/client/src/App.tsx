@@ -98,6 +98,12 @@ export default function App() {
 
   return (
     <>
+      {/* Background music: the menu theme plays across the whole pre-game flow
+          (auth + character select) and is silenced in-world (for now). Mounted
+          once here at a stable position so it never restarts across the
+          auth→join→world transitions. */}
+      <MusicDirector />
+
       {/* The town backdrop behind the pre-game menus (auth + character select).
           Mounted once here at a stable position so signing in swaps only the
           overlay on top — the town scene is never torn down and reloaded. It
@@ -108,11 +114,6 @@ export default function App() {
         <AuthScreen />
       ) : (
         <>
-          {/* Background music: menu theme on the JoinScreen, silence in-world
-              (for now). Mounted here (above the connected/JoinScreen branch) so it
-              survives the transition rather than restarting. */}
-          <MusicDirector />
-
           {/* Dev-only tuning panels (tree-shaken from production builds). */}
           <DevToolsGate />
 

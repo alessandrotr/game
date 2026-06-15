@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { Sparkles, Trophy, UserPlus } from 'lucide-react';
+import { Trophy, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button, Input } from './primitives';
 import { OnlinePlayersCounter } from './OnlinePlayersCounter';
-import { ScreenHeader } from './ScreenHeader';
+import { MenuHeader } from './MenuHeader';
 
 type Mode = 'guest' | 'login' | 'register';
 
@@ -47,21 +47,14 @@ export function AuthScreen() {
       {/* The town backdrop is mounted by App (shared with the character-select
           screen so sign-in doesn't reload it). Here we only add the scrim that
           darkens + vignettes the live scene so the card stays legible. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black/70" />
 
-      <div className="relative flex min-h-full items-center justify-center p-5">
+      {/* Same top bar as the character-select screen (wordmark + audio); the
+          account controls inside it only appear once signed in. */}
+      <MenuHeader />
+
+      <div className="relative flex min-h-full items-center justify-center p-5 pt-20">
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-panel/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md">
-          <ScreenHeader
-            className="mb-4"
-            subtitle={
-              mode === 'guest'
-                ? 'Jump straight into the world'
-                : isRegister
-                  ? 'Create your account'
-                  : 'Sign in to your account'
-            }
-          />
-
           {/* Mode tabs — Guest first and selected by default. */}
           <ToggleGroup.Root
             type="single"
@@ -86,21 +79,18 @@ export function AuthScreen() {
           </ToggleGroup.Root>
 
           {mode === 'guest' ? (
-            <div className="flex flex-col gap-4">
-              <ul className="flex flex-col gap-3 text-sm text-muted">
-                <li className="flex items-start gap-2.5">
-                  <Sparkles size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-gold" />
-                  Play instantly — no email or password needed.
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <Trophy size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-gold" />
-                  Your levels and stats are saved from your first match.
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <UserPlus size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-gold" />
-                  Create an account later to keep your progress for good.
-                </li>
-              </ul>
+            <div className="flex flex-col gap-5">
+              {/* Benefit-led hero so the value prop sells the click. */}
+              <div className="text-center">
+                <p className="font-display text-2xl tracking-wide text-white">
+                  Jump straight in
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  One click. No email, no password.
+                </p>
+              </div>
+
+              {/* The CTA itself — the focal point of the tab. */}
               <Button
                 type="button"
                 variant="gold"
@@ -109,8 +99,20 @@ export function AuthScreen() {
                 onClick={() => void signInAsGuest()}
                 className="tracking-[0.15em]"
               >
-                {busy ? 'PLEASE WAIT…' : 'CONTINUE AS GUEST'}
+                {busy ? 'PLEASE WAIT…' : 'PLAY NOW'}
               </Button>
+
+              {/* Compact reassurances under the CTA (not a wall of bullets). */}
+              <div className="flex flex-col gap-2 text-[12px] text-muted">
+                <span className="flex items-center gap-2">
+                  <Trophy size={14} aria-hidden="true" className="shrink-0 text-gold" />
+                  Levels &amp; stats save from your first match.
+                </span>
+                <span className="flex items-center gap-2">
+                  <UserPlus size={14} aria-hidden="true" className="shrink-0 text-gold" />
+                  Create an account later to keep your progress.
+                </span>
+              </div>
               {error && (
                 <div role="alert" className="text-center text-[13px] text-negative">
                   {error}

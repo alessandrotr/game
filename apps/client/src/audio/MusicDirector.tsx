@@ -4,13 +4,15 @@ import { audioEngine } from './engine';
 
 /**
  * Maps app state → the music that should be playing. Mounted once at App root so
- * it survives the JoinScreen→world transition (a component inside JoinScreen
- * would unmount on connect and cut the track). Renders nothing.
+ * it survives the auth→character-select→world transitions (a component inside one
+ * of those screens would unmount on the next and cut the track). Renders nothing.
  *
- * Today: the menu theme plays on the JoinScreen (and while connecting); music
- * stops on entering the world — silence in-game until game tracks exist
- * (confirmed product decision). Adding town/arena tracks later = extend this one
- * mapping (e.g. by `room`); the engine already crossfades on swap.
+ * Today: the menu theme plays across the whole pre-game flow (auth screen +
+ * character select, and while connecting); music stops on entering the world —
+ * silence in-game until game tracks exist (confirmed product decision). Adding
+ * town/arena tracks later = extend this one mapping (e.g. by `room`); the engine
+ * already crossfades on swap. (Autoplay is gated by the browser until the first
+ * user gesture — `useAudioUnlock` resumes the context then.)
  */
 export function MusicDirector(): null {
   const connected = useGameStore((s) => s.status === 'connected');
