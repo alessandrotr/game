@@ -65,23 +65,54 @@ export interface PedestalProps {
   color2?: string;
 }
 
+/** A sculpted, tiered dais: a wide beveled base → mid tier → polished top plate,
+ *  with a glowing rim accent + ground halo tinted by the equipped color. The top
+ *  surface sits at y≈0 so the champion stands on it; tiers descend below. */
+function PedestalBase({ color }: { color: string }) {
+  return (
+    <group>
+      {/* Wide footprint. */}
+      <mesh position={[0, -0.2, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[1.64, 1.76, 0.08, 96]} />
+        <meshStandardMaterial color="#1b1e2a" metalness={0.55} roughness={0.45} />
+      </mesh>
+      {/* Beveled mid tier. */}
+      <mesh position={[0, -0.11, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[1.46, 1.62, 0.1, 96]} />
+        <meshStandardMaterial color="#13151f" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* Polished top plate. */}
+      <mesh position={[0, -0.03, 0]} receiveShadow>
+        <cylinderGeometry args={[1.4, 1.46, 0.06, 96]} />
+        <meshStandardMaterial color="#0c0d14" metalness={0.55} roughness={0.45} />
+      </mesh>
+      {/* Glowing rim accent at the top edge (equipped color). */}
+      <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.42, 0.022, 16, 96]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      {/* Faint halo skirt around the base. */}
+      <mesh position={[0, -0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.52, 1.78, 96]} />
+        <meshBasicMaterial color={color} transparent opacity={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Pedestal({ effect = 'ring', color, color2 }: PedestalProps) {
   return (
     <group>
-      {/* Physical base disc. */}
-      <mesh position={[0, -0.05, 0]} receiveShadow>
-        <cylinderGeometry args={[1.35, 1.5, 0.1, 64]} />
-        <meshStandardMaterial color="#14151d" metalness={0.5} roughness={0.5} />
-      </mesh>
+      <PedestalBase color={color} />
 
       {effect === 'ring' ? (
         <>
-          <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[1.12, 1.32, 64]} />
+          <mesh position={[0, 0.022, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[1.04, 1.26, 96]} />
             <meshBasicMaterial color={color} transparent opacity={0.85} />
           </mesh>
-          <mesh position={[0, 0.011, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.95, 1, 64]} />
+          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.78, 0.86, 96]} />
             <meshBasicMaterial color={color} transparent opacity={0.4} />
           </mesh>
         </>
