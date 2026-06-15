@@ -11,7 +11,12 @@
  * while the layout still differs every match.
  */
 
-import { ARENA_HALF_SIZE, ARENA_SPAWN_POINTS, type ArenaObstacle } from './constants.js';
+import {
+  ARENA_HALF_SIZE,
+  ARENA_SPAWN_POINTS,
+  ZOMBIE_FLANK_PORTALS,
+  type ArenaObstacle,
+} from './constants.js';
 import type { MapProp, PropAssetId } from './assets.js';
 
 /** Fallback seed for the brief moment before the server's seed has synced. */
@@ -49,6 +54,9 @@ export interface CoverStructureSpec {
   radius: number;
   height: number;
   maxHp: number;
+  /** Zombie mode: this structure can't be damaged or destroyed (indestructible
+   *  trailer cover). It still blocks movement + projectiles but never crumbles. */
+  indestructible?: boolean;
 }
 
 /** The largest cover ("house"/trailer) caps out here; everything else scales
@@ -152,15 +160,18 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-let cache: { seed: number; layout: GeneratedArenaLayout } | null = null;
+let cache: { seed: number; zombieMode: boolean; layout: GeneratedArenaLayout } | null = null;
 
 /**
- * Build the arena layout for `seed`. Pure and memoized on the last seed, so the
- * renderer, the predictor, and the server can all call it freely.
+ * Build the arena layout for `seed`. Pure and memoized on the last (seed,
+ * zombieMode) pair, so the renderer, the predictor, and the server can all call
+ * it freely. `zombieMode` packs in extra (indestructible) trailers and more oil
+ * drums, and keeps cover clear of the flanking spawn portals — the client must
+ * pass the SAME flag as the server so both rebuild the identical layout.
  */
-export function generateArenaLayout(seed: number): GeneratedArenaLayout {
+export function generateArenaLayout(seed: number, zombieMode = false): GeneratedArenaLayout {
   const s = seed >>> 0 || DEFAULT_ARENA_SEED;
-  if (cache && cache.seed === s) return cache.layout;
+  if (cache && cache.seed === s && cache.zombieMode === zombieMode) return cache.layout;
 
   const rng = mulberry32(s);
   const obstacles: ArenaObstacle[] = [];
@@ -176,7 +187,11 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     ARENA_SPAWN_POINTS.every((sp) => Math.hypot(x - sp.x, z - sp.z) >= SPAWN_CLEAR + fr);
   const farFromPortal = (x: number, z: number, fr: number) =>
     Math.hypot(x - PORTAL.x, z - PORTAL.z) >= PORTAL_CLEAR + fr &&
-    Math.hypot(x + PORTAL.x, z + PORTAL.z) >= PORTAL_CLEAR + fr;
+    Math.hypot(x + PORTAL.x, z + PORTAL.z) >= PORTAL_CLEAR + fr &&
+    // Zombie mode: also keep cover off the flanking side portals so the gateways
+    // (and the hordes pouring out of them) stay unobstructed.
+    (!zombieMode ||
+      ZOMBIE_FLANK_PORTALS.every((p) => Math.hypot(x - p.x, z - p.z) >= PORTAL_CLEAR + fr));
   const farFromTaken = (x: number, z: number, fr: number) =>
     taken.every((t) => Math.hypot(x - t.x, z - t.z) >= t.r + fr + GAP);
 
@@ -200,15 +215,21 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   // HP-bearing structure specs (the server replicates them); static kinds become
   // plain obstacle+prop pairs.
   for (const kind of COVER) {
-    for (let n = 0; n < kind.count; n++) {
+    const isTrailer = kind.assetId.startsWith('prop.arena.trailer');
+    // Zombie mode: trailers are indestructible cover, and the main trailer kind
+    // spawns two extra per side (+4 across the mirror) for more hard cover.
+    const indestructible = zombieMode && isTrailer;
+    const count =
+      zombieMode && kind.assetId === 'prop.arena.trailer' ? kind.count + 2 : kind.count;
+    for (let n = 0; n < count; n++) {
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
       if (kind.destructible) {
         const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
         structures.push(
-          { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp },
-          { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp },
+          { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp, indestructible },
+          { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp, indestructible },
         );
       } else {
         placeCover(props, obstacles, kind, spot.x, spot.z, rot, rng);
@@ -268,6 +289,17 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
     if (!spot) continue;
     drums.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
+  // Zombie mode: ~30% more oil drums (more molotov fuel for the hordes). Scattered
+  // as loose singles on top of the base population above.
+  if (zombieMode) {
+    const baseDrums = (DRUM_PILE_COUNT * DRUM_PILE_SIZE + DRUM_LOOSE_COUNT) * 2;
+    const extraDrums = Math.round(baseDrums * 0.3);
+    for (let n = 0; n < extraDrums; n++) {
+      const spot = findSpot(DRUM_LOOSE_FOOT);
+      if (!spot) continue;
+      drums.push({ x: spot.x, z: spot.z });
+    }
+  }
 
   // Tire stacks: destructible 3-tire piles (no static collision/props), mirrored.
   for (let n = 0; n < TIRE_STACK_COUNT; n++) {
@@ -277,7 +309,7 @@ export function generateArenaLayout(seed: number): GeneratedArenaLayout {
   }
 
   const layout: GeneratedArenaLayout = { obstacles, props, barrels, drums, tireStacks, structures };
-  cache = { seed: s, layout };
+  cache = { seed: s, zombieMode, layout };
   return layout;
 }
 

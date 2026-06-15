@@ -10,5 +10,8 @@ import { useGameStore } from '../store/useGameStore';
  */
 export function useArenaLayout(): GeneratedArenaLayout {
   const seed = useGameStore((s) => s.arenaSeed) || DEFAULT_ARENA_SEED;
-  return useMemo(() => generateArenaLayout(seed), [seed]);
+  // Must match the server's flag so client and server rebuild the identical
+  // layout (zombie mode adds trailers/drums and clears the flank portals).
+  const zombieMode = useGameStore((s) => s.zombieMode);
+  return useMemo(() => generateArenaLayout(seed, zombieMode), [seed, zombieMode]);
 }

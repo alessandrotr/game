@@ -166,6 +166,14 @@ export class CombatSystem {
    *  only to its ability. */
   dealDamage(target: Player, amount: number, fromId: string, ability?: string): void {
     if (!target.alive || amount <= 0) return;
+    // Zombie mode has no friendly fire: a human's hit (ability, thrown molotov,
+    // dash) never harms a fellow human — only zombies take a player's damage, and
+    // only humans take a zombie's. A blast with no player source (neutral car
+    // explosion) has no attacker here, so it still hits anyone.
+    if (this.ctx.state.zombieMode) {
+      const attacker = this.ctx.state.players.get(fromId);
+      if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(target.skinId)) return;
+    }
     const now = this.ctx.now();
     // An `empower` buff on the attacker adds flat damage to this one hit, then is
     // consumed (the archer's Tumble = any next hit; the priest's Blessing = Q only).

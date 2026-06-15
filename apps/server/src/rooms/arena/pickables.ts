@@ -1,6 +1,6 @@
 import {
   PICKABLES,
-  PICKABLE_DROP_CHANCE,
+  ZOMBIE_DRUM_MOLOTOV_CHANCE,
   PICKABLE_GROUND_TTL_MS,
   PICKABLE_GROUND_Y,
   PICKABLE_PICKUP_RADIUS,
@@ -36,10 +36,12 @@ export class PickableSystem {
     private readonly groundZones: GroundZoneSystem,
   ) {}
 
-  /** Roll for a drop when a drum is destroyed: a 50% chance to spawn a molotov at
-   *  the drum's position (grenades don't drop from drums). */
+  /** Roll for a drop when a drum is destroyed (zombie mode only): a 40% chance to
+   *  spawn a molotov at the drum's position for players to hurl at the horde
+   *  (grenades don't drop from drums). Outside zombie mode drums drop nothing. */
   spawnFromDrum(x: number, z: number): void {
-    if (Math.random() >= PICKABLE_DROP_CHANCE) return;
+    if (!this.ctx.state.zombieMode) return;
+    if (Math.random() >= ZOMBIE_DRUM_MOLOTOV_CHANCE) return;
     this.spawnGround('molotov', x, z);
   }
 

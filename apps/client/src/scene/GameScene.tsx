@@ -11,6 +11,7 @@ import {
 } from 'three';
 import { type MapAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
@@ -83,6 +84,7 @@ export function GameScene() {
     >
       <ToneMap mode={env.toneMapping} exposure={env.exposure} />
       <ContextGuard />
+      <PauseWhileCovered />
       <color attach="background" args={[env.background]} />
       <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
 
@@ -246,6 +248,27 @@ function ContextGuard() {
       canvas.removeEventListener('webglcontextrestored', onRestored);
     };
   }, [gl]);
+  return null;
+}
+
+/**
+ * Pause the world's render loop while a full-screen modal (the Champion /
+ * customize hub) covers it. That overlay is an opaque blurred backdrop — the
+ * scene behind it is invisible — yet the canvas would otherwise keep drawing
+ * shadows, IBL and every entity at 60fps, burning GPU that the modal's own 3D
+ * canvases (avatar showcase + thumbnails) are competing for. Since the client
+ * never simulates (state is server-authoritative and keeps arriving over the
+ * network regardless of rendering), freezing the loop changes nothing visible
+ * and nothing about game state; on close we resume `'always'` and the next
+ * frame snaps to the latest server state behind the closing dialog.
+ */
+function PauseWhileCovered() {
+  const setFrameloop = useThree((s) => s.setFrameloop);
+  const covered = useCustomizeStore((s) => s.open);
+  useEffect(() => {
+    setFrameloop(covered ? 'never' : 'always');
+    return () => setFrameloop('always');
+  }, [covered, setFrameloop]);
   return null;
 }
 

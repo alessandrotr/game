@@ -10,6 +10,7 @@ import {
   teamSizeForMode,
   AUTO_ATTACKS,
   ARENA_PORTAL_POINT,
+  ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
   MANA_REGEN,
   ZOMBIE_MANA_REGEN_MULT,
@@ -252,7 +253,7 @@ export class ArenaRoom extends AvatarRoom {
     // combat/projectile context captures this match's obstacles.
     const seed = (1 + Math.floor(Math.random() * 0xfffffffe)) >>> 0;
     this.state.layoutSeed = seed;
-    const layout = generateArenaLayout(seed);
+    const layout = generateArenaLayout(seed, this.zombieMode);
     // A mutable copy: the cover system pushes alive structure circles in here and
     // splices them out when a structure crumbles (so it becomes uncollidable).
     this.obstacles = [...layout.obstacles];
@@ -414,6 +415,8 @@ export class ArenaRoom extends AvatarRoom {
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.groundZones = new GroundZoneSystem(ctx, this.combat);
     this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
+    // A destroyed oil drum may drop a molotov (zombie mode only — see spawnFromDrum).
+    this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);
@@ -1387,12 +1390,17 @@ export class ArenaRoom extends AvatarRoom {
           : ZOMBIE_SKIN_ID;
     player.team = 'red';
     this.resetPlayer(player);
-    // Override the team spawn with the portal mouth (+ jitter so a pulse fans
-    // out instead of stacking), then apply the variant's level-scaled health.
+    // Override the team spawn with a portal mouth (+ jitter so a pulse fans out
+    // instead of stacking), then apply the variant's level-scaled health. A
+    // random portal each spawn so hordes pour in from the back gate AND the
+    // flanking side portals.
     const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
     const jitter = () => (Math.random() * 2 - 1) * 1.6;
-    player.x = clamp(ARENA_PORTAL_POINT.x + jitter(), -limit, limit);
-    player.z = clamp(ARENA_PORTAL_POINT.z + jitter(), -limit, limit);
+    const portal =
+      ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
+      ARENA_PORTAL_POINT;
+    player.x = clamp(portal.x + jitter(), -limit, limit);
+    player.z = clamp(portal.z + jitter(), -limit, limit);
     player.maxHp =
       variant === 'sprinter'
         ? zombieSprinterHealthForLevel(level)

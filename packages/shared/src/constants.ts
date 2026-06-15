@@ -446,6 +446,35 @@ export const ZOMBIE_MODE = 'zombie';
  */
 export const ARENA_PORTAL_POINT: SpawnPoint = { x: 0, z: -ARENA_HALF_SIZE + 2 };
 
+/** Lateral inset (world units) for the flanking zombie portals — just inside the
+ *  side walls, mirroring the back gate's 2-unit inset. */
+const PORTAL_EDGE = ARENA_HALF_SIZE - 2;
+/** Z offset of the corner ("angle") portals along each side edge. */
+const PORTAL_CORNER = ARENA_HALF_SIZE - 4;
+
+/**
+ * Extra zombie spawn portals (zombie mode only): three down each lateral edge —
+ * one centered, two at the corners — so hordes flank in from the left (−X) and
+ * right (+X) sides as well as the back gate ({@link ARENA_PORTAL_POINT}). Drawn
+ * by the client as sickly-green gateways and used by the server to scatter
+ * spawns; kept clear of cover by the layout generator.
+ */
+export const ZOMBIE_FLANK_PORTALS: readonly SpawnPoint[] = [
+  { x: -PORTAL_EDGE, z: -PORTAL_CORNER },
+  { x: -PORTAL_EDGE, z: 0 },
+  { x: -PORTAL_EDGE, z: PORTAL_CORNER },
+  { x: PORTAL_EDGE, z: -PORTAL_CORNER },
+  { x: PORTAL_EDGE, z: 0 },
+  { x: PORTAL_EDGE, z: PORTAL_CORNER },
+];
+
+/** Every point a zombie can pour out of in zombie mode: the back gate plus the
+ *  flanking side portals. The server picks one at random per spawn. */
+export const ZOMBIE_SPAWN_PORTALS: readonly SpawnPoint[] = [
+  ARENA_PORTAL_POINT,
+  ...ZOMBIE_FLANK_PORTALS,
+];
+
 /** Zombies in the first level's horde (level 1). */
 export const ZOMBIE_BASE_HORDE = 16;
 /** Added to the horde size each level — linear growth (lvl L ⇒ base + (L-1)·step). */

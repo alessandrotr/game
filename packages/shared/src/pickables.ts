@@ -84,6 +84,10 @@ export function isPickableKind(value: unknown): value is PickableKind {
 /** Chance an oil drum drops a pickable when it runs out of HP. */
 export const PICKABLE_DROP_CHANCE = 0.5;
 
+/** Zombie mode: an oil drum's chance to drop a molotov when it runs out of HP
+ *  (tuned a touch lower than the default since zombie mode packs more drums). */
+export const ZOMBIE_DRUM_MOLOTOV_CHANCE = 0.4;
+
 /** How close (world units) a player must be to grab a pickable off the ground. */
 export const PICKABLE_PICKUP_RADIUS = 1.8;
 

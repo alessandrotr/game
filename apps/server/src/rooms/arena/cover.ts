@@ -63,6 +63,9 @@ export class CoverSystem {
   /** Cars only: their current rolling velocity (u/s). Present ⇒ this structure
    *  is a car that can be shoved; absent ⇒ static cover that never moves. */
   private readonly carVel = new Map<string, { vx: number; vz: number }>();
+  /** Ids of indestructible structures (zombie-mode trailers): they block movement
+   *  and projectiles but ignore all damage and never crumble. */
+  private readonly indestructible = new Set<string>();
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -82,6 +85,7 @@ export class CoverSystem {
     this.circles.clear();
     this.colliders.clear();
     this.carVel.clear();
+    this.indestructible.clear();
     specs.forEach((s, i) => {
       const cs = new CoverStructure();
       cs.id = `s${i}`;
@@ -104,6 +108,8 @@ export class CoverSystem {
       this.colliders.set(cs.id, this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height));
       // Cars roll when shot — give them a (zero) velocity to integrate.
       if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
+      // Zombie-mode trailers are indestructible — solid cover that never crumbles.
+      if (s.indestructible) this.indestructible.add(cs.id);
     });
   }
 
@@ -119,6 +125,7 @@ export class CoverSystem {
   damage(id: string, amount: number, dirX = 0, dirZ = 0): void {
     const s = this.ctx.state.structures.get(id);
     if (!s || s.destroyed || amount <= 0) return;
+    if (this.indestructible.has(id)) return; // zombie-mode trailers take no damage
     if (dirX || dirZ) this.pushCar(s, dirX, dirZ, amount);
     s.hp = Math.max(0, s.hp - amount);
     if (s.hp <= 0) this.crumble(s);

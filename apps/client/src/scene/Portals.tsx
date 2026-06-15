@@ -1,5 +1,5 @@
 import { Billboard, Text } from '@react-three/drei';
-import type { MapAssetId } from '@arena/shared';
+import { ZOMBIE_FLANK_PORTALS, type MapAssetId } from '@arena/shared';
 import { assets } from '../assets/registry';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { travelTo } from '../network/colyseus';
@@ -49,13 +49,30 @@ function portalStyle(zone: { mode?: 'zombie' }, room: RoomType | null): PortalSt
 
 export function Portals({ mapId }: { mapId: MapAssetId }) {
   const room = useGameStore((s) => s.room);
+  const zombieMode = useGameStore((s) => s.zombieMode);
   const map = assets.getMap(mapId);
-  if (!map?.zones) return null;
+  // Zombie mode: the flanking side portals the hordes pour out of — purely visual
+  // sickly-green gateways (not clickable; the back gate stays the travel portal).
+  const showFlankPortals = zombieMode && mapId === 'map.arena';
+  if (!map?.zones && !showFlankPortals) return null;
 
   return (
     <>
-      {map.zones
-        .filter((z) => z.kind === 'portal')
+      {showFlankPortals &&
+        ZOMBIE_FLANK_PORTALS.map((p, i) => (
+          <group key={`flank-${i}`} position={[p.x, 0, p.z]}>
+            <PortalEffect radius={1.5} core="#d8ffb0" edge="#3a7d1f" />
+            <pointLight
+              position={[0, 1.8, 0]}
+              color="#7fe04a"
+              intensity={8}
+              distance={8}
+              decay={2}
+            />
+          </group>
+        ))}
+      {map?.zones
+        ?.filter((z) => z.kind === 'portal')
         .map((zone, i) => {
           const style = portalStyle(zone, room);
           return (
