@@ -209,6 +209,27 @@ export function isUnlocked(c: Cosmetic, level: number): boolean {
   return level >= requiredLevelFor(c);
 }
 
+/**
+ * How many catalog items this class can claim **right now** but hasn't yet: the
+ * level requirement is met and they're not already owned. Drives the store's
+ * "you have unlockables" notification badge. Skins are class-bound (only this
+ * class's count); other types apply to every class.
+ */
+export function claimableCount(
+  owned: readonly string[],
+  characterClass: CharacterClass,
+  level: number,
+): number {
+  const set = new Set(owned);
+  let n = 0;
+  for (const c of COSMETICS) {
+    if (set.has(c.id)) continue;
+    if (c.type === 'skin' && c.characterClass !== characterClass) continue;
+    if (isUnlocked(c, level)) n++;
+  }
+  return n;
+}
+
 /** Ids every character owns from the start (the `default` items). */
 export const DEFAULT_OWNED: readonly string[] = COSMETICS.filter((c) => c.default).map((c) => c.id);
 

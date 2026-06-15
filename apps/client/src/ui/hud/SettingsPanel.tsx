@@ -60,8 +60,6 @@ export function SettingsPanel() {
   const setHidden = useHudStore((s) => s.setHidden);
   const chatCollapsed = useHudStore((s) => s.chatCollapsed);
   const setChatCollapsed = useHudStore((s) => s.setChatCollapsed);
-  const playerCardCompact = useHudStore((s) => s.playerCardCompact);
-  const setPlayerCardCompact = useHudStore((s) => s.setPlayerCardCompact);
   const showPerf = useHudStore((s) => s.showPerf);
   const setShowPerf = useHudStore((s) => s.setShowPerf);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
@@ -89,12 +87,6 @@ export function SettingsPanel() {
             hint="Fill the screen with the game"
             checked={isFullscreen}
             onChange={toggleFullscreen}
-          />
-          <ToggleRow
-            label="Compact player card"
-            hint="Collapse the town player card to a slim bar"
-            checked={playerCardCompact}
-            onChange={setPlayerCardCompact}
           />
           <ToggleRow label="Hide chat" checked={chatCollapsed} onChange={setChatCollapsed} />
           <ToggleRow

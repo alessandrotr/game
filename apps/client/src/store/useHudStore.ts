@@ -6,17 +6,14 @@ import { create } from 'zustand';
  * - `hidden` toggles the whole chrome layer for screenshots/immersion (the `H`
  *   key, see `useHudHotkey`). Session-only: a hidden HUD surviving a reload is a
  *   confusing footgun, so it always returns visible on load.
- * - The per-element prefs (`chatCollapsed`, `playerCardCompact`) were promoted out
- *   of per-component `usePersistentToggle` so the Settings panel and the
- *   components share one reactive value (toggling Settings updates the live UI).
- *   These DO persist, mirroring the old `"1"/"0"` localStorage convention.
- *   (The player card is town-only now — arena packs identity into the CombatHud —
- *   so a single compact pref suffices.)
+ * - The per-element prefs (`chatCollapsed`) were promoted out of per-component
+ *   `usePersistentToggle` so the Settings panel and the components share one
+ *   reactive value (toggling Settings updates the live UI). These DO persist,
+ *   mirroring the old `"1"/"0"` localStorage convention.
  */
 
 const KEY = {
   chatCollapsed: 'hud.chat.collapsed',
-  playerCardCompact: 'hud.playercard.compact',
   showPerf: 'hud.perf.show',
 } as const;
 
@@ -48,8 +45,6 @@ interface HudStore {
   /** Persisted per-element prefs. */
   chatCollapsed: boolean;
   setChatCollapsed: (v: boolean) => void;
-  playerCardCompact: boolean;
-  setPlayerCardCompact: (v: boolean) => void;
   /** Show the FPS / render-stats overlay (top-right). */
   showPerf: boolean;
   setShowPerf: (v: boolean) => void;
@@ -64,12 +59,6 @@ export const useHudStore = create<HudStore>((set) => ({
   setChatCollapsed: (v) => {
     save(KEY.chatCollapsed, v);
     set({ chatCollapsed: v });
-  },
-
-  playerCardCompact: load(KEY.playerCardCompact, false),
-  setPlayerCardCompact: (v) => {
-    save(KEY.playerCardCompact, v);
-    set({ playerCardCompact: v });
   },
 
   showPerf: load(KEY.showPerf, false),

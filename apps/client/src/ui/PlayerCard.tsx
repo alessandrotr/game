@@ -1,112 +1,95 @@
-import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
-import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
+import {
+  claimableCount,
+  classCosmeticsOf,
+  getClassDefinition,
+  getCosmeticOfType,
+  xpProgress,
+} from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
-import { useHudStore } from '../store/useHudStore';
+import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
-import { Button, Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
-import { STAT_COLORS, accentHeaderStyle } from './theme';
-
-/** A compact labelled bar (HP / MP / XP) — the player card's tuning of `Meter`. */
-function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  return (
-    <Meter
-      value={value}
-      max={max}
-      fill={color}
-      label={label}
-      valueText={Math.round(value)}
-      labelClassName="w-6 text-[10px] font-semibold"
-      valueClassName="w-9 text-[11px]"
-      trackClassName="bg-black/45"
-      fillClassName="transition-[width] duration-150"
-    />
-  );
-}
-
+import { Card, Meter } from './primitives';
+import { STAT_COLORS } from './theme';
 
 /**
- * The local player's info HUD (town only) — styled like the player paperdoll: a
- * 3D portrait of your champion plus level, XP, and career stats. A toggle (▾/▸,
- * persisted via the HUD store) collapses it to a slim identity bar. In the arena
- * this is replaced by the unified `CombatHud`, which carries portrait + HP/MP.
+ * The local player's identity HUD (town only): level badge, name, class, and
+ * title, with an XP track underneath — the same identity block shown in the
+ * customization panel's showcase. Clicking it opens that panel. In the arena
+ * this is replaced by the unified `CombatHud`.
  */
 export function PlayerCard() {
   const sessionId = useGameStore((s) => s.sessionId);
-  useGameStore((s) => s.tick); // re-render ~20×/s so stats track the server
-  const compact = useHudStore((s) => s.playerCardCompact);
-  const setCompact = useHudStore((s) => s.setPlayerCardCompact);
+  useGameStore((s) => s.tick); // re-render ~20×/s so XP tracks the server
   const showCustomize = useCustomizeStore((s) => s.show);
+  const byClass = useCosmeticsStore((s) => s.byClass);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   if (!me) return null;
 
   const def = getClassDefinition(me.characterClass);
   const { span, into } = xpProgress(me.level, me.xp);
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title') : undefined;
-  const kd = me.deaths > 0 ? (me.kills / me.deaths).toFixed(2) : me.kills.toFixed(2);
+  // Items reachable at this level but not yet claimed → a "go to the store" nudge.
+  const owned = classCosmeticsOf(byClass, me.characterClass).owned;
+  const claimable = claimableCount(owned, me.characterClass, me.level);
 
-  const ToggleButton = (
-    <IconButton
-      icon={compact ? ChevronRight : ChevronDown}
-      onClick={() => setCompact(!compact)}
-      aria-label={compact ? 'Expand' : 'Collapse'}
-      title={compact ? 'Expand' : 'Collapse'}
-      className="pointer-events-auto ml-auto"
-    />
-  );
+  // With items to claim, drop the user straight into the store; otherwise the
+  // customize tab. Either way it's the same panel.
+  const open = () => showCustomize(claimable > 0 ? 'store' : 'customize');
 
-  // --- Compact: a slim identity bar with the XP track ---
-  if (compact) {
-    return (
-      <Card variant="hud" className="pointer-events-none w-64">
-        <div className="flex items-center gap-2.5 px-3 py-2.5">
-          <LevelBadge level={me.level} size="sm" />
-          <div className="min-w-0">
-            <div className="truncate font-display text-[14px] tracking-wide text-white">{me.name}</div>
-            <div className="truncate text-[10px]" style={{ color: def.color }}>
-              {def.name}
-            </div>
-          </div>
-          {ToggleButton}
-        </div>
-        <div className="px-3 pb-2.5">
-          <Bar label="XP" value={into} max={span} color={def.color} />
-        </div>
-      </Card>
-    );
-  }
-
-  // --- Expanded: paperdoll-style with a 3D portrait + career stats ---
   return (
-    <Card variant="hud" className="pointer-events-none w-64 bg-panel/90">
-      <div className="flex items-center gap-3 px-3 py-2.5" style={accentHeaderStyle(def.color)}>
-        <LevelBadge level={me.level} size="md" />
+    <Card
+      variant="hud"
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      }}
+      title={claimable > 0 ? `${claimable} to unlock in the store` : 'Customize'}
+      className="pointer-events-auto relative w-64 cursor-pointer overflow-visible transition hover:ring-1 hover:ring-gold/40"
+    >
+      {claimable > 0 && (
+        <span
+          className="absolute -right-2 -top-2 z-10 grid h-6 min-w-6 place-items-center rounded-full bg-gold px-1.5 text-[11px] font-bold text-black shadow-lg ring-2 ring-panel"
+          aria-label={`${claimable} items to unlock`}
+        >
+          {claimable}
+        </span>
+      )}
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {/* Circular auto-rotating champion portrait with a level disc on its
+            lower edge — the same identity token as the combat HUD ability panel. */}
+        <div className="relative h-14 w-14 shrink-0">
+          <div className="h-full w-full overflow-hidden rounded-full border-2 border-gold/70 bg-black/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
+            <ClassPreview characterClass={me.characterClass} lite spin={false} />
+          </div>
+          <div className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border border-gold/70 bg-linear-to-b from-panel to-bg shadow-md">
+            <span className="font-display text-[11px] font-bold leading-none text-gold tabular-nums">
+              {me.level}
+            </span>
+          </div>
+        </div>
         <div className="min-w-0">
+          {title && (
+            <div
+              className="truncate text-[10px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: title.color, textShadow: `0 0 8px ${title.color}66` }}
+            >
+              {title.text}
+            </div>
+          )}
           <div className="truncate font-display text-[15px] tracking-wide text-white">{me.name}</div>
           <div className="truncate text-[11px]" style={{ color: def.color }}>
             {def.name} · {def.role}
           </div>
-          {title && (
-            <div className="truncate text-[10px] uppercase tracking-wider" style={{ color: title.color }}>
-              {title.text}
-            </div>
-          )}
         </div>
-        {ToggleButton}
       </div>
 
-      {/* 3D portrait (lite, auto-rotating) — shows the equipped look. */}
-      <div className="h-44 border-y border-white/5 bg-black/40">
-        <ClassPreview
-          characterClass={me.characterClass}
-          skinId={me.skinId}
-          dyeId={me.dyeId}
-          pedestalId={me.pedestalId}
-          lite
-        />
-      </div>
-
-      <div className="px-3 pb-3 pt-2">
+      <div className="px-3 pb-3">
         <Meter
           layout="stacked"
           size="md"
@@ -115,27 +98,11 @@ export function PlayerCard() {
           fill={`linear-gradient(90deg, ${def.color}, ${STAT_COLORS.xpTip})`}
           label="XP"
           valueText={`${Math.round(into)} / ${span}`}
-          headerClassName="mb-1 items-baseline"
-          labelClassName="text-[10px] uppercase tracking-wide text-muted"
+          labelClassName="text-[10px] uppercase tracking-wide text-white/70"
           valueClassName="text-[10px] text-white/60"
-          trackClassName="bg-black/45"
-          fillClassName="transition-[width] duration-300"
+          trackClassName="bg-white/15 ring-1 ring-inset ring-white/10"
+          className="flex flex-col gap-1"
         />
-
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <StatTile label="Kills" value={me.kills} color={STAT_COLORS.positive} />
-          <StatTile label="Deaths" value={me.deaths} color={STAT_COLORS.negative} />
-          <StatTile label="K/D" value={kd} color={STAT_COLORS.text} />
-        </div>
-
-        <Button
-          variant="goldOutline"
-          size="sm"
-          onClick={() => showCustomize('customize')}
-          className="pointer-events-auto mt-3 w-full gap-1.5"
-        >
-          <Sparkles size={13} /> Customize
-        </Button>
       </div>
     </Card>
   );

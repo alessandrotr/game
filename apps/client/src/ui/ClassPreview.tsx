@@ -103,7 +103,7 @@ function ClassPreviewImpl({
     return (
       <Canvas
         dpr={[1, 1.5]}
-        camera={{ position: [0, 1.25, 3.3], fov: 38 }}
+        camera={{ position: [0, 1.25, 6], fov: 38 }}
         onCreated={({ camera }) => camera.lookAt(0, 1.0, 0)}
       >
         <ambientLight intensity={0.85} />

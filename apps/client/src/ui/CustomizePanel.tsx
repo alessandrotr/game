@@ -15,6 +15,7 @@ import {
 import {
   COSMETICS,
   MAX_EMOTE_SLOTS,
+  claimableCount,
   classCosmeticsOf,
   cosmeticsOfType,
   getClassDefinition,
@@ -885,9 +886,20 @@ export function CustomizePanel() {
   const setTab = useCustomizeStore((s) => s.setTab);
   const sessionId = useGameStore((s) => s.sessionId);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
-  const characterClass =
-    (sessionId ? useGameStore.getState().players.get(sessionId)?.characterClass : undefined) ??
-    selectedClass;
+  const byClass = useCosmeticsStore((s) => s.byClass);
+  const progress = useAuthStore((s) => s.progress);
+  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+  const characterClass = me?.characterClass ?? selectedClass;
+  // Items this class can claim now but hasn't — badged on the Store tab.
+  const level =
+    (me?.characterClass === characterClass ? me.level : undefined) ??
+    progress.find((p) => p.characterClass === characterClass)?.level ??
+    1;
+  const claimable = claimableCount(
+    classCosmeticsOf(byClass, characterClass).owned,
+    characterClass,
+    level,
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -914,6 +926,11 @@ export function CustomizePanel() {
                   }`}
                 >
                   <Icon size={14} aria-hidden /> {t.label}
+                  {t.id === 'store' && claimable > 0 && (
+                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-bold text-black">
+                      {claimable}
+                    </span>
+                  )}
                 </button>
               );
             })}
