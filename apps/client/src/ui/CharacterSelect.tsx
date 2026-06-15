@@ -14,20 +14,10 @@ import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
 import { AssetLoadingBar } from './AssetLoadingBar';
 import { AvatarFrame } from './AvatarFrame';
-import { Badge, Card, IconButton, Meter } from './primitives';
+import { Card, IconButton } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
-
-/** Comparison stats, in display order: icon + label + normalizing upper bound. */
-const STATS: {
-  stat: keyof ClassDefinition['stats'];
-  label: string;
-  icon: LucideIcon;
-  max: number;
-}[] = [
-  { stat: 'health', label: 'Health', icon: Heart, max: 160 },
-  { stat: 'mana', label: 'Mana', icon: Droplet, max: 150 },
-];
+import { STAT_COLORS } from './theme';
 
 /** Title-case a snake_case ability id ("frost_nova" → "Frost Nova"). */
 const titleCase = (s: string) =>
@@ -36,62 +26,50 @@ const titleCase = (s: string) =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 
-/** A small section heading with a UO-style fading gold rule. */
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-2 mt-4 flex items-center gap-2.5">
-      <span className="font-display text-[10px] uppercase tracking-[0.25em] text-gold/70">
-        {children}
-      </span>
-      <span className="h-px flex-1 bg-linear-to-r from-gold/25 to-transparent" />
-    </div>
-  );
-}
-
-/** One comparison stat: icon + label, normalized bar, value. */
-function StatRow({
+/** One big vital readout — a glowing colored numeral under an icon medallion,
+ *  centred in its half. Scales down a step on small screens. */
+function Vital({
   icon: Icon,
   label,
   value,
-  max,
   color,
-}: (typeof STATS)[number] & { value: number; color: string }) {
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  color: string;
+}) {
   return (
-    <Meter
-      value={value}
-      max={max}
-      fill={color}
-      label={
-        <span className="flex items-center gap-1.5">
-          <Icon size={13} aria-hidden="true" className="shrink-0 text-gold/60" />
-          {label}
-        </span>
-      }
-      valueText={value}
-      className="text-xs"
-      labelClassName="w-[88px]"
-      valueClassName="w-8"
-    />
+    <div className="flex flex-col items-center gap-1">
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12"
+        style={{ background: `radial-gradient(circle at center, ${color}33, transparent 72%)` }}
+      >
+        <Icon aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" style={{ color }} />
+      </span>
+      <span className="text-[10px] uppercase tracking-[0.25em] text-muted">{label}</span>
+      <span
+        className="font-display text-3xl leading-none tabular-nums sm:text-4xl"
+        style={{ color, textShadow: `0 0 20px ${color}66` }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 
 function ClassInfo({ def }: { def: ClassDefinition }) {
   return (
-    <Card variant="inset">
-      {/* Flavor / lore line. */}
-      <p className="border-l-2 border-gold/30 pl-3 text-[13px] italic leading-relaxed text-muted">
-        {def.description}
-      </p>
-
-      <SectionLabel>Stats</SectionLabel>
-      <div className="flex flex-col gap-2">
-        {STATS.map((s) => (
-          <StatRow key={s.stat} {...s} value={def.stats[s.stat]} color="var(--color-gold)" />
-        ))}
+    <Card variant="inset" className="flex flex-col gap-4">
+      {/* The two numbers that define the class, big and side-by-side — health on
+          the left, mana on the right. Clearer than two tiny bars for two values. */}
+      <div className="relative grid grid-cols-2 items-start gap-2 py-1 sm:gap-3">
+        <span className="pointer-events-none absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-transparent via-white/15 to-transparent" />
+        <Vital icon={Heart} label="Health" value={def.stats.health} color={STAT_COLORS.positive} />
+        <Vital icon={Droplet} label="Mana" value={def.stats.mana} color={STAT_COLORS.mana} />
       </div>
 
-      <SectionLabel>Abilities</SectionLabel>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5">
         {def.abilities.map((ability) => (
           <AbilityBadge key={ability} ability={ability} />
         ))}
@@ -100,15 +78,22 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
   );
 }
 
-/** An ability chip that reveals its full tooltip (effects + values) on hover. */
+/** An ability medallion — a gold icon tile with its name — that lifts and glows
+ *  on hover and reveals the full tooltip (effects + values). */
 function AbilityBadge({ ability }: { ability: AbilityKind }) {
   const Icon = ABILITY_ICON[ability];
   return (
-    <AbilityHover ability={ability}>
-      <Badge variant="gold" className="gap-1.5 normal-case">
-        <Icon size={12} aria-hidden="true" />
+    <AbilityHover
+      ability={ability}
+      tapToShow
+      className="group flex w-18 cursor-pointer select-none flex-col items-center gap-1.5"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-gold/40 bg-linear-to-b from-gold/20 to-gold/6 text-gold shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-gold group-hover:from-gold/30 group-hover:shadow-[0_0_18px_rgba(200,162,74,0.4)]">
+        <Icon size={20} aria-hidden="true" />
+      </span>
+      <span className="w-full truncate text-center text-[9px] font-medium uppercase tracking-wider text-muted transition-colors group-hover:text-gold/90">
         {titleCase(ability)}
-      </Badge>
+      </span>
     </AbilityHover>
   );
 }
