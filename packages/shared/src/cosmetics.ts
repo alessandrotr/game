@@ -118,7 +118,7 @@ const EMOTES: EmoteCosmetic[] = [
     anim: 'dance1',
     name: 'Victory Jig',
     description: 'A celebratory shuffle.',
-    rarity: 'common',
+    rarity: 'rare',
     requiredLevel: 10,
   },
   {
@@ -127,32 +127,32 @@ const EMOTES: EmoteCosmetic[] = [
     anim: 'dance2',
     name: 'Groove',
     description: 'Loosen up between rounds.',
-    rarity: 'common',
-    requiredLevel: 10,
+    rarity: 'rare',
+    requiredLevel: 13,
   },
 ];
 
 const PEDESTALS: PedestalCosmetic[] = [
-  // Plain glowing runes (cheap, classic).
-  { id: 'pedestal.gold', type: 'pedestal', effect: 'ring', color: '#e8b24a', name: 'Golden Rune', description: 'A warm gilded ring.', rarity: 'common' },
-  { id: 'pedestal.crimson', type: 'pedestal', effect: 'ring', color: '#d6435a', name: 'Crimson Rune', description: 'A smoldering red circle.', rarity: 'common' },
-  { id: 'pedestal.azure', type: 'pedestal', effect: 'ring', color: '#4a8bff', name: 'Azure Rune', description: 'A glacial blue circle.', rarity: 'common' },
-  { id: 'pedestal.emerald', type: 'pedestal', effect: 'ring', color: '#3fb87a', name: 'Emerald Rune', description: 'A living green circle.', rarity: 'common' },
-  // Animated, shader-driven showpieces.
-  { id: 'pedestal.pulse', type: 'pedestal', effect: 'pulse', color: '#22e1ff', name: 'Pulse Core', description: 'Concentric energy waves ripple outward beneath you.', rarity: 'rare' },
-  { id: 'pedestal.holo', type: 'pedestal', effect: 'holo', color: '#27e0c8', name: 'Hologrid', description: 'A flickering holographic deck of scanlines.', rarity: 'rare' },
-  { id: 'pedestal.aurora', type: 'pedestal', effect: 'aurora', color: '#3fb87a', color2: '#4a8bff', name: 'Aurora Veil', description: 'Northern lights drift in a slow ribbon.', rarity: 'epic' },
-  { id: 'pedestal.vortex', type: 'pedestal', effect: 'vortex', color: '#9a6cff', color2: '#ff4d8d', name: 'Singularity', description: 'A spiral of light winds into the core.', rarity: 'legendary' },
-  { id: 'pedestal.prism', type: 'pedestal', effect: 'prism', color: '#ff4d8d', name: 'Prismatica', description: 'A rotating spectrum of pure, shifting color.', rarity: 'legendary' },
+  // Plain glowing runes (cheap, classic) — common band, staggered 2-5.
+  { id: 'pedestal.gold', type: 'pedestal', effect: 'ring', color: '#e8b24a', name: 'Golden Rune', description: 'A warm gilded ring.', rarity: 'common', requiredLevel: 2 },
+  { id: 'pedestal.crimson', type: 'pedestal', effect: 'ring', color: '#d6435a', name: 'Crimson Rune', description: 'A smoldering red circle.', rarity: 'common', requiredLevel: 3 },
+  { id: 'pedestal.azure', type: 'pedestal', effect: 'ring', color: '#4a8bff', name: 'Azure Rune', description: 'A glacial blue circle.', rarity: 'common', requiredLevel: 4 },
+  { id: 'pedestal.emerald', type: 'pedestal', effect: 'ring', color: '#3fb87a', name: 'Emerald Rune', description: 'A living green circle.', rarity: 'common', requiredLevel: 5 },
+  // Animated, shader-driven showpieces — rare/epic/legendary bands.
+  { id: 'pedestal.pulse', type: 'pedestal', effect: 'pulse', color: '#22e1ff', name: 'Pulse Core', description: 'Concentric energy waves ripple outward beneath you.', rarity: 'rare', requiredLevel: 11 },
+  { id: 'pedestal.holo', type: 'pedestal', effect: 'holo', color: '#27e0c8', name: 'Hologrid', description: 'A flickering holographic deck of scanlines.', rarity: 'rare', requiredLevel: 14 },
+  { id: 'pedestal.aurora', type: 'pedestal', effect: 'aurora', color: '#3fb87a', color2: '#4a8bff', name: 'Aurora Veil', description: 'Northern lights drift in a slow ribbon.', rarity: 'epic', requiredLevel: 18 },
+  { id: 'pedestal.vortex', type: 'pedestal', effect: 'vortex', color: '#9a6cff', color2: '#ff4d8d', name: 'Singularity', description: 'A spiral of light winds into the core.', rarity: 'legendary', requiredLevel: 30 },
+  { id: 'pedestal.prism', type: 'pedestal', effect: 'prism', color: '#ff4d8d', name: 'Prismatica', description: 'A rotating spectrum of pure, shifting color.', rarity: 'legendary', requiredLevel: 38 },
 ];
 
 const TITLES: TitleCosmetic[] = [
   // Color rises with rarity: gray base → blue → purple → gold.
   { id: 'title.novice', type: 'title', text: 'Novice', color: '#9aa3b8', name: 'Novice', description: 'Everyone starts somewhere.', rarity: 'common', default: true },
-  { id: 'title.gladiator', type: 'title', text: 'Gladiator', color: '#9aa3b8', name: 'Gladiator', description: 'Blooded in the arena.', rarity: 'common' },
-  { id: 'title.champion', type: 'title', text: 'Champion', color: '#4a8bff', name: 'Champion', description: 'A proven victor.', rarity: 'rare' },
-  { id: 'title.warlord', type: 'title', text: 'Warlord', color: '#9a6cff', name: 'Warlord', description: 'Feared across the field.', rarity: 'epic' },
-  { id: 'title.legend', type: 'title', text: 'Legend', color: '#e8b24a', name: 'Legend', description: 'Spoken of in hushed tones.', rarity: 'legendary' },
+  { id: 'title.gladiator', type: 'title', text: 'Gladiator', color: '#9aa3b8', name: 'Gladiator', description: 'Blooded in the arena.', rarity: 'common', requiredLevel: 4 },
+  { id: 'title.champion', type: 'title', text: 'Champion', color: '#4a8bff', name: 'Champion', description: 'A proven victor.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'title.warlord', type: 'title', text: 'Warlord', color: '#9a6cff', name: 'Warlord', description: 'Feared across the field.', rarity: 'epic', requiredLevel: 22 },
+  { id: 'title.legend', type: 'title', text: 'Legend', color: '#e8b24a', name: 'Legend', description: 'Spoken of in hushed tones.', rarity: 'legendary', requiredLevel: 40 },
 ];
 
 /** The full cosmetics catalog, in display order within each type. */
@@ -182,26 +182,47 @@ export function cosmeticsOfType<T extends CosmeticType>(type: T): Extract<Cosmet
 // ---------------------------------------------------------------------------
 // Unlock progression
 //
-// MAINTENANCE: this is the whole pacing dial. An item's unlock level comes from
-// its `rarity` via this table by default — so changing an item's `rarity` moves
-// its accent color AND its unlock level together. Override one item with an
-// explicit `requiredLevel`. Re-tune the entire game's curve by editing the table.
+// MAINTENANCE: this is the whole pacing dial. Each rarity owns a LEVEL BAND, and
+// every item picks an explicit `requiredLevel` *within its band* so items of the
+// same rarity stagger (they don't all unlock at once). `RARITY_LEVEL_RANGE` is
+// the band; `RARITY_UNLOCK_LEVEL` is only the fallback for an item that omits
+// `requiredLevel` (the band's floor). Changing an item's `rarity` moves both its
+// accent color and its band. The dev guardrail below flags any item whose level
+// falls outside its band.
 // ---------------------------------------------------------------------------
 
-/** Class level required to unlock an item, by rarity (the default; override per
- *  item with `requiredLevel`). */
+/** The allowed unlock-level band per rarity `[min, max]` — items pick a level
+ *  inside their band. Widen/shift a band to re-pace a whole tier. */
+export const RARITY_LEVEL_RANGE: Record<CosmeticRarity, readonly [number, number]> = {
+  common: [2, 5],
+  rare: [10, 15],
+  epic: [16, 25],
+  legendary: [26, 40],
+};
+
+/** Fallback unlock level for an item that omits `requiredLevel`: its band floor.
+ *  Prefer an explicit per-item `requiredLevel` so same-rarity items stagger. */
 export const RARITY_UNLOCK_LEVEL: Record<CosmeticRarity, number> = {
-  common: 5,
-  rare: 15,
-  epic: 22,
-  legendary: 30,
+  common: RARITY_LEVEL_RANGE.common[0],
+  rare: RARITY_LEVEL_RANGE.rare[0],
+  epic: RARITY_LEVEL_RANGE.epic[0],
+  legendary: RARITY_LEVEL_RANGE.legendary[0],
 };
 
 /** The class level an item needs before it can be claimed. Default/starter items
- *  are always level 1; otherwise an explicit `requiredLevel`, else the rarity. */
+ *  are always level 1; otherwise an explicit `requiredLevel`, else the band floor. */
 export function requiredLevelFor(c: Cosmetic): number {
   if (c.default) return 1;
   return c.requiredLevel ?? RARITY_UNLOCK_LEVEL[c.rarity];
+}
+
+/** Whether an item's `requiredLevel` sits inside its rarity band — the catalog
+ *  invariant. Returns true for default/starter items and items with no explicit
+ *  level. Drives the maintenance test that guards against a mis-tuned edit. */
+export function isWithinRarityBand(c: Cosmetic): boolean {
+  if (c.default || c.requiredLevel === undefined) return true;
+  const [min, max] = RARITY_LEVEL_RANGE[c.rarity];
+  return c.requiredLevel >= min && c.requiredLevel <= max;
 }
 
 /** Whether a class at `level` has reached an item's unlock requirement. */

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { newDb } from 'pg-mem';
-import { DEFAULT_OWNED } from '@arena/shared';
+import { COSMETICS, DEFAULT_OWNED, isWithinRarityBand, requiredLevelFor } from '@arena/shared';
 import { SCHEMA, type Queryable } from './database';
 import { createAccount } from './players';
 import { getCosmetics, saveCosmetics } from './cosmetics';
@@ -66,13 +66,13 @@ describe('cosmetics repository (per class)', () => {
     expect((state as Record<string, unknown>).wizard).toBeUndefined();
   });
 
-  // pedestal.pulse is rare → unlocks at RARITY_UNLOCK_LEVEL.rare (15).
+  // pedestal.pulse is rare with an explicit requiredLevel of 11.
   it('rejects claiming an item above the class level', async () => {
     const state = await saveCosmetics(
       db,
       pid,
       { warrior: { owned: [...DEFAULT_OWNED, 'pedestal.pulse'], loadout: {} } },
-      { warrior: 10 }, // below the rare unlock level
+      { warrior: 10 }, // below pedestal.pulse's requiredLevel (11)
     );
     expect(state.warrior?.owned).not.toContain('pedestal.pulse');
   });
@@ -82,7 +82,7 @@ describe('cosmetics repository (per class)', () => {
       db,
       pid,
       { warrior: { owned: [...DEFAULT_OWNED, 'pedestal.pulse'], loadout: { pedestalId: 'pedestal.pulse' } } },
-      { warrior: 15 },
+      { warrior: 11 },
     );
     expect(state.warrior?.owned).toContain('pedestal.pulse');
     expect(state.warrior?.loadout.pedestalId).toBe('pedestal.pulse');
@@ -91,5 +91,29 @@ describe('cosmetics repository (per class)', () => {
   it('keeps starter (default) items even at level 1', async () => {
     const state = await saveCosmetics(db, pid, { warrior: { owned: [...DEFAULT_OWNED], loadout: {} } }, { warrior: 1 });
     expect(state.warrior?.owned.sort()).toEqual([...DEFAULT_OWNED].sort());
+  });
+});
+
+describe('cosmetics catalog (unlock-level bands)', () => {
+  it('every item unlocks within its rarity band', () => {
+    const offenders = COSMETICS.filter((c) => !isWithinRarityBand(c)).map(
+      (c) => `${c.id} (${c.rarity}) @ ${requiredLevelFor(c)}`,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('same-rarity items stagger (no rarity unlocks all at one level)', () => {
+    const byRarity = new Map<string, Set<number>>();
+    for (const c of COSMETICS) {
+      if (c.default) continue;
+      const set = byRarity.get(c.rarity) ?? new Set<number>();
+      set.add(requiredLevelFor(c));
+      byRarity.set(c.rarity, set);
+    }
+    // Any rarity with >1 item must use more than one unlock level.
+    for (const [rarity, levels] of byRarity) {
+      const count = COSMETICS.filter((c) => !c.default && c.rarity === rarity).length;
+      if (count > 1) expect(levels.size, `${rarity} items share one level`).toBeGreaterThan(1);
+    }
   });
 });

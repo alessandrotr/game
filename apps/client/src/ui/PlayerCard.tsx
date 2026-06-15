@@ -65,7 +65,14 @@ export function PlayerCard() {
             lower edge — the same identity token as the combat HUD ability panel. */}
         <div className="relative h-14 w-14 shrink-0">
           <div className="h-full w-full overflow-hidden rounded-full border-2 border-gold/70 bg-black/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
-            <ClassPreview characterClass={me.characterClass} lite spin={false} />
+            <ClassPreview
+              characterClass={me.characterClass}
+              skinId={me.skinId}
+              dyeId={me.dyeId}
+              pedestalId={me.pedestalId}
+              lite
+              spin={false}
+            />
           </div>
           <div className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border border-gold/70 bg-linear-to-b from-panel to-bg shadow-md">
             <span className="font-display text-[11px] font-bold leading-none text-gold tabular-nums">
