@@ -508,7 +508,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
             outlineWidth={0.015}
             outlineColor="#000000"
           >
-            {title.text}
+            {title.text.toUpperCase()}
           </Text>
         )}
       </Billboard>
