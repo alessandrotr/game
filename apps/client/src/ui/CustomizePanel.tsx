@@ -304,7 +304,7 @@ function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loa
     if (!isUnlocked(c, level)) {
       return { label: `Lv ${requiredLevelFor(c)}`, variant: 'panel' as const, icon: Lock, disabled: true };
     }
-    return { label: 'Unlock', variant: 'gold' as const, icon: Lock, disabled: false };
+    return { label: 'Unlock', variant: 'goldCta' as const, icon: Sparkles, disabled: false };
   }
   if (c.type === 'emote') {
     return equipped

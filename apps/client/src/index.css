@@ -19,6 +19,10 @@
   --color-xp-tip: #ffffffcc; /* bright end of the XP gradient */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
 
+  /* Sweeping highlight for the primary "unlock" CTA button (goldCta variant):
+     a bright band glides across, pauses, repeats — a little dopamine tick. */
+  --animate-cta-sheen: cta-sheen 3.2s ease-in-out infinite;
+
   /* Z-index scale — one ordered ladder for every stacked layer, so overlays
      never fight. Exposed as `z-hud`, `z-modal`, … utilities. Order is what
      matters: chrome < popover < toast < modal < loading < connection < tooltip. */
@@ -178,6 +182,20 @@ canvas {
   }
   100% {
     transform: translateX(420%);
+  }
+}
+
+/* The goldCta sheen: a skewed bright band sweeps across, then waits off-screen
+   before the next pass (the hold from 55%→100% spaces the shines out). */
+@keyframes cta-sheen {
+  0% {
+    transform: translateX(-180%) skewX(-12deg);
+  }
+  55% {
+    transform: translateX(320%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(320%) skewX(-12deg);
   }
 }
 

@@ -424,6 +424,9 @@ function bailToJoinScreen(reason: unknown): void {
   reportClientError('sync-error', { reason });
   const current = room;
   room = null;
+  // Detach before the background leave so a late event can't fire into the next
+  // session (see leaveToCharacterSelect).
+  current?.removeAllListeners();
   disconnectMatchmaking();
   disconnectZombieMatchmaking();
   useGameStore.getState().reset();
@@ -840,6 +843,13 @@ export function disconnectZombieMatchmaking(): void {
 export function leaveToCharacterSelect(): void {
   const current = room;
   if (!current) return;
+  // Detach this room's listeners BEFORE the background leave: otherwise its late
+  // onLeave/onStateChange/onError land after we've already re-joined as a new
+  // character and clobber that fresh session — onLeave re-runs teardownSession
+  // (nulling the new `room` + resetting stores), and a trailing onStateChange
+  // writes the old player back in, so the new character flickers to the old one.
+  // (The travelTo / world-swap paths guard the same race the same way.)
+  current.removeAllListeners();
   teardownSession(); // nulls `room`, resets stores → App renders JoinScreen now
   void current.leave().catch(() => {
     /* already gone — the local teardown already returned us to the JoinScreen */
@@ -1156,6 +1166,11 @@ export function sendSetAutoAttack(enabled: boolean): void {
 
 /** Leave the current room, if any. */
 export function disconnect(): void {
-  room?.leave(true);
-  room = null;
+  const current = room;
+  // Detach first so a late onLeave/onStateChange from this room can't fire into a
+  // subsequent session (see leaveToCharacterSelect). Since detaching means its
+  // onLeave won't run the cleanup, do the full teardown here explicitly.
+  current?.removeAllListeners();
+  teardownSession();
+  current?.leave(true);
 }
