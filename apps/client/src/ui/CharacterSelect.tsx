@@ -185,7 +185,7 @@ export function CharacterSelect() {
               dyeId={loadout.dyeId}
               pedestalId={loadout.pedestalId}
               lite
-              spin
+              spin={false}
             />
           </div>
           {/* Identity overlay: who this slide is + your level on them. */}
