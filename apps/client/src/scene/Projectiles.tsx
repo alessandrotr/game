@@ -18,6 +18,7 @@ const ABILITY_VFX: Record<string, VfxAssetId> = {
   holy_bolt: 'vfx.holy_bolt',
   auto_bolt: 'vfx.fireball',
   auto_arrow: 'vfx.arrow',
+  bullet: 'vfx.bullet',
 };
 
 /** Interpolation stiffness for projectile motion (1/second). */

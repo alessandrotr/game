@@ -37,6 +37,9 @@ export default function App() {
   const status = useGameStore((s) => s.status);
   const connected = status === 'connected';
   const inArena = useGameStore((s) => s.room) === 'arena';
+  // Gun Mode Zombie reuses the number keys 3/4 to switch weapons, so emotes
+  // (also bound to number keys) are disabled there.
+  const gunMode = useGameStore((s) => s.gunMode);
   const transitioning = useGameStore((s) => s.transitioning);
   const transitionLabel = useGameStore((s) => s.transitionLabel);
 
@@ -63,7 +66,7 @@ export default function App() {
   useAbilityHotkeys(connected && inArena);
   useJump(connected && !inArena); // jump in town; the arena uses spacebar to throw
   useInteract(connected && inArena); // spacebar grabs/throws pickables (arena only)
-  useEmotes(connected); // number keys → dances, in both worlds
+  useEmotes(connected && !gunMode); // number keys → dances (off in gun mode: 3/4 = weapons)
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);
   useServerStatTuning(connected && inArena);

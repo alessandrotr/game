@@ -22,7 +22,7 @@ type PortalStyle = {
 
 /** Color/label schemes per destination. The town↔arena gate flips by current
  *  world; the zombie gate is its own sickly-green gateway. */
-function portalStyle(zone: { mode?: 'zombie' }, room: RoomType | null): PortalStyle {
+function portalStyle(zone: { mode?: 'zombie' | 'gunzombie' }, room: RoomType | null): PortalStyle {
   if (zone.mode === 'zombie') {
     return {
       label: 'Zombie Mode',
@@ -31,6 +31,17 @@ function portalStyle(zone: { mode?: 'zombie' }, room: RoomType | null): PortalSt
       glow: '#7fe04a',
       labelColor: '#a6ff7f',
       travel: () => void travelTo('arena', { zombie: true }),
+    };
+  }
+  if (zone.mode === 'gunzombie') {
+    // A steely gunmetal-orange gate to set it apart from the green horde portal.
+    return {
+      label: 'Gun Mode Zombie',
+      core: '#ffd9a8',
+      edge: '#8a3b12',
+      glow: '#ff7a2f',
+      labelColor: '#ffb066',
+      travel: () => void travelTo('arena', { gun: true }),
     };
   }
   // Town leads to the arena (cyan moongate); the arena leads back to town

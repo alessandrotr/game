@@ -92,13 +92,22 @@ const sph = (r: number, position: Vec3, color: string, extra: P = {}): Placehold
   ...extra,
 });
 
-const glow = (intensity = 1.4): P => ({
-  emissive: WINDOW,
-  emissiveIntensity: intensity,
-  castShadow: false,
-});
 const pyramid = (r: number, h: number, y: number, color: string): PlaceholderPart =>
   cone(r, h, 4, [0, y, 0], color, { rotation: [0, Math.PI / 4, 0] });
+
+/**
+ * A framed shader-glass window on a building's +Z face, centred at (x, y) with
+ * the wall surface at local depth `z`. Returns a small set of primitives — a
+ * recessed dark frame, the glass pane (rendered with the shared fresnel glass
+ * material, no transmission so it stays cheap), and a cross mullion for a paned
+ * look. Faces are kept slightly proud/recessed of each other to avoid z-fighting.
+ */
+const glassWindow = (w: number, h: number, x: number, y: number, z: number): PlaceholderPart[] => [
+  box([w + 0.16, h + 0.16, 0.06], [x, y, z - 0.04], WOOD_DARK, { castShadow: false }),
+  box([w, h, 0.04], [x, y, z], WINDOW, { material: 'glass', castShadow: false }),
+  box([0.05, h, 0.05], [x, y, z + 0.03], WOOD_DARK, { castShadow: false }),
+  box([w, 0.05, 0.05], [x, y, z + 0.03], WOOD_DARK, { castShadow: false }),
+];
 
 const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDescriptor => ({
   id: `prop.${id}`,
@@ -121,8 +130,8 @@ const house = prop('building.house', 'Cottage', [
   box([0.24, 2, 0.24], [-1.5, 1.4, -1.5], TIMBER, { castShadow: false }),
   pyramid(2.55, 1.6, 3.2, ROOF_RED),
   box([0.75, 1.2, 0.08], [0, 0.8, 1.46], WOOD_DARK),
-  box([0.55, 0.55, 0.06], [-0.85, 1.6, 1.46], WINDOW, glow()),
-  box([0.55, 0.55, 0.06], [0.85, 1.6, 1.46], WINDOW, glow()),
+  ...glassWindow(0.55, 0.55, -0.85, 1.6, 1.46),
+  ...glassWindow(0.55, 0.55, 0.85, 1.6, 1.46),
   box([0.45, 1, 0.45], [0.95, 3.1, -0.7], STONE_DARK),
 ]);
 
@@ -132,7 +141,7 @@ const cottage = prop('building.cottage', 'Cottage', [
   box([2.7, 1.9, 2.5], [0, 1.35, 0], PLASTER_WARM),
   pyramid(2.35, 1.5, 3.05, ROOF_BROWN),
   box([0.7, 1.15, 0.08], [0, 0.78, 1.31], WOOD_DARK),
-  box([0.5, 0.5, 0.06], [0.8, 1.55, 1.31], WINDOW, glow()),
+  ...glassWindow(0.5, 0.5, 0.8, 1.55, 1.31),
   box([0.4, 0.95, 0.4], [-0.9, 3, -0.6], STONE_DARK),
 ]);
 
@@ -143,10 +152,10 @@ const inn = prop('building.inn', 'The Wandering Inn', [
   box([5.2, 1.7, 4.2], [0, 3.25, 0], TIMBER),
   cone(3.7, 1.9, 4, [0, 5, 0], ROOF_BROWN, { rotation: [0, Math.PI / 4, 0] }),
   box([1, 1.5, 0.1], [0, 0.95, 1.95], WOOD_DARK),
-  box([0.7, 0.7, 0.06], [-1.6, 1.5, 1.92], WINDOW, glow()),
-  box([0.7, 0.7, 0.06], [1.6, 1.5, 1.92], WINDOW, glow()),
-  box([0.6, 0.6, 0.06], [-1.4, 3.3, 2.12], WINDOW, glow(1.1)),
-  box([0.6, 0.6, 0.06], [1.4, 3.3, 2.12], WINDOW, glow(1.1)),
+  ...glassWindow(0.7, 0.7, -1.6, 1.5, 1.92),
+  ...glassWindow(0.7, 0.7, 1.6, 1.5, 1.92),
+  ...glassWindow(0.6, 0.6, -1.4, 3.3, 2.12),
+  ...glassWindow(0.6, 0.6, 1.4, 3.3, 2.12),
   box([0.55, 1.1, 0.55], [2, 5, -1.2], STONE_DARK),
 ]);
 
@@ -172,7 +181,7 @@ const tower = prop('building.tower', 'Watchtower', [
   cyl(1.3, 1.5, 5, 12, [0, 3, 0], STONE),
   cyl(1.65, 1.65, 0.7, 12, [0, 5.6, 0], STONE_DARK),
   cone(1.75, 2, 12, [0, 6.9, 0], ROOF_SLATE),
-  box([0.3, 0.7, 0.06], [0, 3, 1.5], WINDOW, glow(1)),
+  ...glassWindow(0.3, 0.7, 0, 3, 1.5),
   cyl(0.05, 0.05, 1.6, 6, [0, 8.7, 0], WOOD, { castShadow: false }),
   box([0.9, 0.5, 0.04], [0.5, 8.7, 0], CLOTH, { castShadow: false }),
 ]);
@@ -395,9 +404,9 @@ const castle = prop('castle', "Lord British's Castle", [
   ...castleTower(-4.5, 4.5),
   ...castleTower(4.5, -4.5),
   ...castleTower(-4.5, -4.5),
-  // Glowing windows on the keep.
-  box([0.6, 0.9, 0.06], [-1.6, 3.4, 3.26], WINDOW, glow(1)),
-  box([0.6, 0.9, 0.06], [1.6, 3.4, 3.26], WINDOW, glow(1)),
+  // Glowing glass windows on the keep.
+  ...glassWindow(0.6, 0.9, -1.6, 3.4, 3.26),
+  ...glassWindow(0.6, 0.9, 1.6, 3.4, 3.26),
   // Banners on the gatehouse.
   box([0.05, 1.4, 0.5], [-1.4, 3.4, 5.6], CLOTH, { castShadow: false }),
   box([0.05, 1.4, 0.5], [1.4, 3.4, 5.6], CLOTH, { castShadow: false }),

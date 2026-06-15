@@ -156,6 +156,9 @@ export function useAbilityHotkeys(enabled: boolean): void {
 
       const ability = CLASS_LOADOUTS[me.characterClass][slot];
       if (!ability) return; // empty slot
+      // Gun Mode Zombie disables the entire ability kit — the player fights with
+      // guns only (R is reload, handled by GunControls). The server enforces this too.
+      if (useGameStore.getState().gunMode) return;
 
       // Starting any cast clears a different in-progress aim.
       useAbilityTargeting.getState().cancel();

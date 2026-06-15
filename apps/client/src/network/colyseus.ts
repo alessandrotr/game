@@ -2,6 +2,7 @@ import { Client, type Room } from 'colyseus.js';
 import {
   ABILITIES,
   ARENA_ROOM,
+  GUN_ZOMBIE_ROOM,
   MATCHMAKING_ROOM,
   SESSION_SUPERSEDED_CODE,
   TOWN_ROOM,
@@ -98,6 +99,8 @@ interface RawState {
   layoutSeed?: number;
   /** Zombie survival mode flag + wave counters (arena rooms only). */
   zombieMode?: boolean;
+  /** Gun Mode Zombie flag (zombie survival fought with guns). */
+  gunMode?: boolean;
   /** Co-op matchmade zombie run (death is final). */
   coopZombie?: boolean;
   zombieLevel?: number;
@@ -178,6 +181,10 @@ function snapshotState(state: RawState): {
       channelDirX: player.channelDirX ?? 0,
       channelDirZ: player.channelDirZ ?? 1,
       holding: player.holding ?? '',
+      equippedGun: player.equippedGun ?? '',
+      magAmmo: player.magAmmo ?? 0,
+      reserveAmmo: player.reserveAmmo ?? 0,
+      reloading: player.reloading ?? false,
     });
   });
 
@@ -486,6 +493,7 @@ function wireRoom(joined: Room): void {
         .getState()
         .setZombie(
           raw.zombieMode ?? false,
+          raw.gunMode ?? false,
           raw.zombieLevel ?? 0,
           raw.zombiesRemaining ?? 0,
           raw.zombiesAlive ?? 0,
@@ -557,6 +565,16 @@ function wireRoom(joined: Room): void {
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.enabled, msg.entries),
+  );
+  joined.onMessage(
+    ServerMessage.WeaponFired,
+    guarded((msg: ServerMessagePayloads[typeof ServerMessage.WeaponFired]) => {
+      // Muzzle flash at the gun barrel (the bullet itself is a replicated
+      // projectile, so it renders on its own).
+      useEffectsStore
+        .getState()
+        .spawn('vfx.cast', [msg.x + msg.dirX * 0.7, 1, msg.z + msg.dirZ * 0.7]);
+    }),
   );
 
   joined.onError((code, message) => {
@@ -942,23 +960,28 @@ function waitForLocalPlayer(sessionId: string, timeoutMs = 2500): Promise<void> 
  *  still tracks it as the 'arena' room type, since it renders the same scene. */
 export async function travelTo(
   roomType: RoomType,
-  options?: { zombie?: boolean },
+  options?: { zombie?: boolean; gun?: boolean },
 ): Promise<void> {
   if (!client || !joinOptions || traveling) return;
-  const handler = options?.zombie ? ZOMBIE_ROOM : ROOM_HANDLER[roomType];
+  // Gun Mode Zombie and the classic horde are both zombie arenas (distinct
+  // handlers); either way we still track it client-side as the 'arena' room.
+  const isZombie = !!options?.zombie || !!options?.gun;
+  const handler = options?.gun ? GUN_ZOMBIE_ROOM : options?.zombie ? ZOMBIE_ROOM : ROOM_HANDLER[roomType];
   const store = useGameStore.getState();
   // Front-run the zombie GLBs so the first wave's models are parsed before they
   // spawn (otherwise the first of each variant hitches on download + parse).
-  if (options?.zombie) preloadZombieModels();
+  if (isZombie) preloadZombieModels();
   traveling = true;
   // Cover the world swap with the branded loading screen.
   store.setTransitioning(
     true,
-    options?.zombie
-      ? 'Entering the horde…'
-      : roomType === 'arena'
-        ? 'Entering the arena…'
-        : 'Returning to town…',
+    options?.gun
+      ? 'Loading the armory…'
+      : options?.zombie
+        ? 'Entering the horde…'
+        : roomType === 'arena'
+          ? 'Entering the arena…'
+          : 'Returning to town…',
   );
   // Matchmaking only exists in town: drop it when leaving for the arena (it's
   // reopened below when arriving in town).
@@ -1152,6 +1175,30 @@ export function sendInteract(): void {
 /** Set the auto-attack target (attack-move toward a player and strike). */
 export function sendAttack(targetId: string): void {
   room?.send(ClientMessage.Attack, { targetId });
+}
+
+// --- Gun Mode Zombie -----------------------------------------------------
+
+/** Fire the equipped gun toward a normalized aim direction (right-click). The
+ *  server enforces the magazine, fire rate, and reload. */
+export function sendFireWeapon(dirX: number, dirZ: number): void {
+  room?.send(ClientMessage.FireWeapon, { dirX, dirZ });
+}
+
+/** Equip a gun by its number-key slot (3 = pistol, 4 = machine gun). */
+export function sendSwitchWeapon(slot: number): void {
+  room?.send(ClientMessage.SwitchWeapon, { slot });
+}
+
+/** Reload the equipped gun (R). */
+export function sendReloadWeapon(): void {
+  room?.send(ClientMessage.ReloadWeapon, {});
+}
+
+/** Stream the gun-mode facing/aim direction (the cursor), so the character and
+ *  remote clients track the cursor between shots. */
+export function sendAimWeapon(dirX: number, dirZ: number): void {
+  room?.send(ClientMessage.AimWeapon, { dirX, dirZ });
 }
 
 /** Request to cast an ability in a direction (with an optional ground target or

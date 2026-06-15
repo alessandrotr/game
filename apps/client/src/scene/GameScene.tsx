@@ -32,6 +32,7 @@ import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
 import { MouseMove } from './MouseMove';
+import { GunControls } from './GunControls';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
 import { ChannelBeams, ChannelAim, FieldAuras } from './ChannelBeams';
@@ -57,6 +58,11 @@ export function GameScene() {
   const destructibleIds = useGameStore((s) => s.destructibleIds);
   const structureIds = useGameStore((s) => s.structureIds);
   const isArena = useGameStore((s) => s.room) === 'arena';
+  // Gun Mode Zombie swaps the point-to-move input for WASD + mouse-aim + fire.
+  const gunMode = useGameStore((s) => s.gunMode);
+  const gunView = useGameStore((s) => s.gunView);
+  // First person hides the cursor (pointer lock); top-down still cursor-aims.
+  const fpsView = gunMode && gunView === 'fps';
   const room = isArena ? 'arena' : 'town';
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
   // The match's procedural cover (static props). Burning barrels are NOT here —
@@ -182,11 +188,11 @@ export function GameScene() {
       <Portals mapId={mapId} />
 
       <PerfMeter />
-      <MouseMove />
+      {gunMode ? <GunControls /> : <MouseMove />}
       <CameraControls />
-      {isArena && <CursorTracker />}
-      {isArena && <GroundTargeter />}
-      <DestinationMarker />
+      {isArena && !fpsView && <CursorTracker />}
+      {isArena && !gunMode && <GroundTargeter />}
+      {!gunMode && <DestinationMarker />}
 
       {playerIds.map((id) => (
         <PlayerEntity key={id} sessionId={id} />

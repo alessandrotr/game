@@ -36,6 +36,13 @@ interface GameStore {
 
   /** Zombie survival mode is active (drives the wave HUD). */
   zombieMode: boolean;
+  /** Gun Mode Zombie is active — zombie survival with gun controls (WASD + mouse
+   *  aim + right-click fire). Implies `zombieMode`. */
+  gunMode: boolean;
+  /** Which Gun Mode camera/control scheme is active: `'fps'` (first-person
+   *  mouse-look) or `'topdown'` (the locked over-the-shoulder shooter cam).
+   *  Toggled with V; a user preference, so it persists across rooms. */
+  gunView: 'fps' | 'topdown';
   /** Co-op matchmade zombie run (death is final; drives the death/spectate flow). */
   coopZombie: boolean;
   /** Current zombie wave/level (0 before the first horde). */
@@ -86,11 +93,14 @@ interface GameStore {
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
   setRoom: (room: RoomType | null) => void;
+  /** Flip the Gun Mode camera between first-person and top-down. */
+  toggleGunView: () => void;
   /** Set the arena layout seed (no-op if unchanged). */
   setArenaSeed: (seed: number) => void;
   /** Sync the replicated zombie-wave counters (no-op if all unchanged). */
   setZombie: (
     mode: boolean,
+    gun: boolean,
     level: number,
     remaining: number,
     alive: number,
@@ -142,6 +152,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   tick: 0,
   arenaSeed: 0,
   zombieMode: false,
+  gunMode: false,
+  gunView: 'fps',
   coopZombie: false,
   zombieLevel: 0,
   zombiesRemaining: 0,
@@ -167,13 +179,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
   setRoom: (room) => set({ room }),
+  toggleGunView: () => set((s) => ({ gunView: s.gunView === 'fps' ? 'topdown' : 'fps' })),
   setArenaSeed: (seed) => {
     if (get().arenaSeed !== seed) set({ arenaSeed: seed });
   },
-  setZombie: (mode, level, remaining, alive, coop) => {
+  setZombie: (mode, gun, level, remaining, alive, coop) => {
     const s = get();
     if (
       s.zombieMode !== mode ||
+      s.gunMode !== gun ||
       s.coopZombie !== coop ||
       s.zombieLevel !== level ||
       s.zombiesRemaining !== remaining ||
@@ -181,6 +195,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     ) {
       set({
         zombieMode: mode,
+        gunMode: gun,
         coopZombie: coop,
         zombieLevel: level,
         zombiesRemaining: remaining,
@@ -281,6 +296,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       tick: 0,
       arenaSeed: 0,
       zombieMode: false,
+      gunMode: false,
       coopZombie: false,
       zombieLevel: 0,
       zombiesRemaining: 0,

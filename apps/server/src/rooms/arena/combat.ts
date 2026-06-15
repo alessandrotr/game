@@ -192,12 +192,19 @@ export class CombatSystem {
     const { applied, lethal } = applyDamage(target, incoming);
     if (applied <= 0) return;
 
-    this.ctx.broadcast(ServerMessage.Damage, {
-      from: fromId,
-      to: target.sessionId,
-      amount: applied,
-      lethal,
-    });
+    // Skip the Damage feedback broadcast for zombie targets: an explosion in a
+    // dense horde would fire dozens at once, and the client spawns a hit-spark +
+    // floating number per message — a frame-spiking flood. Zombies already show
+    // damage via their replicated over-head HP bar; only human targets (you
+    // taking a hit, or PvP) get the floating-number feedback.
+    if (!isZombieSkin(target.skinId)) {
+      this.ctx.broadcast(ServerMessage.Damage, {
+        from: fromId,
+        to: target.sessionId,
+        amount: applied,
+        lethal,
+      });
+    }
 
     // Suffering any damage makes a carried pickable disappear (knocked loose / lost).
     if (target.holding) target.holding = '';

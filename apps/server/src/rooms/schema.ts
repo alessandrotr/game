@@ -85,6 +85,16 @@ export class Player extends Schema {
    *  portrait/avatar in UI. Defaults to the standard frame. Kept last so existing
    *  replicated field offsets are unchanged. */
   @type('string') rimId = 'rim.standard';
+  /** Gun Mode Zombie: equipped gun id ('' outside gun mode). Mirrors
+   *  `PlayerView.equippedGun`; a `GunKind` by construction. Kept last so existing
+   *  replicated field offsets are unchanged. */
+  @type('string') equippedGun = '';
+  /** Rounds left in the equipped gun's magazine. */
+  @type('number') magAmmo = 0;
+  /** Spare rounds in reserve; -1 (`GUN_RESERVE_INFINITE`) = unlimited. */
+  @type('number') reserveAmmo = 0;
+  /** True while reloading the equipped gun (can't fire until it completes). */
+  @type('boolean') reloading = false;
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */
@@ -205,6 +215,9 @@ export class ArenaState extends Schema {
   @type('number') layoutSeed = 0;
   /** Zombie survival mode is active — drives the client's wave HUD. */
   @type('boolean') zombieMode = false;
+  /** Gun Mode Zombie is active — zombie survival fought with guns (WASD + mouse
+   *  aim + right-click) instead of the ability kit. Implies `zombieMode`. */
+  @type('boolean') gunMode = false;
   /** Co-op matchmade zombie run (death is final; drives the client's co-op
    *  death/spectate flow). False for the drop-in zombie room. */
   @type('boolean') coopZombie = false;

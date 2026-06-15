@@ -12,6 +12,7 @@ import {
   ARENA_PORTAL_POINT,
   ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
+  GUN_MODE_MOVE_SPEED_MULT,
   MANA_REGEN,
   ZOMBIE_MANA_REGEN_MULT,
   MATCH_RESULT_LINGER_MS,
@@ -80,6 +81,7 @@ import { ArenaTuning } from './arena/tuning.js';
 import { ArenaMatch } from './arena/match.js';
 import { CombatSystem } from './arena/combat.js';
 import { ProjectileSystem } from './arena/projectiles.js';
+import { GunSystem } from './arena/guns.js';
 import { BarrelSystem, BARREL_RADIUS } from './arena/barrels.js';
 import { DestructibleSystem } from './arena/destructibles.js';
 import { GroundZoneSystem } from './arena/groundZones.js';
@@ -183,6 +185,9 @@ export class ArenaRoom extends AvatarRoom {
   /** Zombie survival mode: endless escalating hordes spawn from the portal and
    *  hunt the players. Set in `onCreate` from the room's mode option. */
   private zombieMode = false;
+  /** Gun Mode Zombie: zombie survival fought with guns (WASD + mouse aim +
+   *  right-click) instead of the ability kit. Implies `zombieMode`. */
+  private gunMode = false;
   /** Co-op matchmade zombie run (from the zombie matchmaking room): death is final
    *  and the run ends when the whole squad falls. False for the drop-in zombie room. */
   private coopZombie = false;
@@ -214,6 +219,9 @@ export class ArenaRoom extends AvatarRoom {
   private match!: ArenaMatch;
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
+  /** Gun Mode Zombie weapons (magazine / fire-rate / reload / switch). Built in
+   *  every arena but only driven when {@link gunMode} is on. */
+  private guns!: GunSystem;
   private barrels!: BarrelSystem;
   private destructibles!: DestructibleSystem;
   /** HP-bearing cover structures (trailers/cars/dumpsters) that crumble. */
@@ -235,7 +243,11 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(sessionId);
   }
 
-  override onCreate(options?: { mode?: LobbyMode | typeof ZOMBIE_MODE; coop?: boolean }): void {
+  override onCreate(options?: {
+    mode?: LobbyMode | typeof ZOMBIE_MODE;
+    coop?: boolean;
+    gun?: boolean;
+  }): void {
     this.setState(new ArenaState());
 
     // Zombie survival is the arena sim under a distinct handler (the `mode`
@@ -246,6 +258,9 @@ export class ArenaRoom extends AvatarRoom {
     // respawn) and the run ends when everyone falls. The drop-in/portal zombie
     // room (no `coop`) keeps the old respawn behaviour.
     this.coopZombie = this.zombieMode && !!options?.coop;
+    // Gun Mode Zombie: the zombie sim, but players fight with guns. Implies zombie
+    // mode (registered with `{ mode: ZOMBIE_MODE, gun: true }`).
+    this.gunMode = this.zombieMode && !!options?.gun;
 
     // Pick a per-match seed and build this arena's procedural cover. The seed is
     // replicated so every client rebuilds the identical layout (obstacles +
@@ -275,6 +290,7 @@ export class ArenaRoom extends AvatarRoom {
       // Auto-attack must be on for zombies to chase + strike; the Attack message
       // is ignored for humans (see the handler), so only zombies ever swing.
       this.state.zombieMode = true;
+      this.state.gunMode = this.gunMode;
       this.autoAttackEnabled = true;
       // Matchmade co-op run: cap the squad and hide from public join (reservation
       // only). Death is final + the run ends when all fall (see the tick loop).
@@ -368,6 +384,10 @@ export class ArenaRoom extends AvatarRoom {
       },
     );
 
+    // Gun Mode Zombie weapon input (fire / switch / reload / aim). Registered
+    // only in gun mode; the handlers are a no-op for dead players / CC'd casters.
+    if (this.gunMode) this.registerGunHandlers();
+
     // Swallow + capture a thrown tick instead of letting it bubble to
     // `uncaughtException` (which restarts the process and disconnects everyone).
     this.setSimulationInterval((deltaMs) => {
@@ -409,6 +429,7 @@ export class ArenaRoom extends AvatarRoom {
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
+    this.guns = new GunSystem(ctx, this.projectiles);
     this.physics = new ArenaPhysics(this.obstacles);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
@@ -524,6 +545,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
+    this.guns.remove(client.sessionId);
     this.stopChannel(client.sessionId);
     this.match.forget(client.sessionId);
     this.unregisterSession(client);
@@ -539,6 +561,64 @@ export class ArenaRoom extends AvatarRoom {
     persistProfileDelta(db, profile, player, this.match.outcomeFor(sessionId));
   }
 
+  // --- Gun Mode Zombie input ---------------------------------------------
+
+  /** Wire the gun-mode weapon handlers (fire / switch / reload / aim). The
+   *  {@link GunSystem} owns the magazine / fire-rate / reload rules. */
+  private registerGunHandlers(): void {
+    this.onMessage(
+      ClientMessage.FireWeapon,
+      (client, message: ClientMessagePayloads[ClientMessage.FireWeapon]) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive || isStunned(player)) return;
+        const { dirX, dirZ } = this.normalizeAim(player, message?.dirX, message?.dirZ);
+        this.guns.fire(player, dirX, dirZ);
+      },
+    );
+
+    this.onMessage(
+      ClientMessage.SwitchWeapon,
+      (client, message: ClientMessagePayloads[ClientMessage.SwitchWeapon]) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive) return;
+        this.guns.switchTo(player, Math.floor(Number(message?.slot)));
+      },
+    );
+
+    this.onMessage(ClientMessage.ReloadWeapon, (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !player.alive || isStunned(player)) return;
+      this.guns.reload(player);
+    });
+
+    this.onMessage(
+      ClientMessage.AimWeapon,
+      (client, message: ClientMessagePayloads[ClientMessage.AimWeapon]) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive) return;
+        const dx = Number(message?.dirX) || 0;
+        const dz = Number(message?.dirZ) || 0;
+        if (Math.hypot(dx, dz) < 1e-3) return;
+        player.rotation = Math.atan2(dx, dz);
+      },
+    );
+  }
+
+  /** Resolve a normalized aim vector, falling back to the player's facing. */
+  private normalizeAim(player: Player, rawX: unknown, rawZ: unknown): { dirX: number; dirZ: number } {
+    let dirX = Number.isFinite(rawX) ? (rawX as number) : 0;
+    let dirZ = Number.isFinite(rawZ) ? (rawZ as number) : 0;
+    const len = Math.hypot(dirX, dirZ);
+    if (len > 1e-3) {
+      dirX /= len;
+      dirZ /= len;
+    } else {
+      dirX = Math.sin(player.rotation);
+      dirZ = Math.cos(player.rotation);
+    }
+    return { dirX, dirZ };
+  }
+
   // --- Ability input -----------------------------------------------------
 
   private handleCast(
@@ -547,6 +627,11 @@ export class ArenaRoom extends AvatarRoom {
   ): void {
     const player = this.state.players.get(sessionId);
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
+
+    // Gun Mode Zombie disables the entire ability kit — the player fights with
+    // guns only. Reject every cast server-side too, so a crafted client can't
+    // fire a locked ability.
+    if (this.gunMode) return;
 
     // Crowd control: a stun blocks everything; a silence blocks casting.
     if (isStunned(player) || isSilenced(player)) return;
@@ -1056,11 +1141,19 @@ export class ArenaRoom extends AvatarRoom {
         // the client predictor) walks toward the destination and slides around
         // obstacles, so client and server stay in lockstep. Slows/hastes scale
         // the walk speed.
+        // Gun Mode Zombie: the body faces the mouse cursor (streamed via
+        // AimWeapon), not the movement direction — so preserve the aim rotation
+        // across the step (twin-stick: strafe while aiming where you click).
+        const gunAiming = this.gunMode && player.team === 'blue';
+        const aimRotation = player.rotation;
         const arrived = stepMove(
           player,
           this.destinations.get(sessionId) ?? null,
           {
-            speed: this.tuning.walkSpeedFor(player.characterClass) * moveSpeedMultiplier(player),
+            speed:
+              this.tuning.walkSpeedFor(player.characterClass) *
+              moveSpeedMultiplier(player) *
+              (gunAiming ? GUN_MODE_MOVE_SPEED_MULT : 1),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
@@ -1068,6 +1161,7 @@ export class ArenaRoom extends AvatarRoom {
           },
           dt,
         );
+        if (gunAiming) player.rotation = aimRotation;
         if (arrived) this.destinations.delete(sessionId);
       }
 
@@ -1098,6 +1192,8 @@ export class ArenaRoom extends AvatarRoom {
     // Projectiles/abilities apply their impulses, THEN we step the shared world
     // once, THEN the barrel/destructible systems read back the new transforms.
     this.projectiles.update(dt);
+    // Gun Mode Zombie: complete any reloads whose timer elapsed this tick.
+    if (this.gunMode) this.guns.update();
     // Roll any shot cars forward (moves their collider) BEFORE the physics step,
     // so drums/barrels collide against the car's new position this tick.
     this.cover.update(dt);
@@ -1174,6 +1270,9 @@ export class ArenaRoom extends AvatarRoom {
     if (player.statuses.length > 0) player.statuses.clear();
     this.displacements.delete(player.sessionId);
     reviveFull(player);
+    // Gun Mode Zombie: (re)issue a fresh weapon loadout to human players on every
+    // spawn. Zombies/bots are 'red' and never carry guns.
+    if (this.gunMode && player.team === 'blue') this.guns.equipLoadout(player);
   }
 
   // --- Practice bots -----------------------------------------------------

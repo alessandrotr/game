@@ -13,6 +13,11 @@ export const TOWN_ROOM = 'town';
  *  free-for-all arena. Registered against the same room class, with `mode:
  *  'zombie'` baked into the handler's options (see the server's `define`). */
 export const ZOMBIE_ROOM = 'zombie';
+/** Gun Mode Zombie — the same zombie-survival arena, but the player fights with
+ *  guns (WASD move, mouse aim, right-click fire) instead of the ability kit. A
+ *  distinct handler so its public drop-in rooms only match each other; registered
+ *  against {@link ArenaRoom} with `{ mode: 'zombie', gun: true }` baked in. */
+export const GUN_ZOMBIE_ROOM = 'gun_zombie';
 /** Singleton lobby/matchmaking room: owns the replicated list of lobbies. */
 export const MATCHMAKING_ROOM = 'matchmaking';
 /** Singleton co-op Zombie matchmaking room: owns the replicated list of co-op
@@ -33,6 +38,12 @@ export const ARENA_HALF_SIZE = 25;
 
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
+
+/** Gun Mode Zombie moves slower than the click-to-move classes so first-person
+ *  movement — especially lateral strafing, which sweeps the whole view — feels
+ *  controlled rather than twitchy. Applied identically on the server and the
+ *  client predictor so prediction stays in lockstep. */
+export const GUN_MODE_MOVE_SPEED_MULT = 0.55;
 
 /** Player collision/visual radius in world units. */
 export const PLAYER_RADIUS = 0.5;
@@ -569,7 +580,7 @@ export const ZOMBIE_ATTACK_MAX_MS = 3500;
 /** Wind-up before a zombie's FIRST swing after reaching its prey, in ms — so it
  *  doesn't bite the instant it's in range (it rears back, giving a beat to react
  *  or step away). Re-armed each time it closes back into range. */
-export const ZOMBIE_ATTACK_WINDUP_MS = 400;
+export const ZOMBIE_ATTACK_WINDUP_MS = 500;
 /** A zombie's base health (level 1). Low — hordes are a threat by numbers. */
 export const ZOMBIE_BASE_HP = 45;
 /** Added to a zombie's health per level, so later hordes are also tougher. */
@@ -759,3 +770,88 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
     projectileVfx: 'auto_arrow',
   },
 };
+
+// ---------------------------------------------------------------------------
+// Gun Mode Zombie — guns the player fires with right-click. Server-authoritative
+// magazine / fire-rate / reload; bullets reuse the projectile system.
+// ---------------------------------------------------------------------------
+
+export const GUN_KINDS = ['pistol', 'machine_gun'] as const;
+export type GunKind = (typeof GUN_KINDS)[number];
+
+/** Reserve value meaning "unlimited spare ammo" (the pistol never runs dry). */
+export const GUN_RESERVE_INFINITE = -1;
+
+/** A gun's tuning. Magazine + fire rate + reload are enforced server-side; the
+ *  client mirrors them only for the ammo HUD and local fire prediction. */
+export interface GunConfig {
+  id: GunKind;
+  name: string;
+  /** Number key that equips this gun (3 = pistol, 4 = machine gun). */
+  slot: 3 | 4;
+  /** Rounds per magazine. */
+  magSize: number;
+  /** Minimum delay between shots, in milliseconds (the fire rate). */
+  fireRateMs: number;
+  /** Reload duration, in milliseconds. */
+  reloadMs: number;
+  /** Spare rounds outside the magazine; {@link GUN_RESERVE_INFINITE} = unlimited. */
+  reserve: number;
+  /** True for auto-fire (hold to keep shooting); false for one shot per click. */
+  automatic: boolean;
+  /** Damage per bullet. */
+  damage: number;
+  /** Bullet travel speed, world units/second. */
+  bulletSpeed: number;
+  /** Bullet max travel distance before it fizzles. */
+  bulletRange: number;
+  /** Bullet collision radius (kept small; the bullet VFX matches it). */
+  bulletRadius: number;
+}
+
+/** The two guns. Pistol: slow, precise, never runs out of reserve. Machine gun:
+ *  fast auto-fire, larger magazine, finite reserve for crowd control. */
+export const GUNS: Record<GunKind, GunConfig> = {
+  pistol: {
+    id: 'pistol',
+    name: 'Pistol',
+    slot: 3,
+    magSize: 7,
+    fireRateMs: 700,
+    reloadMs: 1200,
+    reserve: GUN_RESERVE_INFINITE,
+    automatic: false,
+    damage: 25,
+    bulletSpeed: 60,
+    bulletRange: 34,
+    bulletRadius: 0.2,
+  },
+  machine_gun: {
+    id: 'machine_gun',
+    name: 'Machine Gun',
+    slot: 4,
+    magSize: 25,
+    fireRateMs: 200,
+    reloadMs: 2000,
+    reserve: 100,
+    automatic: true,
+    damage: 9,
+    bulletSpeed: 70,
+    bulletRange: 34,
+    bulletRadius: 0.18,
+  },
+};
+
+/** Number key (3 / 4) → gun equipped when pressed. */
+export const GUN_BY_SLOT: Readonly<Record<number, GunKind>> = { 3: 'pistol', 4: 'machine_gun' };
+
+/** The gun a player starts with when entering Gun Mode Zombie. */
+export const DEFAULT_GUN: GunKind = 'pistol';
+
+/** VFX tag carried by gun bullets — the client maps it to the bullet visual. */
+export const GUN_BULLET_VFX = 'bullet';
+
+/** Runtime guard: is `value` a known gun id? */
+export function isGunKind(value: unknown): value is GunKind {
+  return typeof value === 'string' && value in GUNS;
+}

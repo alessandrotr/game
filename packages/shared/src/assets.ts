@@ -105,6 +105,9 @@ export interface PlaceholderPart {
   roughness?: number;
   /** When set, the part renders transparent at this opacity. */
   opacity?: number;
+  /** Selects a special shared material instead of the default standard one.
+   *  `'glass'` uses the cheap fresnel window glass (no transmission). */
+  material?: 'glass';
   /** Shadow participation (default true). Disable on small/flat decor to keep
    *  the shadow pass cheap when a scene has many props. */
   castShadow?: boolean;
@@ -211,8 +214,9 @@ export interface MapZone {
   /** Optional on-ground label. */
   label?: string;
   /** A `portal` zone's destination. Omitted = the opposite world (town↔arena);
-   *  `'zombie'` = the zombie-survival arena (a distinct co-op room). */
-  mode?: 'zombie';
+   *  `'zombie'` = the zombie-survival arena; `'gunzombie'` = Gun Mode Zombie
+   *  (zombie survival fought with guns). Each is a distinct room handler. */
+  mode?: 'zombie' | 'gunzombie';
 }
 
 export interface MapDescriptor {

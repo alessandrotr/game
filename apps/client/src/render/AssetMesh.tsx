@@ -1,8 +1,10 @@
 import { Suspense, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GltfModel, PlaceholderModel, RenderSource } from '@arena/shared';
 import { PrimitiveGeometry } from './geometry';
+import { glassMaterialFor } from './glassMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 
 /**
@@ -25,34 +27,53 @@ export function AssetMesh({ source }: { source: RenderSource }) {
 }
 
 function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
+  // One shared glass material per renderer — see glassMaterialFor. The hook runs
+  // unconditionally even when a model has no glass parts; that's just a WeakMap
+  // lookup, so it's free.
+  const glass = useThree((s) => glassMaterialFor(s.gl));
   return (
     <group>
-      {model.parts.map((part, i) => (
-        <mesh
-          key={part.name ?? i}
-          name={part.name ?? ''}
-          position={part.position ?? [0, 0, 0]}
-          rotation={part.rotation ?? [0, 0, 0]}
-          scale={part.scale ?? 1}
-          castShadow={part.castShadow ?? true}
-          receiveShadow={part.receiveShadow ?? true}
-        >
-          <PrimitiveGeometry shape={part.shape} args={part.args} />
-          <meshStandardMaterial
-            color={part.color}
-            emissive={part.emissive ?? '#000000'}
-            emissiveIntensity={part.emissiveIntensity ?? (part.emissive ? 1 : 0)}
-            metalness={part.metalness ?? 0.1}
-            roughness={part.roughness ?? 0.7}
-            transparent={part.opacity != null}
-            opacity={part.opacity ?? 1}
-            // Faceted shading for a crisp, stylized low-poly read (hard light per
-            // face on roofs/barrels/etc.). Free: flat normals are derived in the
-            // shader, no geometry/texture cost.
-            flatShading
-          />
-        </mesh>
-      ))}
+      {model.parts.map((part, i) =>
+        part.material === 'glass' ? (
+          <mesh
+            key={part.name ?? i}
+            name={part.name ?? ''}
+            position={part.position ?? [0, 0, 0]}
+            rotation={part.rotation ?? [0, 0, 0]}
+            scale={part.scale ?? 1}
+            castShadow={part.castShadow ?? false}
+            receiveShadow={false}
+            material={glass}
+          >
+            <PrimitiveGeometry shape={part.shape} args={part.args} />
+          </mesh>
+        ) : (
+          <mesh
+            key={part.name ?? i}
+            name={part.name ?? ''}
+            position={part.position ?? [0, 0, 0]}
+            rotation={part.rotation ?? [0, 0, 0]}
+            scale={part.scale ?? 1}
+            castShadow={part.castShadow ?? true}
+            receiveShadow={part.receiveShadow ?? true}
+          >
+            <PrimitiveGeometry shape={part.shape} args={part.args} />
+            <meshStandardMaterial
+              color={part.color}
+              emissive={part.emissive ?? '#000000'}
+              emissiveIntensity={part.emissiveIntensity ?? (part.emissive ? 1 : 0)}
+              metalness={part.metalness ?? 0.1}
+              roughness={part.roughness ?? 0.7}
+              transparent={part.opacity != null}
+              opacity={part.opacity ?? 1}
+              // Faceted shading for a crisp, stylized low-poly read (hard light per
+              // face on roofs/barrels/etc.). Free: flat normals are derived in the
+              // shader, no geometry/texture cost.
+              flatShading
+            />
+          </mesh>
+        ),
+      )}
     </group>
   );
 }

@@ -1,8 +1,10 @@
 import {
+  GUN_BULLET_VFX,
   PLAYER_RADIUS,
   PROJECTILE_LIFETIME_MS,
   ServerMessage,
   type AutoAttackConfig,
+  type GunConfig,
   type LeafEffect,
 } from '@arena/shared';
 import { Projectile, type Player } from '../schema.js';
@@ -140,6 +142,13 @@ export class ProjectileSystem {
   ): void {
     const id = this.spawn(owner, vfx, dirX, dirZ, speed, range, radius, 0);
     this.meta.get(id)!.onImpact = onImpact;
+  }
+
+  /** Spawn a gun bullet (Gun Mode Zombie). A fast, small projectile carrying flat
+   *  damage — it reuses the auto-attack hit path (direct `dealDamage`), so the
+   *  zombie-mode friendly-fire guard already restricts it to hitting zombies. */
+  spawnGunBullet(owner: Player, dirX: number, dirZ: number, gun: GunConfig): void {
+    this.spawn(owner, GUN_BULLET_VFX, dirX, dirZ, gun.bulletSpeed, gun.bulletRange, gun.bulletRadius, gun.damage);
   }
 
   /** Spawn a basic-attack projectile (ranged auto-attacks). */
