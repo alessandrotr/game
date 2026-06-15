@@ -12,7 +12,9 @@ import {
   ARENA_PORTAL_POINT,
   ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
-  GUN_MODE_MOVE_SPEED_MULT,
+  gunMoveSpeedMult,
+  isGunView,
+  type GunView,
   MANA_REGEN,
   ZOMBIE_MANA_REGEN_MULT,
   MATCH_RESULT_LINGER_MS,
@@ -188,6 +190,9 @@ export class ArenaRoom extends AvatarRoom {
   /** Gun Mode Zombie: zombie survival fought with guns (WASD + mouse aim +
    *  right-click) instead of the ability kit. Implies `zombieMode`. */
   private gunMode = false;
+  /** Per-player active Gun Mode view ('fps' | 'topdown'), reported by the client.
+   *  Drives the per-view move speed so movement matches the client predictor. */
+  private readonly gunViews = new Map<string, GunView>();
   /** Co-op matchmade zombie run (from the zombie matchmaking room): death is final
    *  and the run ends when the whole squad falls. False for the drop-in zombie room. */
   private coopZombie = false;
@@ -546,6 +551,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
     this.guns.remove(client.sessionId);
+    this.gunViews.delete(client.sessionId);
     this.stopChannel(client.sessionId);
     this.match.forget(client.sessionId);
     this.unregisterSession(client);
@@ -600,6 +606,13 @@ export class ArenaRoom extends AvatarRoom {
         const dz = Number(message?.dirZ) || 0;
         if (Math.hypot(dx, dz) < 1e-3) return;
         player.rotation = Math.atan2(dx, dz);
+      },
+    );
+
+    this.onMessage(
+      ClientMessage.SetGunView,
+      (client, message: ClientMessagePayloads[ClientMessage.SetGunView]) => {
+        if (isGunView(message?.view)) this.gunViews.set(client.sessionId, message.view);
       },
     );
   }
@@ -1153,7 +1166,7 @@ export class ArenaRoom extends AvatarRoom {
             speed:
               this.tuning.walkSpeedFor(player.characterClass) *
               moveSpeedMultiplier(player) *
-              (gunAiming ? GUN_MODE_MOVE_SPEED_MULT : 1),
+              (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,

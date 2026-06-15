@@ -7,7 +7,7 @@
  * damage) that drive transient client feedback.
  */
 
-import type { AbilityConfig, AbilityKind, GunKind, LobbyMode, Team } from './constants.js';
+import type { AbilityConfig, AbilityKind, GunKind, GunView, LobbyMode, Team } from './constants.js';
 import type { CharacterClass } from './assets.js';
 import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
@@ -74,6 +74,9 @@ export enum ClientMessage {
   /** Gun Mode Zombie: update the facing/aim direction (mouse cursor), streamed so
    *  the character and remote clients track the cursor between shots. */
   AimWeapon = 'aim_weapon',
+  /** Gun Mode Zombie: tell the server which camera view is active (fps/topdown)
+   *  so it applies the matching move speed (kept in lockstep with prediction). */
+  SetGunView = 'set_gun_view',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
@@ -224,6 +227,8 @@ export interface ClientMessagePayloads {
   [ClientMessage.ReloadWeapon]: Record<string, never>;
   /** Stream the gun-mode facing/aim direction (normalized server-side). */
   [ClientMessage.AimWeapon]: { dirX: number; dirZ: number };
+  /** Set the active Gun Mode camera view (drives the server-side move speed). */
+  [ClientMessage.SetGunView]: { view: GunView };
 }
 
 /** Payload map for {@link ServerMessage}. */

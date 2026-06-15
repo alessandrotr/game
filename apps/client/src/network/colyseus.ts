@@ -16,6 +16,7 @@ import {
   type CoverStructureView,
   type DestructibleView,
   type GroundZoneView,
+  type GunView,
   type PickableView,
   type ClientMessagePayloads,
   type LobbyMode,
@@ -1199,6 +1200,12 @@ export function sendReloadWeapon(): void {
  *  remote clients track the cursor between shots. */
 export function sendAimWeapon(dirX: number, dirZ: number): void {
   room?.send(ClientMessage.AimWeapon, { dirX, dirZ });
+}
+
+/** Tell the server the active Gun Mode camera view so it applies the matching
+ *  move speed (first person is slower than top-down). */
+export function sendSetGunView(view: GunView): void {
+  room?.send(ClientMessage.SetGunView, { view });
 }
 
 /** Request to cast an ability in a direction (with an optional ground target or

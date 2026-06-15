@@ -25,7 +25,9 @@ const PINE = '#2e6b40';
 const METAL = '#5f656e';
 const WATER = '#3f7fb0';
 const WINDOW = '#ffe1a0';
-const GLASS_ROOM = '#f2cf94'; // warm lit interior seen through the glass
+const GLASS_ROOM = '#f2cf94'; // warm lit interior panel (faked, for solid buildings)
+const ROOM_WALL = '#d8b88a'; // warm interior wall seen through real window openings
+const ROOM_FLOOR = '#6e4b2a'; // warm wooden interior floor
 const LANTERN = '#ffd27a';
 const CLOTH = '#a23b3b';
 // Team accents for the left (blue) / right (red) sides of town.
@@ -102,11 +104,13 @@ const pyramid = (r: number, h: number, y: number, color: string): PlaceholderPar
  * lateral offset along that wall, `y` the centre height, and `d` the distance
  * from the prop origin out to the wall face.
  *
- * Returns a dark recessed interior, a transparent glass pane (shared fresnel
- * material — no transmission, so it's cheap), and four dark frame bars around
- * it. Every piece is pushed PROUD of the wall and offset in depth from its
- * neighbours: coplanar/overlapping faces are what z-fight and shimmer as the
- * camera moves, so nothing shares a plane.
+ * Returns a transparent glass pane (shared fresnel material — no transmission,
+ * so it's cheap) and four dark frame bars around it. When `open` is false the
+ * window also gets a warm faked-interior panel behind it (for solid buildings
+ * like the inn/tower); when `open` is true the backing is omitted so a real
+ * room behind a wall opening shows through. Every piece is pushed PROUD of the
+ * wall and offset in depth from its neighbours: coplanar/overlapping faces are
+ * what z-fight and shimmer as the camera moves, so nothing shares a plane.
  */
 const glassWindow = (
   w: number,
@@ -115,6 +119,7 @@ const glassWindow = (
   y: number,
   d: number,
   yaw = 0,
+  open = false,
 ): PlaceholderPart[] => {
   // Outward normal and along-wall tangent for this face.
   const n: [number, number] = [Math.sin(yaw), Math.cos(yaw)];
@@ -127,27 +132,85 @@ const glassWindow = (
   ];
   const rot: Vec3 = [0, yaw, 0];
   const bar: P = { castShadow: false, rotation: rot };
-  const fy = h / 2 + 0.07;
-  const fx = w / 2 + 0.07;
+  const fy = h / 2 + 0.04;
+  const fx = w / 2 + 0.04;
   return [
-    // Warm lit interior behind the glass — what you see "inside" the house
-    // through the clear pane. Softly emissive so it glows at dusk.
-    box([w + 0.02, h + 0.02, 0.04], at(0, 0, 0.03), GLASS_ROOM, {
-      emissive: GLASS_ROOM,
-      emissiveIntensity: 0.85,
-      castShadow: false,
-      rotation: rot,
-    }),
+    // Faked warm interior panel — only for solid buildings with no real room.
+    ...(open
+      ? []
+      : [
+          box([w + 0.02, h + 0.02, 0.04], at(0, 0, 0.03), GLASS_ROOM, {
+            emissive: GLASS_ROOM,
+            emissiveIntensity: 0.85,
+            castShadow: false,
+            rotation: rot,
+          }),
+        ]),
     // Transparent glass pane, inset behind the frame's front edge.
     box([w, h, 0.04], at(0, 0, 0.12), WINDOW, { material: 'glass', castShadow: false, rotation: rot }),
-    // Frame: top/bottom run the full width; left/right span only the opening so
-    // the four bars butt at the corners instead of overlapping (no corner z-fight).
-    box([w + 0.28, 0.12, 0.12], at(0, fy, 0.13), WOOD_DARK, bar),
-    box([w + 0.28, 0.12, 0.12], at(0, -fy, 0.13), WOOD_DARK, bar),
-    box([0.12, h, 0.12], at(-fx, 0, 0.13), WOOD_DARK, bar),
-    box([0.12, h, 0.12], at(fx, 0, 0.13), WOOD_DARK, bar),
+    // Slim frame: top/bottom run the full width; left/right span only the opening
+    // so the four bars butt at the corners instead of overlapping (no z-fight).
+    box([w + 0.15, 0.07, 0.07], at(0, fy, 0.13), WOOD_DARK, bar),
+    box([w + 0.15, 0.07, 0.07], at(0, -fy, 0.13), WOOD_DARK, bar),
+    box([0.07, h, 0.07], at(-fx, 0, 0.13), WOOD_DARK, bar),
+    box([0.07, h, 0.07], at(fx, 0, 0.13), WOOD_DARK, bar),
   ];
 };
+
+interface Opening {
+  cx: number; // centre x along the wall
+  cy: number; // centre height
+  w: number;
+  h: number;
+}
+
+/**
+ * A wall slab in the +Z plane spanning x∈[-W/2, W/2] and y∈[yBot, yTop], with its
+ * outer face at depth `z` and the given thickness, with rectangular `openings`
+ * cut out of it. The slab is split into horizontal bands at every opening edge,
+ * and within each band a box is emitted for each solid span between openings —
+ * giving a wall with real see-through holes, no CSG required.
+ */
+function holedWall(
+  W: number,
+  yBot: number,
+  yTop: number,
+  z: number,
+  thickness: number,
+  color: string,
+  openings: Opening[],
+): PlaceholderPart[] {
+  const halfW = W / 2;
+  const zc = z - thickness / 2; // centre so the outer face lands at depth z
+  const ys = [
+    ...new Set([
+      yBot,
+      yTop,
+      ...openings.flatMap((o) => [
+        Math.max(yBot, o.cy - o.h / 2),
+        Math.min(yTop, o.cy + o.h / 2),
+      ]),
+    ]),
+  ].sort((a, b) => a - b);
+  const parts: PlaceholderPart[] = [];
+  for (let i = 0; i < ys.length - 1; i++) {
+    const ya = ys[i]!;
+    const yb = ys[i + 1]!;
+    if (yb - ya < 1e-4) continue;
+    const my = (ya + yb) / 2;
+    const cuts = openings
+      .filter((o) => my > o.cy - o.h / 2 && my < o.cy + o.h / 2)
+      .map((o) => [o.cx - o.w / 2, o.cx + o.w / 2] as const)
+      .sort((a, b) => a[0] - b[0]);
+    let x = -halfW;
+    for (const [x0, x1] of cuts) {
+      if (x0 > x) parts.push(box([x0 - x, yb - ya, thickness], [(x + x0) / 2, my, zc], color));
+      x = Math.max(x, x1);
+    }
+    if (x < halfW) parts.push(box([halfW - x, yb - ya, thickness], [(x + halfW) / 2, my, zc], color));
+  }
+  return parts;
+}
 
 const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDescriptor => ({
   id: `prop.${id}`,
@@ -156,6 +219,54 @@ const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDe
 });
 
 // --- Buildings -------------------------------------------------------------
+
+/**
+ * A hollow rectangular storey centred at [0, cy, 0] with size [W, H, D]: a front
+ * wall (+Z face) with the given window `openings` cut out, solid back + side
+ * walls, and a warm softly-lit interior (back wall + floor) visible through the
+ * openings. This is the shared "see into the room" guts used by every windowed,
+ * flat-walled building; the caller adds the glass panes (with `open: true`),
+ * roof, door, etc. Pass `floor: false` for an upper storey that sits on another.
+ */
+function hollowStorey(
+  W: number,
+  H: number,
+  D: number,
+  cy: number,
+  color: string,
+  openings: Opening[],
+  floor = true,
+): PlaceholderPart[] {
+  const t = 0.16; // wall thickness
+  const halfW = W / 2;
+  const halfD = D / 2;
+  const yBot = cy - H / 2;
+  const parts: PlaceholderPart[] = [
+    ...holedWall(W, yBot, cy + H / 2, halfD, t, color, openings),
+    box([W, H, t], [0, cy, -(halfD - t / 2)], color), // back wall
+    box([t, H, D], [-(halfW - t / 2), cy, 0], color), // left wall
+    box([t, H, D], [halfW - t / 2, cy, 0], color), // right wall
+    // Warm, softly-emissive interior back wall — what the eye lands on through
+    // the glass. Emissive so the room reads as lit at dusk without paying for a
+    // real light per building. Inset to clear the shell (no z-fight).
+    box([W - 2 * t, H, t], [0, cy, -(halfD - 1.6 * t)], ROOM_WALL, {
+      emissive: ROOM_WALL,
+      emissiveIntensity: 0.5,
+      castShadow: false,
+      receiveShadow: false,
+    }),
+  ];
+  if (floor) {
+    parts.push(
+      box([W - 2 * t, t, D - 2 * t], [0, yBot + t / 2 + 0.01, 0], ROOM_FLOOR, {
+        emissive: ROOM_FLOOR,
+        emissiveIntensity: 0.2,
+        castShadow: false,
+      }),
+    );
+  }
+  return parts;
+}
 
 interface HouseOpts {
   footing: Vec3; // [w, h, d] stone base
@@ -170,23 +281,41 @@ interface HouseOpts {
 }
 
 /**
- * One reusable cottage. Every house in town is built from this — same door, same
- * framed glass windows on the front and BOTH side walls — so they stay visually
- * consistent (no "this one's missing a window") and there's a single place to
- * tweak the look. Variety comes from the opts (size, wall/roof colour, posts),
- * not from re-modelling each house by hand.
+ * One reusable cottage, built as a HOLLOW shell: the front wall has real window
+ * openings cut into it (see {@link holedWall}) and a warm, softly-lit room sits
+ * behind them, so you look through the clear glass into actual 3D interior space
+ * — parallax and all — rather than at a flat panel. The back/side walls stay
+ * solid. Every house in town uses this, so they're consistent and there's a
+ * single place to tweak the look; variety comes from the opts.
  */
 function townHouse(id: string, opts: HouseOpts): PropDescriptor {
   const fh = opts.footing[1];
   const wallH = opts.wall[1];
+  const W = opts.wall[0];
+  const D = opts.wall[2];
   const wy = fh + wallH / 2; // wall centre height
-  const halfW = opts.wall[0] / 2;
-  const halfD = opts.wall[2] / 2;
+  const halfW = W / 2;
+  const halfD = D / 2;
   const roofY = fh + wallH + opts.roofH / 2; // cone centre = wall top + half height
-  const winY = fh + wallH * 0.62; // window centre height
+  const winW = 0.5;
+  const winH = 0.6;
+  const winY = fh + wallH * 0.55; // window centre height
+  const winX = (0.375 + halfW) / 2; // midway between the door edge and the corner
   const parts: PlaceholderPart[] = [
     box(opts.footing, [0, fh / 2, 0], STONE),
-    box(opts.wall, [0, wy, 0], opts.wallColor),
+    // Hollow shell + lit interior, with two window holes in the front wall.
+    ...hollowStorey(W, wallH, D, wy, opts.wallColor, [
+      { cx: -winX, cy: winY, w: winW, h: winH },
+      { cx: winX, cy: winY, w: winW, h: winH },
+    ]),
+    pyramid(opts.roofR, opts.roofH, roofY, opts.roofColor),
+    // Closed front door (covers solid wall; no opening needed behind it).
+    box([0.75, 1.2, 0.08], [0, fh + 0.6, halfD + 0.02], WOOD_DARK),
+    // Two see-through windows flanking the door (the `true` drops the fake panel
+    // so the real room shows through the hole).
+    ...glassWindow(winW, winH, -winX, winY, halfD, 0, true),
+    ...glassWindow(winW, winH, winX, winY, halfD, 0, true),
+    box([0.45, 1, 0.45], opts.chimney, STONE_DARK),
   ];
   if (opts.posts) {
     // Posts sit proud of the wall so their faces aren't coplanar with the
@@ -197,15 +326,6 @@ function townHouse(id: string, opts: HouseOpts): PropDescriptor {
       parts.push(box([0.24, wallH, 0.24], [sx * px, wy, sz * pz], TIMBER, { castShadow: false }));
     }
   }
-  parts.push(
-    pyramid(opts.roofR, opts.roofH, roofY, opts.roofColor),
-    // Front door.
-    box([0.75, 1.2, 0.08], [0, fh + 0.6, halfD + 0.02], WOOD_DARK),
-    // Two windows flanking the door (front only — no side windows).
-    ...glassWindow(0.55, 0.6, -halfW * 0.52, winY, halfD),
-    ...glassWindow(0.55, 0.6, halfW * 0.52, winY, halfD),
-    box([0.45, 1, 0.45], opts.chimney, STONE_DARK),
-  );
   return prop(id, 'Cottage', parts);
 }
 
@@ -231,17 +351,27 @@ const cottage = townHouse('building.cottage', {
   chimney: [-0.9, 3, -0.6],
 });
 
-/** The tavern: two storeys with a jettied upper floor and a hanging sign. */
+/** The tavern: two storeys with a jettied upper floor and a hanging sign. Both
+ *  storeys are hollow with see-through windows into a warm lit interior. */
 const inn = prop('building.inn', 'The Wandering Inn', [
   box([5.2, 0.4, 4.2], [0, 0.2, 0], STONE),
-  box([4.8, 2, 3.8], [0, 1.4, 0], PLASTER),
-  box([5.2, 1.7, 4.2], [0, 3.25, 0], TIMBER),
+  // Lower storey (plaster) — front face at z = 1.9, windows flanking the door.
+  ...hollowStorey(4.8, 2, 3.8, 1.4, PLASTER, [
+    { cx: -1.6, cy: 1.5, w: 0.7, h: 0.7 },
+    { cx: 1.6, cy: 1.5, w: 0.7, h: 0.7 },
+  ]),
+  // Jettied upper storey (timber) — front face at z = 2.1. Sits on the lower
+  // storey so it needs no floor of its own.
+  ...hollowStorey(5.2, 1.7, 4.2, 3.25, TIMBER, [
+    { cx: -1.4, cy: 3.3, w: 0.6, h: 0.6 },
+    { cx: 1.4, cy: 3.3, w: 0.6, h: 0.6 },
+  ], false),
   cone(3.7, 1.9, 4, [0, 5, 0], ROOF_BROWN, { rotation: [0, Math.PI / 4, 0] }),
   box([1, 1.5, 0.1], [0, 0.95, 1.95], WOOD_DARK),
-  ...glassWindow(0.7, 0.7, -1.6, 1.5, 1.92),
-  ...glassWindow(0.7, 0.7, 1.6, 1.5, 1.92),
-  ...glassWindow(0.6, 0.6, -1.4, 3.3, 2.12),
-  ...glassWindow(0.6, 0.6, 1.4, 3.3, 2.12),
+  ...glassWindow(0.7, 0.7, -1.6, 1.5, 1.9, 0, true),
+  ...glassWindow(0.7, 0.7, 1.6, 1.5, 1.9, 0, true),
+  ...glassWindow(0.6, 0.6, -1.4, 3.3, 2.1, 0, true),
+  ...glassWindow(0.6, 0.6, 1.4, 3.3, 2.1, 0, true),
   box([0.55, 1.1, 0.55], [2, 5, -1.2], STONE_DARK),
 ]);
 

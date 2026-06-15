@@ -12,6 +12,7 @@ import {
   sendFireWeapon,
   sendMoveTo,
   sendReloadWeapon,
+  sendSetGunView,
   sendStopMove,
   sendSwitchWeapon,
 } from '../network/colyseus';
@@ -55,6 +56,9 @@ export function GunControls() {
 
   useEffect(() => {
     const canvas = gl.domElement;
+    // Sync the server with the current view on mount (default fps) so its
+    // move-speed matches prediction from the first step.
+    sendSetGunView(useGameStore.getState().gunView);
     const isTyping = () => {
       const el = document.activeElement;
       return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
@@ -88,6 +92,8 @@ export function GunControls() {
           break;
         case 'KeyV':
           useGameStore.getState().toggleGunView();
+          // Tell the server the new view so it applies the matching move speed.
+          sendSetGunView(useGameStore.getState().gunView);
           // Leaving first person releases the mouse; entering it waits for a click.
           if (!isFps() && locked()) document.exitPointerLock();
           break;

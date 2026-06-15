@@ -41,11 +41,11 @@ const FRAGMENT = /* glsl */ `
     // Faint cool tint head-on, brightening to a sky reflection at the edges.
     vec3 col = mix(uTint, uReflect, fres);
     // Diagonal glass sheen — view-independent, so it costs nothing per frame.
-    float streak = smoothstep(0.62, 0.97, sin(vWorldPos.x * 1.7 + vWorldPos.y * 2.3) * 0.5 + 0.5);
-    col += streak * 0.25;
-    // Nearly clear head-on (the warm interior shows straight through → real glass),
+    float streak = smoothstep(0.55, 0.95, sin(vWorldPos.x * 1.7 + vWorldPos.y * 2.3) * 0.5 + 0.5);
+    col += streak * 0.32;
+    // A visible glassy film head-on (the interior still shows through), turning
     // reflective at glancing angles, with a crisp sheen highlight.
-    float alpha = clamp(mix(uBaseAlpha, 0.82, fres) + streak * 0.3, 0.0, 1.0);
+    float alpha = clamp(mix(uBaseAlpha, 0.9, fres) + streak * 0.35, 0.0, 1.0);
     gl_FragColor = vec4(col, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -62,10 +62,10 @@ function createGlassMaterial(): THREE.ShaderMaterial {
     // meshStandardMaterials around them.
     depthWrite: false, // clear glass; let the lit interior behind show straight through
     uniforms: {
-      uTint: { value: new THREE.Color('#aebecb').convertSRGBToLinear() },
-      uReflect: { value: new THREE.Color('#dde7f1').convertSRGBToLinear() },
+      uTint: { value: new THREE.Color('#b7c6d4').convertSRGBToLinear() },
+      uReflect: { value: new THREE.Color('#e4eef7').convertSRGBToLinear() },
       uFresnelPower: { value: 2.2 },
-      uBaseAlpha: { value: 0.05 },
+      uBaseAlpha: { value: 0.16 },
     },
   });
 }

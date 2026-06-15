@@ -11,7 +11,7 @@ import {
   PLAYER_RADIUS,
   collideObstacles,
   getCosmeticOfType,
-  GUN_MODE_MOVE_SPEED_MULT,
+  gunMoveSpeedMult,
   isRooted,
   isStunned,
   isZombieSkin,
@@ -274,9 +274,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           { x: pos.x, z: pos.z, rotation: predictedRot.current },
           dest.active ? { x: dest.x, z: dest.z } : null,
           {
-            // Gun mode walks slower (matches the server's gun-mode speed so
-            // prediction stays in lockstep) — calmer first-person strafing.
-            speed: gunMode ? mv.speed * GUN_MODE_MOVE_SPEED_MULT : mv.speed,
+            // Gun mode walks slower per view (matches the server's gun-mode speed
+            // so prediction stays in lockstep) — first person is calmer than top-down.
+            speed: gunMode ? mv.speed * gunMoveSpeedMult(gunView) : mv.speed,
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,

@@ -39,11 +39,27 @@ export const ARENA_HALF_SIZE = 25;
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
 
-/** Gun Mode Zombie moves slower than the click-to-move classes so first-person
- *  movement — especially lateral strafing, which sweeps the whole view — feels
- *  controlled rather than twitchy. Applied identically on the server and the
- *  client predictor so prediction stays in lockstep. */
-export const GUN_MODE_MOVE_SPEED_MULT = 0.55;
+/** Which Gun Mode camera/control scheme is active. Sent to the server so it can
+ *  pick the matching move speed (below); kept in sync with the client predictor. */
+export type GunView = 'fps' | 'topdown';
+
+export function isGunView(value: unknown): value is GunView {
+  return value === 'fps' || value === 'topdown';
+}
+
+/** Gun Mode Zombie moves slower than the click-to-move classes so the shooter
+ *  controls feel deliberate. First person is slower still — at eye level a wide
+ *  FOV makes any motion (especially lateral strafing) read as fast — while the
+ *  top-down view, where the camera is far back, can move closer to normal. Both
+ *  are applied identically on the server and the client predictor so prediction
+ *  stays in lockstep. */
+export const GUN_FPS_MOVE_SPEED_MULT = 0.42;
+export const GUN_TOPDOWN_MOVE_SPEED_MULT = 0.9;
+
+/** The move-speed multiplier for the active Gun Mode view. */
+export function gunMoveSpeedMult(view: GunView): number {
+  return view === 'topdown' ? GUN_TOPDOWN_MOVE_SPEED_MULT : GUN_FPS_MOVE_SPEED_MULT;
+}
 
 /** Player collision/visual radius in world units. */
 export const PLAYER_RADIUS = 0.5;
