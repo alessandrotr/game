@@ -159,6 +159,9 @@ export class CoverStructure extends Schema {
   @type('number') hp = 100;
   @type('number') maxHp = 100;
   @type('boolean') destroyed = false;
+  /** Visual length (X-axis) stretch — 1 is the base model. Trailers vary so the
+   *  park reads as different-length rectangles (width is never changed). */
+  @type('number') lengthScale = 1;
 }
 
 /** A pickable object resting on the ground (molotov / grenade), waiting to be

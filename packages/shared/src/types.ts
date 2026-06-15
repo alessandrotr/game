@@ -141,6 +141,9 @@ export interface CoverStructureView {
   maxHp: number;
   /** True once crumbled — uncollidable, rendered as flattened rubble. */
   destroyed: boolean;
+  /** Visual stretch along the prop's local length (X) axis — 1 is the base model.
+   *  Lets trailers vary in length (never width) for a less uniform trailer park. */
+  lengthScale: number;
 }
 
 /**

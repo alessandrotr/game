@@ -3,6 +3,10 @@ import {
   ARENA_HALF_SIZE,
   PLAYER_RADIUS,
   ServerMessage,
+  structureFootprint,
+  isTrailerAsset,
+  TRAILER_HALF_LENGTH,
+  TRAILER_HALF_WIDTH,
   type ArenaObstacle,
   type CoverStructureSpec,
 } from '@arena/shared';
@@ -55,8 +59,10 @@ function isCar(assetId: string): boolean {
  * collision circles it added to it.
  */
 export class CoverSystem {
-  /** id → the collision circle this structure contributes (for removal on death). */
-  private readonly circles = new Map<string, ArenaObstacle>();
+  /** id → the collision circle(s) this structure contributes (a single circle for
+   *  most cover, a row of circles forming a capsule for elongated trailers). Kept
+   *  for removal on death and for the structure's own hit tests. */
+  private readonly circles = new Map<string, ArenaObstacle[]>();
   /** id → the structure's fixed physics collider (so drums/barrels bounce off it;
    *  removed on crumble so props can roll over the rubble). */
   private readonly colliders = new Map<string, Collider>();
@@ -98,14 +104,30 @@ export class CoverSystem {
       cs.hp = s.maxHp;
       cs.maxHp = s.maxHp;
       cs.destroyed = false;
+      cs.lengthScale = s.lengthScale ?? 1;
       this.ctx.state.structures.set(cs.id, cs);
 
-      const circle: ArenaObstacle = { x: s.x, z: s.z, radius: s.radius, height: s.height };
-      this.circles.set(cs.id, circle);
-      this.collision.push(circle); // collidable while alive (movement + projectiles)
+      // Collision footprint: a length-fitted capsule for trailers, a single circle
+      // otherwise — so the collider matches the structure's true shape/size.
+      const circles = structureFootprint(s.assetId, s.x, s.z, s.rotation, s.radius, s.height, s.lengthScale ?? 1);
+      this.circles.set(cs.id, circles);
+      for (const c of circles) this.collision.push(c); // collidable while alive (movement + projectiles)
       // A matching fixed collider in the physics world so dynamic props (drums,
-      // launched barrels) bounce off it too.
-      this.colliders.set(cs.id, this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height));
+      // launched barrels) bounce off it too — a yaw-fitted box for trailers, a
+      // cylinder for the rest.
+      this.colliders.set(
+        cs.id,
+        isTrailerAsset(s.assetId)
+          ? this.physics.addStaticBox(
+              s.x,
+              s.z,
+              TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
+              TRAILER_HALF_WIDTH,
+              s.height,
+              s.rotation,
+            )
+          : this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height),
+      );
       // Cars roll when shot — give them a (zero) velocity to integrate.
       if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
       // Zombie-mode trailers are indestructible — solid cover that never crumbles.
@@ -117,6 +139,20 @@ export class CoverSystem {
   liveStructure(id: string): CoverStructure | undefined {
     const s = this.ctx.state.structures.get(id);
     return s && !s.destroyed ? s : undefined;
+  }
+
+  /** True if (x,z) lies within `pad` of this structure's collision footprint —
+   *  any of its capsule circles (trailers) or its single circle. */
+  private footprintHit(id: string, x: number, z: number, pad: number): boolean {
+    const circles = this.circles.get(id);
+    if (!circles) return false;
+    for (const c of circles) {
+      const dx = c.x - x;
+      const dz = c.z - z;
+      const r = c.radius + pad;
+      if (dx * dx + dz * dz <= r * r) return true;
+    }
+    return false;
   }
 
   /** Apply `amount` damage to a structure by id; crumble it if its HP runs out.
@@ -137,10 +173,7 @@ export class CoverSystem {
   hitProjectile(x: number, z: number, projR: number, amount: number, dirX = 0, dirZ = 0): boolean {
     for (const s of this.ctx.state.structures.values()) {
       if (s.destroyed) continue;
-      const dx = s.x - x;
-      const dz = s.z - z;
-      const r = s.radius + projR;
-      if (dx * dx + dz * dz <= r * r) {
+      if (this.footprintHit(s.id, x, z, projR)) {
         this.damage(s.id, amount, dirX, dirZ);
         return true;
       }
@@ -153,10 +186,9 @@ export class CoverSystem {
   damageInRadius(x: number, z: number, radius: number, amount: number): void {
     this.ctx.state.structures.forEach((s) => {
       if (s.destroyed) return;
-      const dx = s.x - x;
-      const dz = s.z - z;
-      const r = radius + s.radius;
-      if (dx * dx + dz * dz <= r * r) this.damage(s.id, amount, dx, dz);
+      // Hit if the blast reaches the structure's footprint; shove cars away from
+      // the blast centre (the structure's centre is the push reference).
+      if (this.footprintHit(s.id, x, z, radius)) this.damage(s.id, amount, s.x - x, s.z - z);
     });
   }
 
@@ -229,7 +261,8 @@ export class CoverSystem {
       }
       // Don't roll through other cover: push back to the edge of any circle it
       // overlaps and cancel the velocity heading into it (skip the car's own).
-      const self = this.circles.get(id);
+      // Cars are single-circle cover (never trailers), so its footprint is one circle.
+      const self = this.circles.get(id)?.[0];
       for (const o of this.collision) {
         if (o === self) continue;
         const ddx = nx - o.x;
@@ -277,10 +310,12 @@ export class CoverSystem {
       vel.vx = 0;
       vel.vz = 0;
     }
-    const circle = this.circles.get(s.id);
-    if (circle) {
-      const i = this.collision.indexOf(circle);
-      if (i >= 0) this.collision.splice(i, 1); // now uncollidable (movement + projectiles)
+    const circles = this.circles.get(s.id);
+    if (circles) {
+      for (const circle of circles) {
+        const i = this.collision.indexOf(circle);
+        if (i >= 0) this.collision.splice(i, 1); // now uncollidable (movement + projectiles)
+      }
       this.circles.delete(s.id);
     }
     const collider = this.colliders.get(s.id);

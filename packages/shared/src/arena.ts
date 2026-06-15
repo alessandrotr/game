@@ -57,6 +57,9 @@ export interface CoverStructureSpec {
   /** Zombie mode: this structure can't be damaged or destroyed (indestructible
    *  trailer cover). It still blocks movement + projectiles but never crumbles. */
   indestructible?: boolean;
+  /** Visual stretch along the prop's local length (X) axis (1 = base model).
+   *  Trailers get a randomized value so they vary in length, never in width. */
+  lengthScale?: number;
 }
 
 /** The largest cover ("house"/trailer) caps out here; everything else scales
@@ -69,6 +72,56 @@ const STRUCTURE_REF_VOLUME = 2 * 2 * 2.8;
 export function structureHp(radius: number, height: number): number {
   const vol = radius * radius * height;
   return Math.max(20, Math.round(Math.min(STRUCTURE_MAX_HP, (STRUCTURE_MAX_HP * vol) / STRUCTURE_REF_VOLUME)));
+}
+
+/** A trailer's base collision half-extents (local space, before `lengthScale`):
+ *  half its body LENGTH (local X) and half its WIDTH (local Z). The collider is
+ *  built to these so it hugs the rectangle — never wider than the body. */
+export const TRAILER_HALF_LENGTH = 2.4;
+export const TRAILER_HALF_WIDTH = 1.2;
+
+/** True for trailer cover — the elongated, length-varied structures whose collider
+ *  is a length-fitted capsule rather than a single circle. */
+export function isTrailerAsset(assetId: string): boolean {
+  return assetId.startsWith('prop.arena.trailer');
+}
+
+/**
+ * Collision circles approximating a cover structure's footprint — shared by the
+ * server's authoritative collider and the client's predictor so both resolve
+ * against the IDENTICAL shape. A trailer becomes a capsule: a row of width-radius
+ * circles tiled down its (scaled) length, oriented by its yaw, so the collider
+ * fits the long rectangle and never exceeds its width. Every other structure
+ * stays a single circle of `radius` (its existing footprint).
+ */
+export function structureFootprint(
+  assetId: string,
+  x: number,
+  z: number,
+  rotation: number,
+  radius: number,
+  height: number,
+  lengthScale = 1,
+): ArenaObstacle[] {
+  if (!isTrailerAsset(assetId)) return [{ x, z, radius, height }];
+  const halfWidth = TRAILER_HALF_WIDTH;
+  const halfLength = TRAILER_HALF_LENGTH * lengthScale;
+  // World direction of the trailer's local length (X) axis from its yaw — the same
+  // convention the renderer and the car-forward axis use.
+  const dirX = Math.cos(rotation);
+  const dirZ = -Math.sin(rotation);
+  // Tile circles (radius = half-width) along the inner length; the radius rounds
+  // the ends out to the true body length. Spacing ≈ one radius so the sides stay
+  // close to straight (overlapping circles, no scalloped gaps).
+  const reach = halfLength - halfWidth;
+  if (reach < 1e-3) return [{ x, z, radius: halfWidth, height }];
+  const segments = Math.max(1, Math.ceil((reach * 2) / halfWidth));
+  const circles: ArenaObstacle[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = -reach + (reach * 2 * i) / segments;
+    circles.push({ x: x + dirX * t, z: z + dirZ * t, radius: halfWidth, height });
+  }
+  return circles;
 }
 
 // --- Placement constraints (world units) ---
@@ -225,11 +278,14 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
+      // Trailers vary in length (not width) so the park doesn't look stamped from
+      // one mould: a random 1.0–1.5× stretch along the prop's long (X) axis.
+      const lengthScale = isTrailer ? 1 + rng() * 0.5 : 1;
       if (kind.destructible) {
         const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
         structures.push(
-          { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp, indestructible },
-          { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp, indestructible },
+          { assetId: kind.assetId, x: spot.x, z: spot.z, rotation: rot, radius: kind.radius, height: kind.height, maxHp, indestructible, lengthScale },
+          { assetId: kind.assetId, x: -spot.x, z: -spot.z, rotation: rot + Math.PI, radius: kind.radius, height: kind.height, maxHp, indestructible, lengthScale },
         );
       } else {
         placeCover(props, obstacles, kind, spot.x, spot.z, rot, rng);

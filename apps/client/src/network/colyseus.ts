@@ -241,6 +241,7 @@ function snapshotState(state: RawState): {
       hp: s.hp,
       maxHp: s.maxHp,
       destroyed: s.destroyed,
+      lengthScale: s.lengthScale ?? 1,
     });
   });
 

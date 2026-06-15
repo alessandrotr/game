@@ -69,6 +69,28 @@ export class ArenaPhysics {
     );
   }
 
+  /** Add a fixed BOX collider for a piece of cover, sized + yaw-oriented to fit a
+   *  rectangular structure (e.g. a trailer) instead of a loose circle. `halfLen`
+   *  runs along the structure's local length (X) axis, `halfWid` across it (Z).
+   *  Drums and launched barrels bounce off it; removed when the structure crumbles. */
+  addStaticBox(
+    x: number,
+    z: number,
+    halfLen: number,
+    halfWid: number,
+    height: number,
+    rotation: number,
+  ): Collider {
+    const h = height || 2;
+    return this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(halfLen, h / 2, halfWid)
+        .setTranslation(x, h / 2, z)
+        // Yaw about Y as a quaternion (0, sin(θ/2), 0, cos(θ/2)).
+        .setRotation({ x: 0, y: Math.sin(rotation / 2), z: 0, w: Math.cos(rotation / 2) })
+        .setFriction(0.8),
+    );
+  }
+
   /** Remove a static collider (a crumbled structure stops blocking props). */
   removeCollider(collider: Collider): void {
     this.world.removeCollider(collider, false);

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { structureFootprint } from '@arena/shared';
 import type {
   ArenaObstacle,
   BarrelView,
@@ -252,9 +253,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const sig = aliveStructureSig(structures);
     if (sig !== get()._structureSig) {
       patch._structureSig = sig;
+      // Same footprint helper the server collides against (a length-fitted capsule
+      // for trailers, a circle otherwise), so prediction matches authority exactly.
       patch.structureObstacles = [...structures.values()]
         .filter((s) => !s.destroyed)
-        .map((s) => ({ x: s.x, z: s.z, radius: s.radius, height: s.height }));
+        .flatMap((s) =>
+          structureFootprint(s.assetId, s.x, s.z, s.rotation, s.radius, s.height, s.lengthScale),
+        );
     }
     set(patch);
   },

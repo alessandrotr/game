@@ -127,7 +127,12 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
           <AssetInstance id={s.assetId as AssetId} />
         </group>
       ) : (
-        <AssetInstance id={s.assetId as AssetId} />
+        // Stretch only the visual along the prop's local length (X) axis — the
+        // circular collider + HP bar (siblings) keep the base footprint, so a
+        // longer trailer is never wider.
+        <group scale={[s.lengthScale, 1, 1]}>
+          <AssetInstance id={s.assetId as AssetId} />
+        </group>
       )}
       {isCar && stage === 'smoke' && <CarSmoke height={s.height} radius={s.radius} />}
       {isCar && stage === 'fire' && <CarFire height={s.height} radius={s.radius} />}

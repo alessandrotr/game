@@ -476,11 +476,13 @@ export const ZOMBIE_SPAWN_PORTALS: readonly SpawnPoint[] = [
 ];
 
 /** Zombies in the first level's horde (level 1). */
-export const ZOMBIE_BASE_HORDE = 16;
-/** Added to the horde size each level — linear growth (lvl L ⇒ base + (L-1)·step). */
-export const ZOMBIE_HORDE_PER_LEVEL = 14;
+export const ZOMBIE_BASE_HORDE = 12;
+/** Added to the horde size each level — linear growth (lvl L ⇒ base + (L-1)·step).
+ *  Trimmed so the early run (levels 1–6) isn't a slog of sheer numbers; pressure
+ *  now comes more from how many close in at once (see {@link ZOMBIE_MAX_ALIVE_PER_LEVEL}). */
+export const ZOMBIE_HORDE_PER_LEVEL = 12;
 /** Ceiling on a level's horde size, so endless high levels don't balloon past
- *  what's playable (reached around level 17 with the values above). */
+ *  what's playable (reached around level 21 with the values above). */
 export const ZOMBIE_MAX_HORDE = 250;
 /**
  * The concurrent-alive ("closing in") cap scales with level, with NO ceiling:
@@ -489,8 +491,10 @@ export const ZOMBIE_MAX_HORDE = 250;
  * (above) shapes length. Effectively bounded by the level's horde size.
  */
 export const ZOMBIE_BASE_MAX_ALIVE = 16;
-/** Added to the concurrent-alive cap each level. */
-export const ZOMBIE_MAX_ALIVE_PER_LEVEL = 2;
+/** Added to the concurrent-alive cap each level — the "closing in" count ramps up
+ *  faster than the horde total, so later levels swarm harder even as totals stay
+ *  trimmed. */
+export const ZOMBIE_MAX_ALIVE_PER_LEVEL = 4;
 /** Zombies released per spawn pulse (a trickle out of the portal). */
 export const ZOMBIE_SPAWN_BATCH = 2;
 /** Delay between spawn pulses is randomized within this range (ms) so a horde
