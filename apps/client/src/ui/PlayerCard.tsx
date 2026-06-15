@@ -53,7 +53,7 @@ export function PlayerCard() {
         }
       }}
       title={claimable > 0 ? `${claimable} to unlock in the store` : 'Customize'}
-      className="pointer-events-auto relative w-64 cursor-pointer overflow-visible transition hover:ring-1 hover:ring-gold/40"
+      className="pointer-events-auto relative w-64 cursor-pointer overflow-visible"
     >
       {claimable > 0 && (
         <span
