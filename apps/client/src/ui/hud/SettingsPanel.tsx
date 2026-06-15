@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useHudStore } from '../../store/useHudStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useFullscreen } from '../../hooks/useFullscreen';
 import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
 import { AudioControl } from '../AudioControl';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ export function SettingsPanel() {
   const setPlayerCardCompact = useHudStore((s) => s.setPlayerCardCompact);
   const showPerf = useHudStore((s) => s.showPerf);
   const setShowPerf = useHudStore((s) => s.setShowPerf);
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -82,6 +84,12 @@ export function SettingsPanel() {
             </span>
             <AudioControl />
           </div>
+          <ToggleRow
+            label="Fullscreen"
+            hint="Fill the screen with the game"
+            checked={isFullscreen}
+            onChange={toggleFullscreen}
+          />
           <ToggleRow
             label="Compact player card"
             hint="Collapse the town player card to a slim bar"
