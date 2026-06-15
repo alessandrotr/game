@@ -51,29 +51,42 @@ export function AvatarFrame({
   const { color, color2, effect } = resolveRim(rimId);
   const m = SIZE[size];
   const paint = ringPaint(effect, color, color2);
-  const round = shape === 'circle' ? 'rounded-full' : 'rounded-2xl';
+  // `panel` (the large store/customize showcase) is deliberately restrained — a
+  // thin, low-opacity edge + a faint inner tint, no bold halo or sweeping sheen,
+  // so a full-color rim doesn't glare over the whole preview. The small round
+  // avatars (HUD, carousel, swatches) keep the bolder neon treatment.
+  const isPanel = shape === 'panel';
+  const round = isPanel ? 'rounded-2xl' : 'rounded-full';
 
   return (
     <div className={cn('relative', className)} style={style}>
-      {/* Outer glow — a blurred ring in the rim color; pulse rims breathe it. */}
-      <div
-        aria-hidden
-        className={cn('absolute inset-0', round, effect === 'pulse' && 'rim-pulse')}
-        style={{ background: paint, filter: `blur(${m.glow}px)`, opacity: 0.7 }}
-      />
-      {/* Neon ring (the colored border) — prismatic rims rotate their hue. */}
+      {/* Outer glow halo — round avatars only; the panel skips it (too loud at size). */}
+      {!isPanel && (
+        <div
+          aria-hidden
+          className={cn('absolute inset-0 rounded-full', effect === 'pulse' && 'rim-pulse')}
+          style={{ background: paint, filter: `blur(${m.glow}px)`, opacity: 0.55 }}
+        />
+      )}
+      {/* The rim-colored edge — full strength on round avatars, a quiet hairline on the panel. */}
       <div
         aria-hidden
         className={cn('absolute inset-0', round, effect === 'prismatic' && 'rim-prismatic')}
-        style={{ background: paint }}
+        style={{ background: paint, opacity: isPanel ? 0.4 : 1 }}
       />
-      {/* Glass panel, inset by the ring thickness, holding the portrait. */}
-      <div className={cn('absolute overflow-hidden bg-[#0a0c14]', round)} style={{ inset: m.edge }}>
+      {/* Glass panel, inset by the ring thickness, holding the portrait. The panel
+          gets a soft inner tint instead of the outer halo. */}
+      <div
+        className={cn('absolute overflow-hidden bg-[#0a0c14]', round)}
+        style={{ inset: isPanel ? 1.5 : m.edge, boxShadow: isPanel ? `inset 0 0 24px ${color}1f` : undefined }}
+      >
         {children}
-        {/* Diagonal sheen sweep across the glass. */}
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3">
-          <div className="rim-sheen h-full w-full bg-linear-to-r from-transparent via-white/12 to-transparent" />
-        </div>
+        {/* Diagonal sheen sweep — round avatars only (a sweep over the big panel reads as busy). */}
+        {!isPanel && (
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3">
+            <div className="rim-sheen h-full w-full bg-linear-to-r from-transparent via-white/10 to-transparent" />
+          </div>
+        )}
       </div>
       {/* Level gem riding the bottom of the ring — tinted to match the rim. */}
       {level !== undefined && (
