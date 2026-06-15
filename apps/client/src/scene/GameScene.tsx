@@ -16,6 +16,7 @@ import { Arena } from './Arena';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
 import { Fountain } from './Fountain';
+import { TownLeaderboardTablet } from './TownLeaderboardTablet';
 import { PlayerEntity } from './PlayerEntity';
 import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
@@ -163,6 +164,7 @@ export function GameScene() {
           <TownGround />
           <TownLights />
           <Fountain position={[0, 0, -2]} />
+          <TownLeaderboardTablet />
         </>
       )}
 

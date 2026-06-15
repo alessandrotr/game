@@ -22,6 +22,9 @@ export function MapZones({ mapId }: { mapId: MapAssetId }) {
   return (
     <group>
       {map.zones.map((zone, i) => {
+        // Portals carry their own shader gateway + floating label (see Portals),
+        // so skip the ground ring + flat ground text for them.
+        if (zone.kind === 'portal') return null;
         const color = ZONE_COLOR[zone.kind];
         return (
           <group key={`${zone.kind}:${i}`} position={zone.center}>

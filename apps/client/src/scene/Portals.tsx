@@ -86,7 +86,7 @@ export function Portals({ mapId }: { mapId: MapAssetId }) {
                 <cylinderGeometry args={[zone.radius, zone.radius, 2.4, 24]} />
                 <meshBasicMaterial transparent opacity={0} depthWrite={false} />
               </mesh>
-              <Billboard position={[0, 3.4, 0]}>
+              <Billboard position={[0, 3.7, 0]}>
                 <Text
                   fontSize={0.4}
                   color={style.labelColor}
