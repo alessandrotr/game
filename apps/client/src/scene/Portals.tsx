@@ -38,7 +38,7 @@ function portalStyle(zone: { mode?: 'zombie' }, room: RoomType | null): PortalSt
   const target: RoomType = room === 'arena' ? 'town' : 'arena';
   const toArena = target === 'arena';
   return {
-    label: toArena ? 'Enter Arena' : 'Return to Town',
+    label: toArena ? 'Free for all Arena' : 'Return to Town',
     core: toArena ? '#cdeeff' : '#ffe6b0',
     edge: toArena ? '#1f6fe0' : '#d8861f',
     glow: toArena ? '#36b6ff' : '#ffb24a',

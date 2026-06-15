@@ -115,15 +115,29 @@ export function TownLeaderboardTablet({
 
   return (
     <group position={position} rotation={rotation}>
-      {/* Stone base. */}
+      {/* Cool polished-slate base. Low metalness so it shows its own color (not a
+          mirror of the dark dusk env) + a faint cool emissive so it never sinks
+          to black, with a glossy roughness for crisp light highlights. */}
       <mesh position={[0, 0.2, 0]} castShadow receiveShadow>
         <boxGeometry args={[1.95, 0.4, 0.65]} />
-        <meshStandardMaterial color="#3a3942" roughness={0.95} metalness={0.1} />
+        <meshStandardMaterial
+          color="#414b66"
+          roughness={0.42}
+          metalness={0.25}
+          emissive="#18223e"
+          emissiveIntensity={0.45}
+        />
       </mesh>
-      {/* Slab. */}
+      {/* Slab — same cool slate, framing the glowing gold face. */}
       <mesh position={[0, 1.45, 0]} castShadow>
         <boxGeometry args={[1.7, 2.15, 0.22]} />
-        <meshStandardMaterial color="#26252e" roughness={0.85} metalness={0.25} />
+        <meshStandardMaterial
+          color="#4a5570"
+          roughness={0.38}
+          metalness={0.25}
+          emissive="#1d2a48"
+          emissiveIntensity={0.5}
+        />
       </mesh>
       {/* Glowing engraved leaderboard face. */}
       <TabletFace />

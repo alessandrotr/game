@@ -283,7 +283,6 @@ export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[]
   { x: 1.8, z: 19.8, radius: 0.95 },
   { x: 13.6, z: -35, radius: 0.95 },
   { x: 13.2, z: -24.4, radius: 0.5 },
-  { x: 12.9, z: -1.4, radius: 0.5 },
   { x: 20.2, z: -36.9, radius: 0.5 },
   { x: 17.2, z: -12.1, radius: 0.5 },
   { x: 18.6, z: 5.7, radius: 0.5 },

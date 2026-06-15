@@ -225,7 +225,6 @@ const town: MapDescriptor = {
     { assetId: 'prop.rock', position: [1.8, 0, 19.8], scale: 1.23 },
     { assetId: 'prop.rock', position: [13.6, 0, -35], scale: 1.17 },
     { assetId: 'prop.tree.pine', position: [13.2, 0, -24.4] },
-    { assetId: 'prop.tree.pine', position: [12.9, 0, -1.4], scale: 1.03 },
     { assetId: 'prop.tree', position: [20.2, 0, -36.9] },
     { assetId: 'prop.tree', position: [17.2, 0, -12.1], scale: 1.2 },
     { assetId: 'prop.tree', position: [18.6, 0, 5.7] },
