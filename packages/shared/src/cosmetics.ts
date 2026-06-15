@@ -119,7 +119,7 @@ const EMOTES: EmoteCosmetic[] = [
     name: 'Victory Jig',
     description: 'A celebratory shuffle.',
     rarity: 'common',
-    default: true,
+    requiredLevel: 10,
   },
   {
     id: 'emote.dance2',
@@ -128,7 +128,7 @@ const EMOTES: EmoteCosmetic[] = [
     name: 'Groove',
     description: 'Loosen up between rounds.',
     rarity: 'common',
-    default: true,
+    requiredLevel: 10,
   },
 ];
 
@@ -212,7 +212,8 @@ export function isUnlocked(c: Cosmetic, level: number): boolean {
 /** Ids every character owns from the start (the `default` items). */
 export const DEFAULT_OWNED: readonly string[] = COSMETICS.filter((c) => c.default).map((c) => c.id);
 
-/** A fresh character's loadout: starter emotes bound, default title, base look. */
+/** A fresh character's loadout: default title, base look. Emotes unlock with
+ *  level (none are starter items), so a new character binds none. */
 export const DEFAULT_LOADOUT: Loadout = {
   skinId: '',
   emotes: EMOTES.filter((e) => e.default).map((e) => e.id),
