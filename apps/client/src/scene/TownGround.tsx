@@ -5,17 +5,15 @@
  * shader (see `GrassGround`) rather than as separate decal meshes. That means
  * there's a single opaque ground surface — nothing coplanar to z-fight, no decal
  * sitting above y=0 to clip the player's feet, and nothing to overdraw the arena
- * portal. The grass is one huge plane that runs far past the fog so the horizon
- * blends, with real 3D blades forming a tall-grass wall around the edge.
+ * portal. One cheap plane carries the whole ground (the 26k animated grass blades
+ * were removed — they were the heaviest always-on cost on weak GPUs).
  */
 import { GrassGround } from './GrassGround';
-import { GrassBlades } from './GrassBlades';
 
 export function TownGround() {
   return (
     <group>
       <GrassGround />
-      <GrassBlades />
     </group>
   );
 }
