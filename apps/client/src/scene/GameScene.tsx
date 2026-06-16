@@ -41,6 +41,7 @@ import { DestinationMarker } from './DestinationMarker';
 import { ArenaLights } from './ArenaLights';
 import { Portals } from './Portals';
 import { MapView } from '../render/MapView';
+import { Castle } from './Castle';
 import { useArenaLayout } from './useArenaLayout';
 import { MapZones } from '../render/MapZones';
 import { VfxLayer } from '../render/VfxLayer';
@@ -182,7 +183,14 @@ export function GameScene() {
         </>
       )}
 
-      <MapView mapId={mapId} props={isArena ? arenaLayout.props : undefined} />
+      <MapView
+        mapId={mapId}
+        props={isArena ? arenaLayout.props : undefined}
+        exclude={isArena ? undefined : ['prop.castle']}
+      />
+      {/* The castle is rendered apart so it can open up (hide near walls/roofs)
+          when the player walks inside the courtyard. */}
+      {!isArena && <Castle />}
       <MapZones mapId={mapId} />
       <Npcs mapId={mapId} />
       <Portals mapId={mapId} />

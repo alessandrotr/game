@@ -543,8 +543,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
  * nothing when empty-handed. Lives inside the player group so it tracks the body.
  */
 function HeldItem({ sessionId }: { sessionId: string }) {
-  useGameStore((s) => s.tick); // re-evaluate as snapshots arrive
-  const holding = useGameStore.getState().players.get(sessionId)?.holding ?? '';
+  // Subscribe to just this player's `holding` so we re-render when the carried
+  // item changes — not on every snapshot tick.
+  const holding = useGameStore((s) => s.players.get(sessionId)?.holding ?? '');
   if (!holding) return null;
   return (
     <group position={[0, PICKABLE_CARRY_Y, 0]}>

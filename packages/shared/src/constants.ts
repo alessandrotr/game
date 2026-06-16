@@ -230,6 +230,60 @@ function pushOutOfCircles(
 }
 
 /**
+ * Lord British's castle — a large WALKABLE walled fortress spanning the back of
+ * town (where the old city wall ran). Defined once here so the model (client
+ * props.ts) and the collision ring below stay in sync. Centre is world-space;
+ * tower/gate offsets are LOCAL to it. The front wall faces +z (toward town) with
+ * a central gate gap you walk through into the bailey.
+ */
+export const CASTLE = {
+  x: 0,
+  z: -27,
+  halfX: 21, // half width — reaches the old back-wall ends (±21.5)
+  halfZ: 7, // half depth
+  wallH: 6,
+  wallT: 0.9,
+  gateW: 5,
+  gateH: 4.4,
+} as const;
+
+/** Tower placements local to the castle centre: four corners, mid-wall towers
+ *  on the long walls, and two flanking the gate. r = base radius, h = shaft. */
+export const CASTLE_TOWERS: readonly { x: number; z: number; r: number; h: number }[] = [
+  { x: -21, z: 7, r: 1.7, h: 7 },
+  { x: 21, z: 7, r: 1.7, h: 7 },
+  { x: -21, z: -7, r: 1.7, h: 7 },
+  { x: 21, z: -7, r: 1.7, h: 7 },
+  { x: -10.5, z: 7, r: 1.4, h: 6.4 },
+  { x: 10.5, z: 7, r: 1.4, h: 6.4 },
+  { x: -10.5, z: -7, r: 1.4, h: 6.4 },
+  { x: 10.5, z: -7, r: 1.4, h: 6.4 },
+  { x: -3.3, z: 7, r: 1.3, h: 7.6 },
+  { x: 3.3, z: 7, r: 1.3, h: 7.6 },
+];
+
+/** The castle's collision circles — curtain walls (with a gate gap), towers and
+ *  the keep — generated from {@link CASTLE} so they always match the model. */
+function castleColliders(): { x: number; z: number; radius: number }[] {
+  const c = CASTLE;
+  const out: { x: number; z: number; radius: number }[] = [];
+  const WR = 1.9; // wall circle radius
+  const STEP = 3;
+  const gateHalf = c.gateW / 2 + 1; // keep wall circles clear of the gate
+  for (let x = -c.halfX; x <= c.halfX + 0.001; x += STEP) {
+    if (Math.abs(x) >= gateHalf) out.push({ x: c.x + x, z: c.z + c.halfZ, radius: WR }); // front
+    out.push({ x: c.x + x, z: c.z - c.halfZ, radius: WR }); // back
+  }
+  for (let z = -c.halfZ; z <= c.halfZ + 0.001; z += STEP) {
+    out.push({ x: c.x - c.halfX, z: c.z + z, radius: WR }); // left
+    out.push({ x: c.x + c.halfX, z: c.z + z, radius: WR }); // right
+  }
+  for (const t of CASTLE_TOWERS) out.push({ x: c.x + t.x, z: c.z + t.z, radius: t.r });
+  out.push({ x: c.x, z: c.z - c.halfZ + 3, radius: 3 }); // keep
+  return out;
+}
+
+/**
  * Town collision circles, one per **solid, visible** prop (buildings, walls,
  * well, stalls, trees, rocks, the arch pillars). Radii are inscribed to the
  * footprint so you can walk right up to a wall but never through it — and there
@@ -237,16 +291,10 @@ function pushOutOfCircles(
  * sync with the town layout in `apps/client/src/assets/data/maps.ts`.
  */
 export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[] = [
-  // Castle + city walls.
-  { x: 0, z: -27, radius: 5 },
-  { x: -9, z: -29, radius: 2.5 },
-  { x: -14, z: -29, radius: 2.5 },
-  { x: -19, z: -29, radius: 2.5 },
-  { x: 9, z: -29, radius: 2.5 },
-  { x: 14, z: -29, radius: 2.5 },
-  { x: 19, z: -29, radius: 2.5 },
-  { x: -21.5, z: -25.5, radius: 2.5 },
-  { x: 21.5, z: -25.5, radius: 2.5 },
+  // Castle (a big walkable fortress) — curtain walls with a gate gap, towers and
+  // keep, generated to match the model. It now spans the whole back of town, so
+  // the old separate city-wall colliders are gone.
+  ...castleColliders(),
   // Buildings.
   { x: -13, z: 5.5, radius: 2.4 }, // inn
   { x: 13, z: 6, radius: 1.7 }, // smithy

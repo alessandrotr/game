@@ -109,16 +109,9 @@ const town: MapDescriptor = {
   groundColor: '#4a6b3a',
   ambient: { color: '#fff2d0', intensity: 0.6 },
   props: [
-    // --- Lord British's castle + city walls, looming behind the moongate ---
+    // --- Lord British's castle, looming behind the moongate. It's a big walled
+    //     fortress spanning the back of town now, so it replaces the old city wall.
     { assetId: 'prop.castle', position: [0, 0, -27] },
-    { assetId: 'prop.wall', position: [-9, 0, -29] },
-    { assetId: 'prop.wall', position: [-14, 0, -29] },
-    { assetId: 'prop.wall', position: [-19, 0, -29] },
-    { assetId: 'prop.wall', position: [9, 0, -29] },
-    { assetId: 'prop.wall', position: [14, 0, -29] },
-    { assetId: 'prop.wall', position: [19, 0, -29] },
-    { assetId: 'prop.wall', position: [-21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
-    { assetId: 'prop.wall', position: [21.5, 0, -25.5], rotation: [0, HALF_PI, 0] },
 
     // --- Buildings lining the streets, facing inward ---
     { assetId: 'prop.building.inn.blue', position: [-13, 0, 5.5], rotation: [0, HALF_PI, 0] },

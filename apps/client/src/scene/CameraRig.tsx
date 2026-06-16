@@ -46,8 +46,9 @@ function setFov(camera: PerspectiveCamera, fov: number): void {
  */
 export function CameraRig() {
   const { camera } = useThree();
-  const desired = new Vector3();
-  const target = new Vector3();
+  // Scratch vectors reused every frame (allocated once per mount, not per render).
+  const desired = useRef(new Vector3()).current;
+  const target = useRef(new Vector3()).current;
   // Smoothed first-person eye position in gun mode (null until it initializes).
   const eye = useRef<Vector3 | null>(null);
 

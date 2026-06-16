@@ -1,3 +1,4 @@
+import { CASTLE, CASTLE_TOWERS } from '@arena/shared';
 import type { PlaceholderPart, PropDescriptor, Vec3 } from '@arena/shared';
 
 /**
@@ -228,7 +229,8 @@ const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDe
  * openings. This is the shared "see into the room" guts used by every windowed,
  * flat-walled building; the caller adds the glass panes (with `open: true`),
  * roof, door, etc. Pass `floor: false` for an upper storey that sits on another,
- * and `brick: true` to clad the exterior walls in the procedural brick pattern.
+ * `brick: true` to clad the exterior in the procedural brick pattern, and
+ * `room: false` to leave it an empty shell (no lit interior back wall/floor).
  */
 function hollowStorey(
   W: number,
@@ -239,6 +241,7 @@ function hollowStorey(
   openings: Opening[],
   floor = true,
   brick = false,
+  room = true,
 ): PlaceholderPart[] {
   const t = 0.16; // wall thickness
   const halfW = W / 2;
@@ -250,16 +253,20 @@ function hollowStorey(
     box([W, H, t], [0, cy, -(halfD - t / 2)], color, skin), // back wall
     box([t, H, D], [-(halfW - t / 2), cy, 0], color, skin), // left wall
     box([t, H, D], [halfW - t / 2, cy, 0], color, skin), // right wall
+  ];
+  if (room) {
     // Warm, softly-emissive interior back wall — what the eye lands on through
     // the glass. Emissive so the room reads as lit at dusk without paying for a
     // real light per building. Inset to clear the shell (no z-fight).
-    box([W - 2 * t, H, t], [0, cy, -(halfD - 1.6 * t)], ROOM_WALL, {
-      emissive: ROOM_WALL,
-      emissiveIntensity: 0.5,
-      castShadow: false,
-      receiveShadow: false,
-    }),
-  ];
+    parts.push(
+      box([W - 2 * t, H, t], [0, cy, -(halfD - 1.6 * t)], ROOM_WALL, {
+        emissive: ROOM_WALL,
+        emissiveIntensity: 0.5,
+        castShadow: false,
+        receiveShadow: false,
+      }),
+    );
+  }
   if (floor) {
     parts.push(
       box([W - 2 * t, t, D - 2 * t], [0, yBot + t / 2 + 0.01, 0], ROOM_FLOOR, {
@@ -366,9 +373,9 @@ const cottage = townHouse('building.cottage', {
   chimney: [-0.9, 3, -0.6],
 });
 
-/** The tavern: two storeys with a jettied upper floor and a hanging sign. Both
- *  storeys are hollow gray-stone brick with see-through windows into a warm lit
- *  interior — same masonry as the houses, just bigger. */
+/** The tavern: two storeys with a jettied upper floor and a hanging sign. Hollow
+ *  gray-stone brick with see-through windows — left as an empty shell inside (no
+ *  lit interior structure). */
 const inn = prop('building.inn', 'The Wandering Inn', [
   box([5.2, 0.4, 4.2], [0, 0.2, 0], STONE),
   // Lower storey — front face at z = 1.9, windows flanking the door.
@@ -382,8 +389,9 @@ const inn = prop('building.inn', 'The Wandering Inn', [
       { cx: -1.6, cy: 1.5, w: 0.7, h: 0.7 },
       { cx: 1.6, cy: 1.5, w: 0.7, h: 0.7 },
     ],
+    false,
     true,
-    true,
+    false,
   ),
   // Jettied upper storey — front face at z = 2.1. Sits on the lower storey so it
   // needs no floor of its own.
@@ -399,6 +407,7 @@ const inn = prop('building.inn', 'The Wandering Inn', [
     ],
     false,
     true,
+    false,
   ),
   cone(3.7, 1.9, 4, [0, 5, 0], ROOF_BROWN, { rotation: [0, Math.PI / 4, 0], material: 'tile' }),
   box([1, 1.5, 0.1], [0, 0.95, 1.95], WOOD_DARK),
@@ -631,37 +640,63 @@ const signpost = prop('signpost', 'Signpost', [
 
 // --- Castle & city walls (Ultima Online / Britain flavour) -----------------
 
-/** A corner tower for the castle: shaft, crenellated cap, conical roof. Dirty
- *  gray stone masonry on the shaft. */
-const castleTower = (x: number, z: number): PlaceholderPart[] => [
-  cyl(1.1, 1.25, 8, 12, [x, 4, z], GRAY_STONE, { material: 'brick' }),
-  cyl(1.4, 1.4, 0.7, 12, [x, 8, z], STONE_DARK),
-  cone(1.5, 1.7, 12, [x, 9.2, z], ROOF_SLATE, { material: 'tile' }),
+/** A round tower for the castle: tapered masonry shaft, a corbelled crenellated
+ *  cap, and a steep conical roof. Sized by base radius `r` and shaft height `h`. */
+const castleTower = (x: number, z: number, r = 1.6, h = 8.5): PlaceholderPart[] => [
+  cyl(r * 0.86, r, h, 14, [x, h / 2, z], GRAY_STONE, { material: 'brick' }),
+  cyl(r * 1.18, r * 1.18, 0.8, 14, [x, h + 0.4, z], STONE_DARK), // overhanging battlement
+  cone(r * 1.22, r * 1.9, 14, [x, h + 0.8 + (r * 1.9) / 2, z], ROOF_SLATE, { material: 'tile' }),
 ];
 
-/** Lord British's keep: a stone castle with four corner towers, a battlemented
- *  keep, a gatehouse, and banners — the town's centrepiece. */
+/** Lord British's castle: a WALKABLE walled courtyard. Curtain walls with a
+ *  gate opening at the front (facing town, +z), four corner towers, and a keep
+ *  set against the back wall — so players can walk in through the gate and roam
+ *  the bailey. The collision ring in TOWN_OBSTACLES (centred on the castle's
+ *  world position) mirrors these walls with a matching gap at the gate. */
+/** A crenellated cap rim atop a curtain wall (battlement look without the cost
+ *  of dozens of individual merlon teeth). */
+const battlement = (size: Vec3, pos: Vec3): PlaceholderPart => box(size, pos, STONE_DARK);
+const C = CASTLE;
+const KEEP_Z = -C.halfZ + 3; // keep centre, set against the back wall
 const castle = prop('castle', "Lord British's Castle", [
-  box([10, 0.8, 10], [0, 0.4, 0], STONE_DARK), // foundation
-  box([6.5, 5.5, 6.5], [0, 3.2, 0], STONE), // keep
-  box([7.1, 0.7, 7.1], [0, 6.2, 0], STONE_DARK), // keep battlement
-  box([3.2, 0.9, 3.2], [0, 6.9, 0], STONE), // upper turret
-  cone(2.6, 2.2, 4, [0, 8.5, 0], ROOF_SLATE, { rotation: [0, Math.PI / 4, 0], material: 'tile' }),
-  // Gatehouse with a dark portcullis, facing +z.
-  box([4.5, 4, 2], [0, 2, 4.5], STONE),
-  box([1.8, 2.6, 0.3], [0, 1.5, 5.5], '#1f1812'),
-  box([5.1, 0.6, 2.4], [0, 4.2, 4.5], STONE_DARK),
-  // Four corner towers.
-  ...castleTower(4.5, 4.5),
-  ...castleTower(-4.5, 4.5),
-  ...castleTower(4.5, -4.5),
-  ...castleTower(-4.5, -4.5),
-  // Glowing glass windows on the keep.
-  ...glassWindow(0.6, 0.9, -1.6, 3.4, 3.26),
-  ...glassWindow(0.6, 0.9, 1.6, 3.4, 3.26),
-  // Banners on the gatehouse.
-  box([0.05, 1.4, 0.5], [-1.4, 3.4, 5.6], CLOTH, { castShadow: false }),
-  box([0.05, 1.4, 0.5], [1.4, 3.4, 5.6], CLOTH, { castShadow: false }),
+  // Raised plinth + flush courtyard floor you walk on inside.
+  box([C.halfX * 2 + 1.2, 0.3, C.halfZ * 2 + 1.2], [0, 0.15, 0], STONE_DARK),
+  box([C.halfX * 2 - 0.4, 0.12, C.halfZ * 2 - 0.4], [0, 0.36, 0], STONE),
+  // Front curtain wall with the gate cut out (brick masonry), facing +z.
+  ...holedWall(
+    C.halfX * 2,
+    0,
+    C.wallH,
+    C.halfZ,
+    C.wallT,
+    GRAY_STONE,
+    [{ cx: 0, cy: C.gateH / 2, w: C.gateW, h: C.gateH }],
+    { material: 'brick' },
+  ),
+  // Back + side curtain walls (solid).
+  box([C.halfX * 2, C.wallH, C.wallT], [0, C.wallH / 2, -C.halfZ], GRAY_STONE, { material: 'brick' }),
+  box([C.wallT, C.wallH, C.halfZ * 2], [-C.halfX, C.wallH / 2, 0], GRAY_STONE, { material: 'brick' }),
+  box([C.wallT, C.wallH, C.halfZ * 2], [C.halfX, C.wallH / 2, 0], GRAY_STONE, { material: 'brick' }),
+  // Battlement cap rims along each wall top.
+  battlement([C.halfX * 2 + 0.3, 0.5, C.wallT + 0.25], [0, C.wallH + 0.1, C.halfZ]),
+  battlement([C.halfX * 2 + 0.3, 0.5, C.wallT + 0.25], [0, C.wallH + 0.1, -C.halfZ]),
+  battlement([C.wallT + 0.25, 0.5, C.halfZ * 2 + 0.3], [-C.halfX, C.wallH + 0.1, 0]),
+  battlement([C.wallT + 0.25, 0.5, C.halfZ * 2 + 0.3], [C.halfX, C.wallH + 0.1, 0]),
+  // Looming keep against the back wall — leaves the front bailey open to walk in.
+  box([6, 9.5, 6], [0, 4.75, KEEP_Z], GRAY_STONE, { material: 'brick' }),
+  box([6.8, 0.8, 6.8], [0, 9.9, KEEP_Z], STONE_DARK), // keep battlement
+  box([3.4, 1.4, 3.4], [0, 11, KEEP_Z], GRAY_STONE, { material: 'brick' }), // upper turret
+  cone(2.8, 3.6, 4, [0, 13.4, KEEP_Z], ROOF_SLATE, { rotation: [0, Math.PI / 4, 0], material: 'tile' }),
+  // Glowing glass windows up the keep face, toward the courtyard.
+  ...glassWindow(0.7, 1.1, -1.5, 4, KEEP_Z + 3),
+  ...glassWindow(0.7, 1.1, 1.5, 4, KEEP_Z + 3),
+  ...glassWindow(0.7, 1.1, -1.5, 7, KEEP_Z + 3),
+  ...glassWindow(0.7, 1.1, 1.5, 7, KEEP_Z + 3),
+  // Towers — corners, mid-wall and gate — from the shared spec.
+  ...CASTLE_TOWERS.flatMap((t) => castleTower(t.x, t.z, t.r, t.h)),
+  // Banners flanking the gate.
+  box([0.06, 1.8, 0.6], [-C.gateW / 2 - 0.2, 3, C.halfZ + 0.15], CLOTH, { castShadow: false }),
+  box([0.06, 1.8, 0.6], [C.gateW / 2 + 0.2, 3, C.halfZ + 0.15], CLOTH, { castShadow: false }),
 ]);
 
 /** A ~5u crenellated stone wall segment (tileable along the city perimeter). */

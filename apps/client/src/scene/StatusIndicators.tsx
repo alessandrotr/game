@@ -34,13 +34,27 @@ const PIP_Y = 2.7;
 const PIP_SIZE = 0.18;
 const PIP_GAP = 0.26;
 
+/** A signature of a player's visible statuses + shield — changes only when the
+ *  badge actually needs to redraw, so we re-render on that, not on every tick. */
+function statusSignature(sessionId: string): string {
+  const p = useGameStore.getState().players.get(sessionId);
+  if (!p || !p.alive) return '';
+  const kinds = p.statuses
+    .map((s) => s.kind)
+    .filter((k) => k !== 'shield')
+    .sort()
+    .join(',');
+  return `${kinds}|${p.shield > 0 ? 's' : ''}`;
+}
+
 function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
-  // Re-render on each server tick so the active-status set stays current.
-  useGameStore((s) => s.tick);
   const group = useRef<Group>(null);
 
+  // Re-render only when this player's status set (or shield) actually changes,
+  // rather than on every server tick (which churned all badges 20×/s).
+  const signature = useGameStore(() => statusSignature(sessionId));
+
   const isLocal = useGameStore.getState().sessionId === sessionId;
-  const player = useGameStore.getState().players.get(sessionId);
 
   // Track the player's position every frame (mirrors PlayerEntity's sampling).
   useFrame(() => {
@@ -55,13 +69,10 @@ function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
     }
   });
 
-  if (!player || !player.alive) return null;
-
-  // De-duplicate by kind (the server keeps one per kind, but be defensive).
-  const kinds = Array.from(new Set(player.statuses.map((s) => s.kind))).filter(
-    (k) => k !== 'shield',
-  );
-  const hasShield = player.shield > 0;
+  if (!signature) return null;
+  const [kindsPart, shieldPart] = signature.split('|');
+  const kinds = (kindsPart ? kindsPart.split(',') : []) as StatusKind[];
+  const hasShield = shieldPart === 's';
   if (kinds.length === 0 && !hasShield) return null;
 
   const startX = -((kinds.length - 1) * PIP_GAP) / 2;
