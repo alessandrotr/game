@@ -42,6 +42,8 @@ import { DestinationMarker } from './DestinationMarker';
 import { ArenaLights } from './ArenaLights';
 import { Portals } from './Portals';
 import { MapView } from '../render/MapView';
+import { ModelWarmup } from '../render/ModelWarmup';
+import { gltfSkinUrls } from '../assets/CharacterFactory';
 import { Castle } from './Castle';
 import { useArenaLayout } from './useArenaLayout';
 import { MapZones } from '../render/MapZones';
@@ -63,6 +65,9 @@ export function GameScene() {
   // Gun Mode Zombie swaps the point-to-move input for WASD + mouse-aim + fire.
   const gunMode = useGameStore((s) => s.gunMode);
   const gunView = useGameStore((s) => s.gunView);
+  // Zombie mode: warm the horde models' GPU upload/shader-compile up front so the
+  // first wave doesn't hitch.
+  const zombieMode = useGameStore((s) => s.zombieMode);
   // First person hides the cursor (pointer lock); top-down still cursor-aims.
   const fpsView = gunMode && gunView === 'fps';
   const room = isArena ? 'arena' : 'town';
@@ -77,6 +82,8 @@ export function GameScene() {
     () => arenaLayout.barrels.map((_, i) => `b${i}`),
     [arenaLayout],
   );
+  // The rigged zombie skin GLBs to GPU-warm in zombie mode (computed once).
+  const zombieSkinUrls = useMemo(() => gltfSkinUrls(), []);
   // Lighting / shadows / fog / tone, live-tunable per world via the dev tools
   // (Leva → "Environment · Town/Arena"). Defaults match the hand-tuned look.
   const env = useEnvStore((s) => s[room]);
@@ -205,6 +212,8 @@ export function GameScene() {
       {/* The castle is rendered apart so it can open up (hide near walls/roofs)
           when the player walks inside the courtyard. */}
       {!isArena && <Castle />}
+      {/* GPU-warm the horde models so the first wave's spawn doesn't hitch. */}
+      {zombieMode && <ModelWarmup urls={zombieSkinUrls} />}
       <MapZones mapId={mapId} />
       <Npcs mapId={mapId} />
       <Portals mapId={mapId} />
