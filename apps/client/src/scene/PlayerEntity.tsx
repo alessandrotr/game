@@ -276,7 +276,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           {
             // Gun mode walks slower per view (matches the server's gun-mode speed
             // so prediction stays in lockstep) — first person is calmer than top-down.
-            speed: gunMode ? mv.speed * gunMoveSpeedMult(gunView) : mv.speed,
+            speed: gunMode ? mv.speed * gunMoveSpeedMult(gunView) : (isArena ? mv.speed - 1 : mv.speed),
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,

@@ -934,9 +934,10 @@ export class ArenaRoom extends AvatarRoom {
       let cdz = ndz;
       if (isZombie) {
         const ai = this.zombieAiFor(sessionId);
+        const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - (this.gunMode ? 0 : 1);
         baseSpeed = Math.max(
           1,
-          zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) + ai.speedOffset,
+          zBase + ai.speedOffset,
         );
         // Arc off the straight line toward this zombie's COMMITTED flank side by
         // an angle that ramps with distance (full when far, zero at attack range)
@@ -954,7 +955,7 @@ export class ArenaRoom extends AvatarRoom {
         cdz = Math.cos(ang);
         attacker.rotation = ang; // face where it's actually heading
       } else {
-        baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass);
+        baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - (this.gunMode ? 0 : 1);
       }
       const speed = baseSpeed * moveSpeedMultiplier(attacker);
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
@@ -1164,7 +1165,7 @@ export class ArenaRoom extends AvatarRoom {
           this.destinations.get(sessionId) ?? null,
           {
             speed:
-              this.tuning.walkSpeedFor(player.characterClass) *
+              (this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) *
               moveSpeedMultiplier(player) *
               (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1),
             rotationSpeed: m.rotationSpeed,
