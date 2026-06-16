@@ -105,9 +105,11 @@ export interface PlaceholderPart {
   roughness?: number;
   /** When set, the part renders transparent at this opacity. */
   opacity?: number;
-  /** Selects a special shared material instead of the default standard one.
-   *  `'glass'` uses the cheap fresnel window glass (no transmission). */
-  material?: 'glass';
+  /** Selects a special material treatment instead of the plain standard one.
+   *  `'glass'` uses the cheap fresnel window glass (no transmission); `'brick'`
+   *  and `'tile'` overlay a procedural masonry / roof-tile pattern on the
+   *  standard lit material. */
+  material?: 'glass' | 'brick' | 'tile';
   /** Shadow participation (default true). Disable on small/flat decor to keep
    *  the shadow pass cheap when a scene has many props. */
   castShadow?: boolean;

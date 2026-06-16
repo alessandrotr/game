@@ -5,6 +5,8 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import type { GltfModel, PlaceholderModel, RenderSource } from '@arena/shared';
 import { PrimitiveGeometry } from './geometry';
 import { glassMaterialFor } from './glassMaterial';
+import { brickOnBeforeCompile, brickCacheKey } from './brickMaterial';
+import { roofTileOnBeforeCompile, roofTileCacheKey } from './roofTileMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 
 /**
@@ -66,6 +68,22 @@ function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
               roughness={part.roughness ?? 0.7}
               transparent={part.opacity != null}
               opacity={part.opacity ?? 1}
+              // `brick`/`tile` overlay a procedural masonry / roof-tile pattern on
+              // the lit material; the shared cache key compiles each one once.
+              onBeforeCompile={
+                part.material === 'tile'
+                  ? roofTileOnBeforeCompile
+                  : part.material === 'brick'
+                    ? brickOnBeforeCompile
+                    : undefined
+              }
+              customProgramCacheKey={
+                part.material === 'tile'
+                  ? roofTileCacheKey
+                  : part.material === 'brick'
+                    ? brickCacheKey
+                    : undefined
+              }
               // Faceted shading for a crisp, stylized low-poly read (hard light per
               // face on roofs/barrels/etc.). Free: flat normals are derived in the
               // shader, no geometry/texture cost.

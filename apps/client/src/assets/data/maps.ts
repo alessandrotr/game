@@ -122,7 +122,7 @@ const town: MapDescriptor = {
 
     // --- Buildings lining the streets, facing inward ---
     { assetId: 'prop.building.inn.blue', position: [-13, 0, 5.5], rotation: [0, HALF_PI, 0] },
-    { assetId: 'prop.building.smithy.red', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
+    { assetId: 'prop.building.house.red', position: [13, 0, 6], rotation: [0, -HALF_PI, 0] },
     // Team-themed by side: blue on the left (x < 0), red on the right (x > 0).
     { assetId: 'prop.building.tower.blue', position: [-20, 0, -16], rotation: [0, 0.5, 0] },
     { assetId: 'prop.building.tower.red', position: [20, 0, -16], rotation: [0, -0.5, 0] },

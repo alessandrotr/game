@@ -8,8 +8,6 @@ import type { PlaceholderPart, PropDescriptor, Vec3 } from '@arena/shared';
  */
 
 // --- Palette ---------------------------------------------------------------
-const PLASTER = '#e6d8b6';
-const PLASTER_WARM = '#d9c196';
 const TIMBER = '#5a3f28';
 const WOOD = '#6e4b2a';
 const WOOD_DARK = '#43301d';
@@ -19,6 +17,7 @@ const ROOF_SLATE = '#566079';
 const STONE = '#8e887b';
 const STONE_DARK = '#6c675b';
 const STONE_LIGHT = '#a89f8b';
+const GRAY_STONE = '#7d828b'; // cool medieval stone gray (UO Britain) — houses & towers
 const FOLIAGE = '#3f8a4a';
 const FOLIAGE_DARK = '#2f6d3c';
 const PINE = '#2e6b40';
@@ -96,7 +95,7 @@ const sph = (r: number, position: Vec3, color: string, extra: P = {}): Placehold
 });
 
 const pyramid = (r: number, h: number, y: number, color: string): PlaceholderPart =>
-  cone(r, h, 4, [0, y, 0], color, { rotation: [0, Math.PI / 4, 0] });
+  cone(r, h, 4, [0, y, 0], color, { rotation: [0, Math.PI / 4, 0], material: 'tile' });
 
 /**
  * A framed shader-glass window on a building wall. The window sits on the wall
@@ -179,6 +178,7 @@ function holedWall(
   thickness: number,
   color: string,
   openings: Opening[],
+  extra: P = {},
 ): PlaceholderPart[] {
   const halfW = W / 2;
   const zc = z - thickness / 2; // centre so the outer face lands at depth z
@@ -204,10 +204,11 @@ function holedWall(
       .sort((a, b) => a[0] - b[0]);
     let x = -halfW;
     for (const [x0, x1] of cuts) {
-      if (x0 > x) parts.push(box([x0 - x, yb - ya, thickness], [(x + x0) / 2, my, zc], color));
+      if (x0 > x) parts.push(box([x0 - x, yb - ya, thickness], [(x + x0) / 2, my, zc], color, extra));
       x = Math.max(x, x1);
     }
-    if (x < halfW) parts.push(box([halfW - x, yb - ya, thickness], [(x + halfW) / 2, my, zc], color));
+    if (x < halfW)
+      parts.push(box([halfW - x, yb - ya, thickness], [(x + halfW) / 2, my, zc], color, extra));
   }
   return parts;
 }
@@ -226,7 +227,8 @@ const prop = (id: string, displayName: string, parts: PlaceholderPart[]): PropDe
  * walls, and a warm softly-lit interior (back wall + floor) visible through the
  * openings. This is the shared "see into the room" guts used by every windowed,
  * flat-walled building; the caller adds the glass panes (with `open: true`),
- * roof, door, etc. Pass `floor: false` for an upper storey that sits on another.
+ * roof, door, etc. Pass `floor: false` for an upper storey that sits on another,
+ * and `brick: true` to clad the exterior walls in the procedural brick pattern.
  */
 function hollowStorey(
   W: number,
@@ -236,16 +238,18 @@ function hollowStorey(
   color: string,
   openings: Opening[],
   floor = true,
+  brick = false,
 ): PlaceholderPart[] {
   const t = 0.16; // wall thickness
   const halfW = W / 2;
   const halfD = D / 2;
   const yBot = cy - H / 2;
+  const skin: P = brick ? { material: 'brick' } : {};
   const parts: PlaceholderPart[] = [
-    ...holedWall(W, yBot, cy + H / 2, halfD, t, color, openings),
-    box([W, H, t], [0, cy, -(halfD - t / 2)], color), // back wall
-    box([t, H, D], [-(halfW - t / 2), cy, 0], color), // left wall
-    box([t, H, D], [halfW - t / 2, cy, 0], color), // right wall
+    ...holedWall(W, yBot, cy + H / 2, halfD, t, color, openings, skin),
+    box([W, H, t], [0, cy, -(halfD - t / 2)], color, skin), // back wall
+    box([t, H, D], [-(halfW - t / 2), cy, 0], color, skin), // left wall
+    box([t, H, D], [halfW - t / 2, cy, 0], color, skin), // right wall
     // Warm, softly-emissive interior back wall — what the eye lands on through
     // the glass. Emissive so the room reads as lit at dusk without paying for a
     // real light per building. Inset to clear the shell (no z-fight).
@@ -304,10 +308,20 @@ function townHouse(id: string, opts: HouseOpts): PropDescriptor {
   const parts: PlaceholderPart[] = [
     box(opts.footing, [0, fh / 2, 0], STONE),
     // Hollow shell + lit interior, with two window holes in the front wall.
-    ...hollowStorey(W, wallH, D, wy, opts.wallColor, [
-      { cx: -winX, cy: winY, w: winW, h: winH },
-      { cx: winX, cy: winY, w: winW, h: winH },
-    ]),
+    // Exterior walls are clad in the procedural brick pattern.
+    ...hollowStorey(
+      W,
+      wallH,
+      D,
+      wy,
+      opts.wallColor,
+      [
+        { cx: -winX, cy: winY, w: winW, h: winH },
+        { cx: winX, cy: winY, w: winW, h: winH },
+      ],
+      true,
+      true,
+    ),
     pyramid(opts.roofR, opts.roofH, roofY, opts.roofColor),
     // Closed front door (covers solid wall; no opening needed behind it).
     box([0.75, 1.2, 0.08], [0, fh + 0.6, halfD + 0.02], WOOD_DARK),
@@ -332,7 +346,7 @@ function townHouse(id: string, opts: HouseOpts): PropDescriptor {
 const house = townHouse('building.house', {
   footing: [3.2, 0.4, 3.2],
   wall: [2.9, 2, 2.9],
-  wallColor: PLASTER,
+  wallColor: GRAY_STONE, // the bigger house is dirty medieval gray stone
   roofR: 2.55,
   roofH: 1.6,
   roofColor: ROOF_RED,
@@ -340,11 +354,12 @@ const house = townHouse('building.house', {
   chimney: [0.95, 3.1, -0.7],
 });
 
-/** A second cottage variant (slate roof, warmer walls) for visual variety. */
+/** A second cottage variant (slate roof) — same medieval gray stone as the house
+ *  so all the brick homes match; variety comes from size and roof colour. */
 const cottage = townHouse('building.cottage', {
   footing: [3, 0.4, 2.8],
   wall: [2.7, 1.9, 2.5],
-  wallColor: PLASTER_WARM,
+  wallColor: GRAY_STONE,
   roofR: 2.35,
   roofH: 1.5,
   roofColor: ROOF_BROWN,
@@ -352,21 +367,40 @@ const cottage = townHouse('building.cottage', {
 });
 
 /** The tavern: two storeys with a jettied upper floor and a hanging sign. Both
- *  storeys are hollow with see-through windows into a warm lit interior. */
+ *  storeys are hollow gray-stone brick with see-through windows into a warm lit
+ *  interior — same masonry as the houses, just bigger. */
 const inn = prop('building.inn', 'The Wandering Inn', [
   box([5.2, 0.4, 4.2], [0, 0.2, 0], STONE),
-  // Lower storey (plaster) — front face at z = 1.9, windows flanking the door.
-  ...hollowStorey(4.8, 2, 3.8, 1.4, PLASTER, [
-    { cx: -1.6, cy: 1.5, w: 0.7, h: 0.7 },
-    { cx: 1.6, cy: 1.5, w: 0.7, h: 0.7 },
-  ]),
-  // Jettied upper storey (timber) — front face at z = 2.1. Sits on the lower
-  // storey so it needs no floor of its own.
-  ...hollowStorey(5.2, 1.7, 4.2, 3.25, TIMBER, [
-    { cx: -1.4, cy: 3.3, w: 0.6, h: 0.6 },
-    { cx: 1.4, cy: 3.3, w: 0.6, h: 0.6 },
-  ], false),
-  cone(3.7, 1.9, 4, [0, 5, 0], ROOF_BROWN, { rotation: [0, Math.PI / 4, 0] }),
+  // Lower storey — front face at z = 1.9, windows flanking the door.
+  ...hollowStorey(
+    4.8,
+    2,
+    3.8,
+    1.4,
+    GRAY_STONE,
+    [
+      { cx: -1.6, cy: 1.5, w: 0.7, h: 0.7 },
+      { cx: 1.6, cy: 1.5, w: 0.7, h: 0.7 },
+    ],
+    true,
+    true,
+  ),
+  // Jettied upper storey — front face at z = 2.1. Sits on the lower storey so it
+  // needs no floor of its own.
+  ...hollowStorey(
+    5.2,
+    1.7,
+    4.2,
+    3.25,
+    GRAY_STONE,
+    [
+      { cx: -1.4, cy: 3.3, w: 0.6, h: 0.6 },
+      { cx: 1.4, cy: 3.3, w: 0.6, h: 0.6 },
+    ],
+    false,
+    true,
+  ),
+  cone(3.7, 1.9, 4, [0, 5, 0], ROOF_BROWN, { rotation: [0, Math.PI / 4, 0], material: 'tile' }),
   box([1, 1.5, 0.1], [0, 0.95, 1.95], WOOD_DARK),
   ...glassWindow(0.7, 0.7, -1.6, 1.5, 1.9, 0, true),
   ...glassWindow(0.7, 0.7, 1.6, 1.5, 1.9, 0, true),
@@ -391,12 +425,13 @@ const smithy = prop('building.smithy', 'Blacksmith', [
   cyl(0.18, 0.22, 0.4, 8, [1.4, 0.2, 1.5], METAL, { metalness: 0.6 }),
 ]);
 
-/** Watchtower with crenellated top, conical roof, and a banner. */
+/** Watchtower with crenellated top, conical roof, and a banner. Dirty gray
+ *  stone masonry on the base + shaft. */
 const tower = prop('building.tower', 'Watchtower', [
-  box([3, 0.6, 3], [0, 0.3, 0], STONE),
-  cyl(1.3, 1.5, 5, 12, [0, 3, 0], STONE),
+  box([3, 0.6, 3], [0, 0.3, 0], GRAY_STONE, { material: 'brick' }),
+  cyl(1.3, 1.5, 5, 12, [0, 3, 0], GRAY_STONE, { material: 'brick' }),
   cyl(1.65, 1.65, 0.7, 12, [0, 5.6, 0], STONE_DARK),
-  cone(1.75, 2, 12, [0, 6.9, 0], ROOF_SLATE),
+  cone(1.75, 2, 12, [0, 6.9, 0], ROOF_SLATE, { material: 'tile' }),
   ...glassWindow(0.3, 0.7, 0, 3, 1.5),
   cyl(0.05, 0.05, 1.6, 6, [0, 8.7, 0], WOOD, { castShadow: false }),
   box([0.9, 0.5, 0.04], [0.5, 8.7, 0], CLOTH, { castShadow: false }),
@@ -596,11 +631,12 @@ const signpost = prop('signpost', 'Signpost', [
 
 // --- Castle & city walls (Ultima Online / Britain flavour) -----------------
 
-/** A corner tower for the castle: shaft, crenellated cap, conical roof. */
+/** A corner tower for the castle: shaft, crenellated cap, conical roof. Dirty
+ *  gray stone masonry on the shaft. */
 const castleTower = (x: number, z: number): PlaceholderPart[] => [
-  cyl(1.1, 1.25, 8, 12, [x, 4, z], STONE),
+  cyl(1.1, 1.25, 8, 12, [x, 4, z], GRAY_STONE, { material: 'brick' }),
   cyl(1.4, 1.4, 0.7, 12, [x, 8, z], STONE_DARK),
-  cone(1.5, 1.7, 12, [x, 9.2, z], ROOF_SLATE),
+  cone(1.5, 1.7, 12, [x, 9.2, z], ROOF_SLATE, { material: 'tile' }),
 ];
 
 /** Lord British's keep: a stone castle with four corner towers, a battlemented
@@ -610,7 +646,7 @@ const castle = prop('castle', "Lord British's Castle", [
   box([6.5, 5.5, 6.5], [0, 3.2, 0], STONE), // keep
   box([7.1, 0.7, 7.1], [0, 6.2, 0], STONE_DARK), // keep battlement
   box([3.2, 0.9, 3.2], [0, 6.9, 0], STONE), // upper turret
-  cone(2.6, 2.2, 4, [0, 8.5, 0], ROOF_SLATE, { rotation: [0, Math.PI / 4, 0] }),
+  cone(2.6, 2.2, 4, [0, 8.5, 0], ROOF_SLATE, { rotation: [0, Math.PI / 4, 0], material: 'tile' }),
   // Gatehouse with a dark portcullis, facing +z.
   box([4.5, 4, 2], [0, 2, 4.5], STONE),
   box([1.8, 2.6, 0.3], [0, 1.5, 5.5], '#1f1812'),
