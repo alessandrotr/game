@@ -29,7 +29,7 @@ function PickableEntity({ id }: { id: string }) {
       <PickableVisual kind={initial.kind} />
       {/* Glow ring on the ground marking it as grabbable. */}
       <mesh position={[0, -initial.y + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.45, 0.62, 28]} />
+        <ringGeometry args={[0.45, 0.62, 16]} />
         <meshBasicMaterial color="#ffd761" transparent opacity={0.55} depthWrite={false} />
       </mesh>
     </group>

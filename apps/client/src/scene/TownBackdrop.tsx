@@ -35,7 +35,7 @@ function TownBackdropImpl() {
         shadows="percentage"
         dpr={[1, 1.5]}
         camera={{ fov: 55, near: 0.1, far: 200, position: [0, 8.5, 14] }}
-        gl={{ antialias: true }}
+        gl={{ antialias: false }}
       >
         <color attach="background" args={[env.background]} />
         <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />

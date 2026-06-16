@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
-import { Color, MeshStandardMaterial } from 'three';
-import { ARENA_HALF_SIZE } from '@arena/shared';
+import { useEffect, useMemo } from 'react';
+import { Color, MeshStandardMaterial, type Matrix4 } from 'three';
+import { ARENA_HALF_SIZE, type PlaceholderPart, type Vec3 } from '@arena/shared';
+import { mergePlaced, trsMatrix } from '../render/mergeGeometry';
+import { MergedGroupMesh } from '../render/MergedGroupMesh';
 
 const SIZE = ARENA_HALF_SIZE * 2;
 const WALL_HEIGHT = 2.4;
@@ -82,78 +84,96 @@ function DirtGround() {
   );
 }
 
-/** One side of the perimeter: a corrugated-metal hoarding — rusted panels, a
- *  dark base strip, a top rail, and leaning posts. `horizontal` runs it along X
- *  (the ±Z walls); otherwise along Z (the ±X walls). */
-function FenceWall({ x, z, length, horizontal }: { x: number; z: number; length: number; horizontal: boolean }) {
-  const yaw = horizontal ? 0 : Math.PI / 2;
-  const postCount = Math.round(length / 5);
-  const posts = Array.from({ length: postCount + 1 }, (_, i) => -length / 2 + (i * length) / postCount);
-  // A few rust patches scattered along the run for weathering.
-  const patches = Array.from({ length: Math.round(length / 7) }, (_, i) => ({
-    u: -length / 2 + length * ((i + 0.5) / Math.round(length / 7)),
-    w: 1.6 + (i % 3) * 0.7,
-    h: 0.7 + (i % 2) * 0.5,
-    y: 0.7 + (i % 2) * 0.7,
-  }));
+const fp = (args: Vec3, color: string, extra: Partial<PlaceholderPart> = {}): PlaceholderPart => ({
+  shape: 'box',
+  args,
+  color,
+  roughness: 0.9,
+  ...extra,
+});
 
-  return (
-    <group position={[x, 0, z]} rotation={[0, yaw, 0]}>
-      {/* Corrugated panel run. */}
-      <mesh position={[0, WALL_HEIGHT / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[length, WALL_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color={SCRAP} roughness={0.95} metalness={0.15} />
-      </mesh>
-      {/* Dark base strip (mud line). */}
-      <mesh position={[0, 0.3, WALL_THICKNESS / 2 + 0.01]}>
-        <boxGeometry args={[length, 0.6, 0.04]} />
-        <meshStandardMaterial color={SCRAP_DARK} roughness={1} />
-      </mesh>
-      {/* Top rail. */}
-      <mesh position={[0, WALL_HEIGHT + 0.08, 0]} castShadow>
-        <boxGeometry args={[length, 0.16, WALL_THICKNESS + 0.12]} />
-        <meshStandardMaterial color={SCRAP_DARK} roughness={0.9} metalness={0.2} />
-      </mesh>
-      {/* Rust patches. */}
-      {patches.map((p, i) => (
-        <mesh key={`r${i}`} position={[p.u, p.y, WALL_THICKNESS / 2 + 0.02]}>
-          <boxGeometry args={[p.w, p.h, 0.04]} />
-          <meshStandardMaterial color={RUST} roughness={1} />
-        </mesh>
-      ))}
-      {/* Leaning support posts. */}
-      {posts.map((u, i) => (
-        <mesh
-          key={`p${i}`}
-          position={[u, WALL_HEIGHT / 2, WALL_THICKNESS / 2 + 0.12]}
-          rotation={[i % 2 === 0 ? 0.04 : -0.03, 0, 0]}
-          castShadow
-        >
-          <boxGeometry args={[0.18, WALL_HEIGHT + 0.5, 0.18]} />
-          <meshStandardMaterial color={POST} roughness={0.9} metalness={0.2} />
-        </mesh>
-      ))}
-    </group>
-  );
+/** All four perimeter hoardings as transformed parts — a corrugated panel, dark
+ *  base strip, top rail, rust patches and leaning posts per side — ready to be
+ *  merged. `horizontal` runs a wall along X (±Z walls); otherwise along Z. */
+function fenceParts(): { part: PlaceholderPart; matrix: Matrix4 }[] {
+  const offset = ARENA_HALF_SIZE + WALL_THICKNESS / 2;
+  const walls = [
+    { x: 0, z: offset, length: SIZE + WALL_THICKNESS * 2, horizontal: true },
+    { x: 0, z: -offset, length: SIZE + WALL_THICKNESS * 2, horizontal: true },
+    { x: offset, z: 0, length: SIZE, horizontal: false },
+    { x: -offset, z: 0, length: SIZE, horizontal: false },
+  ];
+  const out: { part: PlaceholderPart; matrix: Matrix4 }[] = [];
+  for (const w of walls) {
+    const yaw = w.horizontal ? 0 : Math.PI / 2;
+    const wm = trsMatrix([w.x, 0, w.z], [0, yaw, 0]);
+    const at = (pos: Vec3, rot?: Vec3) => wm.clone().multiply(trsMatrix(pos, rot));
+    const L = w.length;
+    // Corrugated panel run.
+    out.push({
+      part: fp([L, WALL_HEIGHT, WALL_THICKNESS], SCRAP, { roughness: 0.95, metalness: 0.15 }),
+      matrix: at([0, WALL_HEIGHT / 2, 0]),
+    });
+    // Dark base strip (mud line).
+    out.push({
+      part: fp([L, 0.6, 0.04], SCRAP_DARK, { roughness: 1, castShadow: false }),
+      matrix: at([0, 0.3, WALL_THICKNESS / 2 + 0.01]),
+    });
+    // Top rail.
+    out.push({
+      part: fp([L, 0.16, WALL_THICKNESS + 0.12], SCRAP_DARK, {
+        roughness: 0.9,
+        metalness: 0.2,
+        receiveShadow: false,
+      }),
+      matrix: at([0, WALL_HEIGHT + 0.08, 0]),
+    });
+    // Rust patches.
+    const patchCount = Math.round(L / 7);
+    for (let i = 0; i < patchCount; i++) {
+      const u = -L / 2 + L * ((i + 0.5) / patchCount);
+      out.push({
+        part: fp([1.6 + (i % 3) * 0.7, 0.7 + (i % 2) * 0.5, 0.04], RUST, {
+          roughness: 1,
+          castShadow: false,
+        }),
+        matrix: at([u, 0.7 + (i % 2) * 0.7, WALL_THICKNESS / 2 + 0.02]),
+      });
+    }
+    // Leaning support posts.
+    const postCount = Math.round(L / 5);
+    for (let i = 0; i <= postCount; i++) {
+      const u = -L / 2 + (i * L) / postCount;
+      out.push({
+        part: fp([0.18, WALL_HEIGHT + 0.5, 0.18], POST, {
+          roughness: 0.9,
+          metalness: 0.2,
+          receiveShadow: false,
+        }),
+        matrix: at([u, WALL_HEIGHT / 2, WALL_THICKNESS / 2 + 0.12], [i % 2 === 0 ? 0.04 : -0.03, 0, 0]),
+      });
+    }
+  }
+  return out;
 }
 
 /** Static arena geometry: a packed-dirt floor with oil stains and four rusted
  *  corrugated-metal hoardings around the perimeter — a fenced-in junkyard lot.
+ *  The hoardings are merged into a few meshes (was ~60 separate draw calls).
  *  Cover (trailers, cars, dumpsters, scrap) is placed as map props, not here. */
 export function Arena() {
-  const offset = ARENA_HALF_SIZE + WALL_THICKNESS / 2;
+  const fence = useMemo(() => mergePlaced(fenceParts()), []);
+  useEffect(() => () => fence.forEach((g) => g.geometry.dispose()), [fence]);
 
   return (
     <group>
       {/* Packed-dirt floor with its worn patches + oil spills painted into the
           shader (one opaque surface — no decal meshes to z-fight or clip feet). */}
       <DirtGround />
-
-      {/* Perimeter hoardings. */}
-      <FenceWall x={0} z={offset} length={SIZE + WALL_THICKNESS * 2} horizontal />
-      <FenceWall x={0} z={-offset} length={SIZE + WALL_THICKNESS * 2} horizontal />
-      <FenceWall x={offset} z={0} length={SIZE} horizontal={false} />
-      <FenceWall x={-offset} z={0} length={SIZE} horizontal={false} />
+      {/* Perimeter hoardings (merged). */}
+      {fence.map((g) => (
+        <MergedGroupMesh key={g.key} group={g} />
+      ))}
     </group>
   );
 }

@@ -89,7 +89,9 @@ export function GameScene() {
       // that GPU load is the main cause of system-wide lag while the tab is open.
       dpr={[1, 1.5]}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
-      gl={{ antialias: true }}
+      // MSAA off: with the 1.5× dpr supersampling already smoothing edges, MSAA
+      // is mostly redundant GPU work (multiplied per fragment on high-DPI).
+      gl={{ antialias: false }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <ToneMap mode={env.toneMapping} exposure={env.exposure} />

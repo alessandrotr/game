@@ -45,7 +45,7 @@ function ShaderDisc({ mode, color, color2 }: { mode: number; color: string; colo
 
   return (
     <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <circleGeometry args={[1.5, 96]} />
+      <circleGeometry args={[1.5, 64]} />
       <shaderMaterial
         vertexShader={VERT}
         fragmentShader={FRAG}
@@ -73,27 +73,27 @@ function PedestalBase({ color }: { color: string }) {
     <group>
       {/* Wide footprint. */}
       <mesh position={[0, -0.2, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[1.64, 1.76, 0.08, 96]} />
+        <cylinderGeometry args={[1.64, 1.76, 0.08, 64]} />
         <meshStandardMaterial color="#1b1e2a" metalness={0.55} roughness={0.45} />
       </mesh>
       {/* Beveled mid tier. */}
       <mesh position={[0, -0.11, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[1.46, 1.62, 0.1, 96]} />
+        <cylinderGeometry args={[1.46, 1.62, 0.1, 64]} />
         <meshStandardMaterial color="#13151f" metalness={0.6} roughness={0.4} />
       </mesh>
       {/* Polished top plate. */}
       <mesh position={[0, -0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[1.4, 1.46, 0.06, 96]} />
+        <cylinderGeometry args={[1.4, 1.46, 0.06, 64]} />
         <meshStandardMaterial color="#0c0d14" metalness={0.55} roughness={0.45} />
       </mesh>
       {/* Glowing rim accent at the top edge (equipped color). */}
       <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[1.42, 0.022, 16, 96]} />
+        <torusGeometry args={[1.42, 0.022, 16, 64]} />
         <meshBasicMaterial color={color} />
       </mesh>
       {/* Faint halo skirt around the base. */}
       <mesh position={[0, -0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.52, 1.78, 96]} />
+        <ringGeometry args={[1.52, 1.78, 64]} />
         <meshBasicMaterial color={color} transparent opacity={0.1} />
       </mesh>
     </group>
@@ -108,11 +108,11 @@ export function Pedestal({ effect = 'ring', color, color2 }: PedestalProps) {
       {effect === 'ring' ? (
         <>
           <mesh position={[0, 0.022, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[1.04, 1.26, 96]} />
+            <ringGeometry args={[1.04, 1.26, 64]} />
             <meshBasicMaterial color={color} transparent opacity={0.85} />
           </mesh>
           <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.78, 0.86, 96]} />
+            <ringGeometry args={[0.78, 0.86, 64]} />
             <meshBasicMaterial color={color} transparent opacity={0.4} />
           </mesh>
         </>
