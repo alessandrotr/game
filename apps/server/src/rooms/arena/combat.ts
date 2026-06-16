@@ -192,19 +192,14 @@ export class CombatSystem {
     const { applied, lethal } = applyDamage(target, incoming);
     if (applied <= 0) return;
 
-    // Skip the Damage feedback broadcast for zombie targets: an explosion in a
-    // dense horde would fire dozens at once, and the client spawns a hit-spark +
-    // floating number per message — a frame-spiking flood. Zombies already show
-    // damage via their replicated over-head HP bar; only human targets (you
-    // taking a hit, or PvP) get the floating-number feedback.
-    if (!isZombieSkin(target.skinId)) {
-      this.ctx.broadcast(ServerMessage.Damage, {
-        from: fromId,
-        to: target.sessionId,
-        amount: applied,
-        lethal,
-      });
-    }
+    // Broadcast the Damage feedback. For zombies, the client plays a blood splash
+    // and flinch without showing floating text, ensuring high performance.
+    this.ctx.broadcast(ServerMessage.Damage, {
+      from: fromId,
+      to: target.sessionId,
+      amount: applied,
+      lethal,
+    });
 
 
     if (lethal) {
@@ -297,7 +292,9 @@ export class CombatSystem {
     // A stun/root cancels in-progress movement so it reads as a hard stop.
     if (spec.kind === 'stun' || spec.kind === 'root')
       this.ctx.destinations.delete(target.sessionId);
-    if (spec.kind === 'stun') this.ctx.attackTargets.delete(target.sessionId);
+    if (spec.kind === 'stun' && !isZombieSkin(target.skinId)) {
+      this.ctx.attackTargets.delete(target.sessionId);
+    }
   }
 
   /** Drop every active status of `kind` from a target. */

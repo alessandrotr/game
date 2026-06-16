@@ -29,6 +29,7 @@ import {
   type Team,
   type VfxAssetId,
   type ZombieLobbyView,
+  isZombieSkin,
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
@@ -379,8 +380,12 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   const { players, sessionId } = useGameStore.getState();
   const target = players.get(msg.to);
   if (!target) return;
-  useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
-  spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
+  if (isZombieSkin(target.skinId)) {
+    useEffectsStore.getState().spawn('vfx.blood_splash', [target.x, 1, target.z], [0, 0, 1]);
+  } else {
+    useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
+    spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
+  }
   // Local flinch is predicted; remote players' hit pose comes from server animState.
   if (!msg.lethal && msg.to === sessionId) pushAnimationEvent(msg.to, 'hit');
 }

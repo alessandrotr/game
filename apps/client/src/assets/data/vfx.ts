@@ -508,6 +508,27 @@ const barrelExplosion: VfxDescriptor = {
   },
 };
 
+/** Zombie blood splash: a procedural red spray. Shader: BURST_SHADERS. */
+const bloodSplash: VfxDescriptor = {
+  id: 'vfx.blood_splash',
+  displayName: 'Blood Splash',
+  behavior: 'burst',
+  durationMs: 800,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'splash',
+        shape: 'sphere',
+        args: [1, 15, 15],
+        color: '#8b0000',
+        emissive: '#8b0000',
+        emissiveIntensity: 2,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -531,4 +552,6 @@ export const VFX: VfxDescriptor[] = [
   death,
   carExplosion,
   barrelExplosion,
+  bloodSplash,
 ];
+

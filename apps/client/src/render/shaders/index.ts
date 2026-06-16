@@ -18,6 +18,7 @@ import {
   GroundSlamEffect,
   HealEffect,
   SmashEffect,
+  BloodSplashEffect,
 } from './bursts';
 import { CarExplosionEffect, BarrelExplosionEffect } from './coverEffects';
 import type { BurstShaderProps } from './common';
@@ -56,4 +57,5 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.dash': DashEffect,
   'vfx.car_explosion': CarExplosionEffect,
   'vfx.barrel_explosion': BarrelExplosionEffect,
+  'vfx.blood_splash': BloodSplashEffect,
 };

@@ -922,13 +922,18 @@ export class ArenaRoom extends AvatarRoom {
     const ndz = dist > 1e-3 ? dz / dist : 0;
     if (dist > 1e-3) attacker.rotation = Math.atan2(ndx, ndz);
 
+    const isZombie = this.zombieMode && this.bots.has(sessionId);
     if (dist > cfg.range) {
+      if (isStunned(attacker) || isRooted(attacker)) {
+        // Stunned/rooted zombies can't move to chase, but they keep their target.
+        if (isZombie) this.attackReadyAt.delete(sessionId);
+        return;
+      }
       // Chase: walk toward the target, stopping right at attack range (slows/
       // hastes scale the chase speed, same as locomotion). Zombies chase at
       // their own (jittered) pace and steer off the bee-line so the horde fans
       // out; everyone else heads straight at class walk speed.
       const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-      const isZombie = this.zombieMode && this.bots.has(sessionId);
       let baseSpeed: number;
       let cdx = ndx;
       let cdz = ndz;
@@ -942,15 +947,20 @@ export class ArenaRoom extends AvatarRoom {
         // Arc off the straight line toward this zombie's COMMITTED flank side by
         // an angle that ramps with distance (full when far, zero at attack range)
         // so the horde curls around to swarm you, then spirals in to strike.
-        // Re-roll only the arc magnitude on the AI's clock — the side stays fixed
-        // (otherwise they'd average back into a straight-line conga).
+        // Re-roll only the arc magnitude on the AI's clock — the side has a 40%
+        // chance to switch so they dynamically weave/flank unpredictably.
         if (this.simTime >= ai.wanderUntil) {
-          const side = ai.wander >= 0 ? 1 : -1;
+          let side = ai.wander >= 0 ? 1 : -1;
+          if (Math.random() < 0.4) {
+            side = -side;
+          }
           ai.wander = side * (0.55 + Math.random() * 0.45);
           ai.wanderUntil = this.simTime + this.rollWanderInterval();
         }
         const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
-        const ang = Math.atan2(ndx, ndz) + ai.wander * ZOMBIE_WANDER_MAX_RAD * ramp;
+        const isSprinter = attacker.skinId === ZOMBIE_SPRINTER_SKIN_ID;
+        const wanderFactor = isSprinter ? 0.3 : 1.0;
+        const ang = Math.atan2(ndx, ndz) + ai.wander * ZOMBIE_WANDER_MAX_RAD * ramp * wanderFactor;
         cdx = Math.sin(ang);
         cdz = Math.cos(ang);
         attacker.rotation = ang; // face where it's actually heading
@@ -966,8 +976,6 @@ export class ArenaRoom extends AvatarRoom {
       if (isZombie) this.attackReadyAt.delete(sessionId);
       return;
     }
-
-    const isZombie = this.zombieMode && this.bots.has(sessionId);
 
     // A zombie that JUST reached its prey winds up first — no instant 0-delay hit.
     // The next time it's ready the strike below lands; a telegraph pose plays
@@ -1038,10 +1046,17 @@ export class ArenaRoom extends AvatarRoom {
     // player is blocked by the horde without rubber-banding). `height: 0` makes
     // them satisfy ArenaObstacle for the post-move resolve too.
     const zombieBlockers: ArenaObstacle[] = [];
+    const propObstacles: ArenaObstacle[] = [];
     if (this.zombieMode) {
       this.bots.forEach((_profile, id) => {
         const z = this.state.players.get(id);
         if (z?.alive) zombieBlockers.push({ x: z.x, z: z.z, radius: PLAYER_RADIUS, height: 0 });
+      });
+      this.state.barrels.forEach((b) => {
+        if (b.alive) propObstacles.push({ x: b.x, z: b.z, radius: 0.45, height: 0 });
+      });
+      this.state.destructibles.forEach((d) => {
+        propObstacles.push({ x: d.x, z: d.z, radius: 0.45, height: 0 });
       });
     }
 
@@ -1088,12 +1103,12 @@ export class ArenaRoom extends AvatarRoom {
 
       const m = this.tuning.movement;
 
-      // Humans collide with the living horde; zombies only with static cover
+      // Humans collide with the living horde; zombies collide with static cover and props
       // (they separate from each other via resolveZombieCollisions).
       const moveObstacles =
-        zombieBlockers.length > 0 && !this.bots.has(sessionId)
-          ? this.obstacles.concat(zombieBlockers)
-          : this.obstacles;
+        !this.bots.has(sessionId)
+          ? (zombieBlockers.length > 0 ? this.obstacles.concat(zombieBlockers) : this.obstacles)
+          : this.obstacles.concat(propObstacles);
 
       // Forced displacement (dash / knockback) overrides locomotion while active.
       const disp = this.displacements.get(sessionId);
@@ -1145,8 +1160,15 @@ export class ArenaRoom extends AvatarRoom {
         // Rooted wind-up: no movement while casting.
       } else if (isStunned(player) || isRooted(player)) {
         // Hard CC: no movement. A stun also drops the move order and auto-attack.
+        // For zombies, we preserve the auto-attack target so they can still bite if prey is in range.
         this.destinations.delete(sessionId);
-        if (isStunned(player)) this.attackTargets.delete(sessionId);
+        const isZombie = this.zombieMode && this.bots.has(sessionId);
+        if (isStunned(player) && !isZombie) {
+          this.attackTargets.delete(sessionId);
+        }
+        if (isZombie && this.autoAttackEnabled && this.attackTargets.has(sessionId)) {
+          this.updateAutoAttack(player, sessionId, dt);
+        }
       } else if (this.autoAttackEnabled && this.attackTargets.has(sessionId)) {
         // Auto-attack: chase the target into range, then strike on a timer.
         this.updateAutoAttack(player, sessionId, dt);
@@ -1416,9 +1438,18 @@ export class ArenaRoom extends AvatarRoom {
       }
     });
 
-    // Re-resolve cover collisions for any zombie nudged into an obstacle.
+    // Re-resolve cover and prop collisions for any zombie nudged into an obstacle.
+    const propObstacles: ArenaObstacle[] = [];
+    this.state.barrels.forEach((b) => {
+      if (b.alive) propObstacles.push({ x: b.x, z: b.z, radius: 0.45, height: 0 });
+    });
+    this.state.destructibles.forEach((d) => {
+      propObstacles.push({ x: d.x, z: d.z, radius: 0.45, height: 0 });
+    });
+    const zombieStaticObstacles = this.obstacles.concat(propObstacles);
+
     for (const z of zombies) {
-      const fixed = collideObstacles(z.x, z.z, this.obstacles, PLAYER_RADIUS);
+      const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, PLAYER_RADIUS);
       z.x = fixed.x;
       z.z = fixed.z;
     }

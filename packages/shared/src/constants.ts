@@ -626,7 +626,7 @@ export const ZOMBIE_FAT_HP_MULT = 3;
 /** Flat health shaved off a Fat after the multiplier (tuning down its bulk). */
 export const ZOMBIE_FAT_HP_REDUCTION = 50;
 /** A Fat moves this much slower (world units/s) than a same-level zombie. */
-export const ZOMBIE_FAT_SPEED_PENALTY = 2;
+export const ZOMBIE_FAT_SPEED_PENALTY = 0.8;
 /** A Fat's swing lands this many ms sooner than a normal zombie's (0.2s faster). */
 export const ZOMBIE_FAT_ATTACK_BONUS_MS = 200;
 /** Chance a horde slot spawns a Fat in place of a normal zombie — flat at every

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Billboard } from '@react-three/drei';
-import { AdditiveBlending } from 'three';
+import { AdditiveBlending, NormalBlending, type Blending } from 'three';
 import { GLSL_NOISE, UV_VERTEX, useBurstClock, yawFromDirection, type BurstShaderProps } from './common';
 
 /**
@@ -48,7 +48,8 @@ function BillboardBurst({
   durationMs,
   onComplete,
   y = 1.0,
-}: BurstShaderProps & { width: number; height: number; frag: string; y?: number }) {
+  blending = AdditiveBlending,
+}: BurstShaderProps & { width: number; height: number; frag: string; y?: number; blending?: Blending }) {
   const { matRef, seed } = useBurstClock(durationMs, onComplete);
   const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
   return (
@@ -62,7 +63,7 @@ function BillboardBurst({
           uniforms={uniforms}
           transparent
           depthWrite={false}
-          blending={AdditiveBlending}
+          blending={blending}
         />
       </mesh>
     </Billboard>
@@ -337,3 +338,49 @@ function DashWind({ durationMs, onComplete, direction }: BurstShaderProps) {
   );
 }
 export const DashEffect = (p: BurstShaderProps) => <DashWind {...p} />;
+
+// --- Blood Splash: a small, fast crimson spray burst. -------------------------
+
+const bloodSplashFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;
+    float ang = atan(p.y, p.x);
+    
+    // Quick outward spray droplets using polar noise
+    float n = noise(vec2(ang * 4.5, r * 4.0 - uTime * 8.0));
+    float droplets = pow(max(0.0, sin(ang * 5.0 + n * 3.0)), 3.0) * smoothstep(uProgress * 0.9 + 0.1, 0.0, r);
+    
+    // Core splatter
+    float core = smoothstep(0.4 * (uProgress + 0.15), 0.0, r);
+    
+    // Snap in, fade out very quickly
+    float fade = (1.0 - uProgress) * smoothstep(0.0, 0.1, uProgress);
+    float v = (droplets * 1.6 + core) * fade;
+    
+    if (v < 0.03) discard;
+    
+    vec3 darkRed = vec3(0.35, 0.0, 0.0);
+    vec3 brightRed = vec3(0.8, 0.0, 0.0);
+    vec3 col = mix(darkRed, brightRed, r + 0.2);
+    
+    gl_FragColor = vec4(col, v);
+  }
+`;
+
+export const BloodSplashEffect = (p: BurstShaderProps) => (
+  <BillboardBurst
+    {...p}
+    width={1.6}
+    height={1.6}
+    durationMs={250}
+    frag={bloodSplashFrag}
+    y={0.8}
+    blending={NormalBlending}
+  />
+);
+
