@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useHudStore } from '../../store/useHudStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useQualityStore, QUALITY_LABEL, type QualityTier } from '../../store/useQualityStore';
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
 import { AudioControl } from '../AudioControl';
@@ -47,6 +48,38 @@ function ToggleRow({
   );
 }
 
+const QUALITY_TIERS: QualityTier[] = ['low', 'medium', 'high'];
+
+/** Graphics quality picker — scales resolution, shadows and lights. The choice
+ *  is persisted, so it sticks across sessions. */
+function QualityRow() {
+  const tier = useQualityStore((s) => s.tier);
+  const setTier = useQualityStore((s) => s.setTier);
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5">
+      <span className="min-w-0">
+        <span className="block text-sm text-text">Graphics quality</span>
+        <span className="block text-[11px] text-muted">Lower it if the game runs slow</span>
+      </span>
+      <div className="flex shrink-0 gap-1 rounded-lg bg-black/30 p-0.5">
+        {QUALITY_TIERS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTier(t)}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs transition-colors',
+              tier === t ? 'bg-gold text-black' : 'text-muted hover:text-text',
+            )}
+          >
+            {QUALITY_LABEL[t]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Settings — a small modal reached from the game menu that centralizes the HUD
  * preferences (player-card density, chat visibility, hide-HUD). Bound to the
@@ -82,6 +115,7 @@ export function SettingsPanel() {
             </span>
             <AudioControl />
           </div>
+          <QualityRow />
           <ToggleRow
             label="Fullscreen"
             hint="Fill the screen with the game"

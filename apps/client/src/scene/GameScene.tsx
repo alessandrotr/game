@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import {
@@ -12,6 +12,7 @@ import {
 import { type MapAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
+import { useQualityStore } from '../store/useQualityStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { TownGround } from './TownGround';
@@ -80,17 +81,24 @@ export function GameScene() {
   // (Leva → "Environment · Town/Arena"). Defaults match the hand-tuned look.
   const env = useEnvStore((s) => s[room]);
 
+  // Graphics quality (auto-detected + user-overridable) scales the heavy levers:
+  // resolution, shadows, shadow-map size, and the cosmetic fill lights.
+  const tier = useQualityStore((s) => s.tier);
+  const quality = useQualityStore((s) => s.settings);
+
   return (
     <Canvas
-      // PCF (not the more expensive PCFSoft) — lighter shadow filtering.
-      shadows="percentage"
-      // Cap the render resolution at 1.5× device pixels: on a Retina display the
-      // native 2× quadruples fragment/shadow/AA work for little visible gain, and
-      // that GPU load is the main cause of system-wide lag while the tab is open.
-      dpr={[1, 1.5]}
+      // Remount cleanly when the quality tier changes (rare) so shadow on/off and
+      // resolution take full effect without stale shader programs.
+      key={tier}
+      // PCF (not the more expensive PCFSoft) — lighter shadow filtering. Off on Low.
+      shadows={quality.shadows ? 'percentage' : false}
+      // Resolution scales with quality: Low caps at 1.0 (halves fragment work on
+      // Retina), High allows up to 1.5×. The fixed cap was the main GPU lever.
+      dpr={quality.dpr}
       camera={{ fov: 55, near: 0.1, far: 200, position: [0, 14, 12] }}
-      // MSAA off: with the 1.5× dpr supersampling already smoothing edges, MSAA
-      // is mostly redundant GPU work (multiplied per fragment on high-DPI).
+      // MSAA off: with the dpr supersampling already smoothing edges, MSAA is
+      // mostly redundant GPU work (multiplied per fragment on high-DPI).
       gl={{ antialias: false }}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -110,12 +118,12 @@ export function GameScene() {
       {/* Key light (sun) — the only shadow caster. Keyed by map size so changing
           it from the dev tools recreates a fresh shadow map. */}
       <directionalLight
-        key={env.shadowMapSize}
+        key={quality.shadowMapSize}
         position={env.sunPosition}
         intensity={env.sunIntensity}
         color={env.sunColor}
-        castShadow
-        shadow-mapSize={[env.shadowMapSize, env.shadowMapSize]}
+        castShadow={quality.shadows}
+        shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
         shadow-bias={env.shadowBias}
         shadow-normalBias={env.shadowNormalBias}
         shadow-camera-near={1}
@@ -125,10 +133,14 @@ export function GameScene() {
         shadow-camera-top={env.shadowExtent}
         shadow-camera-bottom={-env.shadowExtent}
       />
-      {/* Shadowless cinematic fill + rim (cheap): lift shadowed faces and
-          separate silhouettes from the background. */}
-      <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
-      <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
+      {/* Shadowless cinematic fill + rim: lift shadowed faces and separate
+          silhouettes. Dropped on Low to save the per-pixel lighting work. */}
+      {quality.fillLights && (
+        <>
+          <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
+          <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
+        </>
+      )}
       {/* Image-based lighting. Arena uses the night preset; the town builds a
           procedural dusk environment from its own tuned sky/sun/ground colours
           (zero external asset, baked once) for realistic ambient + reflections. */}
@@ -287,10 +299,20 @@ function ContextGuard() {
 function PauseWhileCovered() {
   const setFrameloop = useThree((s) => s.setFrameloop);
   const covered = useCustomizeStore((s) => s.open);
+  // Also pause when the browser tab is hidden — no reason to render an unfocused
+  // tab at 60fps. The view snaps to the latest server state when it returns.
+  const [hidden, setHidden] = useState(
+    typeof document !== 'undefined' && document.visibilityState === 'hidden',
+  );
   useEffect(() => {
-    setFrameloop(covered ? 'never' : 'always');
+    const onVisibility = () => setHidden(document.visibilityState === 'hidden');
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+  useEffect(() => {
+    setFrameloop(covered || hidden ? 'never' : 'always');
     return () => setFrameloop('always');
-  }, [covered, setFrameloop]);
+  }, [covered, hidden, setFrameloop]);
   return null;
 }
 

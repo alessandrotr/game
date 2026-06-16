@@ -53,8 +53,10 @@ export function ZombieHud() {
   return (
     <HudZone zone="top-center">
       <div
-        className="pointer-events-none relative flex items-stretch overflow-hidden rounded-xl border border-[#3a7d1f]/50 bg-[#0a1206]/85 backdrop-blur-sm"
-        style={{ animation: 'wave-panel-glow 3.2s ease-in-out infinite' }}
+        // Perf: no `backdrop-blur` (re-blurs the moving 3D scene every frame) and
+        // no animated `box-shadow` (repaints every frame). A more opaque solid
+        // background + a static glow reads the same but is essentially free.
+        className="pointer-events-none relative flex items-stretch overflow-hidden rounded-xl border border-[#3a7d1f]/50 bg-[#0a1206]/95 shadow-[inset_0_0_0_1px_rgba(120,224,74,0.5),0_6px_22px_rgba(0,0,0,0.55),0_0_22px_rgba(120,224,74,0.18)]"
       >
         {/* Top hairline accent. */}
         <div

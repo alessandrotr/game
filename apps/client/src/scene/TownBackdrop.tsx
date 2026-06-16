@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import { useEnvStore } from '../tuning/useEnvStore';
+import { useQualityStore } from '../store/useQualityStore';
 import { MapView } from '../render/MapView';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
@@ -28,12 +29,15 @@ function OrbitCamera() {
 
 function TownBackdropImpl() {
   const env = useEnvStore((s) => s.town);
+  const tier = useQualityStore((s) => s.tier);
+  const quality = useQualityStore((s) => s.settings);
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">
       <Canvas
-        shadows="percentage"
-        dpr={[1, 1.5]}
+        key={tier}
+        shadows={quality.shadows ? 'percentage' : false}
+        dpr={quality.dpr}
         camera={{ fov: 55, near: 0.1, far: 200, position: [0, 8.5, 14] }}
         gl={{ antialias: false }}
       >
@@ -47,12 +51,12 @@ function TownBackdropImpl() {
           intensity={env.hemiIntensity}
         />
         <directionalLight
-          key={env.shadowMapSize}
+          key={quality.shadowMapSize}
           position={env.sunPosition}
           intensity={env.sunIntensity}
           color={env.sunColor}
-          castShadow
-          shadow-mapSize={[env.shadowMapSize, env.shadowMapSize]}
+          castShadow={quality.shadows}
+          shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
           shadow-bias={env.shadowBias}
           shadow-normalBias={env.shadowNormalBias}
           shadow-camera-near={1}
@@ -62,16 +66,20 @@ function TownBackdropImpl() {
           shadow-camera-top={env.shadowExtent}
           shadow-camera-bottom={-env.shadowExtent}
         />
-        <directionalLight
-          position={env.fillPosition}
-          intensity={env.fillIntensity}
-          color={env.fillColor}
-        />
-        <directionalLight
-          position={env.rimPosition}
-          intensity={env.rimIntensity}
-          color={env.rimColor}
-        />
+        {quality.fillLights && (
+          <>
+            <directionalLight
+              position={env.fillPosition}
+              intensity={env.fillIntensity}
+              color={env.fillColor}
+            />
+            <directionalLight
+              position={env.rimPosition}
+              intensity={env.rimIntensity}
+              color={env.rimColor}
+            />
+          </>
+        )}
 
         {/* Procedural dusk IBL (no external asset), matching the live town. */}
         <Environment
