@@ -163,6 +163,8 @@ export class ArenaRoom extends AvatarRoom {
   private readonly attackTargets = new Map<string, string>();
   /** Sim time (ms) each player's next auto-attack is ready. */
   private readonly attackReadyAt = new Map<string, number>();
+  /** Sim time (ms) each player's next kick is ready. */
+  private readonly kickReadyAt = new Map<string, number>();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
   private readonly displacements = new Map<string, Displacement>();
   /** In-progress channels (e.g. the priest beam): the ability, when it ends, the
@@ -340,15 +342,63 @@ export class ArenaRoom extends AvatarRoom {
 
     // Spacebar: grab a nearby pickable (empty-handed) or throw the one being
     // carried, along the player's facing. A thrown object plays a quick toss pose.
+    // Otherwise, falls back to a kick if no pickable is nearby.
     this.onMessage(ClientMessage.Interact, (client) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || !player.alive) return;
       const threw = !!player.holding;
-      if (this.pickables.interact(player) && threw) {
-        this.animOneShots.set(client.sessionId, {
-          name: 'attack',
-          until: this.simTime + INSTANT_ONESHOT_MS,
-        });
+      if (this.pickables.interact(player)) {
+        if (threw) {
+          this.animOneShots.set(client.sessionId, {
+            name: 'attack',
+            until: this.simTime + INSTANT_ONESHOT_MS,
+          });
+        }
+      } else {
+        const now = this.simTime;
+        const nextReady = this.kickReadyAt.get(client.sessionId) ?? 0;
+        if (now >= nextReady) {
+          // Play the kick animation (reusing attack)
+          this.animOneShots.set(client.sessionId, {
+            name: 'attack',
+            until: now + INSTANT_ONESHOT_MS,
+          });
+          // Apply 0.1s cooldown
+          this.kickReadyAt.set(client.sessionId, now + 100);
+
+          const dirX = Math.sin(player.rotation);
+          const dirZ = Math.cos(player.rotation);
+          const kickRangeEdge = 1.5; // Max edge-to-edge range
+          const playerRadius = 0.5;
+          const coneAngleCos = 0.5; // 120-degree cone total (±60 degrees)
+
+          // Unified kick filter: returns distance if valid, or null
+          const getKickDistance = (x: number, z: number, targetRadius: number): number | null => {
+            const dx = x - player.x;
+            const dz = z - player.z;
+            const d = Math.hypot(dx, dz);
+            if (d < 0.01) return null;
+            const dot = (dx * dirX + dz * dirZ) / d;
+            if (dot < coneAngleCos) return null;
+            const dist = d - playerRadius - targetRadius;
+            if (dist <= kickRangeEdge) return dist;
+            return null;
+          };
+
+          const c1 = this.destructibles.tryKick(getKickDistance, player.x, player.z, dirX, dirZ, player.sessionId);
+          const c2 = this.barrels.tryKick(getKickDistance, dirX, dirZ, player.sessionId);
+          const c3 = this.cover.tryKick(getKickDistance, dirX, dirZ);
+
+          const candidates: { distance: number; perform: () => void }[] = [];
+          if (c1) candidates.push(c1);
+          if (c2) candidates.push(c2);
+          if (c3) candidates.push(c3);
+
+          if (candidates.length > 0) {
+            candidates.sort((a, b) => a.distance - b.distance);
+            candidates[0]?.perform();
+          }
+        }
       }
     });
 

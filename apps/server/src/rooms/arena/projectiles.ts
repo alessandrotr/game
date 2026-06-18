@@ -228,19 +228,21 @@ export class ProjectileSystem {
         projectile.z += meta.dirZ * inc;
         meta.traveled += inc;
 
-        // Map boundary collision check:
-        const boundLimit = DESTRUCTIBLE_BOUND - meta.radius;
-        if (Math.abs(projectile.x) >= boundLimit || Math.abs(projectile.z) >= boundLimit) {
-          projectile.x = Math.max(-boundLimit, Math.min(boundLimit, projectile.x));
-          projectile.z = Math.max(-boundLimit, Math.min(boundLimit, projectile.z));
+        // Map boundary collision check (thrown pickable objects like Molotovs/grenades only):
+        if (meta.onImpact) {
+          const boundLimit = DESTRUCTIBLE_BOUND - meta.radius;
+          if (Math.abs(projectile.x) >= boundLimit || Math.abs(projectile.z) >= boundLimit) {
+            projectile.x = Math.max(-boundLimit, Math.min(boundLimit, projectile.x));
+            projectile.z = Math.max(-boundLimit, Math.min(boundLimit, projectile.z));
 
-          this.ctx.broadcast(ServerMessage.ProjectileImpact, {
-            ability: meta.ability,
-            x: projectile.x,
-            z: projectile.z,
-          });
-          expired.push(id);
-          break;
+            this.ctx.broadcast(ServerMessage.ProjectileImpact, {
+              ability: meta.ability,
+              x: projectile.x,
+              z: projectile.z,
+            });
+            expired.push(id);
+            break;
+          }
         }
 
         if (meta.traveled >= meta.range || now - meta.spawnedAt > PROJECTILE_LIFETIME_MS) {

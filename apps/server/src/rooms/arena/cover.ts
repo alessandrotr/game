@@ -141,6 +141,45 @@ export class CoverSystem {
     return s && !s.destroyed ? s : undefined;
   }
 
+  /**
+   * Check for the closest movable structure (car only) that passes the checker function.
+   * If found, returns the distance and a callback to damage and shove it.
+   */
+  tryKick(
+    check: (x: number, z: number, radius: number) => number | null,
+    dirX: number,
+    dirZ: number,
+  ): { distance: number; perform: () => void } | null {
+    let bestStructure: CoverStructure | null = null;
+    let bestDist = Infinity;
+
+    this.ctx.state.structures.forEach((s) => {
+      if (s.destroyed) return;
+      if (!isCar(s.assetId)) return; // Only cars are movable cover structures
+      if (this.indestructible.has(s.id)) return; // indestructible structures ignore damage/shoving
+
+      const circles = this.circles.get(s.id);
+      if (!circles) return;
+
+      for (const c of circles) {
+        const dist = check(c.x, c.z, c.radius);
+        if (dist !== null && dist < bestDist) {
+          bestDist = dist;
+          bestStructure = s;
+        }
+      }
+    });
+
+    if (!bestStructure) return null;
+    return {
+      distance: bestDist,
+      perform: () => {
+        this.damage(bestStructure!.id, 1, dirX, dirZ);
+      },
+    };
+  }
+
+
   /** True if (x,z) lies within `pad` of this structure's collision footprint —
    *  any of its capsule circles (trailers) or its single circle. */
   private footprintHit(id: string, x: number, z: number, pad: number): boolean {

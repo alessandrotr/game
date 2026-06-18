@@ -167,6 +167,38 @@ export class BarrelSystem {
     return b && b.alive && !this.armed.has(id) ? b : undefined;
   }
 
+  /**
+   * Check for the closest live barrel that passes the checker function.
+   * If found, returns the distance and a callback to trigger/launch it.
+   */
+  tryKick(
+    check: (x: number, z: number, radius: number) => number | null,
+    dirX: number,
+    dirZ: number,
+    fromId: string,
+  ): { distance: number; perform: () => void } | null {
+    let bestBarrel: Barrel | null = null;
+    let bestDist = Infinity;
+
+    this.ctx.state.barrels.forEach((barrel) => {
+      if (!barrel.alive || this.armed.has(barrel.id)) return;
+      const dist = check(barrel.x, barrel.z, BARREL_RADIUS);
+      if (dist !== null && dist < bestDist) {
+        bestDist = dist;
+        bestBarrel = barrel;
+      }
+    });
+
+    if (!bestBarrel) return null;
+    return {
+      distance: bestDist,
+      perform: () => {
+        this.trigger(bestBarrel!, dirX, dirZ, fromId);
+      },
+    };
+  }
+
+
   /** Launch a barrel along (dirX,dirZ) — away from the hit — and arm its fuse.
    *  No-op if it's already flying/gone. */
   trigger(b: Barrel, dirX: number, dirZ: number, fromId: string): void {

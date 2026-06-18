@@ -263,6 +263,40 @@ export class DestructibleSystem {
     return false;
   }
 
+  /**
+   * Check for the closest destructible that passes the provided checker function.
+   * If found, returns the distance and a callback to apply the physical shove/damage.
+   */
+  tryKick(
+    check: (x: number, z: number, radius: number) => number | null,
+    px: number,
+    pz: number,
+    dirX: number,
+    dirZ: number,
+    fromId: string,
+  ): { distance: number; perform: () => void } | null {
+    let bestBody: Body | null = null;
+    let bestDist = Infinity;
+
+    for (const body of this.bodies.values()) {
+      if (body.category === 'tire' && body.spent) continue;
+      const dist = check(body.obj.x, body.obj.z, body.radius);
+      if (dist !== null && dist < bestDist) {
+        bestDist = dist;
+        bestBody = body;
+      }
+    }
+
+    if (!bestBody) return null;
+    return {
+      distance: bestDist,
+      perform: () => {
+        this.impact(bestBody!, px, pz, dirX, dirZ, fromId, 1);
+      },
+    };
+  }
+
+
   /** Push/scatter every destructible within `radius` of (x,z) — used by AoE
    *  abilities and dash slams. `amount` (the AoE's damage) also chips drum HP. */
   pushInRadius(x: number, z: number, radius: number, fromId: string, amount = 0): void {
