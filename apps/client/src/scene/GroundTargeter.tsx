@@ -1,45 +1,38 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BufferGeometry, DoubleSide, Shape, Vector3, type Group, type Mesh } from 'three';
+import { AdditiveBlending, DoubleSide, Vector3, type Group, type Mesh, type ShaderMaterial } from 'three';
 import { ABILITIES } from '@arena/shared';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 import { getCursorGround } from '../store/cursorState';
 import { getLocalRenderTransform } from '../store/localPlayer';
-
-const DIRECTION_COLOR = '#ffce6b';
-const AREA_COLOR = '#b07bff';
+import { UV_VERTEX, useUTime } from '../render/shaders/common';
+import {
+  CIRCLE_INDICATOR_FRAG,
+  INDICATOR_CYAN_RGB,
+  LANE_INDICATOR_FRAG,
+  RAIL_X,
+  RING_R,
+  tickCounts,
+} from '../render/shaders/indicators';
 
 /**
  * The on-ground aim indicator for the ability you're currently holding to aim,
- * styled after League of Legends spell indicators:
+ * styled after League of Legends spell indicators — a glowing cyan rim with
+ * rune tick marks, a chevron-tipped skillshot lane, and subtle live animation,
+ * all drawn with SDF + derivative-AA procedural shaders (see indicators.ts):
  *
- * - `direction` skillshots → a transparent **arrow** rooted at the caster,
- *   always the full length of the ability's range, rotating to point at the
- *   cursor (a "line missile" indicator).
+ * - `direction` skillshots → a transparent **lane** rooted at the caster, its
+ *   rails on the projectile's hit capsule and the full length of its range,
+ *   rotating to point at the cursor, capped with a chevron arrowhead.
  * - `point` ground-targets → a **range circle** drawn around the caster plus an
  *   **area target** disc that follows the cursor, clamped to the range circle.
  *
  * Purely visual — `useAbilityHotkeys` fires on key release; right-click / Esc
- * cancel.
+ * cancel. Only one indicator is ever mounted (the pending ability), so the
+ * shaders cost effectively nothing.
  */
 
-/** Flat arrow outline pointing along local +Y, from the origin out to `length`. */
-function makeArrowShape(length: number): Shape {
-  const shaftW = 0.26;
-  const headW = 0.8;
-  const headLen = Math.min(1.4, Math.max(0.5, length * 0.22));
-  const shaftLen = Math.max(0.01, length - headLen);
-  const s = new Shape();
-  s.moveTo(-shaftW / 2, 0);
-  s.lineTo(-shaftW / 2, shaftLen);
-  s.lineTo(-headW / 2, shaftLen);
-  s.lineTo(0, length);
-  s.lineTo(headW / 2, shaftLen);
-  s.lineTo(shaftW / 2, shaftLen);
-  s.lineTo(shaftW / 2, 0);
-  s.closePath();
-  return s;
-}
+const CYAN = () => new Vector3(...INDICATOR_CYAN_RGB);
 
 export function GroundTargeter() {
   const pending = useAbilityTargeting((s) => s.pending);
@@ -48,24 +41,65 @@ export function GroundTargeter() {
   const rangeRing = useRef<Mesh>(null);
   const target = useRef<Group>(null);
 
-  // The arrow's length equals the ability's range and never changes per frame,
-  // so build its geometry once per pending ability.
-  const arrow = useMemo(() => {
-    if (!pending) return null;
-    const cfg = ABILITIES[pending];
-    if (cfg.aim !== 'direction') return null;
-    // Skillshots are projectiles: the true reach is how far the projectile flies
-    // (`projectileRange`), not the larger `range` field used for UI/decisions.
-    const shape = makeArrowShape(cfg.projectileRange ?? cfg.range);
-    const outline = new BufferGeometry().setFromPoints(
-      shape.getPoints().map((p) => new Vector3(p.x, p.y, 0)),
-    );
-    return { shape, outline };
+  const laneMat = useRef<ShaderMaterial>(null);
+  const rangeMat = useRef<ShaderMaterial>(null);
+  const targetMat = useRef<ShaderMaterial>(null);
+  // Advance each material's `uTime` every frame (no-ops while its mesh is unmounted).
+  useUTime(laneMat);
+  useUTime(rangeMat);
+  useUTime(targetMat);
+
+  // Per-ability shader inputs (geometry dims + uniforms). `pending` rarely
+  // changes, so rebuilding these on change is free.
+  const cfg = pending ? ABILITIES[pending] : null;
+  const radius = cfg?.aoeRadius ?? 2;
+  const range = cfg?.range ?? 1;
+
+  const laneUniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uColor: { value: CYAN() },
+      uSeed: { value: Math.random() * 10 },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pending],
+  );
+
+  const rangeUniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uColor: { value: CYAN() },
+      uFill: { value: 0 },
+      uTicks: { value: tickCounts(range).minor },
+      uSeed: { value: Math.random() * 10 },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pending],
+  );
+
+  const targetUniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uColor: { value: CYAN() },
+      uFill: { value: 1 },
+      uTicks: { value: tickCounts(radius).minor },
+      uSeed: { value: Math.random() * 10 },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pending],
+  );
+
+  // Lane geometry: width set so the crisp rails land exactly on the hit capsule
+  // (2 × projectileRadius), length = how far the projectile flies.
+  const lane = useMemo(() => {
+    if (!cfg || cfg.aim !== 'direction') return null;
+    const hitWidth = Math.max(0.5, (cfg.projectileRadius ?? 0.45) * 2);
+    return { planeWidth: hitWidth / RAIL_X, length: cfg.projectileRange ?? cfg.range };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending]);
 
   useFrame(() => {
-    if (!pending) return;
-    const cfg = ABILITIES[pending];
+    if (!cfg) return;
     const me = getLocalRenderTransform();
     const cur = getCursorGround();
     let dx = cur.x - me.x;
@@ -84,52 +118,66 @@ export function GroundTargeter() {
     }
   });
 
-  if (!pending) return null;
-  const cfg = ABILITIES[pending];
+  if (!cfg) return null;
 
-  if (cfg.aim === 'direction' && arrow) {
+  if (cfg.aim === 'direction' && lane) {
     return (
       <group ref={dirGroup}>
-        {/* Lay the arrow flat on the ground, forward pointing along +Z. */}
-        <group rotation={[Math.PI / 2, 0, 0]}>
-          <mesh>
-            <shapeGeometry args={[arrow.shape]} />
-            <meshBasicMaterial
-              color={DIRECTION_COLOR}
-              transparent
-              opacity={0.18}
-              depthWrite={false}
-              side={DoubleSide}
-            />
-          </mesh>
-          <lineLoop>
-            <primitive object={arrow.outline} attach="geometry" />
-            <lineBasicMaterial color={DIRECTION_COLOR} transparent opacity={0.9} depthWrite={false} />
-          </lineLoop>
-        </group>
+        {/* Lane laid flat, sitting just in front of the caster toward the tip. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, lane.length / 2]}>
+          <planeGeometry args={[lane.planeWidth, lane.length]} />
+          <shaderMaterial
+            ref={laneMat}
+            vertexShader={UV_VERTEX}
+            fragmentShader={LANE_INDICATOR_FRAG}
+            uniforms={laneUniforms}
+            transparent
+            depthWrite={false}
+            side={DoubleSide}
+            blending={AdditiveBlending}
+          />
+        </mesh>
       </group>
     );
   }
 
-  // point / area target
-  const radius = cfg.aoeRadius ?? 2;
-  const range = cfg.range;
+  // point / area target. Both discs are a unit 2×2 plane scaled so the bright
+  // rim lands exactly on the world radius (the shader's ring sits at RING_R).
+  const rangeScale = range / RING_R;
+  const targetScale = radius / RING_R;
   return (
     <>
-      {/* Max-range circle around the caster. */}
-      <mesh ref={rangeRing} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <ringGeometry args={[Math.max(0.05, range - 0.08), range, 96]} />
-        <meshBasicMaterial color={AREA_COLOR} transparent opacity={0.35} depthWrite={false} />
+      {/* Max-range circle around the caster (rim + ticks only, no interior fill). */}
+      <mesh
+        ref={rangeRing}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.04, 0]}
+        scale={[rangeScale, rangeScale, rangeScale]}
+      >
+        <planeGeometry args={[2, 2]} />
+        <shaderMaterial
+          ref={rangeMat}
+          vertexShader={UV_VERTEX}
+          fragmentShader={CIRCLE_INDICATOR_FRAG}
+          uniforms={rangeUniforms}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+        />
       </mesh>
       {/* Area-of-effect target following the cursor (clamped to range). */}
       <group ref={target}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[radius, 64]} />
-          <meshBasicMaterial color={AREA_COLOR} transparent opacity={0.12} depthWrite={false} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[Math.max(0.05, radius - 0.1), radius, 64]} />
-          <meshBasicMaterial color={AREA_COLOR} transparent opacity={0.85} depthWrite={false} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[targetScale, targetScale, targetScale]}>
+          <planeGeometry args={[2, 2]} />
+          <shaderMaterial
+            ref={targetMat}
+            vertexShader={UV_VERTEX}
+            fragmentShader={CIRCLE_INDICATOR_FRAG}
+            uniforms={targetUniforms}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+          />
         </mesh>
       </group>
     </>

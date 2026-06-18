@@ -134,26 +134,31 @@ const glassWindow = (
   const bar: P = { castShadow: false, rotation: rot };
   const fy = h / 2 + 0.04;
   const fx = w / 2 + 0.04;
+  // Depth (proudness past the wall face at `d`). A hollow wall has a real opening,
+  // so the glass RECESSES into it and the frame sits flush with the face; a solid
+  // wall has no hole, so the window sits just proud of the surface instead.
+  const glassDep = open ? -0.05 : 0.06;
+  const frameDep = open ? 0.0 : 0.07;
   return [
     // Faked warm interior panel — only for solid buildings with no real room.
     ...(open
       ? []
       : [
-          box([w + 0.02, h + 0.02, 0.04], at(0, 0, 0.03), GLASS_ROOM, {
+          box([w + 0.02, h + 0.02, 0.04], at(0, 0, 0.0), GLASS_ROOM, {
             emissive: GLASS_ROOM,
             emissiveIntensity: 0.85,
             castShadow: false,
             rotation: rot,
           }),
         ]),
-    // Transparent glass pane, inset behind the frame's front edge.
-    box([w, h, 0.04], at(0, 0, 0.12), WINDOW, { material: 'glass', castShadow: false, rotation: rot }),
+    // Transparent glass pane (recessed in the opening, or just proud on a solid wall).
+    box([w, h, 0.04], at(0, 0, glassDep), WINDOW, { material: 'glass', castShadow: false, rotation: rot }),
     // Slim frame: top/bottom run the full width; left/right span only the opening
     // so the four bars butt at the corners instead of overlapping (no z-fight).
-    box([w + 0.15, 0.07, 0.07], at(0, fy, 0.13), WOOD_DARK, bar),
-    box([w + 0.15, 0.07, 0.07], at(0, -fy, 0.13), WOOD_DARK, bar),
-    box([0.07, h, 0.07], at(-fx, 0, 0.13), WOOD_DARK, bar),
-    box([0.07, h, 0.07], at(fx, 0, 0.13), WOOD_DARK, bar),
+    box([w + 0.15, 0.07, 0.06], at(0, fy, frameDep), WOOD_DARK, bar),
+    box([w + 0.15, 0.07, 0.06], at(0, -fy, frameDep), WOOD_DARK, bar),
+    box([0.07, h, 0.06], at(-fx, 0, frameDep), WOOD_DARK, bar),
+    box([0.07, h, 0.06], at(fx, 0, frameDep), WOOD_DARK, bar),
   ];
 };
 

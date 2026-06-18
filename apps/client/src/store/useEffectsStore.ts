@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Vec3, VfxAssetId } from '@arena/shared';
+import { useQualityStore } from './useQualityStore';
 
 export interface ActiveEffect {
   key: number;
@@ -30,6 +31,13 @@ let nextKey = 1;
 export const useEffectsStore = create<EffectsStore>((set) => ({
   effects: [],
   spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset) =>
-    set((s) => ({ effects: [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset }] })),
+    set((s) => {
+      const next = [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset }];
+      // Cap concurrent effects per the quality tier — a big multi-target blast can
+      // spawn many overlapping additive bursts at once. Drop the OLDEST (already
+      // fading) so the just-triggered effect always shows.
+      const max = useQualityStore.getState().settings.maxEffects;
+      return { effects: next.length > max ? next.slice(next.length - max) : next };
+    }),
   remove: (key) => set((s) => ({ effects: s.effects.filter((e) => e.key !== key) })),
 }));

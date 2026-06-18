@@ -14,7 +14,7 @@ import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
 import { AssetLoadingBar } from './AssetLoadingBar';
 import { AvatarFrame } from './AvatarFrame';
-import { Card, IconButton } from './primitives';
+import { Card } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { STAT_COLORS } from './theme';
@@ -95,6 +95,40 @@ function AbilityBadge({ ability }: { ability: AbilityKind }) {
         {titleCase(ability)}
       </span>
     </AbilityHover>
+  );
+}
+
+/** Prev / next carousel control — a frameless gold chevron with a generous hit
+ *  area. At rest it's a quiet, dark-shadowed glyph; on hover it brightens to
+ *  gold, scales up, slides in its travel direction, and blooms a soft radial
+ *  glow behind it. Tactile press on click. Premium, not a boxy button. */
+function CarouselArrow({ dir, onClick }: { dir: 'prev' | 'next'; onClick: () => void }) {
+  const prev = dir === 'prev';
+  const Icon = prev ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      aria-label={prev ? 'Previous class' : 'Next class'}
+      onClick={onClick}
+      className={`group absolute top-1/2 z-10 flex h-20 w-14 -translate-y-1/2 items-center justify-center ${
+        prev ? 'left-0' : 'right-0'
+      }`}
+    >
+      {/* Soft radial gold bloom behind the glyph — scales + fades in on hover. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute h-12 w-12 scale-50 rounded-full opacity-0 blur-md transition-all duration-300 ease-out group-hover:scale-100 group-hover:opacity-100"
+        style={{ background: 'radial-gradient(circle, rgba(200,162,74,0.6), transparent 70%)' }}
+      />
+      <Icon
+        size={32}
+        strokeWidth={2.5}
+        aria-hidden="true"
+        className={`relative text-gold/55 drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)] transition-all duration-200 ease-out group-hover:scale-125 group-hover:text-gold group-hover:drop-shadow-[0_0_12px_rgba(200,162,74,0.9)] group-active:scale-95 ${
+        prev ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'
+      }`}
+      />
+    </button>
   );
 }
 
@@ -185,21 +219,9 @@ export function CharacterSelect() {
           <AssetLoadingBar label="Loading champion…" />
         </AvatarFrame>
 
-        {/* Prev / next. */}
-        <IconButton
-          icon={ChevronLeft}
-          aria-label="Previous class"
-          variant="panel"
-          onClick={() => go(-1)}
-          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full"
-        />
-        <IconButton
-          icon={ChevronRight}
-          aria-label="Next class"
-          variant="panel"
-          onClick={() => go(1)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
-        />
+        {/* Prev / next — gold medallion arrows matching the ability badges. */}
+        <CarouselArrow dir="prev" onClick={() => go(-1)} />
+        <CarouselArrow dir="next" onClick={() => go(1)} />
       </div>
 
       {/* Identity caption: who this slide is (the level gem sits on the ring above). */}
