@@ -20,7 +20,10 @@ export function AssetLoadingBar({
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-xl bg-panel/70 backdrop-blur-sm',
+        // Transparent backdrop: the loading bar floats over the live 3D portrait
+        // (no opaque panel/blur covering it). A soft drop-shadow keeps the text
+        // and bar legible against the model behind them.
+        'pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]',
         className,
       )}
       role="status"

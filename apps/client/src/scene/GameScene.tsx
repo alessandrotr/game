@@ -43,6 +43,7 @@ import { ArenaLights } from './ArenaLights';
 import { Portals } from './Portals';
 import { MapView } from '../render/MapView';
 import { ModelWarmup } from '../render/ModelWarmup';
+import { VfxWarmup } from '../render/VfxWarmup';
 import { gltfSkinUrls } from '../assets/CharacterFactory';
 import { Castle } from './Castle';
 import { useArenaLayout } from './useArenaLayout';
@@ -214,6 +215,9 @@ export function GameScene() {
       {!isArena && <Castle />}
       {/* GPU-warm the horde models so the first wave's spawn doesn't hitch. */}
       {zombieMode && <ModelWarmup urls={zombieSkinUrls} />}
+      {/* GPU-warm the combat burst shaders (explosions/novas/slashes) at arena
+          load, so the first one to play doesn't compile mid-fight. */}
+      {isArena && <VfxWarmup />}
       <MapZones mapId={mapId} />
       <Npcs mapId={mapId} />
       <Portals mapId={mapId} />

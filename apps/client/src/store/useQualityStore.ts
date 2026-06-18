@@ -20,12 +20,16 @@ export interface QualitySettings {
   shadowMapSize: number;
   /** Render the cosmetic fill + rim lights (off on Low to save per-pixel work). */
   fillLights: boolean;
+  /** Max simultaneous transient VFX. A big multi-target explosion can spawn many
+   *  overlapping additive bursts at once; capping bounds the overdraw spike on
+   *  weak GPUs (oldest are dropped, so the newest effect always shows). */
+  maxEffects: number;
 }
 
 export const QUALITY_TIERS: Record<QualityTier, QualitySettings> = {
-  low: { dpr: [0.7, 1.0], shadows: false, shadowMapSize: 512, fillLights: false },
-  medium: { dpr: [1.0, 1.25], shadows: true, shadowMapSize: 1024, fillLights: true },
-  high: { dpr: [1.0, 1.5], shadows: true, shadowMapSize: 2048, fillLights: true },
+  low: { dpr: [0.7, 1.0], shadows: false, shadowMapSize: 512, fillLights: false, maxEffects: 12 },
+  medium: { dpr: [1.0, 1.25], shadows: true, shadowMapSize: 1024, fillLights: true, maxEffects: 24 },
+  high: { dpr: [1.0, 1.5], shadows: true, shadowMapSize: 2048, fillLights: true, maxEffects: 48 },
 };
 
 export const QUALITY_LABEL: Record<QualityTier, string> = {
