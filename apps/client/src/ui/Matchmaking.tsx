@@ -18,28 +18,36 @@ export function Matchmaking() {
   const mySessionId = useLobbyStore((s) => s.mySessionId);
   const menuOpen = useLobbyStore((s) => s.menuOpen);
   const selectedLobbyId = useLobbyStore((s) => s.selectedLobbyId);
+  const setSelectedLobbyId = useLobbyStore((s) => s.setSelectedLobbyId);
 
   const myLobby = findMyLobby(lobbies, mySessionId);
-  // Your own lobby always wins over a browser preview selection.
-  const viewLobby = myLobby ?? lobbies.find((l) => l.id === selectedLobbyId) ?? null;
-  const isMember = !!myLobby && myLobby.id === viewLobby?.id;
+  // The detail panel shows whichever lobby is explicitly selected — a browser
+  // inspect (to pick a slot) OR your own match, opened from the menu's "Your
+  // match" button. Membership no longer hijacks the browser: you keep browsing
+  // and pop your match panel on demand.
+  const detailLobby = lobbies.find((l) => l.id === selectedLobbyId) ?? null;
+  const isMember = !!myLobby && myLobby.id === detailLobby?.id;
 
-  // Cinematic focus belongs to the entry browser only. Once the player advances
-  // into a lobby / ready-check (wider, interactive flows that want the centered
-  // dimmed overlay) — or closes the menu — release the camera + movement lock.
-  const showingMenu = menuOpen && !viewLobby && myLobby?.status !== 'ready_check';
+  // Cinematic focus belongs to the browser only. Once a detail panel / ready-check
+  // opens (centered dimmed overlays) — or the menu closes — release the camera +
+  // movement lock.
+  const showingMenu = menuOpen && !detailLobby && myLobby?.status !== 'ready_check';
   useEffect(() => {
     if (!showingMenu) useFocusStore.getState().clear('pvp');
   }, [showingMenu]);
   useEffect(() => () => useFocusStore.getState().clear('pvp'), []);
 
+  if (myLobby?.status === 'ready_check') return <ReadyCheckOverlay lobby={myLobby} />;
+  if (!menuOpen) return null;
   return (
     <>
-      {myLobby?.status === 'ready_check' ? (
-        <ReadyCheckOverlay lobby={myLobby} />
-      ) : (
-        menuOpen &&
-        (viewLobby ? <LobbyView lobby={viewLobby} isMember={isMember} /> : <MatchmakingMenu />)
+      <MatchmakingMenu myLobby={myLobby} />
+      {detailLobby && (
+        <LobbyView
+          lobby={detailLobby}
+          isMember={isMember}
+          onClose={() => setSelectedLobbyId(null)}
+        />
       )}
     </>
   );

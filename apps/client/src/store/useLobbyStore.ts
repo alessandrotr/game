@@ -18,9 +18,11 @@ interface LobbyStore {
   /** Whether the matchmaking overlay is open (purely UI; you stay in your lobby
    *  in the background when it's closed). */
   menuOpen: boolean;
-  /** Lobby the browser is previewing (to pick a slot in). Null = show the list.
-   *  Ignored while you're a member of a lobby — that one is always shown. */
+  /** Lobby the browser is previewing (to pick a slot in). Null = show the list. */
   selectedLobbyId: string | null;
+  /** Whether the standalone "your match" queue dialog is open. Fully independent
+   *  of the matchmaking menu + cinematic focus — it's a main-HUD element. */
+  queueOpen: boolean;
   modeFilter: ModeFilter;
   statusFilter: StatusFilter;
   /** Last rejected-intent message from the server (validation, race, timeout). */
@@ -30,6 +32,7 @@ interface LobbyStore {
   setLobbies: (lobbies: LobbyView[]) => void;
   setMenuOpen: (open: boolean) => void;
   setSelectedLobbyId: (id: string | null) => void;
+  setQueueOpen: (open: boolean) => void;
   setModeFilter: (mode: ModeFilter) => void;
   setStatusFilter: (status: StatusFilter) => void;
   setError: (message: string | null) => void;
@@ -41,6 +44,7 @@ export const useLobbyStore = create<LobbyStore>((set) => ({
   lobbies: [],
   menuOpen: false,
   selectedLobbyId: null,
+  queueOpen: false,
   modeFilter: 'all',
   statusFilter: 'all',
   error: null,
@@ -49,11 +53,12 @@ export const useLobbyStore = create<LobbyStore>((set) => ({
   setLobbies: (lobbies) => set({ lobbies }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
   setSelectedLobbyId: (selectedLobbyId) => set({ selectedLobbyId }),
+  setQueueOpen: (queueOpen) => set({ queueOpen }),
   setModeFilter: (modeFilter) => set({ modeFilter }),
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   setError: (error) => set({ error }),
   reset: () =>
-    set({ mySessionId: null, lobbies: [], menuOpen: false, selectedLobbyId: null, error: null }),
+    set({ mySessionId: null, lobbies: [], menuOpen: false, selectedLobbyId: null, queueOpen: false, error: null }),
 }));
 
 /** The lobby (if any) that contains the local player's matchmaking slot. */

@@ -32,7 +32,7 @@ const STATUS_TONE: Record<LobbyView['status'], string> = {
  * glowing status so occupancy reads instantly. Clicking an open card selects it to
  * pick a slot in {@link LobbyView}. Docks right during the shrine's cinematic focus.
  */
-export function MatchmakingMenu() {
+export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
   const lobbies = useLobbyStore((s) => s.lobbies);
   const modeFilter = useLobbyStore((s) => s.modeFilter);
   const statusFilter = useLobbyStore((s) => s.statusFilter);
@@ -47,11 +47,18 @@ export function MatchmakingMenu() {
   const [mode, setMode] = useState<LobbyMode>('2v2');
   const docked = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
 
+  // You can only be in one match at a time: while a member, creating and joining
+  // OTHER lobbies is blocked. Your own match opens the standalone queue dialog (a
+  // main-HUD element), independent of this menu.
+  const inMatch = !!myLobby;
+  const openQueue = useLobbyStore((s) => s.setQueueOpen);
+
   const visible = lobbies
     .filter((l) => modeFilter === 'all' || l.mode === modeFilter)
     .filter((l) => (statusFilter === 'in-queue' ? l.status === 'queuing' : true));
 
   const create = () => {
+    if (inMatch) return; // already in a match — one at a time
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Name your duel first.');
@@ -87,12 +94,13 @@ export function MatchmakingMenu() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5 pt-3">
-          {/* Create — format tiles + name + CTA */}
+          {/* Create — format tiles + name + CTA. While you're in a match these stay
+              put but DISABLED (one match at a time) — manage yours from the queue. */}
           <section className="rounded-2xl border border-white/10 bg-black/15 p-3.5">
-            <SectionLabel>Choose your format</SectionLabel>
+            <SectionLabel>{inMatch ? 'Already in a match' : 'Choose your format'}</SectionLabel>
             <div className="mt-2.5 grid grid-cols-3 gap-2">
               {LOBBY_MODES.map((m) => (
-                <ModeTile key={m} mode={m} active={mode === m} onClick={() => setMode(m)} />
+                <ModeTile key={m} mode={m} active={mode === m} disabled={inMatch} onClick={() => setMode(m)} />
               ))}
             </div>
             <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
@@ -102,10 +110,17 @@ export function MatchmakingMenu() {
                 placeholder="Name your duel…"
                 tone="gold"
                 className="flex-1"
+                disabled={inMatch}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
               />
-              <Button variant="goldCta" size="lg" className="shrink-0 justify-center gap-2 px-6" onClick={create}>
+              <Button
+                variant="goldCta"
+                size="lg"
+                className="shrink-0 justify-center gap-2 px-6"
+                disabled={inMatch}
+                onClick={create}
+              >
                 <Swords size={16} aria-hidden="true" />
                 Create
               </Button>
@@ -138,16 +153,25 @@ export function MatchmakingMenu() {
               <EmptyState />
             ) : (
               <ul className="grid grid-cols-1 gap-2 @[42rem]:grid-cols-2">
-                {visible.map((lobby) => (
-                  <LobbyCard
-                    key={lobby.id}
-                    lobby={lobby}
-                    onSelect={() => {
-                      setError(null);
-                      setSelectedLobbyId(lobby.id);
-                    }}
-                  />
-                ))}
+                {visible.map((lobby) => {
+                  const mine = lobby.id === myLobby?.id;
+                  return (
+                    <LobbyCard
+                      key={lobby.id}
+                      lobby={lobby}
+                      mine={mine}
+                      // In a match → only your own card is interactive; the rest are
+                      // locked so you can't join a second. Your card opens the
+                      // standalone queue dialog; others open the join preview.
+                      locked={inMatch && !mine}
+                      onSelect={() => {
+                        setError(null);
+                        if (mine) openQueue(true);
+                        else setSelectedLobbyId(lobby.id);
+                      }}
+                    />
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -180,17 +204,28 @@ function TeamPips({ slots, color }: { slots: LobbySlotView[]; color: string }) {
 const FORMAT_ROLE: Record<number, string> = { 1: 'Solo', 2: 'Duo', 3: 'Trio', 4: 'Squad', 5: 'Team' };
 
 /** A selectable format tile: the mode big with a quiet role label under it. */
-function ModeTile({ mode, active, onClick }: { mode: LobbyMode; active: boolean; onClick: () => void }) {
+function ModeTile({
+  mode,
+  active,
+  disabled,
+  onClick,
+}: {
+  mode: LobbyMode;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
       className={
-        'flex flex-col items-center gap-0.5 rounded-xl border py-2.5 transition ' +
+        'flex flex-col items-center gap-0.5 rounded-xl border py-2.5 transition disabled:cursor-not-allowed disabled:opacity-40 ' +
         (active
           ? 'border-gold bg-gold/15 text-gold shadow-[inset_0_0_18px_rgba(200,162,74,0.18)]'
-          : 'border-white/10 bg-black/20 text-text hover:border-white/30 hover:bg-black/30')
+          : 'border-white/10 bg-black/20 text-text enabled:hover:border-white/30 enabled:hover:bg-black/30')
       }
     >
       <span className="font-display text-lg font-black leading-none tracking-wide">{mode}</span>
@@ -202,28 +237,52 @@ function ModeTile({ mode, active, onClick }: { mode: LobbyMode; active: boolean;
 }
 
 /** A browsable lobby as a tactile card: name, mode, team-fill pips, glowing status,
- *  and a join chevron that slides in on hover. Disabled when not joinable. */
-function LobbyCard({ lobby, onSelect }: { lobby: LobbyView; onSelect: () => void }) {
+ *  and a join chevron that slides in on hover. `mine` flags your own match (gold
+ *  ring + badge, always openable); `locked` greys out others while you're queued. */
+function LobbyCard({
+  lobby,
+  mine,
+  locked,
+  onSelect,
+}: {
+  lobby: LobbyView;
+  mine: boolean;
+  locked: boolean;
+  onSelect: () => void;
+}) {
   const open = lobby.status === 'queuing';
+  // Your own card is always openable; otherwise it must be open AND not locked.
+  const interactive = mine || (open && !locked);
   const filled = [...lobby.blue, ...lobby.red].filter((s) => s.sessionId !== '').length;
   const capacity = lobby.blue.length + lobby.red.length;
   return (
     <li>
       <button
         type="button"
-        disabled={!open}
+        disabled={!interactive}
         onClick={onSelect}
-        className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-white/10 bg-linear-to-b from-white/4 to-transparent p-3 text-left transition enabled:hover:border-gold/50 enabled:hover:from-gold/10 disabled:opacity-55"
+        className={
+          'group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border bg-linear-to-b from-white/4 to-transparent p-3 text-left transition disabled:opacity-45 ' +
+          (mine
+            ? 'border-gold/60 from-gold/10'
+            : 'border-white/10 enabled:hover:border-gold/50 enabled:hover:from-gold/10')
+        }
       >
         <div className="flex items-center gap-2.5">
           <span className="rounded-md bg-gold/15 px-2 py-0.5 font-display text-xs font-bold tracking-wide text-gold ring-1 ring-gold/25">
             {lobby.mode}
           </span>
           <span className="min-w-0 flex-1 truncate font-semibold text-text">{lobby.name}</span>
-          <span className={'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ' + STATUS_TONE[lobby.status]}>
-            <Circle size={7} className="fill-current" aria-hidden="true" />
-            {STATUS_LABEL[lobby.status]}
-          </span>
+          {mine ? (
+            <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
+              Your match
+            </span>
+          ) : (
+            <span className={'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ' + STATUS_TONE[lobby.status]}>
+              <Circle size={7} className="fill-current" aria-hidden="true" />
+              {STATUS_LABEL[lobby.status]}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <TeamPips slots={lobby.blue} color={TEAM_COLORS.blue} />

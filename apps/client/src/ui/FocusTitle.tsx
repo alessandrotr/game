@@ -30,7 +30,7 @@ export function FocusTitle() {
   if (!active || !title || !panel) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-modal flex flex-col justify-end bg-linear-to-t from-bg/65 via-bg/20 to-transparent pb-10 pl-8 pt-24 sm:pl-14">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-toast flex flex-col justify-end bg-linear-to-t from-bg/65 via-bg/20 to-transparent pb-10 pl-8 pt-24 sm:pl-14">
       {/* Left zone: bounded to a fraction of the viewport so the title sits under
           the subject and never crowds the right-docked panel — on any width. */}
       <div className="w-[min(36rem,52vw)] animate-[focusTitleIn_360ms_cubic-bezier(0.16,1,0.3,1)_both]">
