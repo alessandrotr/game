@@ -36,6 +36,7 @@ import {
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useUpgradeStore } from '../store/useUpgradeStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
@@ -914,6 +915,29 @@ const TABS: { id: CustomizeTab; label: string; icon: typeof User }[] = [
  * scoped to the character you're currently playing. Equipping is immediate: it
  * broadcasts live to the town and persists to the account.
  */
+/** Guest gate for the Paint tab: paint persists per account + is shown to other
+ *  players, so guests get the same "Save progress" upgrade CTA used at sign-in
+ *  (opens the shared UpgradeAccountDialog mounted by the town HUD). */
+function PaintGuestGate() {
+  const openUpgrade = useUpgradeStore((s) => s.setOpen);
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gold/15 text-gold">
+        <Palette size={26} aria-hidden />
+      </div>
+      <div>
+        <h3 className="font-display text-lg font-bold text-text">Painting is account-only</h3>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+          Create a free account to paint your character — your paint job saves to your profile and shows to everyone in the world.
+        </p>
+      </div>
+      <Button variant="gold" size="lg" onClick={() => openUpgrade(true)}>
+        Save progress
+      </Button>
+    </div>
+  );
+}
+
 export function CustomizePanel() {
   const open = useCustomizeStore((s) => s.open);
   const setOpen = useCustomizeStore((s) => s.setOpen);
@@ -923,6 +947,7 @@ export function CustomizePanel() {
   const selectedClass = useCharacterStore((s) => s.selectedClass);
   const byClass = useCosmeticsStore((s) => s.byClass);
   const progress = useAuthStore((s) => s.progress);
+  const guest = useAuthStore((s) => s.guest);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   const characterClass = me?.characterClass ?? selectedClass;
   // Items this class can claim now but hasn't — badged on the Store tab.
@@ -982,9 +1007,10 @@ export function CustomizePanel() {
 
         {tab === 'paint' ? (
           // The paint studio needs the full body as an interactive canvas, so it
-          // spans the panel instead of the showcase/content split.
+          // spans the panel instead of the showcase/content split. Guests can't
+          // paint (it persists per account) — they get the upgrade CTA instead.
           <div className="min-h-0 flex-1">
-            <PaintStudio characterClass={characterClass} />
+            {guest ? <PaintGuestGate /> : <PaintStudio characterClass={characterClass} />}
           </div>
         ) : (
           <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
