@@ -49,16 +49,32 @@ const mage: CharacterDescriptor = {
   id: 'char.mage',
   displayName: 'Mage',
   class: 'mage',
-  // Rigged GLB (Meshy AI). ~1.7u tall with feet at the origin, so it needs no
-  // scale/offset. Idle/Walk/Run clips were merged from three single-clip Meshy
-  // exports (see scripts/merge-clips.mjs) onto one shared skeleton.
+  weaponId: 'weapon.staff',
+  animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.cast' },
+  // Placeholder built from primitives (same style as the priest): a deep-blue
+  // robe body, a skin-toned head, and a tall pointed wizard hat so the
+  // silhouette reads as a spellcaster. Staff attaches via weapon.staff's grip.
   render: {
-    kind: 'gltf',
-    url: '/models/characters/mage.glb',
-    scale: 1.35,
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: { idle: 'Idle', walk: 'Walk', run: 'Run' },
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'body',
+        shape: 'capsule',
+        args: [0.36, 0.72, 8, 16],
+        position: [0, 0.74, 0],
+        color: '#3b4cca',
+        roughness: 0.8,
+      },
+      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.44, 0], color: SKIN },
+      {
+        name: 'hat',
+        shape: 'cone',
+        args: [0.28, 0.6, 16],
+        position: [0, 1.86, 0],
+        color: '#2a3499',
+        roughness: 0.7,
+      },
+    ],
   },
 };
 
@@ -66,24 +82,32 @@ const archer: CharacterDescriptor = {
   id: 'char.archer',
   displayName: 'Archer',
   class: 'archer',
-  // Rigged GLB (Meshy AI). ~1.66u-tall skeleton; scaled to match the warrior's
-  // on-screen height. Idle/Walk/Run/Die + two dances were merged from the
-  // separate single-clip Meshy exports (see scripts/merge-clips.mjs) onto one
-  // shared skeleton.
+  weaponId: 'weapon.bow',
+  animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.attack' },
+  // Placeholder built from primitives (same style as the priest): a lean
+  // leather-green body, a skin-toned head, and a pointed hood so the silhouette
+  // reads as a nimble ranger. Bow attaches via weapon.bow's grip.
   render: {
-    kind: 'gltf',
-    url: '/models/characters/archer.glb',
-    scale: 1.29,
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      idle: 'Idle',
-      walk: 'Walk',
-      run: 'Run',
-      die: 'Die',
-      dance1: 'Dance1',
-      dance2: 'Dance2',
-    },
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'body',
+        shape: 'capsule',
+        args: [0.32, 0.74, 8, 16],
+        position: [0, 0.74, 0],
+        color: '#3e7d4f',
+        roughness: 0.8,
+      },
+      { name: 'head', shape: 'sphere', args: [0.25, 16, 16], position: [0, 1.44, 0], color: SKIN },
+      {
+        name: 'hood',
+        shape: 'cone',
+        args: [0.27, 0.34, 12],
+        position: [0, 1.62, 0],
+        color: '#2f5e3b',
+        roughness: 0.85,
+      },
+    ],
   },
 };
 
