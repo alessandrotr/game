@@ -37,22 +37,43 @@ const PALETTE = [
 
 type SkinColors = Partial<Record<PaintPart, string>>;
 
+/** The active editing tool. Mirror is a separate modifier (see `mirror`). */
+export type PaintTool = 'brush' | 'eraser' | 'eyedropper';
+
+/** Recently-used colors kept for quick reselection (newest first). */
+const RECENTS_CAP = 8;
+
 interface PaintStore {
   color: string;
   skinByClass: Partial<Record<CharacterClass, SkinColors>>;
   brush: number;
   palette: string[];
+  /** Recently-used custom/sampled colors, newest first (max RECENTS_CAP). */
+  recents: string[];
+  /** Active tool. */
+  tool: PaintTool;
+  /** Symmetry modifier — strokes mirror across the body's centerline. */
+  mirror: boolean;
   customizedByClass: Partial<Record<CharacterClass, boolean>>;
   /** Per-class content revision of the paint (for peer refetch / join options). */
   revByClass: Partial<Record<CharacterClass, string>>;
+  /** Per-class ordered log of edited parts (one entry per stroke/clear), so undo
+   *  walks edits across body AND head in true chronological order. */
+  historyByClass: Partial<Record<CharacterClass, PaintPart[]>>;
+  redoByClass: Partial<Record<CharacterClass, PaintPart[]>>;
   rev: number;
 
   setColor: (color: string) => void;
   setBrush: (brush: number) => void;
+  setTool: (tool: PaintTool) => void;
+  toggleMirror: () => void;
   setSkin: (characterClass: CharacterClass, part: PaintPart, color: string) => void;
   skinFor: (characterClass: CharacterClass, part: PaintPart) => string;
   /** This class's paint revision ('' = no custom paint) — for join options. */
   revFor: (characterClass: CharacterClass) => string;
+  /** Whether undo/redo have anything to apply for a class (for button disabled state). */
+  canUndo: (characterClass: CharacterClass) => boolean;
+  canRedo: (characterClass: CharacterClass) => boolean;
   /** Load one class's paint from the account onto its surfaces. */
   hydrate: (characterClass: CharacterClass) => Promise<void>;
   /** Reset + pull every class's paint from the account (call on sign-in). */
@@ -60,7 +81,8 @@ interface PaintStore {
   /** Clear all in-memory surfaces + state (call on sign-out / account switch). */
   reset: () => void;
   markPainted: (characterClass: CharacterClass, part: PaintPart) => void;
-  undo: (characterClass: CharacterClass, part: PaintPart) => void;
+  undo: (characterClass: CharacterClass) => void;
+  redo: (characterClass: CharacterClass) => void;
   clear: (characterClass: CharacterClass, part: PaintPart) => void;
 }
 
@@ -110,15 +132,28 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
   skinByClass: {},
   brush: 10,
   palette: PALETTE,
+  recents: [],
+  tool: 'brush',
+  mirror: false,
   customizedByClass: {},
   revByClass: {},
+  historyByClass: {},
+  redoByClass: {},
   rev: 0,
 
-  setColor: (color) => set({ color }),
+  setColor: (color) =>
+    set((s) => ({
+      color,
+      recents: [color, ...s.recents.filter((c) => c.toLowerCase() !== color.toLowerCase())].slice(0, RECENTS_CAP),
+    })),
   setBrush: (brush) => set({ brush }),
+  setTool: (tool) => set({ tool }),
+  toggleMirror: () => set((s) => ({ mirror: !s.mirror })),
 
   skinFor: (characterClass, part) => get().skinByClass[characterClass]?.[part] ?? defaultSkin(part),
   revFor: (characterClass) => get().revByClass[characterClass] ?? '',
+  canUndo: (characterClass) => (get().historyByClass[characterClass]?.length ?? 0) > 0,
+  canRedo: (characterClass) => (get().redoByClass[characterClass]?.length ?? 0) > 0,
 
   setSkin: (characterClass, part, color) => {
     getPaintSurface(characterClass, part).setSkin(color);
@@ -166,22 +201,58 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
       skinByClass: {},
       customizedByClass: {},
       revByClass: {},
+      historyByClass: {},
+      redoByClass: {},
       rev: s.rev + 1,
     }));
   },
 
-  markPainted: (characterClass) => commit(set, get, characterClass),
+  markPainted: (characterClass, part) => {
+    pushHistory(set, characterClass, part);
+    commit(set, get, characterClass);
+  },
 
-  undo: (characterClass, part) => {
-    if (!getPaintSurface(characterClass, part).popUndo()) return;
+  undo: (characterClass) => {
+    const history = get().historyByClass[characterClass] ?? [];
+    const part = history[history.length - 1];
+    if (!part || !getPaintSurface(characterClass, part).popUndo()) return;
+    set((s) => ({
+      historyByClass: { ...s.historyByClass, [characterClass]: history.slice(0, -1) },
+      redoByClass: { ...s.redoByClass, [characterClass]: [...(s.redoByClass[characterClass] ?? []), part] },
+    }));
+    commit(set, get, characterClass);
+  },
+
+  redo: (characterClass) => {
+    const redoStack = get().redoByClass[characterClass] ?? [];
+    const part = redoStack[redoStack.length - 1];
+    if (!part || !getPaintSurface(characterClass, part).popRedo()) return;
+    set((s) => ({
+      redoByClass: { ...s.redoByClass, [characterClass]: redoStack.slice(0, -1) },
+      historyByClass: { ...s.historyByClass, [characterClass]: [...(s.historyByClass[characterClass] ?? []), part] },
+    }));
     commit(set, get, characterClass);
   },
 
   clear: (characterClass, part) => {
     getPaintSurface(characterClass, part).clearPaint();
+    pushHistory(set, characterClass, part);
     commit(set, get, characterClass);
   },
 }));
+
+/** Record an edit on a part in the class's history and invalidate the redo branch
+ *  (mirrors PaintSurface.beginStroke/clearPaint clearing their redo stack). */
+function pushHistory(
+  set: (fn: (s: PaintStore) => Partial<PaintStore>) => void,
+  characterClass: CharacterClass,
+  part: PaintPart,
+): void {
+  set((s) => ({
+    historyByClass: { ...s.historyByClass, [characterClass]: [...(s.historyByClass[characterClass] ?? []), part] },
+    redoByClass: { ...s.redoByClass, [characterClass]: [] },
+  }));
+}
 
 /** Re-rev a class after a change, then debounce-save to the account + broadcast. */
 function commit(

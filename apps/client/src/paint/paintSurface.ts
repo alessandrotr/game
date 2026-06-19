@@ -53,6 +53,7 @@ export class PaintSurface {
   private readonly pctx: CanvasRenderingContext2D;
   private skin: string;
   private readonly undo: ImageData[] = [];
+  private readonly redo: ImageData[] = [];
   /** UV→local-position map (3 floats per texel) + coverage mask, built once from
    *  the mesh geometry. Lets the brush select texels by their real surface
    *  position, so a stamp is a uniform physical size even where UVs are squashed
@@ -149,11 +150,18 @@ export class PaintSurface {
     this.covered = covered;
   }
 
-  /** Snapshot the paint layer for undo + cache its pixels for fast stroke writes. */
+  /** Snapshot the paint layer for undo + cache its pixels for fast stroke writes.
+   *  A fresh action invalidates the redo branch (you can't redo past a new edit). */
   beginStroke(): void {
     this.paintImage = this.pctx.getImageData(0, 0, PAINT_SIZE, PAINT_SIZE);
+    this.pushUndo(this.paintImage);
+    this.redo.length = 0;
+  }
+
+  /** Push a copy of the given paint-layer pixels onto the undo stack (depth-capped). */
+  private pushUndo(from: ImageData): void {
     const snap = this.pctx.createImageData(PAINT_SIZE, PAINT_SIZE);
-    snap.data.set(this.paintImage.data);
+    snap.data.set(from.data);
     this.undo.push(snap);
     if (this.undo.length > UNDO_DEPTH) this.undo.shift();
   }
@@ -163,11 +171,23 @@ export class PaintSurface {
    * radius, coloring every texel whose surface position lies within the brush. The
    * points are in the mesh's LOCAL space (matching the position map). This is what
    * makes the brush a consistent size everywhere, independent of UV distortion.
+   *
+   * `mode === 'erase'` clears the texel's alpha (removing paint) instead of writing
+   * color. With `mirror`, each texel is also tested against the segment reflected
+   * across local x = 0, so a stroke paints symmetrically on both sides of the body.
    */
-  stampWorld(a: Vector3, b: Vector3, radius: number, color: string): void {
+  stampWorld(
+    a: Vector3,
+    b: Vector3,
+    radius: number,
+    color: string,
+    mode: 'paint' | 'erase' = 'paint',
+    mirror = false,
+  ): void {
     if (!this.posMap || !this.covered) return;
     if (!this.paintImage) this.paintImage = this.pctx.getImageData(0, 0, PAINT_SIZE, PAINT_SIZE);
     const [r, g, bl] = hexToRgb(color);
+    const erase = mode === 'erase';
     const data = this.paintImage.data;
     const pos = this.posMap;
     const cov = this.covered;
@@ -176,6 +196,14 @@ export class PaintSurface {
     const aby = b.y - a.y;
     const abz = b.z - a.z;
     const ab2 = abx * abx + aby * aby + abz * abz;
+    // Mirrored segment (reflected across local x = 0) — tested when `mirror` is on.
+    const mx0 = -a.x;
+    const my0 = a.y;
+    const mz0 = a.z;
+    const mabx = -b.x - mx0;
+    const maby = b.y - my0;
+    const mabz = b.z - mz0;
+    const mab2 = mabx * mabx + maby * maby + mabz * mabz;
     const N = PAINT_SIZE * PAINT_SIZE;
     for (let i = 0; i < N; i++) {
       if (!cov[i]) continue;
@@ -188,22 +216,50 @@ export class PaintSurface {
       const dx = px - (a.x + abx * tt);
       const dy = py - (a.y + aby * tt);
       const dz = pz - (a.z + abz * tt);
-      if (dx * dx + dy * dy + dz * dz <= r2) {
+      let hit = dx * dx + dy * dy + dz * dz <= r2;
+      if (!hit && mirror) {
+        let mt = mab2 > 0 ? ((px - mx0) * mabx + (py - my0) * maby + (pz - mz0) * mabz) / mab2 : 0;
+        mt = mt < 0 ? 0 : mt > 1 ? 1 : mt;
+        const mdx = px - (mx0 + mabx * mt);
+        const mdy = py - (my0 + maby * mt);
+        const mdz = pz - (mz0 + mabz * mt);
+        hit = mdx * mdx + mdy * mdy + mdz * mdz <= r2;
+      }
+      if (hit) {
         const j = i * 4;
-        data[j] = r;
-        data[j + 1] = g;
-        data[j + 2] = bl;
-        data[j + 3] = 255;
+        if (erase) {
+          data[j + 3] = 0;
+        } else {
+          data[j] = r;
+          data[j + 1] = g;
+          data[j + 2] = bl;
+          data[j + 3] = 255;
+        }
       }
     }
     this.pctx.putImageData(this.paintImage, 0, 0);
     this.recomposite();
   }
 
+  /** Revert the last edit, pushing the current state onto the redo stack. */
   popUndo(): boolean {
     const prev = this.undo.pop();
     if (!prev) return false;
+    const current = this.pctx.getImageData(0, 0, PAINT_SIZE, PAINT_SIZE);
+    this.redo.push(current);
+    if (this.redo.length > UNDO_DEPTH) this.redo.shift();
     this.pctx.putImageData(prev, 0, 0);
+    this.paintImage = null;
+    this.recomposite();
+    return true;
+  }
+
+  /** Reapply the last undone edit, pushing the current state back onto the undo stack. */
+  popRedo(): boolean {
+    const next = this.redo.pop();
+    if (!next) return false;
+    this.pushUndo(this.pctx.getImageData(0, 0, PAINT_SIZE, PAINT_SIZE));
+    this.pctx.putImageData(next, 0, 0);
     this.paintImage = null;
     this.recomposite();
     return true;
@@ -213,11 +269,27 @@ export class PaintSurface {
     return this.undo.length > 0;
   }
 
-  /** Wipe the paint overlay back to bare skin (keeps the skin color). */
+  canRedo(): boolean {
+    return this.redo.length > 0;
+  }
+
+  /** Wipe the paint overlay back to bare skin (keeps the skin color). Undoable. */
   clearPaint(): void {
+    this.pushUndo(this.pctx.getImageData(0, 0, PAINT_SIZE, PAINT_SIZE));
+    this.redo.length = 0;
     this.pctx.clearRect(0, 0, PAINT_SIZE, PAINT_SIZE);
     this.paintImage = null;
     this.recomposite();
+  }
+
+  /** Read the composite (skin + paint) pixel at UV (0..1) as a hex color string. */
+  sampleAt(u: number, v: number): string {
+    const x = Math.max(0, Math.min(PAINT_SIZE - 1, Math.floor(u * PAINT_SIZE)));
+    // v is flipped to match the flipped CanvasTexture (see ensurePositionMap).
+    const y = Math.max(0, Math.min(PAINT_SIZE - 1, Math.floor((1 - v) * PAINT_SIZE)));
+    const [r, g, b] = this.cctx.getImageData(x, y, 1, 1).data;
+    const hex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${hex(r as number)}${hex(g as number)}${hex(b as number)}`;
   }
 
   /** Serialize the paint OVERLAY (transparent) to a PNG data URL. Skin color is
