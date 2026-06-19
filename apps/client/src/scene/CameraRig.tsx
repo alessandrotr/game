@@ -6,12 +6,30 @@ import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
 import { getCameraYaw, getCameraPitch, getCameraZoom } from '../store/cameraControl';
+import { useFocusStore } from '../store/useFocusStore';
 import { getCamera } from '../tuning';
 
 /** Hard bounds on the total camera pitch (rad above horizontal) so tuning +
  *  user tilt can never look through the floor or flip fully top-down. */
 const MIN_PITCH = 0.2;
 const MAX_PITCH = 1.45;
+
+/** Cinematic focus on a town structure (see useFocusStore). The camera glides to
+ *  stand on the plaza side of the subject, looking at it, with the aim pushed to
+ *  the right so the subject renders on the LEFT (leaving room for a right-docked
+ *  panel). Tunables — adjust to taste against the real scene. */
+const FOCUS_SMOOTH = 6; // exp-smoothing rate → ~0.45s glide in and out
+const FOCUS_DIST = 7; // how far (world units) the camera sits from the subject
+const FOCUS_HEIGHT = 3; // camera height above ground while focused
+const FOCUS_LOOK_Y = 1.5; // height on the subject the camera aims at
+const FOCUS_SIDE_SHIFT = 2.6; // rightward aim offset → subject sits screen-left
+
+// Scratch vectors for the focus math (allocated once, reused every frame).
+const _focusDesired = new Vector3();
+const _shiftedLook = new Vector3();
+const _right = new Vector3();
+const _viewDir = new Vector3();
+const _up = new Vector3(0, 1, 0);
 
 /** Gun Mode Zombie (first-person camera): eye height above the feet (world
  *  units) and how tightly the camera position tracks the predicted body. */
@@ -51,10 +69,70 @@ export function CameraRig() {
   const target = useRef(new Vector3()).current;
   // Smoothed first-person eye position in gun mode (null until it initializes).
   const eye = useRef<Vector3 | null>(null);
+  // Cinematic focus: the smoothed point the camera aims at, and whether we're still
+  // animating (stays true through the return glide after the focus target clears).
+  const focusLook = useRef(new Vector3()).current;
+  const focusActive = useRef(false);
 
   useFrame((_, delta) => {
     const { sessionId, players } = useGameStore.getState();
     const me = sessionId ? players.get(sessionId) : undefined;
+
+    // Cinematic focus on a town structure. Takes over the camera while a focus
+    // target is set (and through a short return glide afterward), gliding to frame
+    // the subject screen-left. Gun mode wins (town has none, but be safe).
+    const focusState = useFocusStore.getState();
+    const focusTarget = focusState.target;
+    const gunActive = useGameStore.getState().gunMode;
+    if ((focusTarget || focusActive.current) && !gunActive) {
+      const localT = getLocalRenderTransform();
+      const px = localT.active ? localT.x : me?.x;
+      const pz = localT.active ? localT.z : me?.z;
+      if (camera instanceof PerspectiveCamera) setFov(camera, FOLLOW_FOV);
+      const k = 1 - Math.exp(-FOCUS_SMOOTH * delta);
+
+      if (focusTarget) {
+        // Engage / hold: stand in FRONT of the structure (along its facing normal,
+        // (sin,cos) of faceYaw), look at it, and bias the aim right so it sits
+        // screen-left. Standing on the front means we view the face, not a side.
+        const cx = focusTarget.x;
+        const cz = focusTarget.z;
+        const nx = Math.sin(focusState.faceYaw);
+        const nz = Math.cos(focusState.faceYaw);
+        _focusDesired.set(cx + nx * FOCUS_DIST, FOCUS_HEIGHT, cz + nz * FOCUS_DIST);
+        if (!focusActive.current) {
+          // Start the pan from where we were looking (the player) for continuity.
+          focusLook.set(px ?? cx, FOCUS_LOOK_Y, pz ?? cz);
+          focusActive.current = true;
+        }
+        camera.position.lerp(_focusDesired, k);
+        _viewDir.set(cx - camera.position.x, FOCUS_LOOK_Y - camera.position.y, cz - camera.position.z).normalize();
+        _right.crossVectors(_viewDir, _up).normalize();
+        _shiftedLook.set(cx + _right.x * FOCUS_SIDE_SHIFT, FOCUS_LOOK_Y, cz + _right.z * FOCUS_SIDE_SHIFT);
+        focusLook.lerp(_shiftedLook, k);
+        camera.lookAt(focusLook);
+        return;
+      }
+
+      // Return glide: focus cleared — ease back to the normal follow pose, then hand
+      // control back to the standard rig (camera is already there, so no pop).
+      if (px == null || pz == null) {
+        focusActive.current = false;
+      } else {
+        target.set(px, 0, pz);
+        orbitDesired(target, me, _focusDesired);
+        camera.position.lerp(_focusDesired, k);
+        focusLook.lerp(target, k);
+        camera.lookAt(focusLook);
+        if (
+          camera.position.distanceToSquared(_focusDesired) < 0.05 &&
+          focusLook.distanceToSquared(target) < 0.05
+        ) {
+          focusActive.current = false;
+        }
+        return;
+      }
+    }
 
     // Co-op spectating: when dead and watching the squad, follow the chosen
     // (living) teammate instead of our own corpse — fall back to any survivor.
@@ -136,6 +214,20 @@ function applyOrbit(
   delta: number,
   lockOrientation = false,
 ): void {
+  orbitDesired(target, me, desired, lockOrientation);
+  const t = 1 - Math.exp(-getCamera().followSmoothing * delta);
+  camera.position.lerp(desired, t);
+  camera.lookAt(target);
+}
+
+/** Compute the tuned orbit camera position around `target` into `out` (no lerp, no
+ *  lookAt). Shared by the live follow and the cinematic-focus return glide. */
+function orbitDesired(
+  target: Vector3,
+  me: { team?: string } | undefined,
+  out: Vector3,
+  lockOrientation = false,
+): void {
   const cam = getCamera();
   // Base orientation: blue looks down +Z, red is mirrored 180°. The user yaw
   // offset orbits the view on top of that — unless the orientation is locked
@@ -151,12 +243,9 @@ function applyOrbit(
     Math.max(MIN_PITCH, basePitch + (lockOrientation ? 0 : getCameraPitch())),
   );
   const horiz = radius * Math.cos(pitch);
-  desired.set(
+  out.set(
     target.x + Math.sin(yaw) * horiz,
     target.y + radius * Math.sin(pitch),
     target.z + Math.cos(yaw) * horiz,
   );
-  const t = 1 - Math.exp(-cam.followSmoothing * delta);
-  camera.position.lerp(desired, t);
-  camera.lookAt(target);
 }

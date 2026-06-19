@@ -2,8 +2,10 @@ import { Billboard, Text } from '@react-three/drei';
 import { ZOMBIE_FLANK_PORTALS, type MapAssetId } from '@arena/shared';
 import { assets } from '../assets/registry';
 import { useGameStore, type RoomType } from '../store/useGameStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { travelTo } from '../network/colyseus';
 import { PortalEffect } from './PortalEffect';
+import { FadeGroup } from './FadeGroup';
 
 /**
  * Clickable portals (Phase 10): each map's `portal` zone becomes a clickable pad
@@ -61,6 +63,8 @@ function portalStyle(zone: { mode?: 'zombie' | 'gunzombie' }, room: RoomType | n
 export function Portals({ mapId }: { mapId: MapAssetId }) {
   const room = useGameStore((s) => s.room);
   const zombieMode = useGameStore((s) => s.zombieMode);
+  // Recede the travel gateways while a town structure is cinematically focused.
+  const show = useFocusStore((s) => !s.target);
   const map = assets.getMap(mapId);
   // Zombie mode: the flanking side portals the hordes pour out of — purely visual
   // sickly-green gateways (not clickable; the back gate stays the travel portal).
@@ -68,7 +72,7 @@ export function Portals({ mapId }: { mapId: MapAssetId }) {
   if (!map?.zones && !showFlankPortals) return null;
 
   return (
-    <>
+    <FadeGroup show={show}>
       {showFlankPortals &&
         ZOMBIE_FLANK_PORTALS.map((p, i) => (
           <group key={`flank-${i}`} position={[p.x, 0, p.z]}>
@@ -129,6 +133,6 @@ export function Portals({ mapId }: { mapId: MapAssetId }) {
             </group>
           );
         })}
-    </>
+    </FadeGroup>
   );
 }

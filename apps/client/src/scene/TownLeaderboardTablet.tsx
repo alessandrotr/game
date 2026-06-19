@@ -3,6 +3,8 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import { AdditiveBlending, Color, DoubleSide, type ShaderMaterial } from 'three';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
+import { maybeFocusStructure, useFocusStore } from '../store/useFocusStore';
+import { FadeGroup } from './FadeGroup';
 
 /**
  * A standing stone "tafel" (tablet) in town. Its face runs a gold leaderboard
@@ -103,18 +105,26 @@ export function TownLeaderboardTablet({
 }: TownLeaderboardTabletProps) {
   // Restore the cursor on unmount so it never sticks as a pointer.
   useEffect(() => () => void (document.body.style.cursor = ''), []);
+  // Hide the 3D floating label while this structure is cinematically focused; fade
+  // the whole monument out when a DIFFERENT structure is focused.
+  const focused = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
+  const show = useFocusStore((s) => !s.target || s.panel === 'leaderboard');
 
   const open = (e: ThreeEvent<PointerEvent>) => {
     if (e.nativeEvent.button !== 0) return; // left-click only
     e.stopPropagation();
     useLeaderboardStore.getState().setOpen(true);
+    // Frame the monument biased toward the podium champions (off to one side of the
+    // tablet) so they read as the hero on the left while the standings dock right.
+    // faceYaw = the monument's facing, so the camera views its front.
+    maybeFocusStructure('leaderboard', 'Leaderboard', rotation[1], position[0] + 3, 0, position[2] - 0.7);
   };
   const hover = (on: boolean) => () => {
     document.body.style.cursor = on ? 'pointer' : '';
   };
 
   return (
-    <group position={position} rotation={rotation}>
+    <FadeGroup show={show} position={position} rotation={rotation}>
       {/* Cool polished-slate base. Low metalness so it shows its own color (not a
           mirror of the dark dusk env) + a faint cool emissive so it never sinks
           to black, with a glossy roughness for crisp light highlights. */}
@@ -142,19 +152,21 @@ export function TownLeaderboardTablet({
       {/* Glowing engraved leaderboard face. */}
       <TabletFace />
 
-      {/* Floating label. */}
-      <Billboard position={[0, 2.95, 0]}>
-        <Text
-          fontSize={0.32}
-          color="#ffe6a8"
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.02}
-          outlineColor="#000000"
-        >
-          Leaderboard
-        </Text>
-      </Billboard>
+      {/* Floating label — hidden while focused (the HUD shows the big title instead). */}
+      {!focused && (
+        <Billboard position={[0, 2.95, 0]}>
+          <Text
+            fontSize={0.32}
+            color="#ffe6a8"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.02}
+            outlineColor="#000000"
+          >
+            Leaderboard
+          </Text>
+        </Billboard>
+      )}
 
       {/* Invisible click volume covering the whole monument. */}
       <mesh
@@ -166,6 +178,6 @@ export function TownLeaderboardTablet({
         <boxGeometry args={[1.9, 2.5, 0.6]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-    </group>
+    </FadeGroup>
   );
 }

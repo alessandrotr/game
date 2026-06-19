@@ -9,6 +9,12 @@ export interface OverlayProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onCl
   closeOnBackdrop?: boolean;
   /** Close when pressing Escape. Default false. */
   closeOnEscape?: boolean;
+  /** `center` (default) centers the content over a dimmed screen; `right` docks it
+   *  to the right edge for the cinematic structure-focus (3D subject sits left). */
+  dock?: 'center' | 'right';
+  /** Drop the dim/blur so the focused 3D scene shows through (used with dock="right").
+   *  The backdrop stays click-to-close, just invisible. */
+  transparent?: boolean;
 }
 
 /**
@@ -23,6 +29,8 @@ export function Overlay({
   onClose,
   closeOnBackdrop = true,
   closeOnEscape = false,
+  dock = 'center',
+  transparent = false,
   className,
   ...props
 }: OverlayProps) {
@@ -38,7 +46,10 @@ export function Overlay({
   return (
     <div
       className={cn(
-        'pointer-events-auto absolute inset-0 z-modal flex items-center justify-center bg-black/70 backdrop-blur-sm',
+        'pointer-events-auto absolute inset-0 z-modal flex items-center',
+        dock === 'right' ? 'justify-end pr-4' : 'justify-center',
+        // Docked: fully transparent (the readability scrim lives on the HUD title).
+        transparent ? '' : 'bg-black/70 backdrop-blur-sm',
         className,
       )}
       onClick={(e) => {

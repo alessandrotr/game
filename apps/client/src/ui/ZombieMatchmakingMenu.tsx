@@ -13,6 +13,7 @@ import {
   sendZombieJoinLobby,
 } from '../network/colyseus';
 import { Badge, Button, Card, Input, Overlay } from './primitives';
+import { useFocusStore } from '../store/useFocusStore';
 
 /**
  * The co-op Zombie matchmaking browser: create a squad (public or private), join
@@ -29,6 +30,8 @@ export function ZombieMatchmakingMenu() {
   const [name, setName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
+  // Docked to the right while the Breach shrine is cinematically focused.
+  const docked = useFocusStore((s) => s.panel === 'coop' && !!s.target);
 
   // Only public, still-open squads are listed; private ones join by code.
   const visible = lobbies.filter((l) => !l.isPrivate && l.status === 'queuing');
@@ -56,7 +59,7 @@ export function ZombieMatchmakingMenu() {
   };
 
   return (
-    <Overlay onClose={() => setMenuOpen(false)} closeOnEscape>
+    <Overlay onClose={() => setMenuOpen(false)} closeOnEscape dock={docked ? 'right' : 'center'} transparent={docked}>
       <Card variant="modal" className="flex max-h-[80vh] w-[600px] flex-col">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-2">

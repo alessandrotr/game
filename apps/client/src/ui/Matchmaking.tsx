@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { MatchmakingMenu } from './MatchmakingMenu';
 import { LobbyView } from './LobbyView';
 import { ReadyCheckOverlay } from './ReadyCheckOverlay';
@@ -21,6 +23,15 @@ export function Matchmaking() {
   // Your own lobby always wins over a browser preview selection.
   const viewLobby = myLobby ?? lobbies.find((l) => l.id === selectedLobbyId) ?? null;
   const isMember = !!myLobby && myLobby.id === viewLobby?.id;
+
+  // Cinematic focus belongs to the entry browser only. Once the player advances
+  // into a lobby / ready-check (wider, interactive flows that want the centered
+  // dimmed overlay) — or closes the menu — release the camera + movement lock.
+  const showingMenu = menuOpen && !viewLobby && myLobby?.status !== 'ready_check';
+  useEffect(() => {
+    if (!showingMenu) useFocusStore.getState().clear('pvp');
+  }, [showingMenu]);
+  useEffect(() => () => useFocusStore.getState().clear('pvp'), []);
 
   return (
     <>

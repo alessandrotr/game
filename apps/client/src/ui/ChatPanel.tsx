@@ -4,6 +4,7 @@ import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
 import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { sendChat } from '../network/colyseus';
 import { Badge, Button, IconButton, Input } from './primitives';
 
@@ -18,6 +19,7 @@ export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const onlineCount = useGameStore((s) => s.playerIds.length);
   const hidden = useHudStore((s) => s.hidden);
+  const focused = useFocusStore((s) => !!s.target);
   const collapsed = useHudStore((s) => s.chatCollapsed);
   const toggle = useHudStore((s) => s.setChatCollapsed);
   const [text, setText] = useState('');
@@ -66,7 +68,7 @@ export function ChatPanel() {
     inputRef.current?.blur();
   };
 
-  if (hidden) return null; // hidden with the rest of the HUD chrome (H key)
+  if (hidden || focused) return null; // hidden with the HUD chrome (H key / structure focus)
 
   if (collapsed) {
     return (

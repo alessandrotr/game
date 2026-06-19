@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { Billboard, Text } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import { useLobbyStore } from '../store/useLobbyStore';
+import { maybeFocusStructure, useFocusStore } from '../store/useFocusStore';
 import { PortalEffect } from './PortalEffect';
+import { FadeGroup } from './FadeGroup';
 
 /**
  * "Trial of Blades" — the PvP duel shrine in town. Two crossed steel greatswords
@@ -78,18 +80,23 @@ export function TownDuelAltar({
 }: TownDuelAltarProps) {
   // Restore the cursor on unmount so it never sticks as a pointer.
   useEffect(() => () => void (document.body.style.cursor = ''), []);
+  // Hide the 3D floating label while focused; fade the whole shrine out when a
+  // DIFFERENT structure is focused.
+  const focused = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
+  const show = useFocusStore((s) => !s.target || s.panel === 'pvp');
 
   const open = (e: ThreeEvent<PointerEvent>) => {
     if (e.nativeEvent.button !== 0) return; // left-click only
     e.stopPropagation();
     useLobbyStore.getState().setMenuOpen(true);
+    maybeFocusStructure('pvp', 'Trial of Blades', rotation[1], position[0], 0, position[2]);
   };
   const hover = (on: boolean) => () => {
     document.body.style.cursor = on ? 'pointer' : '';
   };
 
   return (
-    <group position={position} rotation={rotation}>
+    <FadeGroup show={show} position={position} rotation={rotation}>
       {/* Stepped war altar — dark warm stone. */}
       <mesh position={[0, 0.15, 0]} receiveShadow castShadow>
         <boxGeometry args={[2.3, 0.3, 1.5]} />
@@ -118,30 +125,32 @@ export function TownDuelAltar({
       {/* Warm glow cast on the altar + ground. */}
       <pointLight position={[0, 1.4, 0.35]} color="#ff5030" intensity={7} distance={9} decay={2} />
 
-      {/* Floating label. */}
-      <Billboard position={[0, 2.85, 0]}>
-        <Text
-          fontSize={0.34}
-          color="#ff8a5a"
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.02}
-          outlineColor="#1a0a06"
-        >
-          Trial of Blades
-        </Text>
-        <Text
-          position={[0, -0.06, 0]}
-          fontSize={0.16}
-          color="#ffcf8a"
-          anchorX="center"
-          anchorY="top"
-          outlineWidth={0.012}
-          outlineColor="#1a0a06"
-        >
-          Player Duels
-        </Text>
-      </Billboard>
+      {/* Floating label — hidden while focused (the HUD shows the big title instead). */}
+      {!focused && (
+        <Billboard position={[0, 2.85, 0]}>
+          <Text
+            fontSize={0.34}
+            color="#ff8a5a"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.02}
+            outlineColor="#1a0a06"
+          >
+            Trial of Blades
+          </Text>
+          <Text
+            position={[0, -0.06, 0]}
+            fontSize={0.16}
+            color="#ffcf8a"
+            anchorX="center"
+            anchorY="top"
+            outlineWidth={0.012}
+            outlineColor="#1a0a06"
+          >
+            Player Duels
+          </Text>
+        </Billboard>
+      )}
 
       {/* Invisible click volume covering the shrine. */}
       <mesh
@@ -153,6 +162,6 @@ export function TownDuelAltar({
         <boxGeometry args={[2.4, 2.8, 1.7]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-    </group>
+    </FadeGroup>
   );
 }

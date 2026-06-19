@@ -3,6 +3,7 @@ import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@ar
 import { Trophy, X } from 'lucide-react';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { requestLeaderboard } from '../network/colyseus';
 import {
   Dialog,
@@ -217,6 +218,9 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 export function Leaderboard() {
   const { open, loading, enabled, entries, setOpen, setLoading } = useLeaderboardStore();
   const username = useAuthStore((s) => s.username);
+  // Cinematic focus engaged from the town tablet → dock right, no backdrop, so the
+  // podium champions stay visible on the left. Centered (today's look) otherwise.
+  const docked = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
 
   // Fetch fresh standings whenever the dialog opens — wherever it was opened
   // from. Radix's onOpenChange only fires for its own close interactions, so an
@@ -228,9 +232,21 @@ export function Leaderboard() {
     }
   }, [open, setLoading]);
 
+  // Release the camera focus + movement lock whenever the dialog isn't open, and
+  // on unmount (e.g. leaving town) so a stale focus can't hijack another scene.
+  useEffect(() => {
+    if (!open) useFocusStore.getState().clear('leaderboard');
+  }, [open]);
+  useEffect(() => () => useFocusStore.getState().clear('leaderboard'), []);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-md p-0 sm:max-w-xl" aria-describedby={undefined}>
+      <DialogContent
+        dock={docked ? 'right' : 'center'}
+        backdrop={!docked}
+        className="max-w-md p-0 sm:max-w-xl"
+        aria-describedby={undefined}
+      >
         {/* Header — title, the metric it's ranked by (transparency), close. */}
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">

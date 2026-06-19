@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { findMyZombieLobby, useZombieLobbyStore } from '../store/useZombieLobbyStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { ZombieMatchmakingMenu } from './ZombieMatchmakingMenu';
 import { ZombieLobbyView } from './ZombieLobbyView';
 
@@ -16,6 +18,14 @@ export function ZombieMatchmaking() {
   const menuOpen = useZombieLobbyStore((s) => s.menuOpen);
 
   const myLobby = findMyZombieLobby(lobbies, mySessionId);
+
+  // Focus belongs to the entry browser only; release it once we're in a squad or
+  // the menu closes (the squad view wants the centered dimmed overlay).
+  const showingMenu = menuOpen && !myLobby;
+  useEffect(() => {
+    if (!showingMenu) useFocusStore.getState().clear('coop');
+  }, [showingMenu]);
+  useEffect(() => () => useFocusStore.getState().clear('coop'), []);
 
   return (
     <>{menuOpen && (myLobby ? <ZombieLobbyView lobby={myLobby} /> : <ZombieMatchmakingMenu />)}</>

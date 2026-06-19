@@ -3,7 +3,9 @@ import { Billboard, Text } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import { AdditiveBlending } from 'three';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
+import { maybeFocusStructure, useFocusStore } from '../store/useFocusStore';
 import { PortalEffect } from './PortalEffect';
+import { FadeGroup } from './FadeGroup';
 
 /**
  * "The Breach" — the zombie co-op shrine in town. A cracked tomb monolith split
@@ -38,18 +40,23 @@ export function TownBreachRift({
   rotation = [0, 0.55, 0],
 }: TownBreachRiftProps) {
   useEffect(() => () => void (document.body.style.cursor = ''), []);
+  // Hide the 3D floating label while focused; fade the whole shrine out when a
+  // DIFFERENT structure is focused.
+  const focused = useFocusStore((s) => s.panel === 'coop' && !!s.target);
+  const show = useFocusStore((s) => !s.target || s.panel === 'coop');
 
   const open = (e: ThreeEvent<PointerEvent>) => {
     if (e.nativeEvent.button !== 0) return; // left-click only
     e.stopPropagation();
     useZombieLobbyStore.getState().setMenuOpen(true);
+    maybeFocusStructure('coop', 'The Breach', rotation[1], position[0], 0, position[2]);
   };
   const hover = (on: boolean) => () => {
     document.body.style.cursor = on ? 'pointer' : '';
   };
 
   return (
-    <group position={position} rotation={rotation}>
+    <FadeGroup show={show} position={position} rotation={rotation}>
       {/* Plinth. */}
       <mesh position={[0, 0.12, 0]} receiveShadow castShadow>
         <boxGeometry args={[2.0, 0.25, 1.2]} />
@@ -116,30 +123,32 @@ export function TownBreachRift({
       {/* Sickly-green glow on the stone + ground. */}
       <pointLight position={[0, 1.4, 0.4]} color="#7fe04a" intensity={7} distance={9} decay={2} />
 
-      {/* Floating label. */}
-      <Billboard position={[0, 2.95, 0]}>
-        <Text
-          fontSize={0.34}
-          color="#a6ff7f"
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.02}
-          outlineColor="#0c1a0c"
-        >
-          The Breach
-        </Text>
-        <Text
-          position={[0, -0.06, 0]}
-          fontSize={0.16}
-          color="#d8ffb0"
-          anchorX="center"
-          anchorY="top"
-          outlineWidth={0.012}
-          outlineColor="#0c1a0c"
-        >
-          Co-op Survival
-        </Text>
-      </Billboard>
+      {/* Floating label — hidden while focused (the HUD shows the big title instead). */}
+      {!focused && (
+        <Billboard position={[0, 2.95, 0]}>
+          <Text
+            fontSize={0.34}
+            color="#a6ff7f"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.02}
+            outlineColor="#0c1a0c"
+          >
+            The Breach
+          </Text>
+          <Text
+            position={[0, -0.06, 0]}
+            fontSize={0.16}
+            color="#d8ffb0"
+            anchorX="center"
+            anchorY="top"
+            outlineWidth={0.012}
+            outlineColor="#0c1a0c"
+          >
+            Co-op Survival
+          </Text>
+        </Billboard>
+      )}
 
       {/* Invisible click volume covering the shrine. */}
       <mesh
@@ -151,6 +160,6 @@ export function TownBreachRift({
         <boxGeometry args={[2.0, 2.8, 1.6]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-    </group>
+    </FadeGroup>
   );
 }

@@ -6,6 +6,7 @@ import { setDestination } from '../store/destinationState';
 import { useGameStore } from '../store/useGameStore';
 import { useTargetStore } from '../store/targetState';
 import { useAbilityTargeting } from '../store/abilityTargeting';
+import { useFocusStore } from '../store/useFocusStore';
 import { sendMoveTo } from '../network/colyseus';
 
 /** Ground plane (y = 0) the cursor is projected onto. */
@@ -45,6 +46,9 @@ export function MouseMove() {
     const canvas = gl.domElement;
     const onDown = (e: MouseEvent) => {
       if (e.button !== 2) return; // right button only
+      // Movement is locked while a structure is cinematically focused (the camera
+      // is off the player); closing the panel restores control.
+      if (useFocusStore.getState().target) return;
       // While aiming a ground-targeted ability, right-click cancels the aim
       // (it does not also issue a move order).
       if (useAbilityTargeting.getState().pending) {
@@ -72,6 +76,7 @@ export function MouseMove() {
     const onTouchStart = (e: TouchEvent) => {
       const t = e.touches[0];
       if (!t || e.touches.length !== 1) return;
+      if (useFocusStore.getState().target) return; // locked while focused
       if (useAbilityTargeting.getState().pending) {
         useAbilityTargeting.getState().cancel();
         return;
@@ -111,6 +116,8 @@ export function MouseMove() {
 
   useFrame((_, delta) => {
     if (!held.current) return;
+    // A focus can engage mid-drag (clicking a structure); stop steering at once.
+    if (useFocusStore.getState().target) return;
 
     // Frozen (stun/root): the server ignores move orders and drops the
     // destination, so issuing one locally only races the predictor (which

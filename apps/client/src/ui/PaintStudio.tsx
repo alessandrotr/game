@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { Vector3, type Mesh } from 'three';
-import { Brush, Eraser, Pipette, FlipHorizontal2, Undo2, Redo2, Trash2, Droplet } from 'lucide-react';
+import { Brush, Eraser, Pipette, FlipHorizontal2, Eye, EyeOff, Undo2, Redo2, Trash2, Droplet } from 'lucide-react';
 import type { CharacterClass } from '@arena/shared';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
@@ -109,7 +109,22 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
   const clear = usePaintStore((s) => s.clear);
   const markPainted = usePaintStore((s) => s.markPainted);
 
-  const descriptor = resolveCharacter(characterClass);
+  const [showGear, setShowGear] = useState(true);
+  const baseDescriptor = resolveCharacter(characterClass);
+  // When gear is hidden, strip everything but the paintable body/head parts (and
+  // the weapon) so the whole surface is reachable — helmets/hoods/packs otherwise
+  // cover spots you want to paint. Painting + raycasting are unaffected.
+  const descriptor = useMemo(() => {
+    if (showGear || baseDescriptor.render.kind !== 'placeholder') return baseDescriptor;
+    return {
+      ...baseDescriptor,
+      weaponId: undefined,
+      render: {
+        ...baseDescriptor.render,
+        parts: baseDescriptor.render.parts.filter((p) => isPaintPart(p.name ?? '')),
+      },
+    };
+  }, [baseDescriptor, showGear]);
   const paint = paintTexturesFor(characterClass);
 
   // Refs read inside r3f pointer handlers (captured once) — kept current so the
@@ -251,6 +266,13 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
             <ToolButton icon={Pipette} label="Eyedropper" active={tool === 'eyedropper'} onClick={() => setTool('eyedropper')} />
           </div>
           <ToolButton icon={FlipHorizontal2} label="Mirror" active={mirror} onClick={toggleMirror} wide />
+          <ToolButton
+            icon={showGear ? Eye : EyeOff}
+            label={showGear ? 'Hide gear' : 'Show gear'}
+            active={!showGear}
+            onClick={() => setShowGear((v) => !v)}
+            wide
+          />
 
           <Divider />
 

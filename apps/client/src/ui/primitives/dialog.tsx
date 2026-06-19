@@ -29,24 +29,39 @@ const DialogOverlay = forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = forwardRef<
-  ElementRef<typeof DialogPrimitive.Content>,
-  ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-1/2 top-1/2 z-modal w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-2xl focus:outline-none',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+interface DialogContentProps extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** `center` (default) is the classic centered modal; `right` docks the panel to
+   *  the right edge, vertically centered — for the cinematic focus, where the 3D
+   *  subject sits screen-left and the panel beside it. */
+  dock?: 'center' | 'right';
+  /** Render the dimming backdrop. Set false (with `dock="right"`) so the focused
+   *  3D scene stays fully visible behind a transparent, click-to-close overlay. */
+  backdrop?: boolean;
+}
+
+const DialogContent = forwardRef<ElementRef<typeof DialogPrimitive.Content>, DialogContentProps>(
+  ({ className, children, dock = 'center', backdrop = true, ...props }, ref) => (
+    <DialogPortal>
+      {/* Docked: fully transparent + click-to-close. The readability scrim lives on
+          the HUD title itself (FocusTitle), so the dialog's portal can't paint over
+          it — keeping the big title legible regardless of stacking order. */}
+      <DialogOverlay className={backdrop ? undefined : 'bg-transparent backdrop-blur-none'} />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          'fixed z-modal w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-2xl focus:outline-none',
+          dock === 'right'
+            ? 'right-4 top-1/2 max-w-md -translate-y-1/2'
+            : 'left-1/2 top-1/2 max-w-lg -translate-x-1/2 -translate-y-1/2',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  ),
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogTitle = forwardRef<

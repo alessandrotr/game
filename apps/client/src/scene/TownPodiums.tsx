@@ -4,11 +4,13 @@ import { Billboard, Text } from '@react-three/drei';
 import { Color } from 'three';
 import { getClassDefinition, isCharacterClass, type CharacterClass, type LeaderboardEntry } from '@arena/shared';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { requestLeaderboard } from '../network/colyseus';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
 import { applyClassPaint, paintTexturesFor } from '../paint/paintSurface';
 import { fetchPublicPaint } from '../network/paint';
+import { FadeGroup } from './FadeGroup';
 
 /**
  * The town champions' podium — three stepped daises beside the leaderboard
@@ -38,9 +40,6 @@ const MODEL_SCALE = 0.6;
 /** Nominal model height (world units) at scale 1 — used to lift the nameplate
  *  clear of the champion's head. Approximate; tune with the scale if models change. */
 const MODEL_HEIGHT = 1.8;
-/** Champion facing (Y rotation, radians) relative to the podium group. 0 faces the
- *  same way as the podium/tablet; flip to Math.PI if they end up backwards. */
-const FACE_Y = 0;
 
 /**
  * The champion standing on a tier: their actual class model with equipped skin/dye
@@ -79,8 +78,10 @@ function PodiumChampion({ entry, tierHeight }: { entry: LeaderboardEntry; tierHe
   }, [pid, cls, owner]);
 
   if (!descriptor) return null;
+  // Stand facing the podium's front (the focus camera is positioned to look at that
+  // front — see CameraRig's faceYaw framing).
   return (
-    <group position={[0, tierHeight + 0.02, 0]} rotation={[0, FACE_Y, 0]} scale={MODEL_SCALE}>
+    <group position={[0, tierHeight + 0.02, 0]} scale={MODEL_SCALE}>
       <CharacterModel descriptor={descriptor} paint={painted ? paintTexturesFor(owner) : undefined} />
     </group>
   );
@@ -288,6 +289,8 @@ export function TownPodiums({
   rotation = [0, -0.7, 0],
 }: TownPodiumsProps) {
   const entries = useLeaderboardStore((s) => s.entries);
+  // Part of the leaderboard monument: fade out when another structure is focused.
+  const show = useFocusStore((s) => !s.target || s.panel === 'leaderboard');
 
   // Pull fresh standings when the town mounts so the podiums show real names
   // without anyone opening the dialog (a no-op until the room is connected; the
@@ -297,7 +300,7 @@ export function TownPodiums({
   }, []);
 
   return (
-    <group position={position} rotation={rotation}>
+    <FadeGroup show={show} position={position} rotation={rotation}>
       {/* Shared plinth tying the three tiers together — same cool slate. */}
       <mesh position={[0, 0.08, 0]} receiveShadow castShadow>
         <boxGeometry args={[4.5, 0.16, 1.3]} />
@@ -324,6 +327,6 @@ export function TownPodiums({
           />
         ))}
       </group>
-    </group>
+    </FadeGroup>
   );
 }

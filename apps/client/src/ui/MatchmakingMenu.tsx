@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Swords, Users, X } from 'lucide-react';
 import { LOBBY_MODES, LOBBY_NAME_MAX_LENGTH, type LobbyMode, type LobbyView } from '@arena/shared';
 import { useLobbyStore, type ModeFilter } from '../store/useLobbyStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { sendCreateLobby } from '../network/colyseus';
 import { Badge, Button, Card, Input, Overlay } from './primitives';
 
@@ -36,6 +37,8 @@ export function MatchmakingMenu() {
 
   const [name, setName] = useState('');
   const [mode, setMode] = useState<LobbyMode>('2v2');
+  // Docked to the right while the duel shrine is cinematically focused.
+  const docked = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
 
   const visible = lobbies
     .filter((l) => modeFilter === 'all' || l.mode === modeFilter)
@@ -53,7 +56,7 @@ export function MatchmakingMenu() {
   };
 
   return (
-    <Overlay onClose={() => setMenuOpen(false)} closeOnEscape>
+    <Overlay onClose={() => setMenuOpen(false)} closeOnEscape dock={docked ? 'right' : 'center'} transparent={docked}>
       <Card variant="modal" className="flex max-h-[80vh] w-[600px] flex-col">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-2">

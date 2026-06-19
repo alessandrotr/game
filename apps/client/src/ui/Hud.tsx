@@ -1,6 +1,7 @@
 import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useFocusStore } from '../store/useFocusStore';
 import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
 import { ZombieMatchmaking } from './ZombieMatchmaking';
@@ -10,6 +11,7 @@ import { MatchResult } from './MatchResult';
 import { WaveAnnouncement, ZombieHud } from './ZombieHud';
 import { GunHud } from './GunHud';
 import { Leaderboard } from './Leaderboard';
+import { FocusTitle } from './FocusTitle';
 import { CustomizePanel } from './CustomizePanel';
 import { LevelUpToast } from './LevelUpToast';
 import { Paperdoll } from './Paperdoll';
@@ -37,6 +39,10 @@ export function Hud() {
   const inArena = useGameStore((s) => s.room) === 'arena';
   const hudHidden = useHudStore((s) => s.hidden);
   const guest = useAuthStore((s) => s.guest);
+  // A cinematic structure focus clears the chrome too, for a clean staged view —
+  // only the docked panel + big title remain.
+  const focused = useFocusStore((s) => !!s.target);
+  const chromeHidden = hudHidden || focused;
 
   return (
     <>
@@ -56,7 +62,7 @@ export function Hud() {
             on gun mode; combat-critical so it stays visible like the combat HUD. */}
         {inArena && <GunHud />}
 
-        {!hudHidden && (
+        {!chromeHidden && (
           <>
             {!inArena && (
               <HudZone zone="top-left">
@@ -92,6 +98,7 @@ export function Hud() {
       <LevelUpToast />
       <WaveAnnouncement />
       <Paperdoll />
+      <FocusTitle />
       <Leaderboard />
       <CustomizePanel />
       <SettingsPanel />
