@@ -6,6 +6,7 @@ import { CombatHud } from './CombatHud';
 import { Matchmaking } from './Matchmaking';
 import { MatchQueue } from './MatchQueue';
 import { ZombieMatchmaking } from './ZombieMatchmaking';
+import { ZombieMatchQueue } from './ZombieMatchQueue';
 import { CoopOverlay } from './CoopOverlay';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
@@ -100,6 +101,8 @@ export function Hud() {
       {!inArena && <MatchQueue />}
       {/* Co-op Zombie matchmaking — a separate town trigger + squad menu. */}
       {!inArena && <ZombieMatchmaking />}
+      {/* Standalone "your squad" queue button + dialog (main HUD, top-right). */}
+      {!inArena && <ZombieMatchQueue />}
 
       {/* Co-op death flow (spectate / defeat) — self-gates on a co-op zombie run. */}
       {inArena && <CoopOverlay />}

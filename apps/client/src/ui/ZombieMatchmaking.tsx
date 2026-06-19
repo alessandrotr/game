@@ -2,15 +2,13 @@ import { useEffect } from 'react';
 import { findMyZombieLobby, useZombieLobbyStore } from '../store/useZombieLobbyStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { ZombieMatchmakingMenu } from './ZombieMatchmakingMenu';
-import { ZombieLobbyView } from './ZombieLobbyView';
 
 /**
- * Co-op Zombie matchmaking overlays: the squad browser and, once you're in a
- * squad, the squad detail with the host's Start control. Entry is diegetic —
- * opened from the town "The Breach" shrine (see scene/TownBreachRift.tsx) via
- * `useZombieLobbyStore.setMenuOpen`; there is no HUD button. Mounted town-only;
- * the zombie lobby connection runs in parallel with the town room (see
- * `connectZombieMatchmaking`).
+ * Co-op Zombie matchmaking: the squad browser. Entry is diegetic — opened from the
+ * town "The Breach" shrine via `useZombieLobbyStore.setMenuOpen`. The browser stays
+ * primary even while you're in a squad; your squad is managed from the standalone
+ * queue dialog (a main-HUD element — see ZombieMatchQueue). Mounted town-only; the
+ * zombie lobby connection runs in parallel with the town room.
  */
 export function ZombieMatchmaking() {
   const lobbies = useZombieLobbyStore((s) => s.lobbies);
@@ -19,15 +17,12 @@ export function ZombieMatchmaking() {
 
   const myLobby = findMyZombieLobby(lobbies, mySessionId);
 
-  // Focus belongs to the entry browser only; release it once we're in a squad or
-  // the menu closes (the squad view wants the centered dimmed overlay).
-  const showingMenu = menuOpen && !myLobby;
+  // Focus stays for the whole browsing session; only closing the menu releases it.
   useEffect(() => {
-    if (!showingMenu) useFocusStore.getState().clear('coop');
-  }, [showingMenu]);
+    if (!menuOpen) useFocusStore.getState().clear('coop');
+  }, [menuOpen]);
   useEffect(() => () => useFocusStore.getState().clear('coop'), []);
 
-  return (
-    <>{menuOpen && (myLobby ? <ZombieLobbyView lobby={myLobby} /> : <ZombieMatchmakingMenu />)}</>
-  );
+  if (!menuOpen) return null;
+  return <ZombieMatchmakingMenu myLobby={myLobby} />;
 }

@@ -12,12 +12,16 @@ interface ZombieLobbyStore {
   lobbies: ZombieLobbyView[];
   /** Whether the co-op matchmaking overlay is open. */
   menuOpen: boolean;
+  /** Whether the standalone "your squad" dialog is open — a main-HUD element,
+   *  independent of the matchmaking menu + cinematic focus. */
+  queueOpen: boolean;
   /** Last rejected-intent message from the server (validation, full, bad code). */
   error: string | null;
 
   setSession: (id: string | null) => void;
   setLobbies: (lobbies: ZombieLobbyView[]) => void;
   setMenuOpen: (open: boolean) => void;
+  setQueueOpen: (open: boolean) => void;
   setError: (message: string | null) => void;
   reset: () => void;
 }
@@ -26,13 +30,15 @@ export const useZombieLobbyStore = create<ZombieLobbyStore>((set) => ({
   mySessionId: null,
   lobbies: [],
   menuOpen: false,
+  queueOpen: false,
   error: null,
 
   setSession: (mySessionId) => set({ mySessionId }),
   setLobbies: (lobbies) => set({ lobbies }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
+  setQueueOpen: (queueOpen) => set({ queueOpen }),
   setError: (error) => set({ error }),
-  reset: () => set({ mySessionId: null, lobbies: [], menuOpen: false, error: null }),
+  reset: () => set({ mySessionId: null, lobbies: [], menuOpen: false, queueOpen: false, error: null }),
 }));
 
 /** The squad lobby (if any) that contains the local player. */

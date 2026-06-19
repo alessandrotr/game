@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Skull, ChevronRight, Circle, Lock, Globe, KeyRound, X } from 'lucide-react';
 import {
   LOBBY_NAME_MAX_LENGTH,
@@ -23,31 +23,57 @@ import { STAT_COLORS } from './theme';
  * many seats are left at a glance. Picking a squad joins immediately; then
  * {@link ZombieLobbyView} takes over. Docks right during the Breach's cinematic focus.
  */
-export function ZombieMatchmakingMenu() {
+export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | null }) {
   const lobbies = useZombieLobbyStore((s) => s.lobbies);
   const error = useZombieLobbyStore((s) => s.error);
   const setMenuOpen = useZombieLobbyStore((s) => s.setMenuOpen);
+  const openQueue = useZombieLobbyStore((s) => s.setQueueOpen);
   const setError = useZombieLobbyStore((s) => s.setError);
 
+  // `name` is the user's edit; until they type, the field shows a generated default.
   const [name, setName] = useState('');
+  const [edited, setEdited] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
   const docked = useFocusStore((s) => s.panel === 'coop' && !!s.target);
 
+  // One squad at a time: while in one, creating/joining others is blocked.
+  const inSquad = !!myLobby;
+
+  // Names already in use (case-insensitive) — keep the default unique.
+  const taken = useMemo(
+    () => new Set(lobbies.map((l) => l.name.trim().toLowerCase())),
+    [lobbies],
+  );
+  const defaultName = useMemo(() => {
+    let n = 1;
+    while (taken.has(`squad ${n}`)) n++;
+    return `Squad ${n}`;
+  }, [taken]);
+  const effectiveName = edited ? name : defaultName;
+  const trimmedName = effectiveName.trim();
+  const nameTaken = trimmedName !== '' && taken.has(trimmedName.toLowerCase());
+
   const visible = lobbies.filter((l) => !l.isPrivate && l.status === 'queuing');
 
   const create = () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
+    if (inSquad) return; // one squad at a time
+    if (!trimmedName) {
       setError('Name your squad first.');
       return;
     }
+    if (nameTaken) {
+      setError('That name is already taken — pick another.');
+      return;
+    }
     setError(null);
-    sendZombieCreateLobby(trimmed, isPrivate);
+    sendZombieCreateLobby(trimmedName, isPrivate);
     setName('');
+    setEdited(false);
   };
 
   const joinByCode = () => {
+    if (inSquad) return; // one squad at a time
     const trimmed = code.trim();
     if (!trimmed) {
       setError('Enter a squad code.');
@@ -82,40 +108,42 @@ export function ZombieMatchmakingMenu() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5 pt-3">
-          {/* Create a squad — visibility toggle + name + CTA */}
+          {/* Create a squad — visibility toggle + name + CTA. Disabled while in a
+              squad (one at a time) — manage yours from the queue. */}
           <section className="rounded-2xl border border-white/10 bg-black/15 p-3.5">
-            <SectionLabel>Raise a squad</SectionLabel>
+            <SectionLabel>{inSquad ? 'Already in a squad' : 'Raise a squad'}</SectionLabel>
             <div className="mt-2.5 grid grid-cols-2 gap-2">
-              <VisTile
-                icon={Globe}
-                label="Public"
-                hint="Listed for anyone"
-                active={!isPrivate}
-                onClick={() => setIsPrivate(false)}
-              />
-              <VisTile
-                icon={Lock}
-                label="Private"
-                hint="Invite by code"
-                active={isPrivate}
-                onClick={() => setIsPrivate(true)}
-              />
+              <VisTile icon={Globe} label="Public" hint="Listed for anyone" active={!isPrivate} disabled={inSquad} onClick={() => setIsPrivate(false)} />
+              <VisTile icon={Lock} label="Private" hint="Invite by code" active={isPrivate} disabled={inSquad} onClick={() => setIsPrivate(true)} />
             </div>
             <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
               <Input
-                value={name}
+                value={effectiveName}
                 maxLength={LOBBY_NAME_MAX_LENGTH}
                 placeholder="Name your squad…"
                 tone="gold"
                 className="flex-1"
-                onChange={(e) => setName(e.target.value)}
+                disabled={inSquad}
+                onChange={(e) => {
+                  setEdited(true);
+                  setName(e.target.value);
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
               />
-              <Button variant="goldCta" size="lg" className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed" disabled={!name.trim()} onClick={create}>
+              <Button
+                variant="goldCta"
+                size="lg"
+                className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed"
+                disabled={inSquad || !trimmedName || nameTaken}
+                onClick={create}
+              >
                 <Skull size={16} aria-hidden="true" />
                 Create
               </Button>
             </div>
+            {!inSquad && nameTaken && (
+              <p className="mt-1.5 text-xs text-negative">That name is already taken — pick another.</p>
+            )}
           </section>
 
           {/* Join by code */}
@@ -130,11 +158,18 @@ export function ZombieMatchmakingMenu() {
                   placeholder="SQUAD CODE"
                   tone="gold"
                   className="w-full pl-9 text-center font-mono uppercase tracking-[0.4em]"
+                  disabled={inSquad}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === 'Enter' && joinByCode()}
                 />
               </div>
-              <Button variant="goldOutline" size="lg" className="shrink-0 justify-center px-6" onClick={joinByCode}>
+              <Button
+                variant="goldOutline"
+                size="lg"
+                className="shrink-0 justify-center px-6 disabled:cursor-not-allowed"
+                disabled={inSquad || !code.trim()}
+                onClick={joinByCode}
+              >
                 Join
               </Button>
             </div>
@@ -154,16 +189,24 @@ export function ZombieMatchmakingMenu() {
               <EmptyState />
             ) : (
               <ul className="grid grid-cols-1 gap-2 @[42rem]:grid-cols-2">
-                {visible.map((lobby) => (
-                  <SquadCard
-                    key={lobby.id}
-                    lobby={lobby}
-                    onJoin={() => {
-                      setError(null);
-                      sendZombieJoinLobby(lobby.id);
-                    }}
-                  />
-                ))}
+                {visible.map((lobby) => {
+                  const mine = lobby.id === myLobby?.id;
+                  return (
+                    <SquadCard
+                      key={lobby.id}
+                      lobby={lobby}
+                      mine={mine}
+                      // In a squad → only your own card is interactive (opens the
+                      // queue); the rest are locked so you can't join a second.
+                      locked={inSquad && !mine}
+                      onSelect={() => {
+                        setError(null);
+                        if (mine) openQueue(true);
+                        else sendZombieJoinLobby(lobby.id);
+                      }}
+                    />
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -173,22 +216,28 @@ export function ZombieMatchmakingMenu() {
   );
 }
 
-/** Roster pips: one per seat, filled for taken, hollow for open. */
+/** Roster pips: filled for taken seats; empty ones breathe (staggered) as "waiting". */
 function SquadPips({ filled, capacity }: { filled: number; capacity: number }) {
   const color = STAT_COLORS.positive;
+  let emptyIdx = 0;
   return (
     <span className="inline-flex items-center gap-1">
-      {Array.from({ length: capacity }, (_, i) => (
-        <span
-          key={i}
-          className="h-2.5 w-2.5 rounded-full"
-          style={{
-            backgroundColor: i < filled ? color : 'transparent',
-            boxShadow: `inset 0 0 0 1.5px ${color}`,
-            opacity: i < filled ? 1 : 0.4,
-          }}
-        />
-      ))}
+      {Array.from({ length: capacity }, (_, i) => {
+        const occupied = i < filled;
+        const delay = occupied ? 0 : emptyIdx++ * 0.18;
+        return (
+          <span
+            key={i}
+            className={'h-2.5 w-2.5 rounded-full ' + (occupied ? '' : 'animate-[slot-wait_1.4s_ease-in-out_infinite]')}
+            style={{
+              backgroundColor: occupied ? color : 'transparent',
+              boxShadow: `inset 0 0 0 1.5px ${color}`,
+              opacity: occupied ? 1 : 0.4,
+              animationDelay: occupied ? undefined : `${delay}s`,
+            }}
+          />
+        );
+      })}
     </span>
   );
 }
@@ -199,24 +248,27 @@ function VisTile({
   label,
   hint,
   active,
+  disabled,
   onClick,
 }: {
   icon: typeof Globe;
   label: string;
   hint: string;
   active: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
       className={
-        'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ' +
+        'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ' +
         (active
           ? 'border-gold bg-gold/15 text-gold shadow-[inset_0_0_18px_rgba(200,162,74,0.18)]'
-          : 'border-white/10 bg-black/20 text-text hover:border-white/30 hover:bg-black/30')
+          : 'border-white/10 bg-black/20 text-text enabled:hover:border-white/30 enabled:hover:bg-black/30')
       }
     >
       <Icon size={18} aria-hidden="true" />
@@ -228,28 +280,52 @@ function VisTile({
   );
 }
 
-/** A browsable squad as a tactile card: name, roster pips, open/full status, and a
- *  join chevron that slides in on hover. Disabled when full. */
-function SquadCard({ lobby, onJoin }: { lobby: ZombieLobbyView; onJoin: () => void }) {
+/** A browsable squad as a tactile card: name, roster pips, status, join chevron.
+ *  `mine` flags your own squad (gold ring + badge, opens the queue); `locked` greys
+ *  out others while you're in one. Disabled when full. */
+function SquadCard({
+  lobby,
+  mine,
+  locked,
+  onSelect,
+}: {
+  lobby: ZombieLobbyView;
+  mine: boolean;
+  locked: boolean;
+  onSelect: () => void;
+}) {
   const filled = lobby.members.length;
   const full = filled >= ZOMBIE_COOP_MAX_PLAYERS;
+  // Your own card always opens; otherwise it must have room AND not be locked.
+  const interactive = mine || (!full && !locked);
   return (
     <li>
       <button
         type="button"
-        disabled={full}
-        onClick={onJoin}
-        className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-white/10 bg-linear-to-b from-white/4 to-transparent p-3 text-left transition enabled:hover:border-gold/50 enabled:hover:from-gold/10 disabled:opacity-55"
+        disabled={!interactive}
+        onClick={onSelect}
+        className={
+          'group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border bg-linear-to-b from-white/4 to-transparent p-3 text-left transition disabled:opacity-45 ' +
+          (mine
+            ? 'border-gold/60 from-gold/10'
+            : 'border-white/10 enabled:hover:border-gold/50 enabled:hover:from-gold/10')
+        }
       >
         <div className="flex items-center gap-2.5">
           <span className="rounded-md bg-gold/15 px-2 py-0.5 font-display text-xs font-bold tracking-wide text-gold ring-1 ring-gold/25">
             Co-op
           </span>
           <span className="min-w-0 flex-1 truncate font-semibold text-text">{lobby.name}</span>
-          <span className={'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ' + (full ? 'text-muted' : 'text-positive')}>
-            <Circle size={7} className="fill-current" aria-hidden="true" />
-            {full ? 'Full' : 'Open'}
-          </span>
+          {mine ? (
+            <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
+              Your squad
+            </span>
+          ) : (
+            <span className={'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ' + (full ? 'text-muted' : 'text-positive')}>
+              <Circle size={7} className="fill-current" aria-hidden="true" />
+              {full ? 'Full' : 'Open'}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <SquadPips filled={filled} capacity={ZOMBIE_COOP_MAX_PLAYERS} />
