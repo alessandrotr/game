@@ -2,6 +2,7 @@ import type { ArenaObstacle } from '@arena/shared';
 import type { ArenaState } from '../schema.js';
 import type { AnimOneShot } from '../../animation.js';
 import type { ArenaTuning } from './tuning.js';
+import type { PerkModifiers } from './perks.js';
 
 /** Forced motion (dash / knockback) that overrides locomotion until `until` (ms). */
 export interface Displacement {
@@ -32,6 +33,8 @@ export interface ArenaContext {
   now(): number;
   /** Broadcast a server message to every client. */
   broadcast(type: string | number, message?: unknown): void;
+  /** Send a server message to a single client (by session id). */
+  send(sessionId: string, type: string | number, message?: unknown): void;
   /** Schedule a one-shot callback on the room clock. */
   setTimeout(handler: () => void, ms: number): void;
   /** Dispose the room. */
@@ -43,4 +46,7 @@ export interface ArenaContext {
   readonly attackTargets: Map<string, string>;
   readonly respawnAt: Map<string, number>;
   readonly displacements: Map<string, Displacement>;
+  /** Get the aggregate perk stat modifiers for a player (identity when no perk
+   *  system is active). */
+  perkModifiers(sessionId: string): PerkModifiers;
 }

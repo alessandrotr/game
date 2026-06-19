@@ -92,6 +92,7 @@ import { ArenaPhysics } from './arena/physics.js';
 import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
 import { ZombieDirector } from './arena/zombies.js';
+import { PerkSystem, IDENTITY_MODIFIERS } from './arena/perks.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
@@ -240,6 +241,8 @@ export class ArenaRoom extends AvatarRoom {
   /** Shared Rapier world for the destructible props + launched barrels. */
   private physics!: ArenaPhysics;
   private botDirector!: BotDirector;
+  /** Zombie perk progression (ability-mode zombie only). */
+  private perkSystem?: PerkSystem;
 
   protected override jumpForce(): number {
     return this.tuning.movement.jumpForce;
@@ -310,8 +313,23 @@ export class ArenaRoom extends AvatarRoom {
         spawnZombie: (level) => this.spawnZombie(level),
         aliveZombies: () => this.countAliveZombies(),
         humansPresent: () => this.countHumans() > 0,
+        onWaveClear: (level) => {
+          if (!this.perkSystem) return false;
+          return this.perkSystem.onWaveClear(level);
+        },
+        perksResolved: () => {
+          if (!this.perkSystem) return true;
+          return !this.perkSystem.hasPendingOffers();
+        },
+        onWaveBegin: () => {
+          this.perkSystem?.resetWaveCharges();
+        },
       });
       this.zombieDirector.start(this.simTime);
+      // Perk system: ability-mode zombie only (not gun mode).
+      if (!this.gunMode) {
+        this.perkSystem = new PerkSystem(this.buildContext());
+      }
     }
 
     // Movement / jump / chat / emote / set-name come from AvatarRoom.
@@ -402,6 +420,17 @@ export class ArenaRoom extends AvatarRoom {
       }
     });
 
+    // Zombie perk pick: the player selects one of the 3 offered perk slots.
+    this.onMessage<ClientMessagePayloads[ClientMessage.PerkPick]>(
+      ClientMessage.PerkPick,
+      (client, message) => {
+        if (!this.perkSystem) return;
+        const slot = Number(message?.slot);
+        if (slot < 0 || slot > 2) return;
+        this.perkSystem.handlePick(client.sessionId, slot, message?.upgradeTarget);
+      },
+    );
+
     this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) =>
       this.tuning.tuneMovement(message),
     );
@@ -463,6 +492,9 @@ export class ArenaRoom extends AvatarRoom {
       obstacles: this.obstacles,
       now: () => this.simTime,
       broadcast: (type, message) => this.broadcast(type, message),
+      send: (sessionId, type, message) => {
+        this.clients.getById(sessionId)?.send(type, message);
+      },
       setTimeout: (handler, ms) => {
         this.clock.setTimeout(handler, ms);
       },
@@ -474,6 +506,8 @@ export class ArenaRoom extends AvatarRoom {
       attackTargets: this.attackTargets,
       respawnAt: this.respawnAt,
       displacements: this.displacements,
+      perkModifiers: (sessionId) =>
+        this.perkSystem?.getModifiers(sessionId) ?? { ...IDENTITY_MODIFIERS },
     };
   }
 
@@ -538,6 +572,8 @@ export class ArenaRoom extends AvatarRoom {
     this.verticalVelocity.set(client.sessionId, 0);
     this.grounded.set(client.sessionId, true);
     this.cooldowns.set(client.sessionId, {});
+    // Init perk tracking for this player (zombie ability mode only).
+    this.perkSystem?.init(client.sessionId);
 
     this.sendWelcome(client);
 
@@ -603,6 +639,7 @@ export class ArenaRoom extends AvatarRoom {
     this.guns.remove(client.sessionId);
     this.gunViews.delete(client.sessionId);
     this.stopChannel(client.sessionId);
+    this.perkSystem?.reset(client.sessionId);
     this.match.forget(client.sessionId);
     this.unregisterSession(client);
   }
@@ -780,8 +817,9 @@ export class ArenaRoom extends AvatarRoom {
     }
 
     // Commit cost + cooldown at cast start, then face the cast direction.
-    spendMana(player, config.manaCost);
-    cd[ability] = this.simTime + config.cooldownMs;
+    const perkMods = this.perkSystem?.getModifiers(sessionId);
+    spendMana(player, config.manaCost * (perkMods?.manaCostMult ?? 1));
+    cd[ability] = this.simTime + config.cooldownMs * (perkMods?.cooldownMult ?? 1);
     player.rotation = Math.atan2(dirX, dirZ);
 
     // Broadcast at cast START so clients play the cast animation / wind-up VFX
@@ -1017,7 +1055,8 @@ export class ArenaRoom extends AvatarRoom {
       } else {
         baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - (this.gunMode ? 0 : 1);
       }
-      const speed = baseSpeed * moveSpeedMultiplier(attacker);
+      const perkSpeed = this.perkSystem?.getModifiers(sessionId).moveSpeedMult ?? 1;
+      const speed = baseSpeed * moveSpeedMultiplier(attacker) * perkSpeed;
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
       attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
@@ -1085,6 +1124,8 @@ export class ArenaRoom extends AvatarRoom {
     // Zombie waves: spawn/advance hordes before the bot AI runs, so freshly
     // spawned zombies pick a target and start chasing this same tick.
     if (this.zombieDirector) this.zombieDirector.update(this.simTime);
+    // Perk system tick: auto-pick for AFK players.
+    if (this.perkSystem) this.perkSystem.update(this.simTime);
 
     // AI bots decide their intent first — they write the same `destinations` /
     // `attackTargets` / cast seams human input does, consumed by the loop below.
@@ -1143,7 +1184,13 @@ export class ArenaRoom extends AvatarRoom {
         return;
       }
 
-      regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1), dt);
+      const perkMods = this.perkSystem?.getModifiers(sessionId);
+      const manaRegenMult = perkMods?.manaRegenMult ?? 1;
+      regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
+      // Passive perk heal (e.g. Rejuvenation chain).
+      if (perkMods && perkMods.passiveHealPerSec > 0 && player.hp < player.maxHp) {
+        player.hp = Math.min(player.maxHp, player.hp + perkMods.passiveHealPerSec * dt);
+      }
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
 
@@ -1239,6 +1286,7 @@ export class ArenaRoom extends AvatarRoom {
             speed:
               (this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) *
               moveSpeedMultiplier(player) *
+              (this.perkSystem?.getModifiers(sessionId).moveSpeedMult ?? 1) *
               (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
@@ -1350,7 +1398,7 @@ export class ArenaRoom extends AvatarRoom {
     }
     player.y = GROUND_Y;
     const stats = this.tuning.classStats[player.characterClass as CharacterClass];
-    player.maxHp = stats.health;
+    player.maxHp = stats.health * (this.perkSystem?.getModifiers(player.sessionId).maxHpMult ?? 1);
     player.maxMana = stats.mana;
     player.shield = 0;
     if (player.statuses.length > 0) player.statuses.clear();

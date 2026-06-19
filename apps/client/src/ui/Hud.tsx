@@ -20,6 +20,8 @@ import { SettingsPanel } from './hud/SettingsPanel';
 import { ControlsHelp } from './hud/ControlsHelp';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 import { HudLayout, HudZone } from './hud/HudLayout';
+import { PerkPicker } from './PerkPicker';
+import { PerkBar } from './PerkBar';
 
 /**
  * In-game heads-up display, composed onto the HUD zone system.
@@ -44,7 +46,15 @@ export function Hud() {
         {/* Arena combat HUD (portrait, abilities, HP/MP) — never hidden by H. */}
         {inArena && (
           <HudZone zone="bottom-center">
-            <CombatHud />
+            <div className="flex flex-col items-center gap-0">
+              {/* Perk picker (slides up above the ability bar on wave clear). */}
+              <PerkPicker />
+              <div className="flex items-end gap-2">
+                {/* Active perk icons (left of the ability bar). */}
+                <PerkBar />
+                <CombatHud />
+              </div>
+            </div>
           </HudZone>
         )}
 

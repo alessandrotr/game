@@ -384,3 +384,48 @@ export const BloodSplashEffect = (p: BurstShaderProps) => (
   />
 );
 
+// --- Lightning Spark: a crackling electrical zap. ----------------------------
+
+const lightningSparkFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;
+    float ang = atan(p.y, p.x);
+    
+    // Crackling electrical arcs coiling outward
+    float swirl = noise(vec2(ang * 4.0 + uTime * 6.0, r * 8.0 - uTime * 10.0));
+    float arcs = pow(max(0.0, sin(ang * 12.0 + uTime * 15.0 + swirl * 8.0)), 12.0)
+                 * smoothstep(0.9, 0.0, r);
+                 
+    // A quick central spark flash early on
+    float spark = smoothstep(0.4 * uProgress, 0.0, r) * (1.0 - smoothstep(0.0, 0.25, uProgress));
+    
+    float v = arcs * 2.0 + spark * 1.5;
+    
+    // Electric blue-white color gradient
+    vec3 blue = vec3(0.0, 0.55, 1.0);
+    vec3 white = vec3(0.9, 0.95, 1.0);
+    vec3 col = mix(blue, white, clamp(v * 0.5, 0.0, 1.0));
+    
+    // Fade out fast
+    float fade = (1.0 - uProgress) * smoothstep(0.0, 0.08, uProgress);
+    
+    gl_FragColor = vec4(col * v * 2.8, v * fade);
+  }
+`;
+
+export const LightningSparkEffect = (p: BurstShaderProps) => (
+  <BillboardBurst
+    {...p}
+    width={2.2}
+    height={2.2}
+    durationMs={300}
+    frag={lightningSparkFrag}
+    y={0.8}
+  />
+);
+

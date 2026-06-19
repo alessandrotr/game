@@ -82,6 +82,12 @@ export interface PlayerView {
   reserveAmmo: number;
   /** True while reloading the equipped gun (can't fire until it completes). */
   reloading: boolean;
+  /** Zombie perk slot 1 (a `PerkId` or '' if empty). */
+  perk1: string;
+  /** Zombie perk slot 2 (a `PerkId` or '' if empty). */
+  perk2: string;
+  /** Zombie perk slot 3 (a `PerkId` or '' if empty). */
+  perk3: string;
 }
 
 /** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded

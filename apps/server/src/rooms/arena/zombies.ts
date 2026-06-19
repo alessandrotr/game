@@ -18,6 +18,14 @@ export interface ZombieHooks {
   aliveZombies(): number;
   /** Whether any human player is present (waves pause in an empty room). */
   humansPresent(): boolean;
+  /** Called when a wave is fully cleared. Returns `true` if the intermission
+   *  should pause (e.g. perk offers are pending and must be resolved first). */
+  onWaveClear?(level: number): boolean;
+  /** Called when the intermission is paused for perks — returns `true` when
+   *  all pending perk picks have been resolved (the wave may resume). */
+  perksResolved?(): boolean;
+  /** Called when a new wave begins (wave charges reset). */
+  onWaveBegin?(level: number): void;
 }
 
 /** The wave director's lifecycle phase. */
@@ -45,6 +53,8 @@ export class ZombieDirector {
   private phaseUntil = 0;
   /** Sim time (ms) the next spawn pulse is allowed. */
   private nextSpawnAt = 0;
+  /** True while the intermission is paused waiting for perk picks. */
+  private perkPaused = false;
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -74,6 +84,19 @@ export class ZombieDirector {
     }
 
     if (this.phase === 'intermission') {
+      // If paused for perk picks, check if they're resolved.
+      if (this.perkPaused) {
+        if (this.hooks.perksResolved?.()) {
+          this.perkPaused = false;
+          // Restart the break timer from now.
+          this.phaseUntil = now + ZOMBIE_LEVEL_BREAK_MS;
+        } else {
+          // Still waiting — push the timer forward so it doesn't expire.
+          this.phaseUntil = Math.max(this.phaseUntil, now + 100);
+          this.publish(alive);
+          return;
+        }
+      }
       if (now >= this.phaseUntil) this.beginLevel(now);
     } else {
       // Stream the horde out in pulses, throttled by time and the (level-scaled)
@@ -90,6 +113,11 @@ export class ZombieDirector {
       if (this.quota === 0 && alive === 0) {
         this.phase = 'intermission';
         this.phaseUntil = now + ZOMBIE_LEVEL_BREAK_MS;
+        // Fire the wave-clear hook (perk offers, etc). If it returns true,
+        // pause the intermission timer until perks are resolved.
+        if (this.hooks.onWaveClear?.(this.level)) {
+          this.perkPaused = true;
+        }
       }
     }
 
@@ -108,6 +136,7 @@ export class ZombieDirector {
     this.quota = zombieHordeSize(this.level);
     this.phase = 'active';
     this.nextSpawnAt = now; // first pulse immediately
+    this.hooks.onWaveBegin?.(this.level);
   }
 
   /** Mirror the live wave counters into replicated state for the HUD. */
