@@ -21,6 +21,9 @@ export interface PaperdollData {
 
 interface PaperdollStore {
   data: PaperdollData | null;
+  /** Timestamp (ms) of the last open — lets the click-outside-to-close ignore the
+   *  very press that opened it (which would otherwise close it instantly). */
+  openedAt: number;
   open: (data: PaperdollData) => void;
   close: () => void;
 }
@@ -28,6 +31,7 @@ interface PaperdollStore {
 /** The currently-open player paperdoll (town only). */
 export const usePaperdollStore = create<PaperdollStore>((set) => ({
   data: null,
-  open: (data) => set({ data }),
+  openedAt: 0,
+  open: (data) => set({ data, openedAt: Date.now() }),
   close: () => set({ data: null }),
 }));

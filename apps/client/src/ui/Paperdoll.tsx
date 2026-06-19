@@ -46,9 +46,15 @@ function PaperdollCard({
   data: NonNullable<ReturnType<typeof usePaperdollStore.getState>['data']>;
   close: () => void;
 }) {
-  // Close when clicking anywhere outside the card.
+  // Close when clicking anywhere outside the card — but ignore the very press that
+  // opened it. The paperdoll opens on a canvas pointerdown, and the click-outside
+  // listener attaches synchronously (layout effect) during that same discrete
+  // event, so without this guard the opening press's mousedown closes it instantly.
   const cardRef = useRef<HTMLDivElement>(null);
-  useOnClickOutside(cardRef, close);
+  const openedAt = usePaperdollStore((s) => s.openedAt);
+  useOnClickOutside(cardRef, () => {
+    if (Date.now() - openedAt > 250) close();
+  });
 
   // Fetch the inspected player's custom paint (by account id) and apply it to a
   // paperdoll-scoped surface so the portrait shows THEIR look, not the viewer's.
