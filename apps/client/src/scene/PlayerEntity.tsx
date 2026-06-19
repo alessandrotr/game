@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
@@ -37,7 +37,8 @@ import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { usePaintStore } from '../store/usePaintStore';
-import { paintTexturesFor } from '../paint/paintSurface';
+import { paintTexturesFor, applyClassPaint } from '../paint/paintSurface';
+import { fetchPublicPaint } from '../network/paint';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
@@ -123,16 +124,46 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     [player?.characterClass, player?.skinId, player?.dyeId],
   );
 
-  // Custom paint: the local player sees their own paint job live. (Remote players'
-  // paint syncs via the server in a later pass.) Load any saved paint on mount,
-  // and apply the shared paint texture once this class has a custom look — the
-  // texture object is stable, so later brush strokes update it without a remount.
+  // Custom paint. The LOCAL player edits + sees their own paint live (the texture
+  // object is stable, so brush strokes update it without a remount). REMOTE players
+  // are fetched over HTTP by account id whenever their replicated paint revision
+  // changes, and applied to per-session surfaces.
   const characterClass = (player?.characterClass ?? 'warrior') as CharacterClass;
   useEffect(() => {
     if (isLocal) void usePaintStore.getState().hydrate(characterClass);
   }, [isLocal, characterClass]);
-  const showPaint = usePaintStore((s) => isLocal && !!s.customizedByClass[characterClass]);
-  const paint = showPaint ? paintTexturesFor(characterClass) : undefined;
+  const localPainted = usePaintStore((s) => isLocal && !!s.customizedByClass[characterClass]);
+
+  // Remote: refetch + apply the peer's paint when their pid/rev (or class) changes.
+  const pid = useGameStore((s) => s.players.get(sessionId)?.pid ?? 0);
+  const paintRev = useGameStore((s) => s.players.get(sessionId)?.paintRev ?? '');
+  const [remoteReady, setRemoteReady] = useState(false);
+  useEffect(() => {
+    if (isLocal) return;
+    if (!pid || !paintRev) {
+      setRemoteReady(false);
+      return;
+    }
+    let cancelled = false;
+    setRemoteReady(false);
+    void fetchPublicPaint(pid)
+      .then((state) => applyClassPaint(sessionId, state[characterClass]))
+      .then(() => {
+        if (!cancelled) setRemoteReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isLocal, pid, paintRev, characterClass, sessionId]);
+
+  const paint = isLocal
+    ? localPainted
+      ? paintTexturesFor(characterClass)
+      : undefined
+    : remoteReady
+      ? paintTexturesFor(sessionId)
+      : undefined;
 
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);

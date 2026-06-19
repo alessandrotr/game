@@ -55,6 +55,12 @@ export class Player extends Schema {
   @type('string') pedestalId = '';
   /** Equipped title cosmetic id ('' = none) — shown on the nameplate. */
   @type('string') titleId = '';
+  /** Account id (0 = guest/none). Lets peers fetch this player's custom paint via
+   *  the public /paint/:pid route — the PNG is too large for the schema itself. */
+  @type('number') pid = 0;
+  /** Revision of this player's custom paint for their class ('' = none). When it
+   *  changes, peers refetch the paint PNG over HTTP. */
+  @type('string') paintRev = '';
   /**
    * Authoritative animation state (idle/run/attack/cast/hit/die). Remote clients
    * play this directly; the local client predicts its own for responsiveness.

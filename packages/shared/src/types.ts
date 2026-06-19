@@ -52,6 +52,10 @@ export interface PlayerView {
   titleId: string;
   /** Equipped avatar-rim cosmetic id — the 2D frame around this player's avatar. */
   rimId: string;
+  /** Account id (0 = guest) — lets peers fetch this player's custom paint. */
+  pid: number;
+  /** Revision of this player's custom paint ('' = none) — peers refetch on change. */
+  paintRev: string;
   /** Authoritative animation state; remote clients render this directly. */
   animState: AnimationName;
   /** Side this player fights for in a team match ('blue' in town / FFA). */

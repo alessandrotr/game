@@ -73,6 +73,10 @@ function PlaceholderMesh({ model, paint }: { model: PlaceholderModel; paint?: Pa
           >
             <PrimitiveGeometry shape={part.shape} args={part.args} />
             <meshStandardMaterial
+              // Remount the material when the map's PRESENCE toggles: adding a map
+              // to an already-compiled material changes its shader defines, which
+              // won't take effect without a recompile — keying forces a fresh one.
+              key={partMap(paint, part.name) ? 'mapped' : 'plain'}
               // A paint texture supplied for this part becomes its color map; the
               // base color then goes white so painted hues read true (a map
               // multiplies with `color`). Unpainted parts keep their flat color.

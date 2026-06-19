@@ -1,26 +1,34 @@
 import { create } from 'zustand';
-import type { CharacterClass } from '@arena/shared';
-import { getPaintSurface, PAINT_PARTS, type PaintPart } from '../paint/paintSurface';
-import { BODY_BASE_COLOR } from '../assets/data/humanoid';
+import { paintRevOf, type CharacterClass, type PaintState } from '@arena/shared';
+import {
+  getPaintSurface,
+  classPaintOf,
+  applyClassPaint,
+  defaultSkin,
+  PAINT_PARTS,
+  type PaintPart,
+} from '../paint/paintSurface';
+import { fetchPaint, putPaint } from '../network/paint';
+import { sendPaintRev } from '../network/colyseus';
+import { useAuthStore } from './useAuthStore';
 
 /**
  * Brush + skin state for the paint studio, plus bookkeeping for which classes
  * have a custom look. The actual pixels live on the per-class, per-PART
- * PaintSurfaces (head and body are separate meshes, so each has its own surface:
- * independent skin color + paint overlay). This store tracks the brush color +
- * size, each part's skin color, a `customizedByClass` flag (so renderers know
- * whether to apply the textures), and a `rev` counter that bumps on every change
- * so React-driven views re-read.
+ * PaintSurfaces (head and body are separate meshes). This store tracks the brush
+ * color + size, each part's skin color, a `customizedByClass` flag (so renderers
+ * apply the textures), a per-class paint `rev` (broadcast so peers refetch), and
+ * a `rev` counter that bumps on any change so React views re-read.
  *
- * Persistence: each change debounce-saves to localStorage — per class+part, the
- * skin color and the (transparent) paint overlay PNG, so reloading restores the
- * editable layered state. (Server persistence + multiplayer sync layer on top of
- * this in the next pass.)
+ * Persistence: changes debounce-save to the account (`PUT /paint`) so the look
+ * follows the player across devices and is visible to others, with a localStorage
+ * mirror for instant restore offline / before the account loads.
  */
 
 const PAINT_KEY = 'paint:'; // paint:<class>:<part>  -> overlay PNG data URL
 const SKIN_KEY = 'skin:'; //  skin:<class>:<part>   -> base color hex
-const SAVE_DEBOUNCE_MS = 500;
+const LOCAL_DEBOUNCE_MS = 400;
+const SERVER_DEBOUNCE_MS = 900;
 
 const PALETTE = [
   '#1b1d24', '#ffffff', '#e23b3b', '#f0883e', '#f5d442',
@@ -31,50 +39,65 @@ const PALETTE = [
 type SkinColors = Partial<Record<PaintPart, string>>;
 
 interface PaintStore {
-  /** Brush (paint) color. */
   color: string;
-  /** Skin base color per class, per part (body / head). */
   skinByClass: Partial<Record<CharacterClass, SkinColors>>;
   brush: number;
-  /** Suggested swatches for the brush. */
   palette: string[];
-  /** Which classes have a non-default look (custom skin and/or paint). */
   customizedByClass: Partial<Record<CharacterClass, boolean>>;
-  /** Bumps on any change; views that must reflect the surface subscribe to it. */
+  /** Per-class content revision of the paint (for peer refetch / join options). */
+  revByClass: Partial<Record<CharacterClass, string>>;
   rev: number;
 
   setColor: (color: string) => void;
   setBrush: (brush: number) => void;
-  /** Pick the skin base color for a class's part; recolors that base + persists. */
   setSkin: (characterClass: CharacterClass, part: PaintPart, color: string) => void;
   skinFor: (characterClass: CharacterClass, part: PaintPart) => string;
-  /** Load this class's saved skin + paint onto its surfaces, if any. */
+  /** This class's paint revision ('' = no custom paint) — for join options. */
+  revFor: (characterClass: CharacterClass) => string;
+  /** Load saved paint (account, falling back to localStorage) onto a class. */
   hydrate: (characterClass: CharacterClass) => Promise<void>;
-  /** Mark a class customized + schedule a save. Called after a brush stroke. */
+  /** Pull every class's paint from the account (after sign-in) onto its surfaces. */
+  loadForAccount: () => Promise<void>;
+  /** Commit a finished edit on a class: persist, re-rev, broadcast to peers. */
   markPainted: (characterClass: CharacterClass, part: PaintPart) => void;
-  /** Undo the last stroke on a class's part surface. */
   undo: (characterClass: CharacterClass, part: PaintPart) => void;
-  /** Wipe paint back to bare skin for a class's part. */
   clear: (characterClass: CharacterClass, part: PaintPart) => void;
 }
 
-const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const localTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let serverTimer: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleSave(characterClass: CharacterClass, part: PaintPart, skin: string): void {
+function saveLocal(characterClass: CharacterClass, part: PaintPart, skin: string): void {
   const key = `${characterClass}:${part}`;
-  const existing = saveTimers.get(key);
+  const existing = localTimers.get(key);
   if (existing) clearTimeout(existing);
-  saveTimers.set(
+  localTimers.set(
     key,
     setTimeout(() => {
       try {
         localStorage.setItem(PAINT_KEY + key, getPaintSurface(characterClass, part).toPaintDataURL());
         localStorage.setItem(SKIN_KEY + key, skin);
       } catch {
-        /* storage full / unavailable — keep the live texture, retry on next change */
+        /* storage full / unavailable — keep the live texture, retry next change */
       }
-    }, SAVE_DEBOUNCE_MS),
+    }, LOCAL_DEBOUNCE_MS),
   );
+}
+
+/** Debounced full-state PUT to the account (every customized class's paint). */
+function saveServer(get: () => PaintStore): void {
+  const token = useAuthStore.getState().token;
+  if (!token) return;
+  if (serverTimer) clearTimeout(serverTimer);
+  serverTimer = setTimeout(() => {
+    const state: PaintState = {};
+    for (const cls of Object.keys(get().customizedByClass) as CharacterClass[]) {
+      if (get().customizedByClass[cls]) state[cls] = classPaintOf(cls);
+    }
+    void putPaint(token, state).catch(() => {
+      /* persistence unavailable — local mirror remains; next change retries */
+    });
+  }, SERVER_DEBOUNCE_MS);
 }
 
 export const usePaintStore = create<PaintStore>((set, get) => ({
@@ -83,27 +106,49 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
   brush: 10,
   palette: PALETTE,
   customizedByClass: {},
+  revByClass: {},
   rev: 0,
 
   setColor: (color) => set({ color }),
   setBrush: (brush) => set({ brush }),
 
-  skinFor: (characterClass, part) => get().skinByClass[characterClass]?.[part] ?? BODY_BASE_COLOR,
+  skinFor: (characterClass, part) => get().skinByClass[characterClass]?.[part] ?? defaultSkin(part),
+  revFor: (characterClass) => get().revByClass[characterClass] ?? '',
 
   setSkin: (characterClass, part, color) => {
     getPaintSurface(characterClass, part).setSkin(color);
-    scheduleSave(characterClass, part, color);
     set((s) => ({
       skinByClass: {
         ...s.skinByClass,
         [characterClass]: { ...s.skinByClass[characterClass], [part]: color },
       },
-      customizedByClass: { ...s.customizedByClass, [characterClass]: true },
-      rev: s.rev + 1,
     }));
+    commit(set, get, characterClass, part, color);
   },
 
   hydrate: async (characterClass) => {
+    // Prefer the account's copy; fall back to the localStorage mirror.
+    const token = useAuthStore.getState().token;
+    if (token) {
+      try {
+        const state = await fetchPaint(token);
+        const cls = state[characterClass];
+        if (cls && Object.keys(cls).length) {
+          await applyClassPaint(characterClass, cls);
+          const skins: SkinColors = {};
+          for (const part of PAINT_PARTS) if (cls[part]?.skin) skins[part] = cls[part]!.skin;
+          set((s) => ({
+            skinByClass: { ...s.skinByClass, [characterClass]: { ...s.skinByClass[characterClass], ...skins } },
+            customizedByClass: { ...s.customizedByClass, [characterClass]: true },
+            revByClass: { ...s.revByClass, [characterClass]: paintRevOf(cls) },
+            rev: s.rev + 1,
+          }));
+          return;
+        }
+      } catch {
+        /* account unreachable — fall through to local mirror */
+      }
+    }
     const loadedSkins: SkinColors = {};
     let any = false;
     for (const part of PAINT_PARTS) {
@@ -130,28 +175,65 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
     set((s) => ({
       skinByClass: { ...s.skinByClass, [characterClass]: { ...s.skinByClass[characterClass], ...loadedSkins } },
       customizedByClass: { ...s.customizedByClass, [characterClass]: true },
+      revByClass: { ...s.revByClass, [characterClass]: paintRevOf(classPaintOf(characterClass)) },
       rev: s.rev + 1,
     }));
   },
 
+  loadForAccount: async () => {
+    const token = useAuthStore.getState().token;
+    if (!token) return;
+    let state: PaintState;
+    try {
+      state = await fetchPaint(token);
+    } catch {
+      return;
+    }
+    for (const cls of Object.keys(state) as CharacterClass[]) {
+      const clsPaint = state[cls];
+      if (!clsPaint || !Object.keys(clsPaint).length) continue;
+      await applyClassPaint(cls, clsPaint);
+      const skins: SkinColors = {};
+      for (const part of PAINT_PARTS) if (clsPaint[part]?.skin) skins[part] = clsPaint[part]!.skin;
+      set((s) => ({
+        skinByClass: { ...s.skinByClass, [cls]: { ...s.skinByClass[cls], ...skins } },
+        customizedByClass: { ...s.customizedByClass, [cls]: true },
+        revByClass: { ...s.revByClass, [cls]: paintRevOf(clsPaint) },
+        rev: s.rev + 1,
+      }));
+    }
+  },
+
   markPainted: (characterClass, part) => {
-    scheduleSave(characterClass, part, get().skinFor(characterClass, part));
-    set((s) =>
-      s.customizedByClass[characterClass]
-        ? { rev: s.rev + 1 }
-        : { customizedByClass: { ...s.customizedByClass, [characterClass]: true }, rev: s.rev + 1 },
-    );
+    commit(set, get, characterClass, part, get().skinFor(characterClass, part));
   },
 
   undo: (characterClass, part) => {
     if (!getPaintSurface(characterClass, part).popUndo()) return;
-    scheduleSave(characterClass, part, get().skinFor(characterClass, part));
-    set((s) => ({ rev: s.rev + 1 }));
+    commit(set, get, characterClass, part, get().skinFor(characterClass, part));
   },
 
   clear: (characterClass, part) => {
     getPaintSurface(characterClass, part).clearPaint();
-    scheduleSave(characterClass, part, get().skinFor(characterClass, part));
-    set((s) => ({ rev: s.rev + 1 }));
+    commit(set, get, characterClass, part, get().skinFor(characterClass, part));
   },
 }));
+
+/** Persist (local + account), re-rev, and broadcast a class's paint after a change. */
+function commit(
+  set: (partial: Partial<PaintStore> | ((s: PaintStore) => Partial<PaintStore>)) => void,
+  get: () => PaintStore,
+  characterClass: CharacterClass,
+  part: PaintPart,
+  skin: string,
+): void {
+  saveLocal(characterClass, part, skin);
+  saveServer(get);
+  const newRev = paintRevOf(classPaintOf(characterClass));
+  set((s) => ({
+    customizedByClass: { ...s.customizedByClass, [characterClass]: true },
+    revByClass: { ...s.revByClass, [characterClass]: newRev },
+    rev: s.rev + 1,
+  }));
+  sendPaintRev(characterClass, newRev);
+}

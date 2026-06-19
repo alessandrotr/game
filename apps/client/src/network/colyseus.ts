@@ -42,6 +42,7 @@ import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore, type Appearance } from '../store/useCosmeticsStore';
+import { usePaintStore } from '../store/usePaintStore';
 import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
@@ -164,6 +165,8 @@ function snapshotState(state: RawState): {
       pedestalId: player.pedestalId ?? '',
       titleId: player.titleId ?? '',
       rimId: player.rimId ?? 'rim.standard',
+      pid: player.pid ?? 0,
+      paintRev: player.paintRev ?? '',
       animState: player.animState,
       attackTargetId: player.attackTargetId,
       level: player.level,
@@ -417,6 +420,7 @@ let joinOptions: {
   pedestalId?: string;
   titleId?: string;
   rimId?: string;
+  paintRev?: string;
   sessionKey: string;
 } | null = null;
 /** True while intentionally switching rooms, so `onLeave` doesn't reset to the
@@ -902,6 +906,7 @@ export async function connectToRoom(
     pedestalId: look.pedestalId,
     titleId: look.titleId,
     rimId: look.rimId,
+    paintRev: usePaintStore.getState().revFor(characterClass),
     sessionKey: TAB_SESSION,
   };
   const store = useGameStore.getState();
@@ -1152,6 +1157,15 @@ export function sendEquipLoadout(look: Appearance): void {
     joinOptions.rimId = look.rimId;
   }
   room?.send(ClientMessage.EquipLoadout, look);
+}
+
+/** Broadcast a new custom-paint revision for the given class so peers refetch the
+ *  paint PNG. Sends the full current appearance alongside it (the EquipLoadout
+ *  handler resolves every slot), so this never clears equipped cosmetics. */
+export function sendPaintRev(characterClass: CharacterClass, paintRev: string): void {
+  if (joinOptions?.characterClass === characterClass) joinOptions.paintRev = paintRev;
+  const look = useCosmeticsStore.getState().appearanceFor(characterClass);
+  room?.send(ClientMessage.EquipLoadout, { ...look, paintRev });
 }
 
 export function requestLeaderboard(): void {

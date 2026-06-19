@@ -24,6 +24,8 @@ export interface JoinOptions {
   pedestalId?: string;
   titleId?: string;
   rimId?: string;
+  /** Short revision of the player's custom paint for their class ('' = none). */
+  paintRev?: string;
   team?: string;
   sessionKey?: string;
 }
@@ -82,4 +84,9 @@ export function resolveRimId(options?: JoinOptions): string {
 /** The tab/session key (used for single-session enforcement), coerced to string. */
 export function sessionKeyOf(options?: JoinOptions): string {
   return String(options?.sessionKey ?? '');
+}
+
+/** The client-reported paint revision (appearance only), bounded. */
+export function resolvePaintRev(options?: JoinOptions): string {
+  return String(options?.paintRev ?? '').slice(0, 32);
 }

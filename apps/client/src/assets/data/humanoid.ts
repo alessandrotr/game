@@ -1,9 +1,12 @@
 import type { PlaceholderPart } from '@arena/shared';
 
-/** The neutral blank-canvas color shared by every character's head + body — the
- *  surface the player paints on. Kept here so the paint engine seeds new canvases
- *  with the exact same base. */
+/** The neutral blank-canvas color for the body — the surface the player paints
+ *  on. Kept here so the paint engine seeds new body canvases with the same base. */
 export const BODY_BASE_COLOR = '#cfd3da';
+
+/** Default head color: a skin tone, so faces read as skin out of the box (the
+ *  player can repaint it). Body stays the neutral canvas above. */
+export const HEAD_BASE_COLOR = '#e6b98f';
 
 /**
  * Character body builder. Assembles a stylized figure from a compact spec, so
@@ -53,7 +56,7 @@ export function humanoid(spec: HumanoidSpec): PlaceholderPart[] {
       color: palette.primary,
       roughness: 0.7,
     },
-    { name: 'head', shape: 'sphere', args: [0.27, 18, 18], position: [0, headY, 0], color: palette.primary },
+    { name: 'head', shape: 'sphere', args: [0.27, 18, 18], position: [0, headY, 0], color: HEAD_BASE_COLOR },
 
     ...accessories,
     ...headgear,

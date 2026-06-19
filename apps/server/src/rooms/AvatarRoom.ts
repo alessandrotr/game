@@ -132,6 +132,9 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         player.titleId = resolve(message?.titleId, 'title');
         // Avatar rim: fall back to the standard frame so a player always has one.
         player.rimId = resolve(message?.rimId, 'rim') || 'rim.standard';
+        // Custom paint revision: appearance only (bounded string). When it changes,
+        // peers refetch the paint PNG over HTTP via the public /paint/:pid route.
+        if (typeof message?.paintRev === 'string') player.paintRev = message.paintRev.slice(0, 32);
       },
     );
   }

@@ -3,6 +3,7 @@ import { useGameStore } from './store/useGameStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useCameraPrefsStore } from './store/useCameraPrefsStore';
 import { useCosmeticsStore } from './store/useCosmeticsStore';
+import { usePaintStore } from './store/usePaintStore';
 import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
@@ -55,6 +56,7 @@ export default function App() {
     if (authStatus === 'authed') {
       void useCameraPrefsStore.getState().loadForAccount();
       void useCosmeticsStore.getState().loadForAccount();
+      void usePaintStore.getState().loadForAccount();
     }
   }, [authStatus]);
 
