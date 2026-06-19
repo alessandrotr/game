@@ -157,6 +157,13 @@ export interface LeaderboardEntry {
   losses: number;
   kills: number;
   deaths: number;
+  /** Account id, for fetching the champion's public paint (`/paint/:pid`). 0/absent
+   *  for guests or when unavailable. Used by the town podium to render their look. */
+  pid?: number;
+  /** Equipped skin/dye cosmetic ids for this class, so the podium can show the
+   *  champion in their actual appearance. Absent → default look. */
+  skinId?: string;
+  dyeId?: string;
 }
 
 /** Payload map for {@link ClientMessage}. */

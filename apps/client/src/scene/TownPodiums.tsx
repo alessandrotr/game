@@ -1,10 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import { Color } from 'three';
-import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@arena/shared';
+import { getClassDefinition, isCharacterClass, type CharacterClass, type LeaderboardEntry } from '@arena/shared';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { requestLeaderboard } from '../network/colyseus';
+import { resolveCharacter } from '../assets/CharacterFactory';
+import { CharacterModel } from '../render/CharacterModel';
+import { applyClassPaint, paintTexturesFor } from '../paint/paintSurface';
+import { fetchPublicPaint } from '../network/paint';
 
 /**
  * The town champions' podium — three stepped daises beside the leaderboard
@@ -27,6 +31,60 @@ const RANKS = [
 
 /** Block footprint (square). */
 const TIER = 1.0;
+
+/** Champions stand on the tiers as figurines — scaled down so a full-height body
+ *  reads as a trophy statuette on a 1×1 block rather than a looming giant. */
+const MODEL_SCALE = 0.6;
+/** Nominal model height (world units) at scale 1 — used to lift the nameplate
+ *  clear of the champion's head. Approximate; tune with the scale if models change. */
+const MODEL_HEIGHT = 1.8;
+/** Champion facing (Y rotation, radians) relative to the podium group. 0 faces the
+ *  same way as the podium/tablet; flip to Math.PI if they end up backwards. */
+const FACE_Y = 0;
+
+/**
+ * The champion standing on a tier: their actual class model with equipped skin/dye
+ * and custom paint (fetched by account id, like a remote player in the arena). Paint
+ * loads onto a podium-scoped surface so it can't collide with the local player's own
+ * editable surfaces or an in-town peer's. Falls back to the bare class look until (or
+ * unless) paint arrives. Renders nothing for an invalid/guest class.
+ */
+function PodiumChampion({ entry, tierHeight }: { entry: LeaderboardEntry; tierHeight: number }) {
+  const cls = entry.characterClass;
+  const descriptor = useMemo(
+    () => (isCharacterClass(cls) ? resolveCharacter(cls as CharacterClass, entry.skinId, entry.dyeId) : null),
+    [cls, entry.skinId, entry.dyeId],
+  );
+
+  // Podium-scoped surface owner: distinct from class ids (local player) and session
+  // ids (in-town peers) so the three slots never clash with live surfaces.
+  const pid = entry.pid ?? 0;
+  const owner = `lb:${pid}:${cls}`;
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    setPainted(false);
+    if (!pid || !isCharacterClass(cls)) return;
+    let cancelled = false;
+    void fetchPublicPaint(pid)
+      .then(async (state) => {
+        const clsPaint = state[cls as CharacterClass];
+        const has = !!clsPaint && Object.keys(clsPaint).length > 0;
+        if (has) await applyClassPaint(owner, clsPaint);
+        if (!cancelled) setPainted(has);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pid, cls, owner]);
+
+  if (!descriptor) return null;
+  return (
+    <group position={[0, tierHeight + 0.02, 0]} rotation={[0, FACE_Y, 0]} scale={MODEL_SCALE}>
+      <CharacterModel descriptor={descriptor} paint={painted ? paintTexturesFor(owner) : undefined} />
+    </group>
+  );
+}
 
 const METAL_VERT = /* glsl */ `
   varying vec2 vUv;
@@ -167,6 +225,9 @@ function Podium({
     entry && isCharacterClass(entry.characterClass)
       ? getClassDefinition(entry.characterClass).name
       : undefined;
+  // With a champion standing on the tier, lift the nameplate clear of their head;
+  // an empty slot keeps the lower resting height so the "—" sits on the bare cap.
+  const nameY = entry ? height + MODEL_SCALE * MODEL_HEIGHT + 0.3 : labelY;
   return (
     <group position={[x, 0, 0]}>
       {/* Cool polished-slate column. Low metalness (so its own color shows
@@ -200,9 +261,11 @@ function Podium({
         {String(rank)}
         <MetalSurface color={color} color2={color2} />
       </Text>
+      {/* The champion standing on the tier, in their actual look. */}
+      {entry && <PodiumChampion entry={entry} tierHeight={height} />}
       {/* Cascading nameplate billboarded toward the camera. */}
       <NameLabel
-        y={labelY}
+        y={nameY}
         present={!!entry}
         color={color}
         name={entry ? entry.name : '—'}

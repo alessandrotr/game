@@ -222,22 +222,47 @@ export async function recordResult(
  */
 export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardEntry[]> {
   const res = await q.query(
-    `SELECT p.username, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills, cp.deaths
+    `SELECT p.id, p.username, p.cosmetics_loadout, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills, cp.deaths
        FROM class_progress cp
        JOIN players p ON p.id = cp.player_id
       ORDER BY cp.wins DESC, cp.xp DESC, cp.kills DESC
       LIMIT $1`,
     [limit],
   );
-  return res.rows.map((row) => ({
-    name: String(row.username ?? 'Adventurer'),
-    characterClass: String(row.character_class ?? ''),
-    level: num(row.level),
-    wins: num(row.wins),
-    losses: num(row.losses),
-    kills: num(row.kills),
-    deaths: num(row.deaths),
-  }));
+  return res.rows.map((row) => {
+    const characterClass = String(row.character_class ?? '');
+    const equipped = loadoutFor(row.cosmetics_loadout, characterClass);
+    return {
+      name: String(row.username ?? 'Adventurer'),
+      characterClass,
+      level: num(row.level),
+      wins: num(row.wins),
+      losses: num(row.losses),
+      kills: num(row.kills),
+      deaths: num(row.deaths),
+      pid: num(row.id),
+      skinId: equipped.skinId,
+      dyeId: equipped.dyeId,
+    };
+  });
+}
+
+/** Pull a class's equipped skin/dye out of a raw `cosmetics_loadout` JSONB value
+ *  (a class → loadout map; pg may hand it back parsed or as a string). Best-effort:
+ *  anything malformed yields no ids, so the podium falls back to the default look. */
+function loadoutFor(raw: unknown, characterClass: string): { skinId?: string; dyeId?: string } {
+  let map: Record<string, unknown> = {};
+  try {
+    map = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+  const loadout = map?.[characterClass] as { skinId?: unknown; dyeId?: unknown } | undefined;
+  if (!loadout || typeof loadout !== 'object') return {};
+  return {
+    skinId: typeof loadout.skinId === 'string' ? loadout.skinId : undefined,
+    dyeId: typeof loadout.dyeId === 'string' ? loadout.dyeId : undefined,
+  };
 }
 
 /**
