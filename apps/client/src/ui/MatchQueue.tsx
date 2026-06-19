@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Swords } from 'lucide-react';
 import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
+import { useHudStore } from '../store/useHudStore';
 import { LobbyView } from './LobbyView';
 
 /**
@@ -16,6 +17,8 @@ export function MatchQueue() {
   const mySessionId = useLobbyStore((s) => s.mySessionId);
   const queueOpen = useLobbyStore((s) => s.queueOpen);
   const setQueueOpen = useLobbyStore((s) => s.setQueueOpen);
+  // The perf readout shares the top-right corner — when it's shown, drop below it.
+  const showPerf = useHudStore((s) => s.showPerf);
 
   const myLobby = findMyLobby(lobbies, mySessionId);
   // The ready-check has its own full-screen overlay; the button/dialog only apply
@@ -40,7 +43,11 @@ export function MatchQueue() {
       <button
         type="button"
         onClick={() => setQueueOpen(true)}
-        className="pointer-events-auto fixed right-4 top-4 z-modal flex items-center gap-2 rounded-xl border border-gold/50 bg-panel/80 px-3 py-2 text-sm font-semibold tracking-wide text-gold shadow-lg backdrop-blur-md transition hover:bg-panel"
+        className={
+          'pointer-events-auto fixed right-4 z-modal flex items-center gap-2 rounded-xl border border-gold/50 bg-panel/80 px-3 py-2 text-sm font-semibold tracking-wide text-gold shadow-lg backdrop-blur-md transition hover:bg-panel ' +
+          // Below the perf readout when it's on, otherwise the top-right corner.
+          (showPerf ? 'top-[68px]' : 'top-4')
+        }
       >
         {/* Pulsing notification dot — your queue is live. */}
         <span className="relative flex h-2 w-2" aria-hidden="true">
