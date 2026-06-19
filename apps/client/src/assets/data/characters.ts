@@ -14,24 +14,34 @@ const warrior: CharacterDescriptor = {
   id: 'char.warrior',
   displayName: 'Warrior',
   class: 'warrior',
-  // Rigged GLB (Meshy AI "Wasteland Road Warrior"). ~1.62u tall, feet at origin,
-  // so no scale/offset. Idle/Walk/Run/Die clips were merged from the separate
-  // Meshy exports (see scripts/merge-clips.mjs). It carries its own gear, so no
-  // separate weapon mount.
+  weaponId: 'weapon.sword',
+  animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.attack' },
+  // Placeholder built from primitives (same style as the priest): a steel-armored
+  // capsule body, a skin-toned head, and a conical helmet so the silhouette reads
+  // as a heavy melee fighter at a glance. Sword attaches via weapon.sword's grip.
   render: {
-    kind: 'gltf',
-    url: '/models/characters/warrior.glb',
-    scale: 1.35,
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      idle: 'Idle',
-      walk: 'Walk',
-      run: 'Run',
-      die: 'Die',
-      dance1: 'Dance1',
-      dance2: 'Dance2',
-    },
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'body',
+        shape: 'capsule',
+        args: [0.4, 0.72, 8, 16],
+        position: [0, 0.74, 0],
+        color: STEEL,
+        metalness: 0.5,
+        roughness: 0.5,
+      },
+      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.44, 0], color: SKIN },
+      {
+        name: 'helmet',
+        shape: 'cone',
+        args: [0.3, 0.42, 12],
+        position: [0, 1.68, 0],
+        color: '#c0392b',
+        metalness: 0.6,
+        roughness: 0.4,
+      },
+    ],
   },
 };
 
