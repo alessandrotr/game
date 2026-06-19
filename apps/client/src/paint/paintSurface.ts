@@ -281,6 +281,12 @@ export function paintTexturesFor(owner: string): PaintTextures {
   };
 }
 
+/** Drop every cached surface. Called on sign-out / account switch so one account's
+ *  paint can't bleed into the next — fresh surfaces are created on next access. */
+export function resetPaintSurfaces(): void {
+  registry.clear();
+}
+
 /** Paint a fetched {@link ClassPaint} onto an owner's surfaces (skin + overlay),
  *  for displaying a remote player's look. Missing parts reset to bare default. */
 export async function applyClassPaint(owner: string, paint: ClassPaint | undefined): Promise<void> {

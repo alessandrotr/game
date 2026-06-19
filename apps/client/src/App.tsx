@@ -51,18 +51,16 @@ export default function App() {
     void restore();
   }, [restore]);
 
-  // Pull the account's saved camera-lock prefs + cosmetics once signed in.
+  // Pull the account's saved camera-lock prefs + cosmetics + paint once signed in;
+  // clear paint on sign-out so it can't leak into the next account (paint is
+  // account-scoped and lives only on the server). loadForAccount resets first.
   useEffect(() => {
     if (authStatus === 'authed') {
       void useCameraPrefsStore.getState().loadForAccount();
       void useCosmeticsStore.getState().loadForAccount();
-      // Paint: apply the localStorage mirror first (so it's instant + so any
-      // local-only paint gets re-uploaded), then layer the account copy on top.
-      void (async () => {
-        const paint = usePaintStore.getState();
-        await paint.hydrateLocalAll();
-        await paint.loadForAccount();
-      })();
+      void usePaintStore.getState().loadForAccount();
+    } else {
+      usePaintStore.getState().reset();
     }
   }, [authStatus]);
 
