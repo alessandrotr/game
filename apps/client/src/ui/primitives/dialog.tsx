@@ -51,7 +51,9 @@ const DialogContent = forwardRef<ElementRef<typeof DialogPrimitive.Content>, Dia
         className={cn(
           'fixed z-modal w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-2xl focus:outline-none',
           dock === 'right'
-            ? 'right-4 top-1/2 max-w-md -translate-y-1/2'
+            // Viewport-relative width so the docked panel scales up on a big 2K
+            // canvas instead of staying a small fixed card (with a readable floor).
+            ? 'right-[2vw] top-1/2 max-w-[clamp(26rem,28vw,40rem)] -translate-y-1/2'
             : 'left-1/2 top-1/2 max-w-lg -translate-x-1/2 -translate-y-1/2',
           className,
         )}

@@ -22,7 +22,32 @@ const FOCUS_SMOOTH = 6; // exp-smoothing rate → ~0.45s glide in and out
 const FOCUS_DIST = 7; // how far (world units) the camera sits from the subject
 const FOCUS_HEIGHT = 3; // camera height above ground while focused
 const FOCUS_LOOK_Y = 1.5; // height on the subject the camera aims at
-const FOCUS_SIDE_SHIFT = 2.6; // rightward aim offset → subject sits screen-left
+/** Where the framed subject sits horizontally, as a fraction of the viewport
+ *  (0 = left edge, 0.5 = center). The world side-shift is derived from this each
+ *  frame using the live aspect ratio, so the subject lands at the SAME screen spot
+ *  on every device — a fixed world shift would drift with aspect/resolution. The
+ *  HUD title's left zone is sized so it sits under this subject without crowding
+ *  the right-docked panel. */
+export const FOCUS_SUBJECT_X = 0.34;
+
+/** Where the subject sits VERTICALLY, as a fraction from the top (0.5 = center).
+ *  Below 0.5 lifts it into the upper area so the bottom-docked HUD title (see
+ *  FocusTitle) never sits over the model. Aspect-independent like the X shift. */
+export const FOCUS_SUBJECT_Y = 0.4;
+
+/** World side-shift that places a subject at distance `dist` (camera→subject) at
+ *  `FOCUS_SUBJECT_X` horizontally, given the camera's vertical FOV + aspect. */
+function focusSideShift(camera: PerspectiveCamera, dist: number): number {
+  const hHalfFov = Math.atan(Math.tan((camera.fov * Math.PI) / 360) * camera.aspect);
+  return (1 - 2 * FOCUS_SUBJECT_X) * dist * Math.tan(hHalfFov);
+}
+
+/** Downward look offset that lifts the subject to `FOCUS_SUBJECT_Y` on screen
+ *  (aiming below it raises it in frame, clearing the bottom title text). */
+function focusVertShift(camera: PerspectiveCamera, dist: number): number {
+  const vHalfFov = (camera.fov * Math.PI) / 360;
+  return (1 - 2 * FOCUS_SUBJECT_Y) * dist * Math.tan(vHalfFov);
+}
 
 // Scratch vectors for the focus math (allocated once, reused every frame).
 const _focusDesired = new Vector3();
@@ -108,7 +133,15 @@ export function CameraRig() {
         camera.position.lerp(_focusDesired, k);
         _viewDir.set(cx - camera.position.x, FOCUS_LOOK_Y - camera.position.y, cz - camera.position.z).normalize();
         _right.crossVectors(_viewDir, _up).normalize();
-        _shiftedLook.set(cx + _right.x * FOCUS_SIDE_SHIFT, FOCUS_LOOK_Y, cz + _right.z * FOCUS_SIDE_SHIFT);
+        // Aspect-aware shift: derive from the live FOV/aspect so the subject lands
+        // at FOCUS_SUBJECT_X on every device (fixed world shift drifts with aspect).
+        const dist = camera.position.distanceTo(_shiftedLook.set(cx, FOCUS_LOOK_Y, cz));
+        const persp = camera instanceof PerspectiveCamera;
+        const shift = persp ? focusSideShift(camera, dist) : 0;
+        const vShift = persp ? focusVertShift(camera, dist) : 0;
+        // Right-bias for screen-left, and aim below the subject so it rides high in
+        // frame — both keep it clear of the right panel and the bottom title text.
+        _shiftedLook.set(cx + _right.x * shift, FOCUS_LOOK_Y - vShift, cz + _right.z * shift);
         focusLook.lerp(_shiftedLook, k);
         camera.lookAt(focusLook);
         return;

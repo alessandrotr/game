@@ -100,19 +100,37 @@ export function TownDuelAltar({
       {/* Stepped war altar — dark warm stone. */}
       <mesh position={[0, 0.15, 0]} receiveShadow castShadow>
         <boxGeometry args={[2.3, 0.3, 1.5]} />
-        <meshStandardMaterial color="#46414e" roughness={0.7} metalness={0.2} emissive="#1f1820" emissiveIntensity={0.3} />
+        <meshStandardMaterial
+          color="#46414e"
+          roughness={0.7}
+          metalness={0.2}
+          emissive="#1f1820"
+          emissiveIntensity={0.3}
+        />
       </mesh>
       <mesh position={[0, 0.5, 0]} receiveShadow castShadow>
         <boxGeometry args={[1.8, 0.45, 1.2]} />
-        <meshStandardMaterial color="#4e4753" roughness={0.65} metalness={0.25} emissive="#241a22" emissiveIntensity={0.32} />
+        <meshStandardMaterial
+          color="#4e4753"
+          roughness={0.65}
+          metalness={0.25}
+          emissive="#241a22"
+          emissiveIntensity={0.32}
+        />
       </mesh>
       <mesh position={[0, 0.82, 0]} receiveShadow>
         <boxGeometry args={[1.5, 0.2, 1.0]} />
-        <meshStandardMaterial color="#564d5b" roughness={0.6} metalness={0.3} emissive="#2a1e26" emissiveIntensity={0.35} />
+        <meshStandardMaterial
+          color="#564d5b"
+          roughness={0.6}
+          metalness={0.3}
+          emissive="#2a1e26"
+          emissiveIntensity={0.35}
+        />
       </mesh>
 
       {/* Swirling crimson battle-fury vortex, behind the crossed blades. */}
-      <group position={[0, 0.55, -0.18]}>
+      <group position={[0, 0.75, -0.18]}>
         <PortalEffect radius={0.62} core="#ffd27a" edge="#c01818" />
       </group>
 

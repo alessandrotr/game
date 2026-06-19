@@ -4,6 +4,7 @@ import { Billboard, Text } from '@react-three/drei';
 import { AdditiveBlending, Color, DoubleSide, type ShaderMaterial } from 'three';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { maybeFocusStructure, useFocusStore } from '../store/useFocusStore';
+import { PODIUM_POSITION, PODIUM_ROTATION } from './TownPodiums';
 import { FadeGroup } from './FadeGroup';
 
 /**
@@ -105,19 +106,20 @@ export function TownLeaderboardTablet({
 }: TownLeaderboardTabletProps) {
   // Restore the cursor on unmount so it never sticks as a pointer.
   useEffect(() => () => void (document.body.style.cursor = ''), []);
-  // Hide the 3D floating label while this structure is cinematically focused; fade
-  // the whole monument out when a DIFFERENT structure is focused.
-  const focused = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
-  const show = useFocusStore((s) => !s.target || s.panel === 'leaderboard');
+  // The tablet itself fades out whenever ANY structure is focused — including the
+  // leaderboard, where the camera turns to frame the champions' podium instead, so
+  // the tablet must clear the shot. The podium stays (see TownPodiums' `show`).
+  const show = useFocusStore((s) => !s.target);
+  const focused = useFocusStore((s) => !!s.target);
 
   const open = (e: ThreeEvent<PointerEvent>) => {
     if (e.nativeEvent.button !== 0) return; // left-click only
     e.stopPropagation();
     useLeaderboardStore.getState().setOpen(true);
-    // Frame the monument biased toward the podium champions (off to one side of the
-    // tablet) so they read as the hero on the left while the standings dock right.
-    // faceYaw = the monument's facing, so the camera views its front.
-    maybeFocusStructure('leaderboard', 'Leaderboard', rotation[1], position[0] + 3, 0, position[2] - 0.7);
+    // Focus the CHAMPIONS' PODIUM (not the tablet): the camera glides to face the
+    // podium's front, framed screen-left (the rig's side-shift) so the standings
+    // panel docks right. faceYaw = the podium's facing, so we view its front.
+    maybeFocusStructure('leaderboard', 'Leaderboard', PODIUM_ROTATION[1], PODIUM_POSITION[0], 0, PODIUM_POSITION[2]);
   };
   const hover = (on: boolean) => () => {
     document.body.style.cursor = on ? 'pointer' : '';

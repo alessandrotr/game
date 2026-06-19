@@ -229,7 +229,7 @@ function Podium({
     : undefined;
   // With a champion standing on the tier, lift the nameplate above their head; an
   // empty slot keeps the lower resting height so the "—" sits on the bare cap.
-  const nameY = entry ? height + MODEL_SCALE * MODEL_HEIGHT + 0.55 : labelY;
+  const nameY = entry ? height + MODEL_SCALE * MODEL_HEIGHT + 0.28 : labelY;
   return (
     <group position={[x, 0, 0]}>
       {/* Cool polished-slate column. Low metalness (so its own color shows
@@ -281,12 +281,14 @@ interface TownPodiumsProps {
   rotation?: [number, number, number];
 }
 
+/** Podium placement (shared so the leaderboard tablet can aim the focus camera at
+ *  the champions). To the right of the tablet and set further back, same facing. */
+export const PODIUM_POSITION: [number, number, number] = [11, 0, -4];
+export const PODIUM_ROTATION: [number, number, number] = [0, -0.7, 0];
+
 export function TownPodiums({
-  // To the right of the leaderboard tablet (at [7,0,-3], y-rot -0.7) and set
-  // further back, so the (now larger) podiums clear the sightline to the tablet
-  // face while still reading as one monument group (same facing).
-  position = [11, 0, -4],
-  rotation = [0, -0.7, 0],
+  position = PODIUM_POSITION,
+  rotation = PODIUM_ROTATION,
 }: TownPodiumsProps) {
   const entries = useLeaderboardStore((s) => s.entries);
   // Part of the leaderboard monument: fade out when another structure is focused.

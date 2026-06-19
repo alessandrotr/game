@@ -14,9 +14,10 @@ import { create } from 'zustand';
 
 export type FocusPanel = 'leaderboard' | 'pvp' | 'coop';
 
-/** Below this viewport width, model-left + panel-right has no room — fall back to
- *  the normal centered modal (no camera move, no movement lock). */
-export const FOCUS_MIN_WIDTH = 900;
+/** Below this viewport width, model-left + panel-right has no room (the left title
+ *  zone and the right-docked panel would collide) — fall back to the normal
+ *  centered modal (no camera move, no movement lock). */
+export const FOCUS_MIN_WIDTH = 1024;
 
 interface FocusStore {
   /** The focused panel, or null. Drives docked layout. */
