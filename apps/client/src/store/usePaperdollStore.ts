@@ -15,6 +15,8 @@ export interface PaperdollData {
   dyeId: string;
   pedestalId: string;
   titleId: string;
+  /** Account id (0 = guest) — lets the portrait fetch this player's custom paint. */
+  pid: number;
 }
 
 interface PaperdollStore {

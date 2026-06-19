@@ -1,8 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useOnClickOutside } from 'usehooks-ts';
 import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
+import { fetchPublicPaint } from '../network/paint';
+import { applyClassPaint, paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
 import { ClassPreview } from './ClassPreview';
 import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS } from './theme';
@@ -32,13 +35,49 @@ export function Paperdoll() {
 
   if (!data) return null;
 
+  return <PaperdollCard data={data} close={close} />;
+}
+
+/** Split out so the paint-fetch hooks run with a guaranteed non-null `data`. */
+function PaperdollCard({
+  data,
+  close,
+}: {
+  data: NonNullable<ReturnType<typeof usePaperdollStore.getState>['data']>;
+  close: () => void;
+}) {
+  // Close when clicking anywhere outside the card.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useOnClickOutside(cardRef, close);
+
+  // Fetch the inspected player's custom paint (by account id) and apply it to a
+  // paperdoll-scoped surface so the portrait shows THEIR look, not the viewer's.
+  const [paint, setPaint] = useState<PaintTextures | undefined>(undefined);
+  useEffect(() => {
+    setPaint(undefined);
+    if (!data.pid) return;
+    let cancelled = false;
+    const owner = `pd:${data.pid}`;
+    void fetchPublicPaint(data.pid)
+      .then(async (state) => {
+        const cls = state[data.characterClass];
+        if (!cls || !Object.keys(cls).length) return;
+        await applyClassPaint(owner, cls);
+        if (!cancelled) setPaint(paintTexturesFor(owner));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [data.pid, data.characterClass]);
+
   const def = getClassDefinition(data.characterClass);
   const { span, into } = xpProgress(data.level, data.xp);
   const kd = data.deaths === 0 ? data.kills.toFixed(2) : (data.kills / data.deaths).toFixed(2);
   const title = data.titleId ? getCosmeticOfType(data.titleId, 'title') : undefined;
 
   return (
-    <Card variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
+    <Card ref={cardRef} variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -65,6 +104,7 @@ export function Paperdoll() {
           skinId={data.skinId}
           dyeId={data.dyeId}
           pedestalId={data.pedestalId}
+          paint={paint}
         />
         <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
           drag to rotate

@@ -459,6 +459,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         dyeId: latest.dyeId,
         pedestalId: latest.pedestalId,
         titleId: latest.titleId,
+        pid: latest.pid ?? 0,
       });
     }
   };

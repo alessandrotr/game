@@ -67,6 +67,10 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
   .map((o) => o.trim())
   .filter(Boolean);
 app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : {}));
+// Character paint PUTs carry base64 PNG overlays (body + head), far larger than
+// any other API payload — so /paint gets its own generous JSON limit, registered
+// BEFORE the strict global one (body-parser skips once a body is already parsed).
+app.use('/paint', express.json({ limit: '4mb' }));
 app.use(express.json({ limit: '16kb' }));
 
 app.get('/health', (_req, res) => {

@@ -23,9 +23,10 @@ export type ClassPaint = Partial<Record<PaintPart, PaintPartData>>;
 export type PaintState = Partial<Record<CharacterClass, ClassPaint>>;
 
 /** Max accepted overlay PNG size (data URL chars). A sparse 512² overlay is a few
- *  KB; this caps a worst-case full-coverage paint while staying well under any
- *  row limit. Oversized overlays are dropped (treated as no paint). */
-export const MAX_PAINT_PNG_CHARS = 200_000;
+ *  KB; a densely hand-painted one can reach a few hundred KB, so this is set high
+ *  enough not to silently drop a real paint job while still capping abuse. Must
+ *  stay under the server's /paint JSON body limit (see index.ts). */
+export const MAX_PAINT_PNG_CHARS = 1_500_000;
 
 const HEX = /^#[0-9a-fA-F]{3,8}$/;
 

@@ -6,7 +6,7 @@ import { getCosmeticOfType, type AnimationName, type CharacterClass } from '@are
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { usePaintStore } from '../store/usePaintStore';
-import { paintTexturesFor } from '../paint/paintSurface';
+import { paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
 import { CharacterModel } from '../render/CharacterModel';
 import { Pedestal } from '../render/Pedestal';
 
@@ -54,6 +54,10 @@ interface ClassPreviewProps {
   /** Logical animation the model plays (e.g. an emote being previewed). Defaults
    *  to idle. The full showcase drives this; the lite bust ignores it. */
   animation?: AnimationName;
+  /** Explicit paint textures to apply, overriding the local-player default. Used
+   *  by the paperdoll to show ANOTHER player's paint (the caller fetches it). When
+   *  omitted, falls back to the local player's own paint for this class. */
+  paint?: PaintTextures;
 }
 
 /** Camera + orbit framing per `align` for the full showcase. `'top'` pulls the
@@ -74,6 +78,7 @@ function ClassPreviewImpl({
   align = 'center',
   transparent = false,
   animation = 'idle',
+  paint: paintOverride,
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -86,9 +91,10 @@ function ClassPreviewImpl({
   const animRef = useRef(animation);
   animRef.current = animation;
   const getAnimation = useRef(() => animRef.current).current;
-  // Reflect the player's custom paint job when this class has one.
+  // Reflect custom paint: an explicit override (e.g. a peer's, fetched by the
+  // paperdoll) wins; otherwise the local player's own paint for this class.
   const painted = usePaintStore((s) => !!s.customizedByClass[selected]);
-  const paint = painted ? paintTexturesFor(selected) : undefined;
+  const paint = paintOverride ?? (painted ? paintTexturesFor(selected) : undefined);
   // Resolve the equipped pedestal (color + shader effect); a neutral gray ring
   // is the default for every class when nothing is equipped.
   const ped = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal') : undefined;
