@@ -222,6 +222,7 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
     } catch {
       return;
     }
+    const onServer = new Set(Object.keys(state));
     for (const cls of Object.keys(state) as CharacterClass[]) {
       const clsPaint = state[cls];
       if (!clsPaint || !Object.keys(clsPaint).length) continue;
@@ -234,6 +235,22 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
         revByClass: { ...s.revByClass, [cls]: paintRevOf(clsPaint) },
         rev: s.rev + 1,
       }));
+    }
+    // Re-upload any locally-customized classes the account is MISSING (e.g. painted
+    // before this account existed, or while the dev DB was ephemeral). Without
+    // this, the player sees their own paint (from localStorage) but peers fetch an
+    // empty /paint/:pid and render them with the default look.
+    const missing = (Object.keys(get().customizedByClass) as CharacterClass[]).filter(
+      (c) => get().customizedByClass[c] && !onServer.has(c),
+    );
+    if (missing.length) {
+      const full: PaintState = {};
+      for (const cls of Object.keys(get().customizedByClass) as CharacterClass[]) {
+        if (get().customizedByClass[cls]) full[cls] = classPaintOf(cls);
+      }
+      void putPaint(token, full).catch(() => {
+        /* offline — next edit's debounced save will retry */
+      });
     }
   },
 

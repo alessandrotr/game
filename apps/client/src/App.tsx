@@ -49,9 +49,6 @@ export default function App() {
   const restore = useAuthStore((s) => s.restore);
   useEffect(() => {
     void restore();
-    // Apply locally-mirrored paint immediately so the player's own look shows on
-    // first paint (char-select preview included), before/independent of the account.
-    void usePaintStore.getState().hydrateLocalAll();
   }, [restore]);
 
   // Pull the account's saved camera-lock prefs + cosmetics once signed in.
@@ -59,7 +56,13 @@ export default function App() {
     if (authStatus === 'authed') {
       void useCameraPrefsStore.getState().loadForAccount();
       void useCosmeticsStore.getState().loadForAccount();
-      void usePaintStore.getState().loadForAccount();
+      // Paint: apply the localStorage mirror first (so it's instant + so any
+      // local-only paint gets re-uploaded), then layer the account copy on top.
+      void (async () => {
+        const paint = usePaintStore.getState();
+        await paint.hydrateLocalAll();
+        await paint.loadForAccount();
+      })();
     }
   }, [authStatus]);
 
