@@ -117,8 +117,8 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
               <Button
                 variant="goldCta"
                 size="lg"
-                className="shrink-0 justify-center gap-2 px-6"
-                disabled={inMatch}
+                className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed"
+                disabled={inMatch || !name.trim()}
                 onClick={create}
               >
                 <Swords size={16} aria-hidden="true" />

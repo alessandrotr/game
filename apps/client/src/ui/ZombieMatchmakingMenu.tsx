@@ -111,7 +111,7 @@ export function ZombieMatchmakingMenu() {
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
               />
-              <Button variant="goldCta" size="lg" className="shrink-0 justify-center gap-2 px-6" onClick={create}>
+              <Button variant="goldCta" size="lg" className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed" disabled={!name.trim()} onClick={create}>
                 <Skull size={16} aria-hidden="true" />
                 Create
               </Button>
