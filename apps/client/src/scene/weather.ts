@@ -23,6 +23,12 @@ export interface Atmosphere {
   hemiIntensity: number;
   sunColor: string;
   sunIntensity: number;
+  /** Sun (key light) world position — lerped, and ALSO where the visible sun disc
+   *  sits (placed far along this direction), so the light comes from the sun you
+   *  see. The leaderboard sun rides high + back so it reads behind the podium. */
+  sunPosition: [number, number, number];
+  /** Visible sun disc opacity 0–1 (0 = hidden, e.g. the overcast storm). */
+  sunDisc: number;
   /** Rain intensity 0–1 (drives the rain layer's density/opacity). */
   rain: number;
 }
@@ -40,24 +46,32 @@ export function baseAtmosphere(env: EnvConfig): Atmosphere {
     hemiIntensity: env.hemiIntensity,
     sunColor: env.sunColor,
     sunIntensity: env.sunIntensity,
+    sunPosition: env.sunPosition,
+    sunDisc: 0,
     rain: 0,
   };
 }
 
 export const FOCUS_WEATHER: Record<FocusPanel, Atmosphere> = {
-  // Hall of Champions — clear, bright noon: high blue sky, sun blazing, fog pushed
-  // far so the plaza reads crisp and triumphant.
+  // Hall of Champions — clear sunny day: a deep (not white-blown) blue sky so the
+  // gold HUD title + panel stay legible, with the sun risen to high noon.
   leaderboard: {
-    background: '#86c5ff',
-    fogColor: '#c6e7ff',
-    fogNearMul: 1.7,
-    fogFarMul: 1.9,
-    ambient: 0.52,
-    hemiSky: '#d2ecff',
+    background: '#5a9fe0',
+    fogColor: '#9cc6ec',
+    fogNearMul: 1.5,
+    fogFarMul: 1.8,
+    ambient: 0.3,
+    hemiSky: '#b3d7f5',
     hemiGround: '#7e9a61',
-    hemiIntensity: 1.0,
-    sunColor: '#fff3d4',
-    sunIntensity: 2.0,
+    hemiIntensity: 0.75,
+    sunColor: '#fff1cc',
+    sunIntensity: 1.35,
+    // LOW in the sky (~8° elevation): the focus camera looks slightly down at the
+    // podium, so the visible sky band is only ~0–12° up — a higher sun lands above
+    // the frame. Biased a touch right (the framing shifts the podium screen-left,
+    // so the camera aims at open sky to its right). The light rakes in low + warm.
+    sunPosition: [16, 2.6, -10],
+    sunDisc: 1,
     rain: 0,
   },
   // Trial of Blades — blood-red sunset: low warm sun, burnt-orange haze, the sky
@@ -73,6 +87,8 @@ export const FOCUS_WEATHER: Record<FocusPanel, Atmosphere> = {
     hemiIntensity: 0.7,
     sunColor: '#ff7a3c',
     sunIntensity: 1.5,
+    sunPosition: [20, 6, 9], // low on the horizon — a setting sun
+    sunDisc: 0.9, // a big red sun low in the sky
     rain: 0,
   },
   // The Breach — cold storm: leaden dark sky, dense fog closing in, dim blue light,
@@ -88,6 +104,8 @@ export const FOCUS_WEATHER: Record<FocusPanel, Atmosphere> = {
     hemiIntensity: 0.5,
     sunColor: '#8b94a8',
     sunIntensity: 0.45,
+    sunPosition: [10, 16, 6],
+    sunDisc: 0, // overcast — no sun through the storm
     rain: 1,
   },
 };

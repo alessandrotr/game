@@ -1,9 +1,10 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Environment, Lightformer } from '@react-three/drei';
+import { Billboard, Environment, Lightformer } from '@react-three/drei';
 import {
   Color,
   MathUtils,
+  Vector3,
   type AmbientLight,
   type BufferGeometry,
   type DirectionalLight,
@@ -37,9 +38,11 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
   const hemi = useRef<HemisphereLight>(null);
   const sun = useRef<DirectionalLight>(null);
   const rain = useRef(0);
+  const sunDisc = useRef(0);
 
   const base = useMemo(() => baseAtmosphere(env), [env]);
   const tmp = useMemo(() => new Color(), []);
+  const tmpPos = useMemo(() => new Vector3(), []);
 
   // Seed the animated lights from the base env imperatively (and re-seed when the
   // env is dev-tuned). They take NO color/intensity props, so an unrelated
@@ -55,6 +58,7 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
     if (sun.current) {
       sun.current.color.set(env.sunColor);
       sun.current.intensity = env.sunIntensity;
+      sun.current.position.set(...env.sunPosition);
     }
   }, [env]);
 
@@ -78,8 +82,12 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
     if (sun.current) {
       sun.current.color.lerp(tmp.set(atm.sunColor), k);
       sun.current.intensity = MathUtils.lerp(sun.current.intensity, atm.sunIntensity, k);
+      // The sun travels on a SNAPPIER rate than the color/fog fade, so it visibly
+      // sweeps down into place with the camera rather than drifting in slowly.
+      sun.current.position.lerp(tmpPos.set(...atm.sunPosition), 1 - Math.exp(-6 * dt));
     }
     rain.current = MathUtils.lerp(rain.current, atm.rain, k);
+    sunDisc.current = MathUtils.lerp(sunDisc.current, atm.sunDisc, k);
   });
 
   return (
@@ -94,7 +102,6 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
       <directionalLight
         ref={sun}
         key={quality.shadowMapSize}
-        position={env.sunPosition}
         castShadow={quality.shadows}
         shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
         shadow-bias={env.shadowBias}
@@ -124,8 +131,84 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
         <Lightformer form="rect" intensity={0.5} color={env.hemiGround} scale={[50, 50, 1]} position={[0, -10, 0]} rotation={[-Math.PI / 2, 0, 0]} />
       </Environment>
 
+      <WeatherSun sunRef={sun} discRef={sunDisc} />
       <Rain rainRef={rain} />
     </>
+  );
+}
+
+// A stylized sun: ONE camera-facing quad with a cheap radial-gradient fragment
+// (bright warm core → soft halo → transparent). No geometry, no lighting, no fog
+// — a single draw call + a few fragment ops, so it costs effectively nothing.
+const SUN_VERT = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const SUN_FRAG = /* glsl */ `
+  precision mediump float;
+  varying vec2 vUv;
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  void main() {
+    float d = length(vUv - 0.5) * 2.0;            // 0 at center → 1 at edge
+    float core = smoothstep(0.30, 0.16, d);       // crisp bright disc
+    float glow = smoothstep(0.95, 0.16, d);       // soft surrounding bloom
+    float a = clamp(core + glow * 0.5, 0.0, 1.0) * uOpacity;
+    if (a < 0.004) discard;
+    vec3 col = mix(uColor, vec3(1.0, 0.98, 0.92), core * 0.5); // white-hot center
+    gl_FragColor = vec4(col, a);
+  }
+`;
+
+/** The visible sun: a billboarded gradient quad placed far along the key light's
+ *  direction, so "the light comes from the sun you see". Color tracks the sun
+ *  light; opacity tracks the atmosphere's sunDisc (hidden under the storm). */
+function WeatherSun({
+  sunRef,
+  discRef,
+}: {
+  sunRef: React.RefObject<DirectionalLight | null>;
+  discRef: React.MutableRefObject<number>;
+}) {
+  const DIST = 120;
+  const SIZE = 42;
+  const board = useRef<Group>(null);
+  const pos = useMemo(() => new Vector3(), []);
+  const uniforms = useMemo(
+    () => ({ uColor: { value: new Color('#fff1cc') }, uOpacity: { value: 0 } }),
+    [],
+  );
+
+  useFrame(() => {
+    const s = sunRef.current;
+    const b = board.current;
+    if (!s || !b) return;
+    const d = discRef.current;
+    b.visible = d > 0.02;
+    if (!b.visible) return;
+    b.position.copy(pos.copy(s.position).normalize().multiplyScalar(DIST));
+    uniforms.uColor.value.copy(s.color);
+    uniforms.uOpacity.value = d;
+  });
+
+  return (
+    <Billboard ref={board} raycast={() => null}>
+      <mesh raycast={() => null}>
+        <planeGeometry args={[SIZE, SIZE]} />
+        <shaderMaterial
+          uniforms={uniforms}
+          vertexShader={SUN_VERT}
+          fragmentShader={SUN_FRAG}
+          transparent
+          depthWrite={false}
+          fog={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </Billboard>
   );
 }
 

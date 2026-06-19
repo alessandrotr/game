@@ -77,9 +77,10 @@ export function TownBreachRift({
         </mesh>
       </group>
 
-      {/* Necrotic rift swirling in the fracture. */}
-      <group position={[0, 0.5, 0.05]}>
-        <PortalEffect radius={0.55} core="#e6ffb0" edge="#2f7d1a" />
+      {/* Necrotic rift swirling in the fracture — a full travel-portal-sized
+          gateway (PortalEffect self-grounds, so no y offset). */}
+      <group position={[0, 0, 0.05]}>
+        <PortalEffect radius={1.7} core="#e6ffb0" edge="#2f7d1a" />
       </group>
 
       {/* Ground mist — a faint additive green pool around the foot. */}

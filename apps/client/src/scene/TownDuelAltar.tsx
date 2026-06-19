@@ -129,9 +129,10 @@ export function TownDuelAltar({
         />
       </mesh>
 
-      {/* Swirling crimson battle-fury vortex, behind the crossed blades. */}
-      <group position={[0, 0.75, -0.18]}>
-        <PortalEffect radius={0.62} core="#ffd27a" edge="#c01818" />
+      {/* Swirling crimson battle-fury vortex, behind the crossed blades — a full
+          travel-portal-sized gateway (PortalEffect self-grounds, so no y offset). */}
+      <group position={[0, 0, -0.18]}>
+        <PortalEffect radius={1.7} core="#ffd27a" edge="#c01818" />
       </group>
 
       {/* Crossed greatswords planted on the top slab. */}
