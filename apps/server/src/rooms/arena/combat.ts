@@ -181,7 +181,12 @@ export class CombatSystem {
     // Perk modifiers: attacker's ability damage bonus + target's damage reduction.
     const attackerPerks = this.ctx.perkModifiers(fromId);
     const targetPerks = this.ctx.perkModifiers(target.sessionId);
-    const perkScaled = total * attackerPerks.abilityDamageMult * targetPerks.damageTakenMult;
+    const attacker = fromId ? this.ctx.state.players.get(fromId) : undefined;
+    let lowHpDamageMult = 1.0;
+    if (attacker && attacker.alive && attacker.maxHp > 0 && attacker.hp / attacker.maxHp < 0.40) {
+      lowHpDamageMult = attackerPerks.lowHpDamageMult;
+    }
+    const perkScaled = total * attackerPerks.abilityDamageMult * targetPerks.damageTakenMult * lowHpDamageMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {
@@ -197,7 +202,6 @@ export class CombatSystem {
     if (applied <= 0) return;
 
     // Static / Chain Lightning perk on hit (prevent infinite recursion using ability restriction)
-    const attacker = fromId ? this.ctx.state.players.get(fromId) : undefined;
     if (
       attacker &&
       attackerPerks.lightningChance > 0 &&
@@ -318,6 +322,26 @@ export class CombatSystem {
    *  replaces the old one (re-applying refreshes its duration). */
   applyStatus(target: Player, spec: StatusSpec, fromId: string): void {
     if (!target.alive || spec.durationMs <= 0) return;
+
+    // Friendly fire CC check in Zombie Mode
+    if (this.ctx.state.zombieMode && fromId) {
+      const attacker = this.ctx.state.players.get(fromId);
+      if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(target.skinId)) {
+        if (spec.kind === 'stun' || spec.kind === 'root' || spec.kind === 'slow' || spec.kind === 'silence') {
+          return;
+        }
+      }
+    }
+
+    // Stun immunity check
+    if (spec.kind === 'stun') {
+      const targetPerks = this.ctx.perkModifiers(target.sessionId);
+      const isLowHpStunImmune = targetPerks.lowHpStunImmune && (target.maxHp > 0 && target.hp / target.maxHp < 0.40);
+      if (targetPerks.stunImmune || isLowHpStunImmune) {
+        return;
+      }
+    }
+
     const now = this.ctx.now();
     this.removeStatuses(target, spec.kind);
     const s = new StatusEffect();
@@ -357,6 +381,12 @@ export class CombatSystem {
     fromId?: string,
   ): void {
     if (speed <= 0 || distance <= 0) return;
+    if (this.ctx.state.zombieMode && fromId) {
+      const attacker = this.ctx.state.players.get(fromId);
+      if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(entity.skinId)) {
+        return;
+      }
+    }
     const len = Math.hypot(dirX, dirZ) || 1;
     this.ctx.displacements.set(entity.sessionId, {
       vx: (dirX / len) * speed,

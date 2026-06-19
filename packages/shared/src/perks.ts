@@ -48,8 +48,8 @@ export type PerkId =
   | 'static_shock' | 'overcharge' | 'thunderstorm'
   // Chain 7 — Ability Power
   | 'focused_mind' | 'spell_surge' | 'archmage'
-  // Chain 8 — Regeneration
-  | 'rejuvenation' | 'regenerator' | 'immortal'
+  // Chain 8 — Adrenaline
+  | 'adrenaline' | 'frenzy' | 'last_stand'
   // Chain 9 — AoE
   | 'wide_reach' | 'blast_master' | 'cataclysm';
 
@@ -88,7 +88,7 @@ export const PERK_CHAINS: readonly PerkChain[] = [
   /* 4 */ { common: 'iron_will',       rare: 'stoneskin',        legendary: 'colossus' },
   /* 5 */ { common: 'static_shock',     rare: 'overcharge',       legendary: 'thunderstorm' },
   /* 6 */ { common: 'focused_mind',    rare: 'spell_surge',      legendary: 'archmage' },
-  /* 7 */ { common: 'rejuvenation',    rare: 'regenerator',      legendary: 'immortal' },
+  /* 7 */ { common: 'adrenaline',      rare: 'frenzy',           legendary: 'last_stand' },
   /* 8 */ { common: 'wide_reach',      rare: 'blast_master',     legendary: 'cataclysm' },
 ];
 
@@ -216,21 +216,21 @@ export const PERKS: Record<PerkId, PerkDef> = {
     upgradesFrom: 'spell_surge',
   },
 
-  // ── Chain 7: Regeneration ────────────────────────────────────────────────
-  rejuvenation: {
-    id: 'rejuvenation', name: 'Rejuvenation', icon: 'Leaf', tier: 'common', chain: 7,
-    description: 'Heal 2 HP/s passively',
-    upgradesTo: 'regenerator',
+  // ── Chain 7: Adrenaline ──────────────────────────────────────────────────
+  adrenaline: {
+    id: 'adrenaline', name: 'Adrenaline', icon: 'Activity', tier: 'common', chain: 7,
+    description: '+20% ability damage when below 40% HP',
+    upgradesTo: 'frenzy',
   },
-  regenerator: {
-    id: 'regenerator', name: 'Regenerator', icon: 'TreePine', tier: 'rare', chain: 7,
-    description: 'Heal 5 HP/s, burst heal 30 HP at 30% HP (1×/wave)',
-    upgradesFrom: 'rejuvenation', upgradesTo: 'immortal',
+  frenzy: {
+    id: 'frenzy', name: 'Frenzy', icon: 'Flame', tier: 'rare', chain: 7,
+    description: '+30% ability damage and +15% move speed when below 40% HP',
+    upgradesFrom: 'adrenaline', upgradesTo: 'last_stand',
   },
-  immortal: {
-    id: 'immortal', name: 'Immortal', icon: 'Crown', tier: 'legendary', chain: 7,
-    description: 'Heal 8 HP/s, burst heal 2×/wave, self-revive once per game at 50% HP',
-    upgradesFrom: 'regenerator',
+  last_stand: {
+    id: 'last_stand', name: 'Last Stand', icon: 'Shield', tier: 'legendary', chain: 7,
+    description: '+50% ability damage, +25% move speed, and immune to stun when below 40% HP',
+    upgradesFrom: 'frenzy',
   },
 
   // ── Chain 8: AoE ─────────────────────────────────────────────────────────

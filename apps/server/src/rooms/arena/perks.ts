@@ -38,8 +38,6 @@ export interface PerkModifiers {
   aoeSizeMult: number;
   /** Multiplicative AoE-damage bonus (stacks with abilityDamageMult). */
   aoeDamageMult: number;
-  /** Flat passive HP healed per second. */
-  passiveHealPerSec: number;
   /** Flat damage reflected to melee attackers. */
   reflectDamage: number;
   /** Kick damage multiplier. */
@@ -50,12 +48,6 @@ export interface PerkModifiers {
   stunImmune: boolean;
   /** Mana refunded per zombie kill (flat). */
   manaPerKill: number;
-  /** Burst heal amount when HP drops below 30% (0 = disabled). */
-  lowHpBurstHeal: number;
-  /** Max times the low-HP burst can fire per wave. */
-  lowHpBurstMaxPerWave: number;
-  /** True if the player has a one-time self-revive. */
-  selfRevive: boolean;
   /** Overclock: kills required within the window to reset all cooldowns. */
   overclockKillThreshold: number;
   /** AoE kill chain-explosion chance (0–1). */
@@ -78,6 +70,12 @@ export interface PerkModifiers {
   lightningTargets: number;
   /** Static shock: stun duration (ms) applied. */
   lightningStunMs: number;
+  /** Adrenaline: extra ability damage multiplier when below 40% HP. */
+  lowHpDamageMult: number;
+  /** Adrenaline: extra move speed multiplier when below 40% HP. */
+  lowHpSpeedMult: number;
+  /** Adrenaline: stun immunity when below 40% HP. */
+  lowHpStunImmune: boolean;
 }
 
 export const IDENTITY_MODIFIERS: PerkModifiers = {
@@ -90,15 +88,11 @@ export const IDENTITY_MODIFIERS: PerkModifiers = {
   manaCostMult: 1,
   aoeSizeMult: 1,
   aoeDamageMult: 1,
-  passiveHealPerSec: 0,
   reflectDamage: 0,
   kickDamageMult: 1,
   kickForceMult: 1,
   stunImmune: false,
   manaPerKill: 0,
-  lowHpBurstHeal: 0,
-  lowHpBurstMaxPerWave: 0,
-  selfRevive: false,
   overclockKillThreshold: 0,
   chainExplosionChance: 0,
   kickAoeDamage: 0,
@@ -110,6 +104,9 @@ export const IDENTITY_MODIFIERS: PerkModifiers = {
   lightningDamage: 0,
   lightningTargets: 0,
   lightningStunMs: 0,
+  lowHpDamageMult: 1,
+  lowHpSpeedMult: 1,
+  lowHpStunImmune: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -248,7 +245,9 @@ export class PerkSystem {
       if (slot === 0 && upgradeTarget && isPerkId(upgradeTarget)) {
         // Free-choice upgrade: the player picks which perk to upgrade.
         const def = PERKS[upgradeTarget];
-        if (!def.upgradesTo || !myPerks.includes(upgradeTarget)) {
+        const samplePerk = offer.visible[0];
+        const allowedTier = PERKS[samplePerk].tier;
+        if (!def.upgradesTo || !myPerks.includes(upgradeTarget) || def.tier !== allowedTier) {
           this.offers.delete(sessionId);
           return false;
         }
@@ -527,20 +526,18 @@ export class PerkSystem {
           m.abilityBurnDurationMs = 2000;
           break;
 
-        // ── Regeneration chain ───────────────────────────────────────
-        case 'rejuvenation':
-          m.passiveHealPerSec = 2;
+        // ── Adrenaline chain ──────────────────────────────────────────────────
+        case 'adrenaline':
+          m.lowHpDamageMult = 1.20;
           break;
-        case 'regenerator':
-          m.passiveHealPerSec = 5;
-          m.lowHpBurstHeal = 30;
-          m.lowHpBurstMaxPerWave = 1;
+        case 'frenzy':
+          m.lowHpDamageMult = 1.30;
+          m.lowHpSpeedMult = 1.15;
           break;
-        case 'immortal':
-          m.passiveHealPerSec = 8;
-          m.lowHpBurstHeal = 30;
-          m.lowHpBurstMaxPerWave = 2;
-          m.selfRevive = true;
+        case 'last_stand':
+          m.lowHpDamageMult = 1.50;
+          m.lowHpSpeedMult = 1.25;
+          m.lowHpStunImmune = true;
           break;
 
         // ── AoE chain ────────────────────────────────────────────────
@@ -560,4 +557,18 @@ export class PerkSystem {
     }
     return m;
   }
+}
+
+/**
+ * Helper to calculate the perk movement speed multiplier, dynamically
+ * checking if the player is below 40% HP to apply lowHpSpeedMult.
+ */
+export function getPerkMoveSpeedMult(perkSystem: PerkSystem | undefined, player: Player): number {
+  if (!perkSystem) return 1;
+  const mods = perkSystem.getModifiers(player.sessionId);
+  let mult = mods.moveSpeedMult;
+  if (player.alive && player.maxHp > 0 && player.hp / player.maxHp < 0.40) {
+    mult *= mods.lowHpSpeedMult;
+  }
+  return mult;
 }

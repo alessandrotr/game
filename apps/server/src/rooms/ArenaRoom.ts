@@ -93,7 +93,7 @@ import { ArenaPhysics } from './arena/physics.js';
 import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
 import { ZombieDirector } from './arena/zombies.js';
-import { PerkSystem, IDENTITY_MODIFIERS } from './arena/perks.js';
+import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/perks.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
@@ -1058,7 +1058,7 @@ export class ArenaRoom extends AvatarRoom {
       } else {
         baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - (this.gunMode ? 0 : 1);
       }
-      const perkSpeed = this.perkSystem?.getModifiers(sessionId).moveSpeedMult ?? 1;
+      const perkSpeed = getPerkMoveSpeedMult(this.perkSystem, attacker);
       const speed = baseSpeed * moveSpeedMultiplier(attacker) * perkSpeed;
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
@@ -1190,10 +1190,6 @@ export class ArenaRoom extends AvatarRoom {
       const perkMods = this.perkSystem?.getModifiers(sessionId);
       const manaRegenMult = perkMods?.manaRegenMult ?? 1;
       regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
-      // Passive perk heal (e.g. Rejuvenation chain).
-      if (perkMods && perkMods.passiveHealPerSec > 0 && player.hp < player.maxHp) {
-        player.hp = Math.min(player.maxHp, player.hp + perkMods.passiveHealPerSec * dt);
-      }
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
 
@@ -1289,7 +1285,7 @@ export class ArenaRoom extends AvatarRoom {
             speed:
               (this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) *
               moveSpeedMultiplier(player) *
-              (this.perkSystem?.getModifiers(sessionId).moveSpeedMult ?? 1) *
+              getPerkMoveSpeedMult(this.perkSystem, player) *
               (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,

@@ -54,7 +54,7 @@ export function PerkPicker() {
     <div className="pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300 flex flex-col items-center gap-2 pb-3">
       <span className="text-xs font-bold uppercase tracking-wider text-white/70">Upgrade a Perk</span>
       <div className="flex items-stretch gap-3">
-        <UpgradeSelectList onSelect={(id) => pick(0, id)} />
+        <UpgradeSelectList offer={offer} onSelect={(id) => pick(0, id)} />
         <JollyCard onClick={() => pick(2)} />
       </div>
     </div>
@@ -152,14 +152,21 @@ function JollyCard({ onClick }: { onClick: () => void }) {
 }
 
 /** Sub-view: list the player's current perks so they can pick which one to upgrade. */
-function UpgradeSelectList({ onSelect }: { onSelect: (id: PerkId) => void }) {
+function UpgradeSelectList({
+  offer,
+  onSelect,
+}: {
+  offer: { visible: [PerkId, PerkId] };
+  onSelect: (id: PerkId) => void;
+}) {
   const sessionId = useGameStore((s) => s.sessionId);
   const players = useGameStore((s) => s.players);
   const me = sessionId ? players.get(sessionId) : undefined;
   if (!me) return null;
 
   const perkIds = [me.perk1, me.perk2, me.perk3].filter((id): id is PerkId => !!id && id in PERKS);
-  const upgradeable = perkIds.filter((id) => PERKS[id].upgradesTo);
+  const targetTier = PERKS[offer.visible[0]].tier;
+  const upgradeable = perkIds.filter((id) => PERKS[id].tier === targetTier && PERKS[id].upgradesTo);
 
   if (upgradeable.length === 0) {
     return <span className="text-sm text-white/50">No upgradeable perks</span>;
