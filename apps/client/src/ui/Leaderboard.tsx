@@ -10,7 +10,6 @@ import {
   DialogClose,
   DialogContent,
   DialogTitle,
-  IconButton,
   LevelBadge,
   Table,
   TableBody,
@@ -208,6 +207,16 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Gold section label with a divider tick — matches the matchmaking menu. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-gold/80">
+      <span className="h-px w-5 bg-linear-to-r from-gold/70 to-transparent" />
+      {children}
+    </span>
+  );
+}
+
 /**
  * Global leaderboard (town): a store-controlled modal listing the top players
  * ranked by wins. Opened from the game menu (no built-in trigger). Data is
@@ -244,68 +253,72 @@ export function Leaderboard() {
       <DialogContent
         dock={docked ? 'right' : 'center'}
         backdrop={!docked}
-        // A container so the contents below can size in `cqi` (% of panel width),
-        // scaling with the panel — which itself scales with the viewport when
-        // docked — and staying bounded when centered. Docked width is
-        // viewport-relative so it fills its side on a big screen.
+        // Frosted panel matching the matchmaking menu. A container so the contents
+        // size in `cqi` (% of panel width), scaling with the panel — which itself
+        // scales with the viewport when docked, bounded when centered.
         style={{ containerType: 'inline-size' }}
         className={
-          docked
-            ? 'w-[clamp(34rem,44vw,62rem)] max-w-none p-0'
-            : 'max-w-md p-0 sm:max-w-xl'
+          'flex max-h-[85vh] flex-col overflow-hidden border-white/10 bg-panel/55 p-0 backdrop-blur-2xl ' +
+          (docked ? 'w-[clamp(34rem,44vw,62rem)] max-w-none' : 'max-w-md sm:max-w-xl')
         }
         aria-describedby={undefined}
       >
-        {/* Header — title, the metric it's ranked by (transparency), close. */}
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-[3.5cqi] py-[2.8cqi]">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2 font-display text-[clamp(1.05rem,4.2cqi,1.8rem)] font-bold tracking-wide text-gold">
-              <Trophy size={18} aria-hidden="true" />
-              Leaderboard
-            </DialogTitle>
-            <p className="mt-0.5 text-[clamp(0.68rem,2.4cqi,1rem)] text-muted">Top players ranked by total wins</p>
-          </div>
+        {/* Slim header — icon crest + title + close (matchmaking style). */}
+        <div className="flex items-center justify-between gap-3 px-5 pt-4">
+          <DialogTitle className="flex items-center gap-2 font-display text-[clamp(0.95rem,2.8cqi,1.3rem)] font-semibold tracking-wide text-text">
+            <Trophy size={16} className="text-gold" aria-hidden="true" />
+            Leaderboard
+          </DialogTitle>
           <DialogClose asChild>
-            <IconButton icon={X} aria-label="Close" />
+            <button
+              type="button"
+              className="rounded-lg p-1 text-muted transition hover:bg-white/10 hover:text-text"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
           </DialogClose>
         </div>
 
-        <div className="max-h-[65vh] overflow-y-auto overscroll-contain text-[clamp(0.82rem,2.7cqi,1.12rem)]">
-          {loading ? (
-            <LoadingRows />
-          ) : !enabled ? (
-            <EmptyState>Persistence is disabled on this server — no standings yet.</EmptyState>
-          ) : entries.length === 0 ? (
-            <EmptyState>No ranked matches played yet. Be the first to win one!</EmptyState>
-          ) : (
-            <>
-              {/* Desktop: dense aligned table with a sticky header. */}
-              <div className="hidden sm:block">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
-                      <TableHead className="pl-3">Player</TableHead>
-                      <TableHead className="text-right">K / D</TableHead>
-                      <TableHead className="pr-4 text-right">W–L</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {entries.map((entry, i) => (
-                      <DeskRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-5 pb-5 pt-3">
+          <SectionLabel>Top players · by total wins</SectionLabel>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-black/15 text-[clamp(0.82rem,2.7cqi,1.12rem)]">
+            {loading ? (
+              <LoadingRows />
+            ) : !enabled ? (
+              <EmptyState>Persistence is disabled on this server — no standings yet.</EmptyState>
+            ) : entries.length === 0 ? (
+              <EmptyState>No ranked matches played yet. Be the first to win one!</EmptyState>
+            ) : (
+              <>
+                {/* Desktop: dense aligned table with a sticky header. */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
+                        <TableHead className="pl-3">Player</TableHead>
+                        <TableHead className="text-right">K / D</TableHead>
+                        <TableHead className="pr-4 text-right">W–L</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entries.map((entry, i) => (
+                        <DeskRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
-              {/* Mobile: stacked cards, no horizontal scroll. */}
-              <ul className="divide-y divide-white/5 sm:hidden">
-                {entries.map((entry, i) => (
-                  <MobileRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
-                ))}
-              </ul>
-            </>
-          )}
+                {/* Mobile: stacked cards, no horizontal scroll. */}
+                <ul className="divide-y divide-white/5 sm:hidden">
+                  {entries.map((entry, i) => (
+                    <MobileRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -28,10 +28,10 @@ export function Matchmaking() {
   const detailLobby = lobbies.find((l) => l.id === selectedLobbyId) ?? null;
   const isMember = !!myLobby && myLobby.id === detailLobby?.id;
 
-  // Cinematic focus belongs to the browser only. Once a detail panel / ready-check
-  // opens (centered dimmed overlays) — or the menu closes — release the camera +
-  // movement lock.
-  const showingMenu = menuOpen && !detailLobby && myLobby?.status !== 'ready_check';
+  // Keep the cinematic focus for the whole browsing session — including while a
+  // lobby detail panel is layered over it (viewing/joining another's match). Only
+  // the ready-check (a takeover flow) or closing the menu releases the camera.
+  const showingMenu = menuOpen && myLobby?.status !== 'ready_check';
   useEffect(() => {
     if (!showingMenu) useFocusStore.getState().clear('pvp');
   }, [showingMenu]);
