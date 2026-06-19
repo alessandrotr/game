@@ -243,6 +243,7 @@ export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardE
       pid: num(row.id),
       skinId: equipped.skinId,
       dyeId: equipped.dyeId,
+      titleId: equipped.titleId,
     };
   });
 }
@@ -250,18 +251,24 @@ export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardE
 /** Pull a class's equipped skin/dye out of a raw `cosmetics_loadout` JSONB value
  *  (a class → loadout map; pg may hand it back parsed or as a string). Best-effort:
  *  anything malformed yields no ids, so the podium falls back to the default look. */
-function loadoutFor(raw: unknown, characterClass: string): { skinId?: string; dyeId?: string } {
+function loadoutFor(
+  raw: unknown,
+  characterClass: string,
+): { skinId?: string; dyeId?: string; titleId?: string } {
   let map: Record<string, unknown> = {};
   try {
     map = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
   } catch {
     return {};
   }
-  const loadout = map?.[characterClass] as { skinId?: unknown; dyeId?: unknown } | undefined;
+  const loadout = map?.[characterClass] as
+    | { skinId?: unknown; dyeId?: unknown; titleId?: unknown }
+    | undefined;
   if (!loadout || typeof loadout !== 'object') return {};
   return {
     skinId: typeof loadout.skinId === 'string' ? loadout.skinId : undefined,
     dyeId: typeof loadout.dyeId === 'string' ? loadout.dyeId : undefined,
+    titleId: typeof loadout.titleId === 'string' ? loadout.titleId : undefined,
   };
 }
 

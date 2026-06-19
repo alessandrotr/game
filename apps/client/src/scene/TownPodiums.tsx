@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import { Color } from 'three';
-import { getClassDefinition, isCharacterClass, type CharacterClass, type LeaderboardEntry } from '@arena/shared';
+import { getCosmeticOfType, isCharacterClass, type CharacterClass, type LeaderboardEntry } from '@arena/shared';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { requestLeaderboard } from '../network/colyseus';
@@ -156,48 +156,47 @@ function MetalSurface({ color, color2 }: { color: string; color2: string }) {
   );
 }
 
-/** A billboarded nameplate: name (+ a class·level sub-line), read against the
- *  scene via a soft brown outline (no backing panel — that fought the town). The
- *  podiums are spaced wide and the labels cascade, so plain text doesn't collide. */
+/** A billboarded nameplate: the player's equipped title (tinted, above) + their
+ *  name, matching how titles read above players elsewhere (see PlayerEntity). Read
+ *  against the scene via a soft outline (no backing panel — that fought the town).
+ *  The podiums are spaced wide and the labels cascade, so plain text doesn't collide. */
 function NameLabel({
   name,
-  sub,
-  color,
+  title,
   present,
   y,
 }: {
   name: string;
-  sub?: string;
-  color: string;
+  title?: { text: string; color: string };
   present: boolean;
   y: number;
 }) {
   return (
     <Billboard position={[0, y, 0]}>
+      {present && title && (
+        <Text
+          position={[0, 0.26, 0]}
+          fontSize={0.12}
+          color={title.color}
+          anchorX="center"
+          anchorY="bottom"
+          outlineWidth={0.008}
+          outlineColor="#3a2616"
+        >
+          {title.text.toUpperCase()}
+        </Text>
+      )}
       <Text
-        fontSize={0.3}
-        color={present ? color : '#8b91a8'}
+        fontSize={0.22}
+        color={present ? '#e6e9f5' : '#8b91a8'}
         anchorX="center"
         anchorY="bottom"
-        outlineWidth={0.012}
+        outlineWidth={0.01}
         outlineColor="#3a2616"
         maxWidth={3}
       >
         {name}
       </Text>
-      {sub && (
-        <Text
-          position={[0, -0.07, 0]}
-          fontSize={0.17}
-          color="#e2e6ef"
-          anchorX="center"
-          anchorY="top"
-          outlineWidth={0.008}
-          outlineColor="#3a2616"
-        >
-          {sub}
-        </Text>
-      )}
     </Billboard>
   );
 }
@@ -222,13 +221,15 @@ function Podium({
   labelY: number;
   entry?: LeaderboardEntry;
 }) {
-  const className =
-    entry && isCharacterClass(entry.characterClass)
-      ? getClassDefinition(entry.characterClass).name
-      : undefined;
-  // With a champion standing on the tier, lift the nameplate clear of their head;
-  // an empty slot keeps the lower resting height so the "—" sits on the bare cap.
-  const nameY = entry ? height + MODEL_SCALE * MODEL_HEIGHT + 0.3 : labelY;
+  // The player's equipped title (tinted by its cosmetic color), shown above the
+  // name like the rest of the game's nameplates. Falls back to the default "Novice"
+  // title so a champion who hasn't set one still reads with a rank.
+  const title = entry
+    ? (entry.titleId && getCosmeticOfType(entry.titleId, 'title')) || getCosmeticOfType('title.novice', 'title')
+    : undefined;
+  // With a champion standing on the tier, lift the nameplate above their head; an
+  // empty slot keeps the lower resting height so the "—" sits on the bare cap.
+  const nameY = entry ? height + MODEL_SCALE * MODEL_HEIGHT + 0.55 : labelY;
   return (
     <group position={[x, 0, 0]}>
       {/* Cool polished-slate column. Low metalness (so its own color shows
@@ -268,9 +269,8 @@ function Podium({
       <NameLabel
         y={nameY}
         present={!!entry}
-        color={color}
         name={entry ? entry.name : '—'}
-        sub={entry ? `${className ?? ''} · Lv ${entry.level}`.trim() : undefined}
+        title={title ? { text: title.text, color: title.color } : undefined}
       />
     </group>
   );

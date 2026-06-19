@@ -312,6 +312,78 @@ export class PaintSurface {
     this.paintImage = null;
     this.recomposite();
   }
+
+  /** Stamp a filled shape (star, heart, …) onto the paint layer at UV (0..1), sized
+   *  by `radius` in texels. Drawn as a crisp filled 2D path — a decorative
+   *  alternative to the round brush. Call beginStroke() first so it's undoable. */
+  stampShape(u: number, v: number, radius: number, color: string, shape: StampShape): void {
+    const cx = u * PAINT_SIZE;
+    const cy = (1 - v) * PAINT_SIZE; // v flipped to match the texture
+    const ctx = this.pctx;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    buildShapePath(ctx, shape, cx, cy, radius);
+    ctx.fill();
+    ctx.restore();
+    this.paintImage = null;
+    this.recomposite();
+  }
+}
+
+/** Decorative stamp shapes the brush can place (the round brush is a separate,
+ *  drag-painted mode — see PaintStudio). */
+export type StampShape = 'circle' | 'star' | 'heart' | 'square' | 'triangle' | 'diamond';
+
+/** Trace a centered shape of radius `r` into the 2D path (caller fills it). */
+function buildShapePath(
+  ctx: CanvasRenderingContext2D,
+  shape: StampShape,
+  cx: number,
+  cy: number,
+  r: number,
+): void {
+  switch (shape) {
+    case 'circle':
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      break;
+    case 'square':
+      ctx.rect(cx - r, cy - r, r * 2, r * 2);
+      break;
+    case 'diamond':
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      break;
+    case 'triangle':
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r * 0.866, cy + r * 0.5);
+      ctx.lineTo(cx - r * 0.866, cy + r * 0.5);
+      ctx.closePath();
+      break;
+    case 'star': {
+      const points = 5;
+      const inner = r * 0.45;
+      for (let i = 0; i < points * 2; i++) {
+        const rad = i % 2 === 0 ? r : inner;
+        const a = -Math.PI / 2 + (i * Math.PI) / points;
+        const x = cx + Math.cos(a) * rad;
+        const y = cy + Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      break;
+    }
+    case 'heart':
+      ctx.moveTo(cx, cy + r * 0.4);
+      ctx.bezierCurveTo(cx + r * 1.1, cy - r * 0.4, cx + r * 0.45, cy - r * 1.05, cx, cy - r * 0.35);
+      ctx.bezierCurveTo(cx - r * 0.45, cy - r * 1.05, cx - r * 1.1, cy - r * 0.4, cx, cy + r * 0.4);
+      ctx.closePath();
+      break;
+  }
 }
 
 // --- per-owner, per-part registry ---

@@ -164,6 +164,9 @@ export interface LeaderboardEntry {
    *  champion in their actual appearance. Absent → default look. */
   skinId?: string;
   dyeId?: string;
+  /** Equipped title cosmetic id, so the podium nameplate shows the player's custom
+   *  title (tinted) like the rest of the game. Absent → no title. */
+  titleId?: string;
 }
 
 /** Payload map for {@link ClientMessage}. */

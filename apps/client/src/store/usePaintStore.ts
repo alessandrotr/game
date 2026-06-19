@@ -8,6 +8,7 @@ import {
   defaultSkin,
   PAINT_PARTS,
   type PaintPart,
+  type StampShape,
 } from '../paint/paintSurface';
 import { fetchPaint, putPaint } from '../network/paint';
 import { sendPaintRev } from '../network/colyseus';
@@ -40,6 +41,10 @@ type SkinColors = Partial<Record<PaintPart, string>>;
 /** The active editing tool. Mirror is a separate modifier (see `mirror`). */
 export type PaintTool = 'brush' | 'eraser' | 'eyedropper';
 
+/** Brush form: 'round' is the freehand drag brush; the rest are decorative stamps
+ *  placed per click (see {@link StampShape}). Applies when the tool is 'brush'. */
+export type BrushShape = 'round' | StampShape;
+
 /** Recently-used colors kept for quick reselection (newest first). */
 const RECENTS_CAP = 8;
 
@@ -52,6 +57,8 @@ interface PaintStore {
   recents: string[];
   /** Active tool. */
   tool: PaintTool;
+  /** Brush form (round freehand, or a stamped shape). */
+  shape: BrushShape;
   /** Symmetry modifier — strokes mirror across the body's centerline. */
   mirror: boolean;
   customizedByClass: Partial<Record<CharacterClass, boolean>>;
@@ -66,6 +73,7 @@ interface PaintStore {
   setColor: (color: string) => void;
   setBrush: (brush: number) => void;
   setTool: (tool: PaintTool) => void;
+  setShape: (shape: BrushShape) => void;
   toggleMirror: () => void;
   setSkin: (characterClass: CharacterClass, part: PaintPart, color: string) => void;
   skinFor: (characterClass: CharacterClass, part: PaintPart) => string;
@@ -134,6 +142,7 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
   palette: PALETTE,
   recents: [],
   tool: 'brush',
+  shape: 'round',
   mirror: false,
   customizedByClass: {},
   revByClass: {},
@@ -148,6 +157,7 @@ export const usePaintStore = create<PaintStore>((set, get) => ({
     })),
   setBrush: (brush) => set({ brush }),
   setTool: (tool) => set({ tool }),
+  setShape: (shape) => set({ shape }),
   toggleMirror: () => set((s) => ({ mirror: !s.mirror })),
 
   skinFor: (characterClass, part) => get().skinByClass[characterClass]?.[part] ?? defaultSkin(part),

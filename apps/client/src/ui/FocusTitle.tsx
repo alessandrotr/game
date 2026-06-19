@@ -1,4 +1,5 @@
 import { useFocusStore, type FocusPanel } from '../store/useFocusStore';
+import { PvpStats, CoopStats } from './FocusStats';
 
 /** A short kicker above the title, per focused structure. */
 const KICKER: Record<FocusPanel, string> = {
@@ -42,6 +43,8 @@ export function FocusTitle() {
         <p className="mt-4 max-w-md text-base leading-relaxed text-text/85 [text-shadow:0_1px_10px_rgba(0,0,0,0.7)] sm:text-lg">
           {BLURB[panel]}
         </p>
+        {panel === 'pvp' && <PvpStats />}
+        {panel === 'coop' && <CoopStats />}
       </div>
 
       {/* Local keyframes — a quick rise + fade so the title feels like it lands with
