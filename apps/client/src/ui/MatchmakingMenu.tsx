@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Swords, ChevronRight, Circle, X } from 'lucide-react';
 import {
   LOBBY_MODES,
@@ -43,7 +43,10 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
   const setSelectedLobbyId = useLobbyStore((s) => s.setSelectedLobbyId);
   const setError = useLobbyStore((s) => s.setError);
 
+  // `name` is the user's edit; until they type (`edited`), the field shows a
+  // generated default. So the placeholder-name auto-advances as lobbies appear.
   const [name, setName] = useState('');
+  const [edited, setEdited] = useState(false);
   const [mode, setMode] = useState<LobbyMode>('2v2');
   const docked = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
 
@@ -53,20 +56,39 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
   const inMatch = !!myLobby;
   const openQueue = useLobbyStore((s) => s.setQueueOpen);
 
+  // Names already in use (case-insensitive) — no two lobbies may share one.
+  const taken = useMemo(
+    () => new Set(lobbies.map((l) => l.name.trim().toLowerCase())),
+    [lobbies],
+  );
+  // Default "Arena N" — the lowest N not already taken, so it's unique on open.
+  const defaultName = useMemo(() => {
+    let n = 1;
+    while (taken.has(`arena ${n}`)) n++;
+    return `Arena ${n}`;
+  }, [taken]);
+  const effectiveName = edited ? name : defaultName;
+  const trimmedName = effectiveName.trim();
+  const nameTaken = trimmedName !== '' && taken.has(trimmedName.toLowerCase());
+
   const visible = lobbies
     .filter((l) => modeFilter === 'all' || l.mode === modeFilter)
     .filter((l) => (statusFilter === 'in-queue' ? l.status === 'queuing' : true));
 
   const create = () => {
     if (inMatch) return; // already in a match — one at a time
-    const trimmed = name.trim();
-    if (!trimmed) {
+    if (!trimmedName) {
       setError('Name your duel first.');
       return;
     }
+    if (nameTaken) {
+      setError('That name is already taken — pick another.');
+      return;
+    }
     setError(null);
-    sendCreateLobby(trimmed, mode);
+    sendCreateLobby(trimmedName, mode);
     setName('');
+    setEdited(false);
   };
 
   return (
@@ -105,26 +127,32 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
             </div>
             <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
               <Input
-                value={name}
+                value={effectiveName}
                 maxLength={LOBBY_NAME_MAX_LENGTH}
                 placeholder="Name your duel…"
                 tone="gold"
                 className="flex-1"
                 disabled={inMatch}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setEdited(true);
+                  setName(e.target.value);
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && create()}
               />
               <Button
                 variant="goldCta"
                 size="lg"
                 className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed"
-                disabled={inMatch || !name.trim()}
+                disabled={inMatch || !trimmedName || nameTaken}
                 onClick={create}
               >
                 <Swords size={16} aria-hidden="true" />
                 Create
               </Button>
             </div>
+            {!inMatch && nameTaken && (
+              <p className="mt-1.5 text-xs text-negative">That name is already taken — pick another.</p>
+            )}
           </section>
 
           {/* Browser */}
