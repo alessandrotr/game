@@ -13,3 +13,4 @@ export * from './paint.js';
 export * from './messages.js';
 export * from './chat.js';
 export * from './perks.js';
+export * from './roomLayout.js';

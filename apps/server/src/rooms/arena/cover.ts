@@ -135,6 +135,96 @@ export class CoverSystem {
     });
   }
 
+  // --- Room expansion system helpers ----------------------------------------
+
+  /** Running counter for structure ids added after init (sections + doors). */
+  private nextStructureIdx = 10000;
+
+  /** Place an indestructible wall segment at a door position. The door's id is
+   *  `door-{index}` so it can be removed by {@link removeDoor}. */
+  addDoor(door: { index: number; x: number; z: number; width: number; isVertical: boolean }): void {
+    const id = `door-${door.index}`;
+    const cs = new CoverStructure();
+    cs.id = id;
+    cs.assetId = 'prop.arena.fence.rust'; // rendered as a corrugated-metal wall
+    cs.x = door.x;
+    cs.z = door.z;
+    cs.rotation = door.isVertical ? Math.PI / 2 : 0;
+    cs.radius = door.width / 2;
+    cs.height = 2.4;
+    cs.hp = 9999;
+    cs.maxHp = 9999;
+    cs.destroyed = false;
+    cs.lengthScale = 1;
+    this.ctx.state.structures.set(id, cs);
+    const circles = [{ x: door.x, z: door.z, radius: door.width / 2, height: 2.4 }];
+    this.circles.set(id, circles);
+    for (const c of circles) this.collision.push(c);
+    this.colliders.set(
+      id,
+      this.physics.addStaticCylinder(door.x, door.z, door.width / 2, 2.4),
+    );
+    this.indestructible.add(id);
+  }
+
+  /** Remove a door wall so the passage is open. The structure is destroyed +
+   *  its collision is pulled from the live set. */
+  removeDoor(id: string): void {
+    const s = this.ctx.state.structures.get(id);
+    if (!s) return;
+    this.indestructible.delete(id);
+    s.destroyed = true;
+    const circles = this.circles.get(id);
+    if (circles) {
+      for (const circle of circles) {
+        const idx = this.collision.indexOf(circle);
+        if (idx >= 0) this.collision.splice(idx, 1);
+      }
+      this.circles.delete(id);
+    }
+    const collider = this.colliders.get(id);
+    if (collider) {
+      this.physics.removeCollider(collider);
+      this.colliders.delete(id);
+    }
+  }
+
+  /** Add structures for a newly unlocked section (does NOT reinit the whole set). */
+  addSection(specs: CoverStructureSpec[]): void {
+    for (const s of specs) {
+      const cs = new CoverStructure();
+      cs.id = `s${this.nextStructureIdx++}`;
+      cs.assetId = s.assetId;
+      cs.x = s.x;
+      cs.z = s.z;
+      cs.rotation = s.rotation;
+      cs.radius = s.radius;
+      cs.height = s.height;
+      cs.hp = s.maxHp;
+      cs.maxHp = s.maxHp;
+      cs.destroyed = false;
+      cs.lengthScale = s.lengthScale ?? 1;
+      this.ctx.state.structures.set(cs.id, cs);
+      const circles = structureFootprint(s.assetId, s.x, s.z, s.rotation, s.radius, s.height, s.lengthScale ?? 1);
+      this.circles.set(cs.id, circles);
+      for (const c of circles) this.collision.push(c);
+      this.colliders.set(
+        cs.id,
+        isTrailerAsset(s.assetId)
+          ? this.physics.addStaticBox(
+              s.x, s.z,
+              TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
+              TRAILER_HALF_WIDTH,
+              s.height,
+              s.rotation,
+            )
+          : this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height),
+      );
+      if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
+      if (s.indestructible) this.indestructible.add(cs.id);
+    }
+  }
+
   /** A live (un-destroyed) structure by id — for auto-attack targeting. */
   liveStructure(id: string): CoverStructure | undefined {
     const s = this.ctx.state.structures.get(id);

@@ -51,6 +51,9 @@ interface GameStore {
   zombiesRemaining: number;
   /** Zombies currently alive in the arena. */
   zombiesAlive: number;
+  /** How many sections beyond the main room are unlocked (0–3).
+   *  Drives section rendering, minimap, and door barrier state. */
+  unlockedSections: number;
 
   /**
    * Reactive lists of ids — change only when membership changes, so React
@@ -105,6 +108,7 @@ interface GameStore {
     remaining: number,
     alive: number,
     coop: boolean,
+    sections: number,
   ) => void;
   /** Toggle the world-swap loading screen (with an optional tagline). */
   setTransitioning: (transitioning: boolean, label?: string) => void;
@@ -158,6 +162,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   zombieLevel: 0,
   zombiesRemaining: 0,
   zombiesAlive: 0,
+  unlockedSections: 0,
   playerIds: [],
   projectileIds: [],
   barrelIds: [],
@@ -183,7 +188,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setArenaSeed: (seed) => {
     if (get().arenaSeed !== seed) set({ arenaSeed: seed });
   },
-  setZombie: (mode, gun, level, remaining, alive, coop) => {
+  setZombie: (mode, gun, level, remaining, alive, coop, sections) => {
     const s = get();
     if (
       s.zombieMode !== mode ||
@@ -191,7 +196,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       s.coopZombie !== coop ||
       s.zombieLevel !== level ||
       s.zombiesRemaining !== remaining ||
-      s.zombiesAlive !== alive
+      s.zombiesAlive !== alive ||
+      s.unlockedSections !== sections
     ) {
       set({
         zombieMode: mode,
@@ -200,6 +206,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         zombieLevel: level,
         zombiesRemaining: remaining,
         zombiesAlive: alive,
+        unlockedSections: sections,
       });
     }
   },
@@ -301,6 +308,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       zombieLevel: 0,
       zombiesRemaining: 0,
       zombiesAlive: 0,
+      unlockedSections: 0,
       playerIds: [],
       projectileIds: [],
       barrelIds: [],

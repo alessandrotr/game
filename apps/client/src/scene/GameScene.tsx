@@ -17,6 +17,7 @@ import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useQualityStore } from '../store/useQualityStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
+import { ShadowFollow } from './ShadowFollow';
 import { TownGround } from './TownGround';
 import { TownLights } from './TownLights';
 import { Fountain } from './Fountain';
@@ -162,6 +163,7 @@ export function GameScene() {
         <>
           <Arena />
           <ArenaLights barrelIds={barrelRoster} />
+          {useGameStore.getState().zombieMode && <ShadowFollow />}
         </>
       ) : (
         <>
