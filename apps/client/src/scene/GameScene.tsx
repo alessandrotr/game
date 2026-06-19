@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Environment, Lightformer } from '@react-three/drei';
+import { Environment } from '@react-three/drei';
 import {
   ACESFilmicToneMapping,
   AgXToneMapping,
@@ -11,6 +11,8 @@ import {
 } from 'three';
 import { type MapAssetId } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+import { useFocusStore } from '../store/useFocusStore';
+import { TownAtmosphere } from './TownAtmosphere';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useQualityStore } from '../store/useQualityStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
@@ -69,6 +71,10 @@ export function GameScene() {
   // Zombie mode: warm the horde models' GPU upload/shader-compile up front so the
   // first wave doesn't hitch.
   const zombieMode = useGameStore((s) => s.zombieMode);
+  // While a town structure is cinematically focused, hide ALL players (yours +
+  // others) so no one can wander/jump into the framed shot — or be standing on
+  // top of the subject if you clicked it from right beside it.
+  const focused = useFocusStore((s) => !!s.target);
   // First person hides the cursor (pointer lock); top-down still cursor-aims.
   const fpsView = gunMode && gunView === 'fps';
   const room = isArena ? 'arena' : 'town';
@@ -113,79 +119,43 @@ export function GameScene() {
       <ToneMap mode={env.toneMapping} exposure={env.exposure} />
       <ContextGuard />
       <PauseWhileCovered />
-      <color attach="background" args={[env.background]} />
-      <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
-
-      <ambientLight intensity={env.ambient} />
-      {/* Outdoor sky/ground fill (intensity 0 in the arena, which uses IBL). */}
-      <hemisphereLight
-        color={env.hemiSky}
-        groundColor={env.hemiGround}
-        intensity={env.hemiIntensity}
-      />
-      {/* Key light (sun) — the only shadow caster. Keyed by map size so changing
-          it from the dev tools recreates a fresh shadow map. */}
-      <directionalLight
-        key={quality.shadowMapSize}
-        position={env.sunPosition}
-        intensity={env.sunIntensity}
-        color={env.sunColor}
-        castShadow={quality.shadows}
-        shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
-        shadow-bias={env.shadowBias}
-        shadow-normalBias={env.shadowNormalBias}
-        shadow-camera-near={1}
-        shadow-camera-far={80}
-        shadow-camera-left={-env.shadowExtent}
-        shadow-camera-right={env.shadowExtent}
-        shadow-camera-top={env.shadowExtent}
-        shadow-camera-bottom={-env.shadowExtent}
-      />
-      {/* Shadowless cinematic fill + rim: lift shadowed faces and separate
-          silhouettes. Dropped on Low to save the per-pixel lighting work. */}
-      {quality.fillLights && (
-        <>
-          <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
-          <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
-        </>
-      )}
-      {/* Image-based lighting. Arena uses the night preset; the town builds a
-          procedural dusk environment from its own tuned sky/sun/ground colours
-          (zero external asset, baked once) for realistic ambient + reflections. */}
+      {/* Environment: the arena uses its fixed dusk lighting + IBL; the town uses
+          TownAtmosphere, which animates sky/fog/sun toward each focus scene's
+          weather (bright noon / blood sunset / storm + rain). */}
       {isArena ? (
-        <Environment preset="warehouse" environmentIntensity={env.envIntensity} />
-      ) : (
-        <Environment
-          key={`${env.hemiSky}${env.sunColor}${env.hemiGround}`}
-          frames={1}
-          resolution={64}
-          environmentIntensity={env.envIntensity}
-        >
-          <Lightformer
-            form="rect"
-            intensity={1.2}
-            color={env.hemiSky}
-            scale={[50, 50, 1]}
-            position={[0, 14, 0]}
-            rotation={[Math.PI / 2, 0, 0]}
-          />
-          <Lightformer
-            form="rect"
-            intensity={2.2}
+        <>
+          <color attach="background" args={[env.background]} />
+          <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
+          <ambientLight intensity={env.ambient} />
+          <hemisphereLight color={env.hemiSky} groundColor={env.hemiGround} intensity={env.hemiIntensity} />
+          {/* Key light (sun) — the only shadow caster. Keyed by map size so a dev-tool
+              change recreates a fresh shadow map. */}
+          <directionalLight
+            key={quality.shadowMapSize}
+            position={env.sunPosition}
+            intensity={env.sunIntensity}
             color={env.sunColor}
-            scale={[16, 16, 1]}
-            position={[14, 9, 8]}
-            rotation={[0, -Math.PI / 3, 0]}
+            castShadow={quality.shadows}
+            shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
+            shadow-bias={env.shadowBias}
+            shadow-normalBias={env.shadowNormalBias}
+            shadow-camera-near={1}
+            shadow-camera-far={80}
+            shadow-camera-left={-env.shadowExtent}
+            shadow-camera-right={env.shadowExtent}
+            shadow-camera-top={env.shadowExtent}
+            shadow-camera-bottom={-env.shadowExtent}
           />
-          <Lightformer
-            form="rect"
-            intensity={0.5}
-            color={env.hemiGround}
-            scale={[50, 50, 1]}
-            position={[0, -10, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          />
-        </Environment>
+          {quality.fillLights && (
+            <>
+              <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
+              <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
+            </>
+          )}
+          <Environment preset="warehouse" environmentIntensity={env.envIntensity} />
+        </>
+      ) : (
+        <TownAtmosphere env={env} quality={quality} />
       )}
 
       {isArena ? (
@@ -229,9 +199,10 @@ export function GameScene() {
       {isArena && !gunMode && <GroundTargeter />}
       {!gunMode && <DestinationMarker />}
 
-      {playerIds.map((id) => (
-        <PlayerEntity key={id} sessionId={id} />
-      ))}
+      {!focused &&
+        playerIds.map((id) => (
+          <PlayerEntity key={id} sessionId={id} />
+        ))}
 
       {isArena &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}

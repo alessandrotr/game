@@ -10,7 +10,8 @@ const KICKER: Record<FocusPanel, string> = {
 
 /** A punchy, hooking one-liner under the title — what this is, fast. */
 const BLURB: Record<FocusPanel, string> = {
-  leaderboard: 'The realm’s deadliest, ranked. Stack wins, climb the board, and carve your name in gold.',
+  leaderboard:
+    'The realm’s deadliest, ranked. Stack wins, climb the board, and carve your name in gold.',
   pvp: 'Step onto the sand. Duel 1v1 or squad up for team fights where pure skill decides who walks away.',
   coop: 'Rally your party and hold the line as endless undead pour through the rift. How long can you last?',
 };
@@ -29,18 +30,23 @@ export function FocusTitle() {
   if (!active || !title || !panel) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-y-0 left-0 z-modal flex w-1/2 flex-col justify-center bg-linear-to-r from-bg via-bg/65 to-transparent pl-8 sm:pl-14">
-      <div className="animate-[focusTitleIn_360ms_cubic-bezier(0.16,1,0.3,1)_both]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-modal flex flex-col justify-end bg-linear-to-t from-bg/65 via-bg/20 to-transparent pb-10 pl-8 pt-24 sm:pl-14">
+      {/* Left zone: bounded to a fraction of the viewport so the title sits under
+          the subject and never crowds the right-docked panel — on any width. */}
+      <div className="w-[min(36rem,52vw)] animate-[focusTitleIn_360ms_cubic-bezier(0.16,1,0.3,1)_both]">
         <div className="mb-3 flex items-center gap-3">
           <span className="h-px w-10 bg-linear-to-r from-gold to-transparent" />
           <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-gold/90">
             {KICKER[panel]}
           </span>
         </div>
-        <h2 className="font-display text-5xl font-black leading-[0.95] tracking-tight text-text drop-shadow-[0_2px_18px_rgba(0,0,0,0.6)] sm:text-6xl lg:text-7xl">
+        {/* Viewport-relative type: clamp(min, vw, max) so the title fills a big 2K
+            canvas instead of staying laptop-small, while never shrinking past a
+            readable floor on smaller focus screens. */}
+        <h2 className="font-display text-[clamp(3rem,6.2vw,8rem)] font-black leading-[0.95] tracking-tight text-text drop-shadow-[0_2px_18px_rgba(0,0,0,0.6)]">
           {title}
         </h2>
-        <p className="mt-4 max-w-md text-base leading-relaxed text-text/85 [text-shadow:0_1px_10px_rgba(0,0,0,0.7)] sm:text-lg">
+        <p className="mt-[1.2vw] max-w-[min(34rem,34vw)] text-[clamp(1rem,1.35vw,1.6rem)] leading-relaxed text-text/85 [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]">
           {BLURB[panel]}
         </p>
         {panel === 'pvp' && <PvpStats />}

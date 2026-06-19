@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { isRooted } from '@arena/shared';
-import { setDestination } from '../store/destinationState';
+import { setDestination, clearDestination } from '../store/destinationState';
 import { useGameStore } from '../store/useGameStore';
 import { useTargetStore } from '../store/targetState';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 import { useFocusStore } from '../store/useFocusStore';
-import { sendMoveTo } from '../network/colyseus';
+import { sendMoveTo, sendStopMove } from '../network/colyseus';
 
 /** Ground plane (y = 0) the cursor is projected onto. */
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
@@ -41,6 +41,17 @@ export function MouseMove() {
   const raycaster = useRef(new Raycaster());
   const ndc = useRef(new Vector2());
   const point = useRef(new Vector3());
+
+  // Engaging a cinematic focus INTERRUPTS movement: halt any in-progress walk (a
+  // move order issued before the focus) so the player stops where they are while
+  // the camera is off them — locally (prediction) and on the server.
+  const focused = useFocusStore((s) => !!s.target);
+  useEffect(() => {
+    if (!focused) return;
+    held.current = false;
+    clearDestination();
+    sendStopMove();
+  }, [focused]);
 
   useEffect(() => {
     const canvas = gl.domElement;

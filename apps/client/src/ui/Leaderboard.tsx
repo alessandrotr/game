@@ -111,7 +111,7 @@ function Record({ wins, losses }: { wins: number; losses: number }) {
         <span className="text-muted">–</span>
         <span className="font-semibold text-negative">{losses}</span>
       </span>
-      {rate !== null && <span className="text-[11px] text-muted">{rate}%</span>}
+      {rate !== null && <span className="text-[0.8em] text-muted">{rate}%</span>}
     </span>
   );
 }
@@ -135,16 +135,16 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
               <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
               {me && <YouTag />}
             </div>
-            <div className="mt-0.5 truncate text-[11px] text-muted">
+            <div className="mt-0.5 truncate text-[0.8em] text-muted">
               {cls.name}
             </div>
           </div>
         </div>
       </TableCell>
-      <TableCell className="py-2.5 text-right text-sm">
+      <TableCell className="py-2.5 text-right text-[0.92em]">
         <KillDeath kills={entry.kills} deaths={entry.deaths} />
       </TableCell>
-      <TableCell className="py-2.5 pr-4 text-right text-sm">
+      <TableCell className="py-2.5 pr-4 text-right text-[0.92em]">
         <Record wins={entry.wins} losses={entry.losses} />
       </TableCell>
     </TableRow>
@@ -166,13 +166,13 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
           <span className="truncate font-semibold text-text">{entry.name}</span>
           {me && <YouTag />}
         </div>
-        <div className="truncate text-[11px] text-muted">
+        <div className="truncate text-[0.8em] text-muted">
           {cls.name}
         </div>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5 text-sm">
+      <div className="flex shrink-0 flex-col items-end gap-0.5 text-[0.92em]">
         <Record wins={entry.wins} losses={entry.losses} />
-        <span className="text-[11px] text-muted">
+        <span className="text-[0.8em] text-muted">
           <KillDeath kills={entry.kills} deaths={entry.deaths} /> K/D
         </span>
       </div>
@@ -244,24 +244,33 @@ export function Leaderboard() {
       <DialogContent
         dock={docked ? 'right' : 'center'}
         backdrop={!docked}
-        className="max-w-md p-0 sm:max-w-xl"
+        // A container so the contents below can size in `cqi` (% of panel width),
+        // scaling with the panel — which itself scales with the viewport when
+        // docked — and staying bounded when centered. Docked width is
+        // viewport-relative so it fills its side on a big screen.
+        style={{ containerType: 'inline-size' }}
+        className={
+          docked
+            ? 'w-[clamp(34rem,44vw,62rem)] max-w-none p-0'
+            : 'max-w-md p-0 sm:max-w-xl'
+        }
         aria-describedby={undefined}
       >
         {/* Header — title, the metric it's ranked by (transparency), close. */}
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-[3.5cqi] py-[2.8cqi]">
           <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
+            <DialogTitle className="flex items-center gap-2 font-display text-[clamp(1.05rem,4.2cqi,1.8rem)] font-bold tracking-wide text-gold">
               <Trophy size={18} aria-hidden="true" />
               Leaderboard
             </DialogTitle>
-            <p className="mt-0.5 text-[11px] text-muted">Top players ranked by total wins</p>
+            <p className="mt-0.5 text-[clamp(0.68rem,2.4cqi,1rem)] text-muted">Top players ranked by total wins</p>
           </div>
           <DialogClose asChild>
             <IconButton icon={X} aria-label="Close" />
           </DialogClose>
         </div>
 
-        <div className="max-h-[65vh] overflow-y-auto overscroll-contain">
+        <div className="max-h-[65vh] overflow-y-auto overscroll-contain text-[clamp(0.82rem,2.7cqi,1.12rem)]">
           {loading ? (
             <LoadingRows />
           ) : !enabled ? (

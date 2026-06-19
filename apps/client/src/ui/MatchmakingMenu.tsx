@@ -1,28 +1,36 @@
 import { useState } from 'react';
-import { Swords, Users, X } from 'lucide-react';
-import { LOBBY_MODES, LOBBY_NAME_MAX_LENGTH, type LobbyMode, type LobbyView } from '@arena/shared';
+import { Swords, ChevronRight, Circle, X } from 'lucide-react';
+import {
+  LOBBY_MODES,
+  LOBBY_NAME_MAX_LENGTH,
+  teamSizeForMode,
+  type LobbyMode,
+  type LobbySlotView,
+  type LobbyView,
+} from '@arena/shared';
 import { useLobbyStore, type ModeFilter } from '../store/useLobbyStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { sendCreateLobby } from '../network/colyseus';
-import { Badge, Button, Card, Input, Overlay } from './primitives';
-
-/** Slots filled / total across both teams. */
-function fill(lobby: LobbyView): { filled: number; capacity: number } {
-  const slots = [...lobby.blue, ...lobby.red];
-  return { filled: slots.filter((s) => s.sessionId !== '').length, capacity: slots.length };
-}
+import { Button, Card, Input, Overlay } from './primitives';
+import { TEAM_COLORS } from './theme';
 
 const STATUS_LABEL: Record<LobbyView['status'], string> = {
-  queuing: 'In queue',
+  queuing: 'Open',
   ready_check: 'Ready check',
-  playing: 'Playing',
+  playing: 'Live',
+};
+const STATUS_TONE: Record<LobbyView['status'], string> = {
+  queuing: 'text-positive',
+  ready_check: 'text-cast',
+  playing: 'text-negative',
 };
 
 /**
- * The matchmaking browser (Phase 12): create a lobby (name + size) or pick an
- * open one to join. Filterable by match size and by status (open-only / all,
- * where "all" also shows in-progress duels). Clicking an open lobby selects it
- * so the player can choose a team slot in {@link LobbyView}.
+ * The matchmaking browser, styled as a game lobby: pick a FORMAT tile (the team
+ * sizes shown as blue-vs-red pips), name your duel and hit the CREATE call-out, or
+ * scan the open-duel cards — each shows its team fill as colored slot pips and a
+ * glowing status so occupancy reads instantly. Clicking an open card selects it to
+ * pick a slot in {@link LobbyView}. Docks right during the shrine's cinematic focus.
  */
 export function MatchmakingMenu() {
   const lobbies = useLobbyStore((s) => s.lobbies);
@@ -37,7 +45,6 @@ export function MatchmakingMenu() {
 
   const [name, setName] = useState('');
   const [mode, setMode] = useState<LobbyMode>('2v2');
-  // Docked to the right while the duel shrine is cinematically focused.
   const docked = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
 
   const visible = lobbies
@@ -47,7 +54,7 @@ export function MatchmakingMenu() {
   const create = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('Give your lobby a name.');
+      setError('Name your duel first.');
       return;
     }
     setError(null);
@@ -57,147 +64,219 @@ export function MatchmakingMenu() {
 
   return (
     <Overlay onClose={() => setMenuOpen(false)} closeOnEscape dock={docked ? 'right' : 'center'} transparent={docked}>
-      <Card variant="modal" className="flex max-h-[80vh] w-[600px] flex-col">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Swords size={18} className="text-gold" aria-hidden="true" />
-            <h2 className="font-display text-lg font-semibold tracking-wide">Matchmaking</h2>
-          </div>
+      <Card
+        variant="modal"
+        style={{ containerType: 'inline-size' }}
+        className={`flex max-h-[85vh] flex-col overflow-hidden border-white/10 bg-panel/55 backdrop-blur-2xl ${docked ? 'w-[clamp(32rem,38vw,48rem)]' : 'w-[min(560px,94vw)]'}`}
+      >
+        {/* Slim header — just the title + close (the cinematic focus shows the big
+            title on the left; centered, this keeps context). */}
+        <div className="flex items-center justify-between gap-3 px-5 pt-4">
+          <h2 className="flex items-center gap-2 font-display text-[clamp(0.95rem,2.8cqi,1.3rem)] font-semibold tracking-wide text-text">
+            <Swords size={16} className="text-gold" aria-hidden="true" />
+            Trial of Blades
+          </h2>
           <button
             type="button"
             onClick={() => setMenuOpen(false)}
-            className="text-muted transition hover:text-text"
+            className="rounded-lg p-1 text-muted transition hover:bg-white/10 hover:text-text"
             aria-label="Close"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Create a lobby. */}
-        <div className="border-b border-white/10 px-6 py-4">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            Create a duel
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              value={name}
-              maxLength={LOBBY_NAME_MAX_LENGTH}
-              placeholder="Lobby name"
-              inputSize="sm"
-              tone="gold"
-              className="flex-1"
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && create()}
-            />
-            <div className="flex gap-1">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5 pt-3">
+          {/* Create — format tiles + name + CTA */}
+          <section className="rounded-2xl border border-white/10 bg-black/15 p-3.5">
+            <SectionLabel>Choose your format</SectionLabel>
+            <div className="mt-2.5 grid grid-cols-3 gap-2">
               {LOBBY_MODES.map((m) => (
-                <ModeChip key={m} label={m} active={mode === m} onClick={() => setMode(m)} />
+                <ModeTile key={m} mode={m} active={mode === m} onClick={() => setMode(m)} />
               ))}
             </div>
-            <Button variant="gold" size="sm" className="px-4" onClick={create}>
-              Create
-            </Button>
-          </div>
-        </div>
-
-        {/* Filters. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-6 py-3 text-xs">
-          <span className="text-muted">Size</span>
-          <ModeChip label="All" active={modeFilter === 'all'} onClick={() => setModeFilter('all')} />
-          {LOBBY_MODES.map((m) => (
-            <ModeChip
-              key={m}
-              label={m}
-              active={modeFilter === m}
-              onClick={() => setModeFilter(m as ModeFilter)}
-            />
-          ))}
-          <span className="ml-3 text-muted">Show</span>
-          <ModeChip
-            label="Open only"
-            active={statusFilter === 'in-queue'}
-            onClick={() => setStatusFilter('in-queue')}
-          />
-          <ModeChip label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-        </div>
-
-        {error && (
-          <div className="border-b border-negative/20 bg-negative/10 px-6 py-2 text-xs text-negative">
-            {error}
-          </div>
-        )}
-
-        {/* Lobby list. */}
-        <div className="min-h-[160px] flex-1 overflow-y-auto px-6 py-3">
-          {visible.length === 0 ? (
-            <div className="py-10 text-center text-sm text-muted">
-              No duels yet — create one above.
+            <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
+              <Input
+                value={name}
+                maxLength={LOBBY_NAME_MAX_LENGTH}
+                placeholder="Name your duel…"
+                tone="gold"
+                className="flex-1"
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && create()}
+              />
+              <Button variant="goldCta" size="lg" className="shrink-0 justify-center gap-2 px-6" onClick={create}>
+                <Swords size={16} aria-hidden="true" />
+                Create
+              </Button>
             </div>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {visible.map((lobby) => {
-                const { filled, capacity } = fill(lobby);
-                const open = lobby.status === 'queuing';
-                return (
-                  <li key={lobby.id}>
-                    <button
-                      type="button"
-                      disabled={!open}
-                      onClick={() => {
-                        setError(null);
-                        setSelectedLobbyId(lobby.id);
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-left transition enabled:hover:border-gold/40 enabled:hover:bg-black/40 disabled:opacity-60"
-                    >
-                      <span className="flex items-center gap-3">
-                        <Badge variant="gold" className="!px-2 !py-0.5">
-                          {lobby.mode}
-                        </Badge>
-                        <span className="font-medium text-text">{lobby.name}</span>
-                      </span>
-                      <span className="flex items-center gap-3 text-xs text-muted">
-                        <span className="flex items-center gap-1 tabular-nums">
-                          <Users size={12} aria-hidden="true" />
-                          {filled}/{capacity}
-                        </span>
-                        <span className={open ? 'text-positive' : 'text-muted'}>
-                          {STATUS_LABEL[lobby.status]}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          </section>
+
+          {/* Browser */}
+          <section className="flex min-h-0 flex-col">
+            <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <SectionLabel className="mr-auto">Open duels · {visible.length}</SectionLabel>
+              <SegGroup>
+                <FilterPill label="All sizes" active={modeFilter === 'all'} onClick={() => setModeFilter('all')} />
+                {LOBBY_MODES.map((m) => (
+                  <FilterPill key={m} label={m} active={modeFilter === m} onClick={() => setModeFilter(m as ModeFilter)} />
+                ))}
+              </SegGroup>
+              <SegGroup>
+                <FilterPill label="Open" active={statusFilter === 'in-queue'} onClick={() => setStatusFilter('in-queue')} />
+                <FilterPill label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+              </SegGroup>
+            </div>
+
+            {error && (
+              <div className="mb-2.5 rounded-lg border border-negative/30 bg-negative/10 px-3 py-2 text-sm text-negative">
+                {error}
+              </div>
+            )}
+
+            {visible.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <ul className="grid grid-cols-1 gap-2 @[42rem]:grid-cols-2">
+                {visible.map((lobby) => (
+                  <LobbyCard
+                    key={lobby.id}
+                    lobby={lobby}
+                    onSelect={() => {
+                      setError(null);
+                      setSelectedLobbyId(lobby.id);
+                    }}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </Card>
     </Overlay>
   );
 }
 
-/** A small selectable pill used for both the create-mode picker and the filters. */
-function ModeChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+/** Filled/empty colored pips for one team's slots — occupancy at a glance. */
+function TeamPips({ slots, color }: { slots: LobbySlotView[]; color: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {slots.map((s, i) => (
+        <span
+          key={i}
+          className="h-2.5 w-2.5 rounded-full transition"
+          style={{
+            backgroundColor: s.sessionId ? color : 'transparent',
+            boxShadow: `inset 0 0 0 1.5px ${color}`,
+            opacity: s.sessionId ? 1 : 0.4,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Per-format role label, cleaner than a pip cluster on the picker. */
+const FORMAT_ROLE: Record<number, string> = { 1: 'Solo', 2: 'Duo', 3: 'Trio', 4: 'Squad', 5: 'Team' };
+
+/** A selectable format tile: the mode big with a quiet role label under it. */
+function ModeTile({ mode, active, onClick }: { mode: LobbyMode; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        'flex flex-col items-center gap-0.5 rounded-xl border py-2.5 transition ' +
+        (active
+          ? 'border-gold bg-gold/15 text-gold shadow-[inset_0_0_18px_rgba(200,162,74,0.18)]'
+          : 'border-white/10 bg-black/20 text-text hover:border-white/30 hover:bg-black/30')
+      }
+    >
+      <span className="font-display text-lg font-black leading-none tracking-wide">{mode}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50">
+        {FORMAT_ROLE[teamSizeForMode(mode)]}
+      </span>
+    </button>
+  );
+}
+
+/** A browsable lobby as a tactile card: name, mode, team-fill pips, glowing status,
+ *  and a join chevron that slides in on hover. Disabled when not joinable. */
+function LobbyCard({ lobby, onSelect }: { lobby: LobbyView; onSelect: () => void }) {
+  const open = lobby.status === 'queuing';
+  const filled = [...lobby.blue, ...lobby.red].filter((s) => s.sessionId !== '').length;
+  const capacity = lobby.blue.length + lobby.red.length;
+  return (
+    <li>
+      <button
+        type="button"
+        disabled={!open}
+        onClick={onSelect}
+        className="group relative flex w-full flex-col gap-2.5 overflow-hidden rounded-xl border border-white/10 bg-linear-to-b from-white/4 to-transparent p-3 text-left transition enabled:hover:border-gold/50 enabled:hover:from-gold/10 disabled:opacity-55"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-md bg-gold/15 px-2 py-0.5 font-display text-xs font-bold tracking-wide text-gold ring-1 ring-gold/25">
+            {lobby.mode}
+          </span>
+          <span className="min-w-0 flex-1 truncate font-semibold text-text">{lobby.name}</span>
+          <span className={'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ' + STATUS_TONE[lobby.status]}>
+            <Circle size={7} className="fill-current" aria-hidden="true" />
+            {STATUS_LABEL[lobby.status]}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <TeamPips slots={lobby.blue} color={TEAM_COLORS.blue} />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted">vs</span>
+          <TeamPips slots={lobby.red} color={TEAM_COLORS.red} />
+          <span className="ml-auto flex items-center gap-1 text-xs tabular-nums text-muted">
+            {filled}/{capacity}
+            <ChevronRight
+              size={16}
+              className="text-gold opacity-0 transition group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:opacity-100"
+              aria-hidden="true"
+            />
+          </span>
+        </div>
+      </button>
+    </li>
+  );
+}
+
+function SectionLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={'flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-gold/80 ' + className}>
+      <span className="h-px w-5 bg-linear-to-r from-gold/70 to-transparent" />
+      {children}
+    </span>
+  );
+}
+
+/** A segmented group wrapper that hugs its pills as one control. */
+function SegGroup({ children }: { children: React.ReactNode }) {
+  return <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-black/20 p-1">{children}</div>;
+}
+
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={
-        'rounded-lg border px-2.5 py-1 text-xs transition ' +
-        (active
-          ? 'border-gold/60 bg-gold/15 text-gold'
-          : 'border-white/10 text-muted hover:border-white/30 hover:text-text')
+        'rounded-md px-2.5 py-1 text-xs font-medium transition ' +
+        (active ? 'bg-gold/20 text-gold' : 'text-muted hover:text-text')
       }
     >
       {label}
     </button>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex items-center justify-center gap-2.5 rounded-xl bg-black/15 px-4 py-6 text-center">
+      <Swords size={16} className="shrink-0 text-muted/60" aria-hidden="true" />
+      <p className="text-sm text-muted">No open duels yet — create one and wait for a challenger.</p>
+    </div>
   );
 }
