@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {
@@ -176,9 +176,6 @@ function GltfCharacter({
   const { scene, animations } = useGLTF(model.url);
   const instance = useMemo(() => {
     const clone = cloneSkinned(scene);
-    // A tint must own its materials: SkeletonUtils.clone shares them with the
-    // cached GLTF, so recoloring in place would dye every player of this class.
-    const tintColor = tint ? new Color(tint) : null;
     // Players cast/receive shadows and disable frustum culling on skinned meshes
     // so their shadow isn't dropped when the bind-pose bounds fall outside the
     // shadow camera. Lightweight bodies (zombie hordes) cast NO shadows and STAY
@@ -195,13 +192,17 @@ function GltfCharacter({
       // in town) — so they look flat and ignore lights/shadows. Force them matte
       // so they light + receive shadows like the placeholder characters.
       const apply = (mat: MeshStandardMaterial): MeshStandardMaterial => {
-        const out = tintColor ? (mat.clone() as MeshStandardMaterial) : mat;
+        const out = mat.clone() as MeshStandardMaterial;
         if ('metalness' in out) {
           out.metalness = 0.3;
           if (out.roughness < 0.5) out.roughness = 0.8;
         }
-        // Blend toward the tint so the dye reads as a hue without flattening detail.
-        if (tintColor && out.color) out.color.lerp(tintColor, 0.55);
+        if (out.color && typeof out.color.clone === 'function') {
+          out.userData = {
+            ...out.userData,
+            originalColor: out.color.clone(),
+          };
+        }
         return out;
       };
       mesh.material = Array.isArray(mesh.material)
@@ -209,7 +210,39 @@ function GltfCharacter({
         : apply(mesh.material as MeshStandardMaterial);
     });
     return clone;
-  }, [scene, tint, lightweight]);
+  }, [scene, lightweight]);
+
+  // Dynamically apply body tint overlay and emissive glow in-place without
+  // recreating the cloned instance (which resets animation mixers).
+  useEffect(() => {
+    const tintColor = tint ? new Color(tint) : null;
+    instance.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const updateMaterial = (mat: MeshStandardMaterial) => {
+        const originalColor = mat.userData?.originalColor as Color | undefined;
+        if (!originalColor) return;
+        if (tintColor) {
+          mat.color.copy(originalColor).lerp(tintColor, 0.55);
+          if (mat.emissive) {
+            mat.emissive.copy(tintColor);
+            mat.emissiveIntensity = 0.5;
+          }
+        } else {
+          mat.color.copy(originalColor);
+          if (mat.emissive) {
+            mat.emissive.setScalar(0);
+            mat.emissiveIntensity = 0;
+          }
+        }
+      };
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach((m) => updateMaterial(m as MeshStandardMaterial));
+      } else {
+        updateMaterial(mesh.material as MeshStandardMaterial);
+      }
+    });
+  }, [instance, tint]);
   const root = useRef<Group>(null);
   // Play clips IN PLACE: strip root-motion (the hips `.position` track) so the
   // character animates without drifting — its world position is driven by the

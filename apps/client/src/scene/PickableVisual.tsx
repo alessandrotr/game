@@ -49,9 +49,28 @@ function Grenade() {
   );
 }
 
+/** A heal pack: a green cross formed by two intersecting boxes. */
+function HealPack() {
+  return (
+    <group>
+      {/* Horizontal bar of the cross */}
+      <mesh castShadow position={[0, 0.25, 0]}>
+        <boxGeometry args={[0.5, 0.16, 0.16]} />
+        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} roughness={0.4} />
+      </mesh>
+      {/* Vertical bar of the cross */}
+      <mesh castShadow position={[0, 0.25, 0]}>
+        <boxGeometry args={[0.16, 0.5, 0.16]} />
+        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 /** Render a pickable's mesh by kind (anything unknown renders nothing). */
 export function PickableVisual({ kind }: { kind: string }) {
   if (kind === 'molotov') return <Molotov />;
   if (kind === 'grenade') return <Grenade />;
+  if (kind === 'heal_pack') return <HealPack />;
   return null;
 }

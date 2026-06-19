@@ -621,6 +621,8 @@ export const ZOMBIE_SPRINTER_HP_MULT = 0.7;
 /** Skin id for the Fat variant; the client maps it to its (bulky) model. A
  *  slow, heavily-armoured tank — lots of health, slightly quicker swings. */
 export const ZOMBIE_FAT_SKIN_ID = 'skin.zombie.fat';
+/** Skin id for the Mini-Boss variant. */
+export const ZOMBIE_MINIBOSS_SKIN_ID = 'skin.zombie.miniboss';
 /** A Fat has this many times a same-level zombie's health. */
 export const ZOMBIE_FAT_HP_MULT = 3;
 /** Flat health shaved off a Fat after the multiplier (tuning down its bulk). */
@@ -698,7 +700,10 @@ export function zombieFatChanceForLevel(_level: number): number {
  *  that grant reduced XP and don't count as PvP kills. */
 export function isZombieSkin(skinId: string): boolean {
   return (
-    skinId === ZOMBIE_SKIN_ID || skinId === ZOMBIE_SPRINTER_SKIN_ID || skinId === ZOMBIE_FAT_SKIN_ID
+    skinId === ZOMBIE_SKIN_ID ||
+    skinId === ZOMBIE_SPRINTER_SKIN_ID ||
+    skinId === ZOMBIE_FAT_SKIN_ID ||
+    skinId === ZOMBIE_MINIBOSS_SKIN_ID
   );
 }
 

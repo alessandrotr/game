@@ -32,6 +32,7 @@ import {
   ZOMBIE_SPRINTER_SPEED_MIN,
   ZOMBIE_SPRINTER_SPEED_MAX,
   ZOMBIE_FAT_SKIN_ID,
+  ZOMBIE_MINIBOSS_SKIN_ID,
   ZOMBIE_FAT_SPEED_PENALTY,
   ZOMBIE_FAT_ATTACK_BONUS_MS,
   ZOMBIE_SPEED_JITTER,
@@ -215,6 +216,8 @@ export class ArenaRoom extends AvatarRoom {
     string,
     { speedOffset: number; wander: number; wanderUntil: number; attackBonusMs: number }
   >();
+  /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
+  private readonly bossNextActionAt = new Map<string, number>();
 
   /** This match's live collision set for movement and projectiles: a circle for
    *  every alive destructible structure (trailers, cars, dumpsters, scrap heaps).
@@ -312,6 +315,7 @@ export class ArenaRoom extends AvatarRoom {
       }
       this.zombieDirector = new ZombieDirector(this.buildContext(), {
         spawnZombie: (level) => this.spawnZombie(level),
+        spawnMiniBoss: (level) => this.spawnMiniBoss(level),
         aliveZombies: () => this.countAliveZombies(),
         humansPresent: () => this.countHumans() > 0,
         onWaveClear: (level) => {
@@ -1031,9 +1035,13 @@ export class ArenaRoom extends AvatarRoom {
       if (isZombie) {
         const ai = this.zombieAiFor(sessionId);
         const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - (this.gunMode ? 0 : 1);
+        let speedOffset = ai.speedOffset;
+        if (attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID && attacker.hp < attacker.maxHp * 0.5) {
+          speedOffset = -1.5; // Berserk speed multiplier offset
+        }
         baseSpeed = Math.max(
           1,
-          zBase + ai.speedOffset,
+          zBase + speedOffset,
         );
         // Arc off the straight line toward this zombie's COMMITTED flank side by
         // an angle that ramps with distance (full when far, zero at attack range)
@@ -1099,18 +1107,22 @@ export class ArenaRoom extends AvatarRoom {
       name: 'attack',
       until: this.simTime + Math.min(interval, 400),
     });
+    let dmg = cfg.damage;
+    if (attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
+      dmg *= 3;
+    }
     if (cfg.kind === 'ranged') {
       // The projectile resolves the hit (player / barrel / structure) on impact.
       this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
     } else if (targetPlayer) {
-      this.combat.dealDamage(targetPlayer, cfg.damage, sessionId);
+      this.combat.dealDamage(targetPlayer, dmg, sessionId);
     } else if (targetBarrel) {
       // Melee shove: launch the barrel away from the attacker.
       this.combat.triggerBarrel(targetBarrel, ndx, ndz, sessionId);
     } else if (targetStructure) {
       // Melee strike: chip the structure's HP (crumbles at 0), shoving a car the
       // way the blow is aimed.
-      this.combat.damageStructure(targetStructure.id, cfg.damage, ndx, ndz);
+      this.combat.damageStructure(targetStructure.id, dmg, ndx, ndz);
     }
   }
 
@@ -1144,7 +1156,10 @@ export class ArenaRoom extends AvatarRoom {
     if (this.zombieMode) {
       this.bots.forEach((_profile, id) => {
         const z = this.state.players.get(id);
-        if (z?.alive) zombieBlockers.push({ x: z.x, z: z.z, radius: PLAYER_RADIUS, height: 0 });
+        if (z?.alive) {
+          const r = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+          zombieBlockers.push({ x: z.x, z: z.z, radius: r, height: 0 });
+        }
       });
       this.state.barrels.forEach((b) => {
         if (b.alive) propObstacles.push({ x: b.x, z: b.z, radius: 0.45, height: 0 });
@@ -1170,6 +1185,9 @@ export class ArenaRoom extends AvatarRoom {
         // vanishes immediately. Avoids animating dozens of dying corpses on the
         // client and clears the level's "all dead" check the instant it dies.
         if (this.zombieMode && this.bots.has(sessionId)) {
+          if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
+            this.pickables.spawnGround('heal_pack', player.x, player.z);
+          }
           this.removeBot(sessionId);
           return;
         }
@@ -1192,6 +1210,11 @@ export class ArenaRoom extends AvatarRoom {
       regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
+
+      // Update Mini-Boss AI if this player is the mini-boss
+      if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
+        this.updateMiniBossAI(player, sessionId);
+      }
 
       // Capture pre-move position to derive locomotion (run vs idle) below.
       const startX = player.x;
@@ -1300,7 +1323,8 @@ export class ArenaRoom extends AvatarRoom {
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,
       // idle overlaps); stepMove already resolved the move path.
-      const fixed = collideObstacles(player.x, player.z, moveObstacles, PLAYER_RADIUS);
+      const r = player.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+      const fixed = collideObstacles(player.x, player.z, moveObstacles, r);
       player.x = fixed.x;
       player.z = fixed.z;
 
@@ -1484,9 +1508,6 @@ export class ArenaRoom extends AvatarRoom {
    * are re-resolved against cover so they can't be wedged into an obstacle.
    */
   private resolveZombieCollisions(): void {
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
-    const minSep = PLAYER_RADIUS * 2;
-    const minSepSq = minSep * minSep;
     const zombies: Player[] = [];
     this.bots.forEach((_profile, id) => {
       const z = this.state.players.get(id);
@@ -1498,8 +1519,12 @@ export class ArenaRoom extends AvatarRoom {
     // coincident, e.g. two spawned on the same jittered point).
     for (let i = 0; i < zombies.length; i++) {
       const a = zombies[i]!;
+      const aRadius = a.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
       for (let j = i + 1; j < zombies.length; j++) {
         const b = zombies[j]!;
+        const bRadius = b.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+        const minSep = aRadius + bRadius;
+        const minSepSq = minSep * minSep;
         let dx = b.x - a.x;
         let dz = b.z - a.z;
         const d2 = dx * dx + dz * dz;
@@ -1513,25 +1538,32 @@ export class ArenaRoom extends AvatarRoom {
         const push = (minSep - d) / 2;
         const ox = (dx / d) * push;
         const oz = (dz / d) * push;
-        a.x = clamp(a.x - ox, -limit, limit);
-        a.z = clamp(a.z - oz, -limit, limit);
-        b.x = clamp(b.x + ox, -limit, limit);
-        b.z = clamp(b.z + oz, -limit, limit);
+        const aLimit = ARENA_HALF_SIZE - aRadius;
+        const bLimit = ARENA_HALF_SIZE - bRadius;
+        a.x = clamp(a.x - ox, -aLimit, aLimit);
+        a.z = clamp(a.z - oz, -aLimit, aLimit);
+        b.x = clamp(b.x + ox, -bLimit, bLimit);
+        b.z = clamp(b.z + oz, -bLimit, bLimit);
       }
     }
 
     // Zombie ↔ human: shove the zombie fully out (leave the human put).
     this.state.players.forEach((human, id) => {
       if (this.bots.has(id) || !human.alive) return;
+      const humanRadius = PLAYER_RADIUS;
       for (const z of zombies) {
+        const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+        const minSep = humanRadius + zRadius;
+        const minSepSq = minSep * minSep;
         const dx = z.x - human.x;
         const dz = z.z - human.z;
         const dist2 = dx * dx + dz * dz;
         if (dist2 >= minSepSq || dist2 < 1e-8) continue;
         const d = Math.sqrt(dist2);
         const push = minSep - d;
-        z.x = clamp(z.x + (dx / d) * push, -limit, limit);
-        z.z = clamp(z.z + (dz / d) * push, -limit, limit);
+        const zLimit = ARENA_HALF_SIZE - zRadius;
+        z.x = clamp(z.x + (dx / d) * push, -zLimit, zLimit);
+        z.z = clamp(z.z + (dz / d) * push, -zLimit, zLimit);
       }
     });
 
@@ -1546,7 +1578,8 @@ export class ArenaRoom extends AvatarRoom {
     const zombieStaticObstacles = this.obstacles.concat(propObstacles);
 
     for (const z of zombies) {
-      const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, PLAYER_RADIUS);
+      const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+      const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, zRadius);
       z.x = fixed.x;
       z.z = fixed.z;
     }
@@ -1668,6 +1701,112 @@ export class ArenaRoom extends AvatarRoom {
       // A Fat is slower than a same-level zombie and swings a touch sooner.
       ai.speedOffset = -ZOMBIE_FAT_SPEED_PENALTY;
       ai.attackBonusMs = ZOMBIE_FAT_ATTACK_BONUS_MS;
+    }
+  }
+
+  private spawnMiniBoss(_level: number): void {
+    const id = `zombie-miniboss-${++this.botSeq}`;
+    const player = new Player();
+    player.sessionId = id;
+    player.name = 'Mini Boss';
+    player.characterClass = 'warrior';
+    player.skinId = ZOMBIE_MINIBOSS_SKIN_ID;
+    player.team = 'red';
+    this.resetPlayer(player);
+
+    const limit = ARENA_HALF_SIZE - 0.8;
+    const portal =
+      ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
+      ARENA_PORTAL_POINT;
+    player.x = clamp(portal.x + (Math.random() * 2 - 1) * 1.6, -limit, limit);
+    player.z = clamp(portal.z + (Math.random() * 2 - 1) * 1.6, -limit, limit);
+    
+    player.maxHp = 750;
+    player.hp = 750;
+
+    this.state.players.set(id, player);
+    this.verticalVelocity.set(id, 0);
+    this.grounded.set(id, true);
+    this.cooldowns.set(id, {});
+    this.bots.set(id, makeZombieProfile());
+    
+    const ai = this.zombieAiFor(id);
+    ai.speedOffset = -2.5; // Slow movement speed
+  }
+
+  private updateMiniBossAI(bot: Player, id: string): void {
+    if (this.simTime < (this.bossNextActionAt.get(id) ?? 0)) return;
+    
+    // Mini-boss target
+    const targetId = this.attackTargets.get(id);
+    const target = targetId ? this.state.players.get(targetId) : undefined;
+    if (!target || !target.alive) {
+      // Re-evaluate target or try to find the closest player
+      let bestTarget: Player | undefined;
+      let minD2 = Infinity;
+      this.state.players.forEach((p) => {
+        if (!p.alive || p.team === bot.team) return;
+        const dx = p.x - bot.x;
+        const dz = p.z - bot.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < minD2) {
+          minD2 = d2;
+          bestTarget = p;
+        }
+      });
+      if (bestTarget) {
+        this.attackTargets.set(id, bestTarget.sessionId);
+        this.bossNextActionAt.set(id, this.simTime + 500); // short wait to re-aim
+      }
+      return;
+    }
+
+    // Set next action timestamp (3.5 to 6s cooldown)
+    const interval = 3500 + Math.random() * 2500;
+    this.bossNextActionAt.set(id, this.simTime + interval);
+
+    // Roll for action: 50% chance fireball, 50% chance stomp shockwave
+    const roll = Math.random();
+    if (roll < 0.5) {
+      // 5-way Fireball burst
+      const baseAngle = Math.atan2(target.x - bot.x, target.z - bot.z);
+      for (let i = 0; i < 5; i++) {
+        const angle = baseAngle + i * ((2 * Math.PI) / 5);
+        const dirX = Math.sin(angle);
+        const dirZ = Math.cos(angle);
+        
+        // Spawn fireball projectile (3x slower velocity: 15 instead of 45)
+        this.projectiles.spawnProjectile(
+          bot,
+          'fireball',
+          dirX,
+          dirZ,
+          15,
+          30,
+          1.0,
+          [{ type: 'damage', amount: 20 }]
+        );
+      }
+    } else {
+      // Stomp shockwave: circular shockwave hitting everyone in a 7.0 unit radius, dealing 25 damage and knocking them back.
+      this.combat.forEachEnemyInRadius(bot.x, bot.z, 7.0, id, (enemy) => {
+        this.combat.dealDamage(enemy, 25, id);
+        this.combat.applyStatus(enemy, { kind: 'slow', durationMs: 2000, magnitude: 0.6 }, id);
+        const dx = enemy.x - bot.x;
+        const dz = enemy.z - bot.z;
+        const dist = Math.hypot(dx, dz) || 1;
+        this.combat.displace(enemy, dx / dist, dz / dist, 4, 18, 0, id);
+      });
+      // Play ground slam VFX on clients
+      this.broadcast(ServerMessage.AbilityCast, {
+        casterId: id,
+        ability: 'ground_slam',
+        x: bot.x,
+        y: 0.05,
+        z: bot.z,
+        dirX: 0,
+        dirZ: 1,
+      });
     }
   }
 }

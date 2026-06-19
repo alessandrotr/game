@@ -10,7 +10,7 @@
  */
 
 /** Every pickable object kind (the registry keys, as a literal union). */
-export type PickableKind = 'molotov' | 'grenade';
+export type PickableKind = 'molotov' | 'grenade' | 'heal_pack';
 
 /** The instant blast a thrown pickable deals where it lands. */
 export interface PickableImpact {
@@ -70,6 +70,15 @@ export const PICKABLES: Record<PickableKind, PickableDef> = {
     throwSpeed: 20,
     projectileRadius: 0.5,
     impact: { radius: 6, damage: 32 },
+  },
+  // An instant-pickup healing cross item dropped by the Mini-Boss.
+  heal_pack: {
+    id: 'heal_pack',
+    name: 'Heal Pack',
+    throwRange: 0,
+    throwSpeed: 0,
+    projectileRadius: 0,
+    impact: { radius: 0, damage: 0 },
   },
 };
 

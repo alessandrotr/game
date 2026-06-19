@@ -438,11 +438,12 @@ export class CombatSystem {
     exceptId: string,
     fn: (target: Player) => void,
   ): void {
-    const hitSq = (radius + PLAYER_RADIUS) * (radius + PLAYER_RADIUS);
     this.ctx.state.players.forEach((target, id) => {
       if (id === exceptId || !target.alive) return;
       const dx = target.x - x;
       const dz = target.z - z;
+      const entityRadius = target.skinId === 'skin.zombie.miniboss' ? 0.8 : PLAYER_RADIUS;
+      const hitSq = (radius + entityRadius) * (radius + entityRadius);
       if (dx * dx + dz * dz <= hitSq) fn(target);
     });
   }
@@ -456,11 +457,12 @@ export class CombatSystem {
     caster: Player,
     fn: (target: Player) => void,
   ): void {
-    const hitSq = (radius + PLAYER_RADIUS) * (radius + PLAYER_RADIUS);
     this.ctx.state.players.forEach((target, id) => {
       if (id === caster.sessionId || !target.alive || target.team !== caster.team) return;
       const dx = target.x - x;
       const dz = target.z - z;
+      const entityRadius = target.skinId === 'skin.zombie.miniboss' ? 0.8 : PLAYER_RADIUS;
+      const hitSq = (radius + entityRadius) * (radius + entityRadius);
       if (dx * dx + dz * dz <= hitSq) fn(target);
     });
   }

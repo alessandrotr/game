@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useEffectsStore, type ActiveEffect } from '../store/useEffectsStore';
@@ -42,8 +42,16 @@ function EffectAnchor({ effect, children }: { effect: ActiveEffect; children: Re
     }
   });
 
+  const isMiniBossStomp = useMemo(() => {
+    if (effect.vfxId !== 'vfx.ground_slam' || !effect.followId) return false;
+    const player = useGameStore.getState().players.get(effect.followId);
+    return player?.skinId === 'skin.zombie.miniboss';
+  }, [effect.vfxId, effect.followId]);
+
+  const scale = isMiniBossStomp ? 1.4 : 1.0;
+
   return (
-    <group ref={ref} position={effect.origin}>
+    <group ref={ref} position={effect.origin} scale={scale}>
       {children}
     </group>
   );

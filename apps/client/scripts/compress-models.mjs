@@ -58,8 +58,9 @@ for (const inPath of files) {
   mkdirSync(join(outPath, '..'), { recursive: true });
   const inSize = statSync(inPath).size;
   process.stdout.write(`• ${relative(SRC, inPath)} (${mb(inSize)}) → `);
+  const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   execFileSync(
-    'npx',
+    npxCmd,
     [
       '--no-install',
       'gltf-transform',
@@ -75,7 +76,7 @@ for (const inPath of files) {
       '--simplify',
       'false', // never decimate rigged meshes (would corrupt skin weights)
     ],
-    { stdio: ['ignore', 'ignore', 'inherit'] },
+    { stdio: ['ignore', 'ignore', 'inherit'], shell: true },
   );
   const outSize = statSync(outPath).size;
   before += inSize;

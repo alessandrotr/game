@@ -342,13 +342,14 @@ export class ProjectileSystem {
     // Collide with the first eligible player (MapSchema isn't a standard
     // iterable, so use forEach and capture the first hit). A piercing projectile
     // skips players it has already struck.
-    const hitRadiusSq = (meta.radius + PLAYER_RADIUS) * (meta.radius + PLAYER_RADIUS);
     let hitId: string | null = null;
     this.ctx.state.players.forEach((target, targetId) => {
       if (hitId || targetId === meta.ownerId || !target.alive) return;
       if (meta.hit?.has(targetId)) return; // already pierced this one
       const dx = target.x - projectile.x;
       const dz = target.z - projectile.z;
+      const entityRadius = target.skinId === 'skin.zombie.miniboss' ? 0.8 : PLAYER_RADIUS;
+      const hitRadiusSq = (meta.radius + entityRadius) * (meta.radius + entityRadius);
       if (dx * dx + dz * dz <= hitRadiusSq) hitId = targetId;
     });
     if (!hitId) return false;

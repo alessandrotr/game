@@ -24,13 +24,14 @@ function PickableEntity({ id }: { id: string }) {
   });
 
   if (!initial) return null;
+  const ringColor = initial.kind === 'heal_pack' ? '#22c55e' : '#ffd761';
   return (
     <group ref={group} position={[initial.x, initial.y, initial.z]}>
       <PickableVisual kind={initial.kind} />
       {/* Glow ring on the ground marking it as grabbable. */}
       <mesh position={[0, -initial.y + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.45, 0.62, 16]} />
-        <meshBasicMaterial color="#ffd761" transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial color={ringColor} transparent opacity={0.55} depthWrite={false} />
       </mesh>
     </group>
   );

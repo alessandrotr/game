@@ -14,6 +14,8 @@ export interface ZombieHooks {
   /** Create one zombie for `level` at the arena portal (the room owns the
    *  Player + bot bookkeeping). */
   spawnZombie(level: number): void;
+  /** Spawn one Mini-Boss for the boss wave. */
+  spawnMiniBoss?(level: number): void;
   /** How many zombies are currently alive (corpses awaiting removal excluded). */
   aliveZombies(): number;
   /** Whether any human player is present (waves pause in an empty room). */
@@ -134,6 +136,13 @@ export class ZombieDirector {
   private beginLevel(now: number): void {
     this.level += 1;
     this.quota = zombieHordeSize(this.level);
+    if (this.level > 0 && this.level % 6 === 0) {
+      this.quota = Math.max(1, Math.floor(this.quota * 0.35));
+      const bossCount = Math.floor(this.level / 6);
+      for (let i = 0; i < bossCount; i++) {
+        this.hooks.spawnMiniBoss?.(this.level);
+      }
+    }
     this.phase = 'active';
     this.nextSpawnAt = now; // first pulse immediately
     this.hooks.onWaveBegin?.(this.level);

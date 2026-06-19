@@ -3,6 +3,7 @@ import {
   ZOMBIE_SKIN_ID,
   ZOMBIE_SPRINTER_SKIN_ID,
   ZOMBIE_FAT_SKIN_ID,
+  ZOMBIE_MINIBOSS_SKIN_ID,
   getCosmeticOfType,
   type CharacterClass,
   type CharacterDescriptor,
@@ -105,6 +106,27 @@ registerSkin({
     kind: 'gltf',
     url: '/models/characters/zombie-fat.glb',
     scale: 1.05, // matches the warrior's on-screen height (tune if it sits off)
+    offset: [0, 0, 0],
+    yaw: 0,
+    clips: {
+      walk: 'Armature|mixamo.com|Layer0',
+      run: 'Armature|mixamo.com|Layer0',
+    },
+  },
+});
+
+/**
+ * Mini-Boss skin: the massive, slow boss zombie — its own rigged GLB, same
+ * single-clip layout as the other zombies, but scaled 5x larger. Tagged via
+ * {@link ZOMBIE_MINIBOSS_SKIN_ID}.
+ */
+registerSkin({
+  id: ZOMBIE_MINIBOSS_SKIN_ID,
+  baseId: 'char.warrior',
+  render: {
+    kind: 'gltf',
+    url: '/models/characters/zombie-miniboss.glb',
+    scale: 1.05 * 2.5, // 2.5x visual scale (halved from 5x)
     offset: [0, 0, 0],
     yaw: 0,
     clips: {

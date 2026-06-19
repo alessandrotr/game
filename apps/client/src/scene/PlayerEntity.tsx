@@ -119,10 +119,27 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const maxHp = useGameStore((s) => s.players.get(sessionId)?.maxHp ?? 0);
   const chunkCount = Math.max(1, Math.round(maxHp / HP_PER_CHUNK));
   const bubble = useSpeechStore((s) => s.bubbles[sessionId]);
-  const descriptor = useMemo(
-    () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId, player?.dyeId),
-    [player?.characterClass, player?.skinId, player?.dyeId],
-  );
+  const skinId = useGameStore((s) => s.players.get(sessionId)?.skinId ?? '');
+  const isMiniBoss = skinId === 'skin.zombie.miniboss';
+  const scaleMult = isMiniBoss ? 2.5 : 1;
+  const billboardY = 2.7 * scaleMult;
+  const bubbleY = 3.4 * scaleMult;
+
+  // Selective store listener: only trigger a re-render when the rage threshold is crossed,
+  // preventing constant re-renders/useMemo updates on every HP fluctuation.
+  const isRaged = useGameStore((s) => {
+    const p = s.players.get(sessionId);
+    if (!p) return false;
+    return p.skinId === 'skin.zombie.miniboss' && p.hp < p.maxHp * 0.5;
+  });
+
+  const descriptor = useMemo(() => {
+    const desc = resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId, player?.dyeId);
+    if (isRaged) {
+      return { ...desc, tint: '#ff3333' };
+    }
+    return desc;
+  }, [player?.characterClass, player?.skinId, player?.dyeId, isRaged]);
 
   // Custom paint. The LOCAL player edits + sees their own paint live (the texture
   // object is stable, so brush strokes update it without a remount). REMOTE players
@@ -486,7 +503,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       {/* Chat speech bubble above the head (mirrors what the player typed). */}
       {bubble && (
-        <Html position={[0, 3.4, 0]} center zIndexRange={[20, 0]}>
+        <Html position={[0, bubbleY, 0]} center zIndexRange={[20, 0]}>
           <div
             key={bubble.nonce}
             className="pointer-events-none relative w-max max-w-[280px] -translate-y-1/2 whitespace-pre-wrap rounded-2xl border border-black/10 bg-white/95 px-4 py-2.5 text-center text-[18px] font-semibold leading-snug text-[#14151d] shadow-xl"
@@ -534,7 +551,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       {/* Name + HP bar always face the camera (billboarded), independent of
           the character's facing. */}
-      <Billboard position={[0, 2.7, 0]}>
+      <Billboard position={[0, billboardY, 0]}>
         <group ref={hpBar}>
           <mesh>
             <planeGeometry args={[HP_BAR_WIDTH, 0.12]} />

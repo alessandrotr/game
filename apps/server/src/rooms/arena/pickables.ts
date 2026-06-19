@@ -6,6 +6,7 @@ import {
   PICKABLE_PICKUP_RADIUS,
   ServerMessage,
   isPickableKind,
+  isZombieSkin,
   type PickableKind,
 } from '@arena/shared';
 import { Pickable, type Player } from '../schema.js';
@@ -46,7 +47,7 @@ export class PickableSystem {
   }
 
   /** Create a loose pickable on the ground (replicated + TTL-tracked). */
-  private spawnGround(kind: PickableKind, x: number, z: number): void {
+  spawnGround(kind: PickableKind, x: number, z: number): void {
     const obj = new Pickable();
     obj.id = `pk${this.seq++}`;
     obj.kind = kind;
@@ -70,6 +71,7 @@ export class PickableSystem {
     let bestId: string | null = null;
     let bestSq = PICKABLE_PICKUP_RADIUS * PICKABLE_PICKUP_RADIUS;
     this.ctx.state.pickables.forEach((p, id) => {
+      if (p.kind === 'heal_pack') return;
       const dx = p.x - player.x;
       const dz = p.z - player.z;
       const d2 = dx * dx + dz * dz;
@@ -144,5 +146,32 @@ export class PickableSystem {
         this.groundTtl.delete(id);
       }
     }
+
+    // Step-on instant healing packs:
+    this.ctx.state.pickables.forEach((p, id) => {
+      if (p.kind === 'heal_pack') {
+        this.ctx.state.players.forEach((player) => {
+          if (!player.alive || isZombieSkin(player.skinId)) return;
+          const dx = p.x - player.x;
+          const dz = p.z - player.z;
+          if (dx * dx + dz * dz <= 1.44) { // step radius of 1.2 units (1.2^2 = 1.44)
+            this.consumeHealPack(player, id);
+          }
+        });
+      }
+    });
+  }
+
+  private consumeHealPack(player: Player, id: string): void {
+    if (!this.ctx.state.pickables.has(id)) return;
+    this.ctx.state.pickables.delete(id);
+    this.groundTtl.delete(id);
+
+    // Heal this player and teammates of 100HP
+    this.ctx.state.players.forEach((other) => {
+      if (other.alive && other.team === player.team && !isZombieSkin(other.skinId)) {
+        this.combat.healTarget(other, 100);
+      }
+    });
   }
 }
