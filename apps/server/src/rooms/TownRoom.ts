@@ -16,7 +16,7 @@ import {
 import { ArenaState, Player } from './schema.js';
 import { AvatarRoom } from './AvatarRoom.js';
 import { reviveFull } from '../combat.js';
-import { ChatLog } from '../chat.js';
+import { ChatLog, registerTownChat } from '../chat.js';
 import { getPool } from '../db/database.js';
 import { findGuestId, getProgress, topPlayers } from '../db/players.js';
 import {
@@ -52,6 +52,9 @@ export class TownRoom extends AvatarRoom {
 
   protected override readonly halfLimit = TOWN_HALF_SIZE - PLAYER_RADIUS;
 
+  /** Unregister this room from cross-room town announcements (set on create). */
+  private unregisterTownChat?: () => void;
+
   protected override jumpForce(): number {
     return JUMP_FORCE;
   }
@@ -61,11 +64,19 @@ export class TownRoom extends AvatarRoom {
     return true;
   }
 
+  override onDispose(): void {
+    this.unregisterTownChat?.();
+  }
+
   override async onCreate(): Promise<void> {
     // Restore the persisted town chat before anyone joins, so the first joiner
     // sees the saved history rather than an empty log.
     await this.chat.load();
     this.setState(new ArenaState());
+
+    // Expose this town's chat for cross-room system announcements (e.g. a lobby
+    // created in the matchmaking room → "Alice created a 2v2 duel" in town chat).
+    this.unregisterTownChat = registerTownChat(this, this.chat);
 
     this.registerAvatarHandlers();
 

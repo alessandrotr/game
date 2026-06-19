@@ -102,12 +102,24 @@ export function ChatPanel() {
           aria-label="Chat messages"
           className="pointer-events-auto max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-panel/70 px-3 py-2 text-[13px] leading-snug"
         >
-          {messages.map((m, i) => (
-            <div key={i} className="break-words">
-              <span className="font-semibold text-accent">{m.from}:</span>{' '}
-              <span className="text-[#e6e9f5]">{m.text}</span>
-            </div>
-          ))}
+          {messages.map((m, i) =>
+            m.system ? (
+              <div
+                key={i}
+                className={
+                  'break-words py-0.5 text-[12px] italic ' +
+                  (m.tone === 'positive' ? 'text-positive/90' : 'text-gold/80')
+                }
+              >
+                {m.text}
+              </div>
+            ) : (
+              <div key={i} className="break-words">
+                <span className="font-semibold text-accent">{m.from}:</span>{' '}
+                <span className="text-[#e6e9f5]">{m.text}</span>
+              </div>
+            ),
+          )}
         </div>
       )}
       <form onSubmit={onSubmit} className="pointer-events-auto relative">

@@ -17,6 +17,11 @@ export interface ChatMessage {
   /** Sender's session id — present on live broadcasts (drives the in-world
    *  speech bubble), absent on replayed history. */
   senderId?: string;
+  /** A server-issued system announcement (e.g. "X created a match"), rendered
+   *  distinctly (no sender) and not persisted. */
+  system?: boolean;
+  /** Accent for a system line — 'gold' (PvP, default) or 'positive' (co-op green). */
+  tone?: 'gold' | 'positive';
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   type LobbyView,
 } from '@arena/shared';
 import { useLobbyStore, type ModeFilter } from '../store/useLobbyStore';
+import { findMyZombieLobby, useZombieLobbyStore } from '../store/useZombieLobbyStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { sendCreateLobby } from '../network/colyseus';
 import { Button, Card, Input, Overlay } from './primitives';
@@ -50,10 +51,15 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
   const [mode, setMode] = useState<LobbyMode>('2v2');
   const docked = useFocusStore((s) => s.panel === 'pvp' && !!s.target);
 
-  // You can only be in one match at a time: while a member, creating and joining
-  // OTHER lobbies is blocked. Your own match opens the standalone queue dialog (a
-  // main-HUD element), independent of this menu.
+  // One match at a time, ACROSS modes: being in a PvP lobby OR a co-op squad blocks
+  // creating/joining here. `inMatch` = your own PvP lobby (opens the queue card);
+  // `inCoop` = you're tied up in a zombie squad instead.
   const inMatch = !!myLobby;
+  const inCoop = !!findMyZombieLobby(
+    useZombieLobbyStore((s) => s.lobbies),
+    useZombieLobbyStore((s) => s.mySessionId),
+  );
+  const blocked = inMatch || inCoop;
   const openQueue = useLobbyStore((s) => s.setQueueOpen);
 
   // Names already in use (case-insensitive) — no two lobbies may share one.
@@ -76,7 +82,7 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
     .filter((l) => (statusFilter === 'in-queue' ? l.status === 'queuing' : true));
 
   const create = () => {
-    if (inMatch) return; // already in a match — one at a time
+    if (blocked) return; // already in a match (PvP or co-op) — one at a time
     if (!trimmedName) {
       setError('Name your duel first.');
       return;
@@ -119,10 +125,12 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
           {/* Create — format tiles + name + CTA. While you're in a match these stay
               put but DISABLED (one match at a time) — manage yours from the queue. */}
           <section className="rounded-2xl border border-white/10 bg-black/15 p-3.5">
-            <SectionLabel>{inMatch ? 'Already in a match' : 'Choose your format'}</SectionLabel>
+            <SectionLabel>
+              {inMatch ? 'Already in a match' : inCoop ? 'Busy in a co-op squad' : 'Choose your format'}
+            </SectionLabel>
             <div className="mt-2.5 grid grid-cols-3 gap-2">
               {LOBBY_MODES.map((m) => (
-                <ModeTile key={m} mode={m} active={mode === m} disabled={inMatch} onClick={() => setMode(m)} />
+                <ModeTile key={m} mode={m} active={mode === m} disabled={blocked} onClick={() => setMode(m)} />
               ))}
             </div>
             <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
@@ -132,7 +140,7 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
                 placeholder="Name your duel…"
                 tone="gold"
                 className="flex-1"
-                disabled={inMatch}
+                disabled={blocked}
                 onChange={(e) => {
                   setEdited(true);
                   setName(e.target.value);
@@ -143,14 +151,17 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
                 variant="goldCta"
                 size="lg"
                 className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed"
-                disabled={inMatch || !trimmedName || nameTaken}
+                disabled={blocked || !trimmedName || nameTaken}
                 onClick={create}
               >
                 <Swords size={16} aria-hidden="true" />
                 Create
               </Button>
             </div>
-            {!inMatch && nameTaken && (
+            {inCoop && (
+              <p className="mt-1.5 text-xs text-muted">Leave your co-op squad to start a duel.</p>
+            )}
+            {!blocked && nameTaken && (
               <p className="mt-1.5 text-xs text-negative">That name is already taken — pick another.</p>
             )}
           </section>
@@ -188,10 +199,10 @@ export function MatchmakingMenu({ myLobby }: { myLobby: LobbyView | null }) {
                       key={lobby.id}
                       lobby={lobby}
                       mine={mine}
-                      // In a match → only your own card is interactive; the rest are
-                      // locked so you can't join a second. Your card opens the
-                      // standalone queue dialog; others open the join preview.
-                      locked={inMatch && !mine}
+                      // Blocked (in a PvP lobby or co-op squad) → only your own card
+                      // is interactive; the rest are locked so you can't join a
+                      // second. Your card opens the queue; others open the preview.
+                      locked={blocked && !mine}
                       onSelect={() => {
                         setError(null);
                         if (mine) openQueue(true);

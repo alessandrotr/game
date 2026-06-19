@@ -92,6 +92,18 @@ export class ChatLog {
     }
   }
 
+  /**
+   * Broadcast a server-issued system announcement (e.g. "X created a match").
+   * No sender, no rate limit, not persisted — but kept in the in-memory history
+   * so a client joining this same room session still sees it.
+   */
+  system(room: Room, text: string, tone: 'gold' | 'positive' = 'gold'): void {
+    const message: ChatMessage = { from: '', text, system: true, tone };
+    this.history.push(message);
+    if (this.history.length > CHAT_HISTORY_SIZE) this.history.shift();
+    room.broadcast(ServerMessage.Chat, message);
+  }
+
   /** Replay recent history to a single client (call on join). */
   sendHistory(client: Client): void {
     client.send(ServerMessage.ChatHistory, { messages: this.history });
@@ -101,4 +113,24 @@ export class ChatLog {
   forget(key: string): void {
     this.recent.delete(key);
   }
+}
+
+// --- Town announcements (cross-room) ---------------------------------------
+// The matchmaking rooms are separate from the town room, but run in the same
+// process. Town rooms register their chat here so a lobby created elsewhere can
+// post a system line into town chat (e.g. "Alice created a 2v2 duel").
+
+const townChats = new Set<{ room: Room; chat: ChatLog }>();
+
+/** Register a town room's chat for cross-room announcements. Returns an
+ *  unregister fn to call on the room's dispose. */
+export function registerTownChat(room: Room, chat: ChatLog): () => void {
+  const entry = { room, chat };
+  townChats.add(entry);
+  return () => townChats.delete(entry);
+}
+
+/** Post a system line into every live town room's chat. */
+export function announceTown(text: string, tone: 'gold' | 'positive' = 'gold'): void {
+  for (const { room, chat } of townChats) chat.system(room, text, tone);
 }

@@ -7,6 +7,7 @@ import {
   type ZombieLobbyView,
 } from '@arena/shared';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
+import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
 import {
   sendZombieCreateLobby,
   sendZombieJoinByCode,
@@ -37,8 +38,15 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
   const [code, setCode] = useState('');
   const docked = useFocusStore((s) => s.panel === 'coop' && !!s.target);
 
-  // One squad at a time: while in one, creating/joining others is blocked.
+  // One match at a time, ACROSS modes: being in a co-op squad OR a PvP lobby blocks
+  // creating/joining here. `inSquad` = your own squad (opens the queue card);
+  // `inPvp` = you're tied up in a duel lobby instead.
   const inSquad = !!myLobby;
+  const inPvp = !!findMyLobby(
+    useLobbyStore((s) => s.lobbies),
+    useLobbyStore((s) => s.mySessionId),
+  );
+  const blocked = inSquad || inPvp;
 
   // Names already in use (case-insensitive) — keep the default unique.
   const taken = useMemo(
@@ -57,7 +65,7 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
   const visible = lobbies.filter((l) => !l.isPrivate && l.status === 'queuing');
 
   const create = () => {
-    if (inSquad) return; // one squad at a time
+    if (blocked) return; // one match at a time (co-op or PvP)
     if (!trimmedName) {
       setError('Name your squad first.');
       return;
@@ -73,7 +81,7 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
   };
 
   const joinByCode = () => {
-    if (inSquad) return; // one squad at a time
+    if (blocked) return; // one match at a time (co-op or PvP)
     const trimmed = code.trim();
     if (!trimmed) {
       setError('Enter a squad code.');
@@ -111,10 +119,12 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
           {/* Create a squad — visibility toggle + name + CTA. Disabled while in a
               squad (one at a time) — manage yours from the queue. */}
           <section className="rounded-2xl border border-white/10 bg-black/15 p-3.5">
-            <SectionLabel>{inSquad ? 'Already in a squad' : 'Raise a squad'}</SectionLabel>
+            <SectionLabel>
+              {inSquad ? 'Already in a squad' : inPvp ? 'Busy in a duel' : 'Raise a squad'}
+            </SectionLabel>
             <div className="mt-2.5 grid grid-cols-2 gap-2">
-              <VisTile icon={Globe} label="Public" hint="Listed for anyone" active={!isPrivate} disabled={inSquad} onClick={() => setIsPrivate(false)} />
-              <VisTile icon={Lock} label="Private" hint="Invite by code" active={isPrivate} disabled={inSquad} onClick={() => setIsPrivate(true)} />
+              <VisTile icon={Globe} label="Public" hint="Listed for anyone" active={!isPrivate} disabled={blocked} onClick={() => setIsPrivate(false)} />
+              <VisTile icon={Lock} label="Private" hint="Invite by code" active={isPrivate} disabled={blocked} onClick={() => setIsPrivate(true)} />
             </div>
             <div className="mt-3 flex flex-col gap-2 @[26rem]:flex-row @[26rem]:items-stretch">
               <Input
@@ -123,7 +133,7 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
                 placeholder="Name your squad…"
                 tone="gold"
                 className="flex-1"
-                disabled={inSquad}
+                disabled={blocked}
                 onChange={(e) => {
                   setEdited(true);
                   setName(e.target.value);
@@ -134,14 +144,15 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
                 variant="goldCta"
                 size="lg"
                 className="shrink-0 justify-center gap-2 px-6 disabled:cursor-not-allowed"
-                disabled={inSquad || !trimmedName || nameTaken}
+                disabled={blocked || !trimmedName || nameTaken}
                 onClick={create}
               >
                 <Skull size={16} aria-hidden="true" />
                 Create
               </Button>
             </div>
-            {!inSquad && nameTaken && (
+            {inPvp && <p className="mt-1.5 text-xs text-muted">Leave your duel to raise a squad.</p>}
+            {!blocked && nameTaken && (
               <p className="mt-1.5 text-xs text-negative">That name is already taken — pick another.</p>
             )}
           </section>
@@ -158,7 +169,7 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
                   placeholder="SQUAD CODE"
                   tone="gold"
                   className="w-full pl-9 text-center font-mono uppercase tracking-[0.4em]"
-                  disabled={inSquad}
+                  disabled={blocked}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === 'Enter' && joinByCode()}
                 />
@@ -167,7 +178,7 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
                 variant="goldOutline"
                 size="lg"
                 className="shrink-0 justify-center px-6 disabled:cursor-not-allowed"
-                disabled={inSquad || !code.trim()}
+                disabled={blocked || !code.trim()}
                 onClick={joinByCode}
               >
                 Join
@@ -196,9 +207,9 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
                       key={lobby.id}
                       lobby={lobby}
                       mine={mine}
-                      // In a squad → only your own card is interactive (opens the
-                      // queue); the rest are locked so you can't join a second.
-                      locked={inSquad && !mine}
+                      // Blocked (in a squad or a PvP duel) → only your own card is
+                      // interactive (opens the queue); the rest are locked.
+                      locked={blocked && !mine}
                       onSelect={() => {
                         setError(null);
                         if (mine) openQueue(true);

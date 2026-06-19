@@ -24,6 +24,7 @@ import {
   type JoinOptions,
 } from './util/identity.js';
 import type { Identity } from './matchmaking/lobbies.js';
+import { announceTown } from '../chat.js';
 import { captureServerError, userFromClaims } from '../observability.js';
 import { verifyToken } from '../auth.js';
 
@@ -131,6 +132,12 @@ export class ZombieMatchmakingRoom extends BaseGameRoom<ZombieMatchmakingState> 
     this.seat(lobby, client.sessionId);
     this.membership.set(client.sessionId, lobby.id);
     this.state.lobbies.set(lobby.id, lobby);
+
+    // Public squads are announced in town chat; private ones stay hidden.
+    if (!lobby.isPrivate) {
+      const creator = this.identities.get(client.sessionId)?.name ?? 'Someone';
+      announceTown(`${creator} created a co-op squad — ${name}`, 'positive');
+    }
   }
 
   private handleJoin(client: Client, lobby: ZombieLobby | undefined): void {

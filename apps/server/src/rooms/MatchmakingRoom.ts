@@ -22,6 +22,7 @@ import {
   type JoinOptions,
 } from './util/identity.js';
 import { LobbyManager } from './matchmaking/lobbies.js';
+import { announceTown } from '../chat.js';
 import { captureServerError, userFromClaims } from '../observability.js';
 import { verifyToken } from '../auth.js';
 
@@ -128,6 +129,10 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
     // Auto-move: drop the player from any lobby they're already in.
     this.lobbies.removePlayerFromLobby(client.sessionId);
     this.lobbies.createLobby(client.sessionId, name, message.mode);
+
+    // Announce it in town chat so idle players see fresh duels open up.
+    const creator = this.lobbies.identityFor(client.sessionId)?.name ?? 'Someone';
+    announceTown(`${creator} created a ${message.mode} duel — ${name}`);
   }
 
   private handleJoinSlot(
