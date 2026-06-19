@@ -101,6 +101,12 @@ export class Player extends Schema {
   @type('number') reserveAmmo = 0;
   /** True while reloading the equipped gun (can't fire until it completes). */
   @type('boolean') reloading = false;
+  /** Zombie perk slot 1 (a `PerkId` or '' if empty). */
+  @type('string') perk1 = '';
+  /** Zombie perk slot 2 (a `PerkId` or '' if empty). */
+  @type('string') perk2 = '';
+  /** Zombie perk slot 3 (a `PerkId` or '' if empty). */
+  @type('string') perk3 = '';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

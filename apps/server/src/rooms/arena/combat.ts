@@ -178,8 +178,12 @@ export class CombatSystem {
     // An `empower` buff on the attacker adds flat damage to this one hit, then is
     // consumed (the archer's Tumble = any next hit; the priest's Blessing = Q only).
     const total = amount + this.consumeEmpower(fromId, target.sessionId, ability);
+    // Perk modifiers: attacker's ability damage bonus + target's damage reduction.
+    const attackerPerks = this.ctx.perkModifiers(fromId);
+    const targetPerks = this.ctx.perkModifiers(target.sessionId);
+    const perkScaled = total * attackerPerks.abilityDamageMult * targetPerks.damageTakenMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
-    let incoming = total * damageTakenMultiplier(target);
+    let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {
       const absorbed = Math.min(target.shield, incoming);
       target.shield -= absorbed;
@@ -192,6 +196,40 @@ export class CombatSystem {
     const { applied, lethal } = applyDamage(target, incoming);
     if (applied <= 0) return;
 
+    // Static / Chain Lightning perk on hit (prevent infinite recursion using ability restriction)
+    const attacker = fromId ? this.ctx.state.players.get(fromId) : undefined;
+    if (
+      attacker &&
+      attackerPerks.lightningChance > 0 &&
+      attacker.alive &&
+      target.sessionId !== attacker.sessionId &&
+      ability !== 'lightning_spark'
+    ) {
+      if (Math.random() < attackerPerks.lightningChance) {
+        // Find other enemies around target
+        const list: Player[] = [];
+        this.forEachEnemyInRadius(target.x, target.z, 5.0, attacker.sessionId, (otherEnemy) => {
+          if (otherEnemy.sessionId !== target.sessionId && isZombieSkin(otherEnemy.skinId)) {
+            list.push(otherEnemy);
+          }
+        });
+        // Sort by distance to the target zombie
+        list.sort((a, b) => {
+          const da = Math.hypot(a.x - target.x, a.z - target.z);
+          const db = Math.hypot(b.x - target.x, b.z - target.z);
+          return da - db;
+        });
+        // Chain to up to N targets
+        const targetsToHit = list.slice(0, attackerPerks.lightningTargets);
+        targetsToHit.forEach((t) => {
+          this.dealDamage(t, attackerPerks.lightningDamage, attacker.sessionId, 'lightning_spark');
+          if (attackerPerks.lightningStunMs > 0) {
+            this.applyStatus(t, { kind: 'stun', durationMs: attackerPerks.lightningStunMs }, attacker.sessionId);
+          }
+        });
+      }
+    }
+
     // Broadcast the Damage feedback. For zombies, the client plays a blood splash
     // and flinch without showing floating text, ensuring high performance.
     this.ctx.broadcast(ServerMessage.Damage, {
@@ -199,6 +237,7 @@ export class CombatSystem {
       to: target.sessionId,
       amount: applied,
       lethal,
+      ability,
     });
 
 
@@ -223,6 +262,8 @@ export class CombatSystem {
             level: killer.level,
           });
         }
+
+
       }
       target.deaths += 1;
 

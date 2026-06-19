@@ -529,6 +529,26 @@ const bloodSplash: VfxDescriptor = {
   },
 };
 
+const lightningSpark: VfxDescriptor = {
+  id: 'vfx.lightning_spark',
+  displayName: 'Lightning Spark',
+  behavior: 'burst',
+  durationMs: 1000,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'spark',
+        shape: 'sphere',
+        args: [0.8, 12, 12],
+        color: '#8ec5ff',
+        emissive: '#0080ff',
+        emissiveIntensity: 3,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -553,5 +573,6 @@ export const VFX: VfxDescriptor[] = [
   carExplosion,
   barrelExplosion,
   bloodSplash,
+  lightningSpark,
 ];
 

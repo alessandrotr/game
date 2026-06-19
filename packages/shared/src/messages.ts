@@ -11,6 +11,7 @@ import type { AbilityConfig, AbilityKind, GunKind, GunView, LobbyMode, Team } fr
 import type { CharacterClass } from './assets.js';
 import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
+import type { PerkId } from './perks.js';
 
 /** AI skill level for practice bots, from sloppy auto-attacker to full kit. */
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
@@ -87,6 +88,9 @@ export enum ClientMessage {
   /** Update the player's equipped appearance live (skin / dye / title) so
    *  everyone in the room sees it immediately. Persistence is over HTTP. */
   EquipLoadout = 'equip_loadout',
+  /** Zombie perk progression: pick a perk (slot 0/1/2) or upgrade an existing
+   *  perk. Sent in response to a {@link ServerMessage.PerkOffer}. */
+  PerkPick = 'perk_pick',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -135,6 +139,10 @@ export enum ServerMessage {
   /** Gun Mode Zombie: a gun was fired (drives the muzzle flash + shot SFX). The
    *  bullet itself is a replicated projectile; this is just the firing feedback. */
   WeaponFired = 'weapon_fired',
+  /** Zombie perk progression: offer 2 visible perks (+ the implicit jolly) after
+   *  a wave clear. The client renders the picker; the player replies with
+   *  {@link ClientMessage.PerkPick}. */
+  PerkOffer = 'perk_offer',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -249,6 +257,10 @@ export interface ClientMessagePayloads {
   [ClientMessage.AimWeapon]: { dirX: number; dirZ: number };
   /** Set the active Gun Mode camera view (drives the server-side move speed). */
   [ClientMessage.SetGunView]: { view: GunView };
+  /** Zombie perk: pick slot 0 (visible A), 1 (visible B), or 2 (jolly).
+   *  `upgradeTarget` is the perk id to upgrade when using the free-choice path
+   *  (only used during upgrade waves; omit for a fresh pick or a jolly). */
+  [ClientMessage.PerkPick]: { slot: number; upgradeTarget?: PerkId };
 }
 
 /** Payload map for {@link ServerMessage}. */
@@ -268,7 +280,7 @@ export interface ServerMessagePayloads {
     /** Locked target's session id for unit-targeted abilities (else absent). */
     targetId?: string;
   };
-  [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean };
+  [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean; ability?: string };
   [ServerMessage.Heal]: { to: string; amount: number };
   [ServerMessage.Chat]: ChatMessage;
   [ServerMessage.ChatHistory]: { messages: ChatMessage[] };
@@ -317,5 +329,18 @@ export interface ServerMessagePayloads {
     z: number;
     dirX: number;
     dirZ: number;
+  };
+  /** Zombie perk offer: the two visible options (the jolly is resolved server-side
+   *  on pick). `isUpgrade` is true when the player should upgrade an existing perk
+   *  rather than pick a new one; `fixedUpgrade` is the pre-rolled upgrade path
+   *  offered in slot 2 (e.g. "thick_skin → fortified"). */
+  [ServerMessage.PerkOffer]: {
+    visible: [PerkId, PerkId];
+    isUpgrade: boolean;
+    /** The source perk id for the fixed-offer upgrade in slot 2 (only when
+     *  `isUpgrade` is true). */
+    fixedUpgradeFrom?: PerkId;
+    /** The destination perk id for the fixed-offer upgrade. */
+    fixedUpgradeTo?: PerkId;
   };
 }

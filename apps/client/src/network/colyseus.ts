@@ -45,6 +45,7 @@ import { useCosmeticsStore, type Appearance } from '../store/useCosmeticsStore';
 import { usePaintStore } from '../store/usePaintStore';
 import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
+import { usePerkStore } from '../store/usePerkStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
@@ -190,6 +191,9 @@ function snapshotState(state: RawState): {
       magAmmo: player.magAmmo ?? 0,
       reserveAmmo: player.reserveAmmo ?? 0,
       reloading: player.reloading ?? false,
+      perk1: player.perk1 ?? '',
+      perk2: player.perk2 ?? '',
+      perk3: player.perk3 ?? '',
     });
   });
 
@@ -383,7 +387,10 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   const { players, sessionId } = useGameStore.getState();
   const target = players.get(msg.to);
   if (!target) return;
-  if (isZombieSkin(target.skinId)) {
+  if (msg.ability === 'lightning_spark') {
+    useEffectsStore.getState().spawn('vfx.lightning_spark', [target.x, 0.8, target.z], [0, 0, 1]);
+    spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, '#00d5ff');
+  } else if (isZombieSkin(target.skinId)) {
     useEffectsStore.getState().spawn('vfx.blood_splash', [target.x, 1, target.z], [0, 0, 1]);
   } else {
     useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
@@ -586,6 +593,15 @@ function wireRoom(joined: Room): void {
         .spawn('vfx.cast', [msg.x + msg.dirX * 0.7, 1, msg.z + msg.dirZ * 0.7]);
     }),
   );
+  joined.onMessage(ServerMessage.PerkOffer, (msg: ServerMessagePayloads[typeof ServerMessage.PerkOffer]) => {
+    usePerkStore.getState().setOffer({
+      visible: msg.visible,
+      isUpgrade: msg.isUpgrade,
+      fixedUpgradeFrom: msg.fixedUpgradeFrom,
+      fixedUpgradeTo: msg.fixedUpgradeTo,
+    });
+  });
+
 
   joined.onError((code, message) => {
     // A room error doesn't necessarily close the socket — surface the
@@ -1251,6 +1267,12 @@ export function sendChat(text: string): void {
   room?.send(ClientMessage.Chat, { text });
 }
 
+/** Zombie perk progression: pick slot 0 (visible A), 1 (visible B / fixed
+ *  upgrade), or 2 (jolly). `upgradeTarget` is the perk to upgrade when using
+ *  the free-choice path during upgrade waves. */
+export function sendPerkPick(slot: number, upgradeTarget?: string): void {
+  room?.send(ClientMessage.PerkPick, { slot, upgradeTarget });
+}
 /** Dev-only: push live movement tuning to the authoritative server. */
 export function sendDevTune(values: ClientMessagePayloads[ClientMessage.DevTune]): void {
   room?.send(ClientMessage.DevTune, values);
