@@ -15,6 +15,8 @@ export interface PaperdollData {
   dyeId: string;
   pedestalId: string;
   titleId: string;
+  /** Equipped avatar-rim id — frames the portrait + tints the level badge. */
+  rimId: string;
   /** Account id (0 = guest) — lets the portrait fetch this player's custom paint. */
   pid: number;
 }

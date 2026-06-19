@@ -7,6 +7,8 @@ import { useGameStore } from '../store/useGameStore';
 import { fetchPublicPaint } from '../network/paint';
 import { applyClassPaint, paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
 import { ClassPreview } from './ClassPreview';
+import { AvatarFrame } from './AvatarFrame';
+import { rimColorOf } from './rim';
 import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS } from './theme';
 
@@ -87,7 +89,7 @@ function PaperdollCard({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <LevelBadge level={data.level} size="md" />
+          <LevelBadge level={data.level} size="md" color={rimColorOf(data.rimId)} />
           <div className="min-w-0">
             <div className="truncate text-lg font-bold tracking-wide text-text">
               {data.name}
@@ -103,18 +105,21 @@ function PaperdollCard({
         <IconButton icon={X} onClick={close} aria-label="Close" />
       </div>
 
-      {/* 3D portrait */}
-      <div className="relative h-56 border-y border-white/5 bg-black/40">
-        <ClassPreview
-          characterClass={data.characterClass}
-          skinId={data.skinId}
-          dyeId={data.dyeId}
-          pedestalId={data.pedestalId}
-          paint={paint}
-        />
-        <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
-          drag to rotate
-        </div>
+      {/* 3D portrait — framed by the player's equipped avatar rim (panel shape so
+          the full body + pedestal read; a circle would crop them). */}
+      <div className="border-y border-white/5 bg-black/40 p-3">
+        <AvatarFrame rimId={data.rimId} shape="panel" size="md" className="h-56">
+          <ClassPreview
+            characterClass={data.characterClass}
+            skinId={data.skinId}
+            dyeId={data.dyeId}
+            pedestalId={data.pedestalId}
+            paint={paint}
+          />
+          <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
+            drag to rotate
+          </div>
+        </AvatarFrame>
       </div>
 
       {/* XP bar */}
