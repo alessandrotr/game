@@ -134,22 +134,24 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   }, [isLocal, characterClass]);
   const localPainted = usePaintStore((s) => isLocal && !!s.customizedByClass[characterClass]);
 
-  // Remote: refetch + apply the peer's paint when their pid/rev (or class) changes.
+  // Remote: fetch + apply the peer's paint whenever they have an account (pid>0).
+  // `paintRev` is only a REFETCH trigger for live edits — NOT a precondition, since
+  // it's often empty at join time (paint loads async / was painted a prior session).
   const pid = useGameStore((s) => s.players.get(sessionId)?.pid ?? 0);
   const paintRev = useGameStore((s) => s.players.get(sessionId)?.paintRev ?? '');
   const [remoteReady, setRemoteReady] = useState(false);
   useEffect(() => {
-    if (isLocal) return;
-    if (!pid || !paintRev) {
+    if (isLocal || !pid) {
       setRemoteReady(false);
       return;
     }
     let cancelled = false;
-    setRemoteReady(false);
     void fetchPublicPaint(pid)
-      .then((state) => applyClassPaint(sessionId, state[characterClass]))
-      .then(() => {
-        if (!cancelled) setRemoteReady(true);
+      .then(async (state) => {
+        const cls = state[characterClass];
+        const has = !!cls && Object.keys(cls).length > 0;
+        if (has) await applyClassPaint(sessionId, cls);
+        if (!cancelled) setRemoteReady(has);
       })
       .catch(() => {});
     return () => {
