@@ -113,6 +113,17 @@ export class DestructibleSystem {
     return DRUM_RESPAWN_MIN_MS + Math.random() * (DRUM_RESPAWN_MAX_MS - DRUM_RESPAWN_MIN_MS);
   }
 
+  /** Append drums + tire stacks for a newly unlocked section (room expansion system). */
+  addObjects(
+    drumPositions: { x: number; z: number }[],
+    tireStackPositions: { x: number; z: number }[],
+  ): void {
+    for (const p of tireStackPositions) this.spawnTireStack(p.x, p.z);
+    for (const p of drumPositions) this.spawnDrum(p.x, p.z);
+    // Grow the respawn target so the drum-respawn system keeps the section stocked.
+    this.targetDrums += drumPositions.length;
+  }
+
   /** Count live drums (the destructible 'barrel'-category bodies). */
   private drumCount(): number {
     let n = 0;

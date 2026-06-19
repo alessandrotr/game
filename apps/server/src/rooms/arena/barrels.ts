@@ -113,6 +113,11 @@ export class BarrelSystem {
     return RESPAWN_MIN_MS + Math.random() * (RESPAWN_MAX_MS - RESPAWN_MIN_MS);
   }
 
+  /** Append barrels for a newly unlocked section (room expansion system). */
+  addBarrels(positions: { x: number; z: number }[]): void {
+    for (const p of positions) this.spawnAt(p.x, p.z);
+  }
+
   /** Drop a wave of 2–4 fresh barrels onto open ground (up to the live cap). */
   private respawnWave(): void {
     const want = RESPAWN_MIN_COUNT + Math.floor(Math.random() * (RESPAWN_MAX_COUNT - RESPAWN_MIN_COUNT + 1));

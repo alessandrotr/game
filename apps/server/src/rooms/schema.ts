@@ -239,4 +239,7 @@ export class ArenaState extends Schema {
   @type('number') zombiesRemaining = 0;
   /** Zombies currently alive in the arena. */
   @type('number') zombiesAlive = 0;
+  /** How many sections beyond the main room are unlocked (0–3). Drives the
+   *  client's section rendering, minimap, and door barrier state. */
+  @type('number') unlockedSections = 0;
 }

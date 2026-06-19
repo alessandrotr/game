@@ -36,6 +36,20 @@ export const TICK_MS = 1000 / TICK_RATE;
 /** Square arena half-extent in world units; valid X/Z range is [-ARENA_HALF_SIZE, ARENA_HALF_SIZE]. */
 export const ARENA_HALF_SIZE = 25;
 
+// --- Zombie Room Expansion System ------------------------------------------------
+// When the room system is active (zombie mode), the play area expands beyond the
+// original 50×50 arena into a multi-section loop. The expanded bounds accommodate
+// all sections; doors between sections unlock as waves are cleared.
+// ---------------------------------------------------------------------------------
+
+/** Expanded half-extent (world units) for the zombie room system's total play area.
+ *  The original arena sits at the centre; sections extend outward. */
+export const ZOMBIE_ROOM_HALF_SIZE = 50;
+
+/** Which waves unlock each door (in order: Door 1 → Door 4). The wave's
+ *  `onWaveClear` fires the unlock, adding the next section's cover and portals. */
+export const DOOR_UNLOCK_WAVES: readonly number[] = [3, 6, 9, 12];
+
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
 

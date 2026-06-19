@@ -1,5 +1,5 @@
 import { useMemo, type MouseEvent } from 'react';
-import { ARENA_HALF_SIZE } from '@arena/shared';
+import { ARENA_HALF_SIZE, ZOMBIE_ROOM_HALF_SIZE } from '@arena/shared';
 import { useGameStore } from '../../store/useGameStore';
 import { useArenaLayout } from '../../scene/useArenaLayout';
 import { sendMoveTo } from '../../network/colyseus';
@@ -30,11 +30,19 @@ interface Blip {
  * Updates reactively once per server snapshot (~20 Hz) — the store bumps `tick`
  * each patch, which recomputes the blips; positions are static between patches,
  * so this matches the data exactly and costs a handful of dot re-renders.
+ *
+ * When the room expansion system is active (zombie mode with unlocked sections),
+ * the viewBox expands to cover the full play area and door indicators are drawn.
  */
 export function Minimap() {
   const tick = useGameStore((s) => s.tick);
   const sessionId = useGameStore((s) => s.sessionId);
+  const zombieMode = useGameStore((s) => s.zombieMode);
+  const unlockedSections = useGameStore((s) => s.unlockedSections);
   const { obstacles } = useArenaLayout();
+
+  // Use expanded bounds when sections are unlocked.
+  const H = zombieMode && unlockedSections > 0 ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE;
 
   const blips = useMemo<Blip[]>(() => {
     // Read the non-reactive snapshot imperatively (see useGameStore); `tick` in
@@ -57,8 +65,6 @@ export function Minimap() {
     () => useGameStore.getState().players.get(sessionId ?? '')?.team === 'red',
     [sessionId],
   );
-
-  const H = ARENA_HALF_SIZE;
 
   // Right-click a spot to walk there (matches the in-scene hold-to-move button).
   // The viewBox is the world extent, so the pixel→world map is a simple inverse;
@@ -83,6 +89,19 @@ export function Minimap() {
         className="pointer-events-auto block cursor-pointer rounded-lg bg-black/40"
       >
         <g transform={isRed ? 'rotate(180)' : undefined}>
+          {/* Main room boundary outline (always visible in zombie mode). */}
+          {zombieMode && (
+            <rect
+              x={-ARENA_HALF_SIZE}
+              y={-ARENA_HALF_SIZE}
+              width={ARENA_HALF_SIZE * 2}
+              height={ARENA_HALF_SIZE * 2}
+              fill="none"
+              stroke="rgba(255,255,255,0.1)"
+              strokeWidth={0.5}
+            />
+          )}
+
           {/* Cover obstacles — faint, just for orientation. */}
           {obstacles.map((o, i) => (
             <circle key={i} cx={o.x} cy={o.z} r={o.radius} fill="rgba(255,255,255,0.14)" />

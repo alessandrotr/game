@@ -43,7 +43,7 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
   // --- Overridable world rules ------------------------------------------
 
   /** Half the playable area minus the player radius (the movement clamp bound). */
-  protected abstract readonly halfLimit: number;
+  protected abstract halfLimit: number;
 
   /** The upward impulse a jump applies (a constant in town, tunable in the arena). */
   protected abstract jumpForce(): number;

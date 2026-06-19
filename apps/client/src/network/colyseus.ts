@@ -110,6 +110,7 @@ interface RawState {
   zombieLevel?: number;
   zombiesRemaining?: number;
   zombiesAlive?: number;
+  unlockedSections?: number;
 }
 
 // Strip any trailing slash so the Colyseus client builds clean URLs even if
@@ -515,6 +516,7 @@ function wireRoom(joined: Room): void {
           raw.zombiesRemaining ?? 0,
           raw.zombiesAlive ?? 0,
           raw.coopZombie ?? false,
+          raw.unlockedSections ?? 0,
         );
       // Feed the interpolation buffer used to render remote players smoothly.
       const now = performance.now();

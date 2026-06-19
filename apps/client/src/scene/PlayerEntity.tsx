@@ -4,11 +4,13 @@ import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
+  ZOMBIE_ROOM_HALF_SIZE,
   AUTO_ATTACKS,
   PICKABLE_CARRY_Y,
   TOWN_HALF_SIZE,
   TOWN_OBSTACLES,
   PLAYER_RADIUS,
+  clampToUnlockedArea,
   collideObstacles,
   getCosmeticOfType,
   gunMoveSpeedMult,
@@ -256,9 +258,12 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         predictedRot.current = latest.rotation;
       }
       const pos = predicted.current;
+      const prevX = pos.x;
+      const prevZ = pos.z;
       const mv = getLocalMovement(latest.characterClass as CharacterClass);
       const isArena = useGameStore.getState().room === 'arena';
-      const halfBounds = (isArena ? ARENA_HALF_SIZE : TOWN_HALF_SIZE) - PLAYER_RADIUS;
+      const isZombieRoom = isArena && useGameStore.getState().zombieMode;
+      const halfBounds = (isArena ? (isZombieRoom ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
       const dest = getDestination();
 
       // Zombie mode (arena): the living horde is solid. Collide against the same
@@ -356,6 +361,26 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         }
       }
       if (dashState.active && !dashing) clearLocalDash();
+
+      // Room expansion system: enforce section boundaries on the client prediction
+      // so the player can't walk through walls into locked sections.
+      if (isZombieRoom) {
+        const store = useGameStore.getState();
+        const layout = (window as any).__arenaRoomLayout;
+        if (layout) {
+          const clamped = clampToUnlockedArea(
+            pos.x,
+            pos.z,
+            layout,
+            store.unlockedSections,
+            PLAYER_RADIUS,
+            prevX,
+            prevZ,
+          );
+          pos.x = clamped.x;
+          pos.z = clamped.z;
+        }
+      }
 
       // Reconcile: snap on a true reposition (respawn/knockback/blink); while
       // actively moving (toward a destination OR chasing a target) trust the

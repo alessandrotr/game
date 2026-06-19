@@ -1,10 +1,16 @@
 import { type Client } from '@colyseus/core';
 import {
   ARENA_HALF_SIZE,
+  ZOMBIE_ROOM_HALF_SIZE,
   arenaSpawnsForTeam,
   generateArenaLayout,
+  generateSectionCover,
+  generateRoomLayout,
+  pickWeightedPortal,
+  clampToUnlockedArea,
   collideObstacles,
   type ArenaObstacle,
+  type RoomLayout,
   isLobbyMode,
   isTeam,
   teamSizeForMode,
@@ -155,7 +161,16 @@ export class ArenaRoom extends AvatarRoom {
   override maxClients = MAX_PLAYERS;
 
   protected override readonly chat = new ChatLog();
-  protected override readonly halfLimit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+  protected override halfLimit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+
+  /** The arena's half-extent for this match — `ARENA_HALF_SIZE` for normal arenas,
+   *  `ZOMBIE_ROOM_HALF_SIZE` when the room expansion system is active. Every
+   *  bounds clamp in the file reads this instead of the constant directly. */
+  private arenaLimit = ARENA_HALF_SIZE;
+
+  /** Room expansion system (zombie mode only): the generated section/door layout
+   *  for this match. `null` in non-zombie arenas. */
+  private roomLayout: RoomLayout | null = null;
 
   // Arena-specific per-session state (the avatar maps live on AvatarRoom).
   private readonly cooldowns = new Map<string, Partial<Record<AbilityKind, number>>>();
@@ -306,6 +321,18 @@ export class ArenaRoom extends AvatarRoom {
       this.state.zombieMode = true;
       this.state.gunMode = this.gunMode;
       this.autoAttackEnabled = true;
+
+      // --- Room expansion system: expand the arena bounds and generate the
+      //     section/door layout. Doors are placed as indestructible walls that
+      //     crumble when the matching wave is cleared. ---
+      this.arenaLimit = ZOMBIE_ROOM_HALF_SIZE;
+      this.halfLimit = ZOMBIE_ROOM_HALF_SIZE - PLAYER_RADIUS;
+      this.roomLayout = generateRoomLayout(seed);
+      // Place door walls as indestructible cover at each door position.
+      for (const door of this.roomLayout.doors) {
+        this.cover.addDoor(door);
+      }
+
       // Matchmade co-op run: cap the squad and hide from public join (reservation
       // only). Death is final + the run ends when all fall (see the tick loop).
       if (this.coopZombie) {
@@ -319,6 +346,8 @@ export class ArenaRoom extends AvatarRoom {
         aliveZombies: () => this.countAliveZombies(),
         humansPresent: () => this.countHumans() > 0,
         onWaveClear: (level) => {
+          // --- Room expansion: unlock the next door if this wave matches ---
+          this.tryUnlockDoor(level);
           if (!this.perkSystem) return false;
           return this.perkSystem.onWaveClear(level);
         },
@@ -794,7 +823,7 @@ export class ArenaRoom extends AvatarRoom {
     let targetX: number | undefined;
     let targetZ: number | undefined;
     if (config.aim === 'point' && Number.isFinite(message.tx) && Number.isFinite(message.tz)) {
-      const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+      const limit = this.arenaLimit - PLAYER_RADIUS;
       let ox = (message.tx as number) - player.x;
       let oz = (message.tz as number) - player.z;
       const d = Math.hypot(ox, oz);
@@ -1028,7 +1057,7 @@ export class ArenaRoom extends AvatarRoom {
       // hastes scale the chase speed, same as locomotion). Zombies chase at
       // their own (jittered) pace and steer off the bee-line so the horde fans
       // out; everyone else heads straight at class walk speed.
-      const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+      const limit = this.arenaLimit - PLAYER_RADIUS;
       let baseSpeed: number;
       let cdx = ndx;
       let cdz = ndz;
@@ -1134,7 +1163,7 @@ export class ArenaRoom extends AvatarRoom {
     // under the results overlay until they leave (or the room auto-disposes).
     if (this.match.matchOver) return;
     const dt = deltaMs / 1000;
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const limit = this.arenaLimit - PLAYER_RADIUS;
 
     // Zombie waves: spawn/advance hordes before the bot AI runs, so freshly
     // spawned zombies pick a target and start chasing this same tick.
@@ -1328,6 +1357,22 @@ export class ArenaRoom extends AvatarRoom {
       player.x = fixed.x;
       player.z = fixed.z;
 
+      // Room expansion system: enforce section boundaries — prevent any entity
+      // from walking through walls into locked sections.
+      if (this.roomLayout) {
+        const clamped = clampToUnlockedArea(
+          player.x,
+          player.z,
+          this.roomLayout,
+          this.state.unlockedSections,
+          r,
+          startX,
+          startZ,
+        );
+        player.x = clamped.x;
+        player.z = clamped.z;
+      }
+
       // Vertical movement (gravity + jump impulse set by the Jump message).
       const g = applyGravity(player, this.verticalVelocity.get(sessionId) ?? 0, dt);
       this.verticalVelocity.set(sessionId, g.vy);
@@ -1406,7 +1451,7 @@ export class ArenaRoom extends AvatarRoom {
   /** Reset a player to a full, alive state at one of the layout's spawn points
    *  (a small random jitter avoids stacking when several share a point). */
   private resetPlayer(player: Player): void {
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const limit = this.arenaLimit - PLAYER_RADIUS;
     // Spawn on this player's side of the arena (blue at +Z, red at −Z).
     const spawns = arenaSpawnsForTeam(player.team === 'red' ? 'red' : 'blue');
     const spawn = spawns[Math.floor(Math.random() * spawns.length)];
@@ -1415,7 +1460,7 @@ export class ArenaRoom extends AvatarRoom {
       player.x = clamp(spawn.x + jitter(), -limit, limit);
       player.z = clamp(spawn.z + jitter(), -limit, limit);
     } else {
-      const range = ARENA_HALF_SIZE - PLAYER_RADIUS * 2;
+      const range = this.arenaLimit - PLAYER_RADIUS * 2;
       player.x = (Math.random() * 2 - 1) * range;
       player.z = (Math.random() * 2 - 1) * range;
     }
@@ -1515,6 +1560,11 @@ export class ArenaRoom extends AvatarRoom {
     });
     if (zombies.length === 0) return;
 
+    const startPos = new Map<string, { x: number; z: number }>();
+    for (const z of zombies) {
+      startPos.set(z.sessionId, { x: z.x, z: z.z });
+    }
+
     // Zombie ↔ zombie: push apart equally (a deterministic axis when exactly
     // coincident, e.g. two spawned on the same jittered point).
     for (let i = 0; i < zombies.length; i++) {
@@ -1538,8 +1588,8 @@ export class ArenaRoom extends AvatarRoom {
         const push = (minSep - d) / 2;
         const ox = (dx / d) * push;
         const oz = (dz / d) * push;
-        const aLimit = ARENA_HALF_SIZE - aRadius;
-        const bLimit = ARENA_HALF_SIZE - bRadius;
+        const aLimit = this.arenaLimit - aRadius;
+        const bLimit = this.arenaLimit - bRadius;
         a.x = clamp(a.x - ox, -aLimit, aLimit);
         a.z = clamp(a.z - oz, -aLimit, aLimit);
         b.x = clamp(b.x + ox, -bLimit, bLimit);
@@ -1561,7 +1611,7 @@ export class ArenaRoom extends AvatarRoom {
         if (dist2 >= minSepSq || dist2 < 1e-8) continue;
         const d = Math.sqrt(dist2);
         const push = minSep - d;
-        const zLimit = ARENA_HALF_SIZE - zRadius;
+        const zLimit = this.arenaLimit - zRadius;
         z.x = clamp(z.x + (dx / d) * push, -zLimit, zLimit);
         z.z = clamp(z.z + (dz / d) * push, -zLimit, zLimit);
       }
@@ -1582,6 +1632,21 @@ export class ArenaRoom extends AvatarRoom {
       const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, zRadius);
       z.x = fixed.x;
       z.z = fixed.z;
+      // Enforce section boundaries so pushed zombies can't end up in locked areas.
+      if (this.roomLayout) {
+        const start = startPos.get(z.sessionId) ?? { x: z.x, z: z.z };
+        const clamped = clampToUnlockedArea(
+          z.x,
+          z.z,
+          this.roomLayout,
+          this.state.unlockedSections,
+          zRadius,
+          start.x,
+          start.z,
+        );
+        z.x = clamped.x;
+        z.z = clamped.z;
+      }
     }
   }
 
@@ -1670,11 +1735,9 @@ export class ArenaRoom extends AvatarRoom {
     // instead of stacking), then apply the variant's level-scaled health. A
     // random portal each spawn so hordes pour in from the back gate AND the
     // flanking side portals.
-    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    const limit = this.arenaLimit - PLAYER_RADIUS;
     const jitter = () => (Math.random() * 2 - 1) * 1.6;
-    const portal =
-      ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
-      ARENA_PORTAL_POINT;
+    const portal = this.pickZombiePortal();
     player.x = clamp(portal.x + jitter(), -limit, limit);
     player.z = clamp(portal.z + jitter(), -limit, limit);
     player.maxHp =
@@ -1714,10 +1777,8 @@ export class ArenaRoom extends AvatarRoom {
     player.team = 'red';
     this.resetPlayer(player);
 
-    const limit = ARENA_HALF_SIZE - 0.8;
-    const portal =
-      ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
-      ARENA_PORTAL_POINT;
+    const limit = this.arenaLimit - 0.8;
+    const portal = this.pickZombiePortal();
     player.x = clamp(portal.x + (Math.random() * 2 - 1) * 1.6, -limit, limit);
     player.z = clamp(portal.z + (Math.random() * 2 - 1) * 1.6, -limit, limit);
     
@@ -1808,5 +1869,62 @@ export class ArenaRoom extends AvatarRoom {
         dirZ: 1,
       });
     }
+  }
+
+  // --- Room expansion system -----------------------------------------------
+
+  /** If `level` matches the next door's unlock wave, open that door and load
+   *  the section behind it. No-op if all doors are already open. */
+  private tryUnlockDoor(level: number): void {
+    if (!this.roomLayout) return;
+    const nextIndex = this.state.unlockedSections;
+    if (nextIndex >= this.roomLayout.doors.length) return;
+    const door = this.roomLayout.doors[nextIndex]!;
+    if (level < door.unlockWave) return;
+
+    // Remove the door's wall from the collision set.
+    this.cover.removeDoor(`door-${door.index}`);
+
+    // Generate cover for the newly unlocked section.
+    const section = this.roomLayout.sections[nextIndex];
+    if (section) {
+      const sectionCover = generateSectionCover(this.state.layoutSeed, section);
+      this.cover.addSection(sectionCover.structures);
+      this.barrels.addBarrels(sectionCover.barrels);
+      this.destructibles.addObjects(sectionCover.drums, sectionCover.tireStacks);
+    }
+
+    // Increment the replicated counter (drives client rendering + minimap).
+    this.state.unlockedSections = nextIndex + 1;
+
+    // Broadcast a door-open event so clients play the crumble VFX.
+    this.broadcast(ServerMessage.StructureCrumbled, {
+      x: door.x,
+      z: door.z,
+      radius: door.width / 2,
+    });
+  }
+
+  /** Pick a zombie spawn portal from all unlocked sections + the main room,
+   *  weighted toward portals closest to the nearest human player. */
+  private pickZombiePortal(): { x: number; z: number } {
+    if (!this.roomLayout || this.state.unlockedSections === 0) {
+      // No room system or no sections unlocked — original behaviour.
+      return (
+        ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
+        ARENA_PORTAL_POINT
+      );
+    }
+    // Gather alive human positions for distance weighting.
+    const humans: { x: number; z: number }[] = [];
+    this.state.players.forEach((p, id) => {
+      if (p.alive && !this.bots.has(id)) humans.push({ x: p.x, z: p.z });
+    });
+    return pickWeightedPortal(
+      ZOMBIE_SPAWN_PORTALS,
+      this.roomLayout,
+      this.state.unlockedSections,
+      humans,
+    );
   }
 }
