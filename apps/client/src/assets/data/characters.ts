@@ -1,14 +1,73 @@
-import type { CharacterDescriptor } from '@arena/shared';
-
-const SKIN = '#e6b98f';
-const STEEL = '#9aa3b2';
+import type { CharacterDescriptor, PlaceholderPart } from '@arena/shared';
+import { humanoid, BODY_BASE_COLOR, type HumanoidPalette } from './humanoid';
 
 /**
- * Placeholder characters built entirely from primitives. Each silhouette is
- * deliberately distinct so classes read at a glance. Local space has the origin
- * at the feet (y = 0 is the ground); weapons attach via the referenced weapon's
- * grip transform.
+ * Characters. Every figure shares the EXACT same humanoid body (see
+ * `humanoid()` — legs, feet, torso, arms, hands, head, eyes); classes differ
+ * only by palette (dyes) and the headgear / accessory slots layered on top.
+ * Local space has the origin at the feet (y = 0 is the ground); weapons attach
+ * via the referenced weapon's grip transform, which lands in the right hand.
+ *
+ * The slot inputs (palette / headgear / accessories / main hand) are the same
+ * data the planned unlock store will drive — a cosmetic is just a value for a
+ * slot, so equipping one later means swapping the input here, nothing more.
  */
+
+// --- headgear / accessory parts (the per-class slot contents) ---
+
+const coneHelmet = (color: string, metal: string): PlaceholderPart[] => [
+  { name: 'helmet', shape: 'cone', args: [0.29, 0.44, 16], position: [0, 1.82, 0], color, metalness: 0.6, roughness: 0.4 },
+  { name: 'helmet.crest', shape: 'box', args: [0.06, 0.16, 0.36], position: [0, 1.98, 0], color: metal, roughness: 0.4 },
+];
+
+const shoulderPads = (color: string): PlaceholderPart[] => [
+  { name: 'pad.l', shape: 'sphere', args: [0.17, 12, 12], position: [-0.36, 1.24, 0.02], color, metalness: 0.5, roughness: 0.5 },
+  { name: 'pad.r', shape: 'sphere', args: [0.17, 12, 12], position: [0.36, 1.24, 0.02], color, metalness: 0.5, roughness: 0.5 },
+];
+
+const wizardHat: PlaceholderPart[] = [
+  { name: 'hat.brim', shape: 'cylinder', args: [0.35, 0.35, 0.05, 20], position: [0, 1.7, 0], color: '#2a3499', roughness: 0.7 },
+  { name: 'hat.cone', shape: 'cone', args: [0.27, 0.68, 18], position: [0, 2.0, 0], color: '#3b4cca', roughness: 0.7 },
+];
+
+const hood: PlaceholderPart[] = [
+  { name: 'hood', shape: 'cone', args: [0.33, 0.38, 14], position: [0, 1.76, -0.03], rotation: [-0.18, 0, 0], color: '#2f5e3b', roughness: 0.85 },
+];
+
+const quiver: PlaceholderPart[] = [
+  { name: 'quiver', shape: 'cylinder', args: [0.07, 0.07, 0.5, 10], position: [-0.18, 1.0, -0.32], rotation: [0.35, 0, -0.3], color: '#5a3b22', roughness: 0.8 },
+];
+
+const halo: PlaceholderPart[] = [
+  {
+    name: 'halo',
+    shape: 'torus',
+    args: [0.29, 0.05, 12, 28],
+    position: [0, 1.9, 0],
+    rotation: [Math.PI / 2, 0, 0],
+    color: '#ffd86b',
+    emissive: '#ffcf4d',
+    emissiveIntensity: 1.2,
+  },
+];
+
+const backpack: PlaceholderPart[] = [
+  { name: 'pack', shape: 'box', args: [0.44, 0.48, 0.26], position: [0, 1.0, -0.38], color: '#5a3b22', roughness: 0.85 },
+];
+
+// --- palettes (the dye slot) ---
+// Every class shares the SAME body/head color — a neutral blank canvas the
+// player paints on. Only the class items (secondary/metal) differ per class.
+const BASE = BODY_BASE_COLOR;
+
+const PAL = {
+  warrior: { primary: BASE, secondary: '#586074', metal: '#c0392b' } satisfies HumanoidPalette,
+  mage: { primary: BASE, secondary: '#2a3499', metal: '#cdb24a' } satisfies HumanoidPalette,
+  archer: { primary: BASE, secondary: '#2f5e3b', metal: '#7a5a30' } satisfies HumanoidPalette,
+  priest: { primary: BASE, secondary: '#cfc6a8', metal: '#ffd86b' } satisfies HumanoidPalette,
+  guard: { primary: BASE, secondary: '#3c465c', metal: '#9aa3b2' } satisfies HumanoidPalette,
+  merchant: { primary: BASE, secondary: '#5a3b22', metal: '#caa472' } satisfies HumanoidPalette,
+} as const;
 
 const warrior: CharacterDescriptor = {
   id: 'char.warrior',
@@ -16,32 +75,13 @@ const warrior: CharacterDescriptor = {
   class: 'warrior',
   weaponId: 'weapon.sword',
   animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.attack' },
-  // Placeholder built from primitives (same style as the priest): a steel-armored
-  // capsule body, a skin-toned head, and a conical helmet so the silhouette reads
-  // as a heavy melee fighter at a glance. Sword attaches via weapon.sword's grip.
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.4, 0.72, 8, 16],
-        position: [0, 0.74, 0],
-        color: STEEL,
-        metalness: 0.5,
-        roughness: 0.5,
-      },
-      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.44, 0], color: SKIN },
-      {
-        name: 'helmet',
-        shape: 'cone',
-        args: [0.3, 0.42, 12],
-        position: [0, 1.68, 0],
-        color: '#c0392b',
-        metalness: 0.6,
-        roughness: 0.4,
-      },
-    ],
+    parts: humanoid({
+      palette: PAL.warrior,
+      accessories: shoulderPads(PAL.warrior.primary),
+      headgear: coneHelmet(PAL.warrior.primary, PAL.warrior.metal!),
+    }),
   },
 };
 
@@ -51,30 +91,9 @@ const mage: CharacterDescriptor = {
   class: 'mage',
   weaponId: 'weapon.staff',
   animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.cast' },
-  // Placeholder built from primitives (same style as the priest): a deep-blue
-  // robe body, a skin-toned head, and a tall pointed wizard hat so the
-  // silhouette reads as a spellcaster. Staff attaches via weapon.staff's grip.
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.36, 0.72, 8, 16],
-        position: [0, 0.74, 0],
-        color: '#3b4cca',
-        roughness: 0.8,
-      },
-      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.44, 0], color: SKIN },
-      {
-        name: 'hat',
-        shape: 'cone',
-        args: [0.28, 0.6, 16],
-        position: [0, 1.86, 0],
-        color: '#2a3499',
-        roughness: 0.7,
-      },
-    ],
+    parts: humanoid({ palette: PAL.mage, headgear: wizardHat }),
   },
 };
 
@@ -84,30 +103,9 @@ const archer: CharacterDescriptor = {
   class: 'archer',
   weaponId: 'weapon.bow',
   animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.attack' },
-  // Placeholder built from primitives (same style as the priest): a lean
-  // leather-green body, a skin-toned head, and a pointed hood so the silhouette
-  // reads as a nimble ranger. Bow attaches via weapon.bow's grip.
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.32, 0.74, 8, 16],
-        position: [0, 0.74, 0],
-        color: '#3e7d4f',
-        roughness: 0.8,
-      },
-      { name: 'head', shape: 'sphere', args: [0.25, 16, 16], position: [0, 1.44, 0], color: SKIN },
-      {
-        name: 'hood',
-        shape: 'cone',
-        args: [0.27, 0.34, 12],
-        position: [0, 1.62, 0],
-        color: '#2f5e3b',
-        roughness: 0.85,
-      },
-    ],
+    parts: humanoid({ palette: PAL.archer, headgear: hood, accessories: quiver }),
   },
 };
 
@@ -119,27 +117,7 @@ const priest: CharacterDescriptor = {
   animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.cast' },
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.36, 0.7, 8, 16],
-        position: [0, 0.74, 0],
-        color: '#e8e3d0',
-        roughness: 0.8,
-      },
-      { name: 'head', shape: 'sphere', args: [0.26, 16, 16], position: [0, 1.42, 0], color: SKIN },
-      {
-        name: 'halo',
-        shape: 'torus',
-        args: [0.28, 0.05, 12, 28],
-        position: [0, 1.82, 0],
-        rotation: [Math.PI / 2, 0, 0],
-        color: '#ffd86b',
-        emissive: '#ffcf4d',
-        emissiveIntensity: 1.2,
-      },
-    ],
+    parts: humanoid({ palette: PAL.priest, accessories: halo }),
   },
 };
 
@@ -152,25 +130,7 @@ const guard: CharacterDescriptor = {
   animations: { idle: 'anim.idle' },
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.38, 0.72, 8, 16],
-        position: [0, 0.74, 0],
-        color: '#54607a',
-        roughness: 0.6,
-      },
-      { name: 'head', shape: 'sphere', args: [0.27, 16, 16], position: [0, 1.44, 0], color: SKIN },
-      {
-        name: 'helmet',
-        shape: 'cone',
-        args: [0.3, 0.4, 12],
-        position: [0, 1.66, 0],
-        color: STEEL,
-        metalness: 0.6,
-      },
-    ],
+    parts: humanoid({ palette: PAL.guard, headgear: coneHelmet(PAL.guard.metal!, PAL.guard.secondary) }),
   },
 };
 
@@ -180,24 +140,7 @@ const merchant: CharacterDescriptor = {
   animations: { idle: 'anim.idle' },
   render: {
     kind: 'placeholder',
-    parts: [
-      {
-        name: 'body',
-        shape: 'capsule',
-        args: [0.4, 0.7, 8, 16],
-        position: [0, 0.72, 0],
-        color: '#8a5a2b',
-        roughness: 0.8,
-      },
-      { name: 'head', shape: 'sphere', args: [0.27, 16, 16], position: [0, 1.4, 0], color: SKIN },
-      {
-        name: 'pack',
-        shape: 'box',
-        args: [0.5, 0.5, 0.3],
-        position: [0, 0.95, -0.4],
-        color: '#5a3b22',
-      },
-    ],
+    parts: humanoid({ palette: PAL.merchant, accessories: backpack }),
   },
 };
 

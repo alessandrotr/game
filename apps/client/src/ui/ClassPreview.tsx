@@ -5,6 +5,8 @@ import type { Group } from 'three';
 import { getCosmeticOfType, type AnimationName, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { resolveCharacter } from '../assets/CharacterFactory';
+import { usePaintStore } from '../store/usePaintStore';
+import { paintTexturesFor } from '../paint/paintSurface';
 import { CharacterModel } from '../render/CharacterModel';
 import { Pedestal } from '../render/Pedestal';
 
@@ -84,6 +86,9 @@ function ClassPreviewImpl({
   const animRef = useRef(animation);
   animRef.current = animation;
   const getAnimation = useRef(() => animRef.current).current;
+  // Reflect the player's custom paint job when this class has one.
+  const painted = usePaintStore((s) => !!s.customizedByClass[selected]);
+  const paint = painted ? paintTexturesFor(selected) : undefined;
   // Resolve the equipped pedestal (color + shader effect); a neutral gray ring
   // is the default for every class when nothing is equipped.
   const ped = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal') : undefined;
@@ -95,7 +100,7 @@ function ClassPreviewImpl({
     const bust = (
       <>
         <group key={selected}>
-          <CharacterModel descriptor={descriptor} />
+          <CharacterModel descriptor={descriptor} paint={paint} />
         </group>
         <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       </>
@@ -147,7 +152,7 @@ function ClassPreviewImpl({
 
       {/* Remount on class change so the new model pops in cleanly. */}
       <group key={selected}>
-        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} />
+        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} paint={paint} />
       </group>
       <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={6} blur={2.4} far={4} />

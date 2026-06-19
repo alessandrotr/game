@@ -36,6 +36,8 @@ import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
 import { resolveCharacter } from '../assets/CharacterFactory';
+import { usePaintStore } from '../store/usePaintStore';
+import { paintTexturesFor } from '../paint/paintSurface';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
@@ -120,6 +122,17 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     () => resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId, player?.dyeId),
     [player?.characterClass, player?.skinId, player?.dyeId],
   );
+
+  // Custom paint: the local player sees their own paint job live. (Remote players'
+  // paint syncs via the server in a later pass.) Load any saved paint on mount,
+  // and apply the shared paint texture once this class has a custom look — the
+  // texture object is stable, so later brush strokes update it without a remount.
+  const characterClass = (player?.characterClass ?? 'warrior') as CharacterClass;
+  useEffect(() => {
+    if (isLocal) void usePaintStore.getState().hydrate(characterClass);
+  }, [isLocal, characterClass]);
+  const showPaint = usePaintStore((s) => isLocal && !!s.customizedByClass[characterClass]);
+  const paint = showPaint ? paintTexturesFor(characterClass) : undefined;
 
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);
@@ -429,6 +442,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           getAnimation={getAnimation}
           getSpeed={getSpeed}
           lightweight={isZombieSkin(player?.skinId ?? '')}
+          paint={paint}
         />
       </group>
 

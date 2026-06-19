@@ -6,6 +6,7 @@ import {
   Footprints,
   Frame,
   Lock,
+  Palette,
   ShoppingBag,
   Smile,
   Sparkles,
@@ -39,6 +40,7 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
 import { ClassPreview } from './ClassPreview';
+import { PaintStudio } from './PaintStudio';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
 import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
@@ -900,6 +902,7 @@ function CustomizeContent({ characterClass }: { characterClass: CharacterClass }
 
 const TABS: { id: CustomizeTab; label: string; icon: typeof User }[] = [
   { id: 'customize', label: 'Customize', icon: Sparkles },
+  { id: 'paint', label: 'Paint', icon: Palette },
   { id: 'store', label: 'Store', icon: ShoppingBag },
 ];
 
@@ -977,16 +980,24 @@ export function CustomizePanel() {
             context per card. */}
         <EmoteThumbStage characterClass={characterClass} />
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
-          <Showcase characterClass={characterClass} />
-          <div className="flex min-h-0 flex-col">
-            {tab === 'store' ? (
-              <StoreContent characterClass={characterClass} />
-            ) : (
-              <CustomizeContent characterClass={characterClass} />
-            )}
+        {tab === 'paint' ? (
+          // The paint studio needs the full body as an interactive canvas, so it
+          // spans the panel instead of the showcase/content split.
+          <div className="min-h-0 flex-1">
+            <PaintStudio characterClass={characterClass} />
           </div>
-        </div>
+        ) : (
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
+            <Showcase characterClass={characterClass} />
+            <div className="flex min-h-0 flex-col">
+              {tab === 'store' ? (
+                <StoreContent characterClass={characterClass} />
+              ) : (
+                <CustomizeContent characterClass={characterClass} />
+              )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -2,20 +2,32 @@ import { Suspense, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import type { CanvasTexture } from 'three';
 import type { GltfModel, PlaceholderModel, RenderSource } from '@arena/shared';
+import type { PaintTextures } from '../paint/paintSurface';
 import { PrimitiveGeometry } from './geometry';
 import { glassMaterialFor } from './glassMaterial';
 import { brickOnBeforeCompile, brickCacheKey } from './brickMaterial';
 import { roofTileOnBeforeCompile, roofTileCacheKey } from './roofTileMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 
+/** The paint texture for a given part name, or null when it has none / unpainted. */
+function partMap(paint: PaintTextures | undefined, name?: string) {
+  if (!paint || !name) return null;
+  return (paint as Record<string, CanvasTexture | null | undefined>)[name] ?? null;
+}
+
 /**
  * The single rendering seam for every asset. Given a `RenderSource` it draws
  * either primitive placeholder parts or a GLTF model. This is the one place that
  * changes when art is swapped in — descriptors flip `kind: 'placeholder'` to
  * `kind: 'gltf'` and nothing else in the app needs to know.
+ *
+ * `paint` is an optional per-part paint texture map (keyed by part name, e.g.
+ * `body`/`head`), applied as that part's color map so a player's custom paint job
+ * shows on their character. Ignored by non-character assets (no matching parts).
  */
-export function AssetMesh({ source }: { source: RenderSource }) {
+export function AssetMesh({ source, paint }: { source: RenderSource; paint?: PaintTextures }) {
   if (source.kind === 'gltf') {
     return (
       <AssetErrorBoundary label={source.url}>
@@ -25,10 +37,10 @@ export function AssetMesh({ source }: { source: RenderSource }) {
       </AssetErrorBoundary>
     );
   }
-  return <PlaceholderMesh model={source} />;
+  return <PlaceholderMesh model={source} paint={paint} />;
 }
 
-function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
+function PlaceholderMesh({ model, paint }: { model: PlaceholderModel; paint?: PaintTextures }) {
   // One shared glass material per renderer — see glassMaterialFor. The hook runs
   // unconditionally even when a model has no glass parts; that's just a WeakMap
   // lookup, so it's free.
@@ -61,7 +73,11 @@ function PlaceholderMesh({ model }: { model: PlaceholderModel }) {
           >
             <PrimitiveGeometry shape={part.shape} args={part.args} />
             <meshStandardMaterial
-              color={part.color}
+              // A paint texture supplied for this part becomes its color map; the
+              // base color then goes white so painted hues read true (a map
+              // multiplies with `color`). Unpainted parts keep their flat color.
+              map={partMap(paint, part.name)}
+              color={partMap(paint, part.name) ? '#ffffff' : part.color}
               emissive={part.emissive ?? '#000000'}
               emissiveIntensity={part.emissiveIntensity ?? (part.emissive ? 1 : 0)}
               metalness={part.metalness ?? 0.1}

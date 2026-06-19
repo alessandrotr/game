@@ -9,6 +9,7 @@ import {
   type MeshStandardMaterial,
   type SkinnedMesh,
 } from 'three';
+import type { PaintTextures } from '../paint/paintSurface';
 import type {
   AnimationName,
   CharacterDescriptor,
@@ -65,6 +66,11 @@ interface CharacterModelProps {
    * a shadow-pass draw + skinning cost every frame. Off for players (crisp look).
    */
   lightweight?: boolean;
+  /** Optional per-player paint texture, mapped onto the body's paintable parts. */
+  paint?: PaintTextures;
+  /** Procedural motion (idle bob etc.). Set false to hold a still pose — e.g. the
+   *  paint studio, where a bobbing body would fight the brush. */
+  animate?: boolean;
 }
 
 /**
@@ -77,6 +83,8 @@ export function CharacterModel({
   getAnimation = ALWAYS_IDLE,
   getSpeed,
   lightweight = false,
+  paint,
+  animate = true,
 }: CharacterModelProps) {
   const phase = useMemo(() => seedOf(descriptor.id), [descriptor.id]);
   const weapon = descriptor.weaponId ? assets.getWeapon(descriptor.weaponId) : undefined;
@@ -102,7 +110,7 @@ export function CharacterModel({
   }
 
   return (
-    <PlaceholderCharacter descriptor={descriptor} getAnimation={getAnimation} phase={phase}>
+    <PlaceholderCharacter descriptor={descriptor} getAnimation={getAnimation} phase={phase} paint={paint} animate={animate}>
       {weapon && <WeaponMount weapon={weapon} />}
     </PlaceholderCharacter>
   );
@@ -126,18 +134,22 @@ function PlaceholderCharacter({
   descriptor,
   getAnimation,
   phase,
+  paint,
+  animate = true,
   children,
 }: {
   descriptor: CharacterDescriptor;
   getAnimation: () => AnimationName;
   phase: number;
+  paint?: PaintTextures;
+  animate?: boolean;
   children?: React.ReactNode;
 }) {
   const group = useRef<Group>(null);
-  useProceduralAnimator(group, getAnimation, phase);
+  useProceduralAnimator(group, getAnimation, phase, animate);
   return (
     <group ref={group}>
-      <AssetMesh source={descriptor.render} />
+      <AssetMesh source={descriptor.render} paint={paint} />
       {children}
     </group>
   );
