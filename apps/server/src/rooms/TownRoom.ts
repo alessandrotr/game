@@ -8,6 +8,7 @@ import {
   TICK_MS,
   TOWN_HALF_SIZE,
   TOWN_OBSTACLES,
+  LEADERBOARD_CATEGORIES,
   ClientMessage,
   ServerMessage,
   getClassDefinition,
@@ -80,20 +81,27 @@ export class TownRoom extends AvatarRoom {
 
     this.registerAvatarHandlers();
 
-    this.onMessage(ClientMessage.RequestLeaderboard, (client) => {
+    this.onMessage(ClientMessage.RequestLeaderboard, (client, msg) => {
+      // Whitelist the requested category (a client could send anything); fall
+      // back to wins so a bad value never reaches the SQL or hangs the dialog.
+      const category = LEADERBOARD_CATEGORIES.includes(msg?.category)
+        ? msg.category
+        : 'wins';
       const db = getPool();
       if (!db) {
-        client.send(ServerMessage.Leaderboard, { enabled: false, entries: [] });
+        client.send(ServerMessage.Leaderboard, { category, enabled: false, entries: [] });
         return;
       }
-      void topPlayers(db, 20)
-        .then((entries) => client.send(ServerMessage.Leaderboard, { enabled: true, entries }))
+      void topPlayers(db, category, 20)
+        .then((entries) =>
+          client.send(ServerMessage.Leaderboard, { category, enabled: true, entries }),
+        )
         .catch((err) => {
           captureServerError(err, {
             message: '[town] leaderboard query failed:',
             tags: { where: 'town.leaderboard', roomId: this.roomId, sessionId: client.sessionId },
           });
-          client.send(ServerMessage.Leaderboard, { enabled: true, entries: [] });
+          client.send(ServerMessage.Leaderboard, { category, enabled: true, entries: [] });
         });
     });
 

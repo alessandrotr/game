@@ -290,7 +290,9 @@ export function TownPodiums({
   position = PODIUM_POSITION,
   rotation = PODIUM_ROTATION,
 }: TownPodiumsProps) {
-  const entries = useLeaderboardStore((s) => s.entries);
+  // The Hall of Champions is always the win leaders, regardless of which tab the
+  // dialog currently shows — read the cached `wins` board specifically.
+  const entries = useLeaderboardStore((s) => s.boards.wins);
   // Part of the leaderboard monument: fade out when another structure is focused.
   const show = useFocusStore((s) => !s.target || s.panel === 'leaderboard');
 
@@ -325,7 +327,7 @@ export function TownPodiums({
             height={r.height}
             x={r.x}
             labelY={r.labelY}
-            entry={entries[r.rank - 1]}
+            entry={entries?.[r.rank - 1]}
           />
         ))}
       </group>

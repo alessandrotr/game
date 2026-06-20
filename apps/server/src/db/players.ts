@@ -1,4 +1,9 @@
-import { levelForXp, type ClassProgressView, type LeaderboardEntry } from '@arena/shared';
+import {
+  levelForXp,
+  type ClassProgressView,
+  type LeaderboardCategory,
+  type LeaderboardEntry,
+} from '@arena/shared';
 import type { Queryable } from './database.js';
 
 /**
@@ -217,15 +222,35 @@ export async function recordResult(
 }
 
 /**
- * The global leaderboard: top class-progress rows (one per player+class),
- * ranked by wins then XP. Each row is a player's record on a single class.
+ * The ORDER BY clause for each leaderboard category. The primary key is the
+ * category's own metric; the rest are stable, sensible tiebreakers. These are
+ * fixed literals (never user input) so they're safe to interpolate into SQL.
  */
-export async function topPlayers(q: Queryable, limit = 20): Promise<LeaderboardEntry[]> {
+const ORDER_BY: Record<LeaderboardCategory, string> = {
+  wins: 'cp.wins DESC, cp.xp DESC, cp.kills DESC',
+  losses: 'cp.losses DESC, cp.deaths DESC, cp.xp DESC',
+  kills: 'cp.kills DESC, cp.xp DESC, cp.wins DESC',
+  deaths: 'cp.deaths DESC, cp.xp DESC, cp.kills DESC',
+  level: 'cp.level DESC, cp.xp DESC, cp.wins DESC',
+};
+
+/**
+ * A leaderboard: top class-progress rows (one per player+class), ranked by the
+ * given `category`. Each row is a player's record on a single class. The same
+ * rows back every category — only the sort changes — so a strong player can
+ * appear on several boards (and more than once if they play multiple classes).
+ */
+export async function topPlayers(
+  q: Queryable,
+  category: LeaderboardCategory = 'wins',
+  limit = 20,
+): Promise<LeaderboardEntry[]> {
+  const orderBy = ORDER_BY[category] ?? ORDER_BY.wins;
   const res = await q.query(
     `SELECT p.id, p.username, p.cosmetics_loadout, cp.character_class, cp.level, cp.wins, cp.losses, cp.kills, cp.deaths
        FROM class_progress cp
        JOIN players p ON p.id = cp.player_id
-      ORDER BY cp.wins DESC, cp.xp DESC, cp.kills DESC
+      ORDER BY ${orderBy}
       LIMIT $1`,
     [limit],
   );

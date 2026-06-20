@@ -19,6 +19,7 @@ import {
   type GunView,
   type PickableView,
   type ClientMessagePayloads,
+  type LeaderboardCategory,
   type LobbyMode,
   type LobbySlotView,
   type LobbyStatus,
@@ -583,7 +584,7 @@ function wireRoom(joined: Room): void {
       .spawn(msg.kind === 'grenade' ? 'vfx.car_explosion' : 'vfx.barrel_explosion', [msg.x, 0, msg.z]);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
-    useLeaderboardStore.getState().set(msg.enabled, msg.entries),
+    useLeaderboardStore.getState().set(msg.category, msg.enabled, msg.entries),
   );
   joined.onMessage(
     ServerMessage.WeaponFired,
@@ -1186,8 +1187,8 @@ export function sendPaintRev(characterClass: CharacterClass, paintRev: string): 
   room?.send(ClientMessage.EquipLoadout, { ...look, paintRev });
 }
 
-export function requestLeaderboard(): void {
-  room?.send(ClientMessage.RequestLeaderboard, {});
+export function requestLeaderboard(category: LeaderboardCategory = 'wins'): void {
+  room?.send(ClientMessage.RequestLeaderboard, { category });
 }
 
 /** Update the world-space point to move toward (hold-to-move). */

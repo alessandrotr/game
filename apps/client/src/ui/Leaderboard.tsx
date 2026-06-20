@@ -1,5 +1,11 @@
 import { useEffect } from 'react';
-import { getClassDefinition, isCharacterClass, type LeaderboardEntry } from '@arena/shared';
+import {
+  getClassDefinition,
+  isCharacterClass,
+  LEADERBOARD_CATEGORIES,
+  type LeaderboardCategory,
+  type LeaderboardEntry,
+} from '@arena/shared';
 import { Trophy, X } from 'lucide-react';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -28,6 +34,29 @@ function classInfo(characterClass: string): { name: string } {
 }
 
 const RANK_COLOR = ['#f5d061', '#cdd3e0', '#cd8c52']; // gold / silver / bronze
+
+/** Per-category display copy: the tab label and the section sub-label blurb. */
+const CATEGORY_META: Record<LeaderboardCategory, { tab: string; blurb: string }> = {
+  wins: { tab: 'Wins', blurb: 'by total wins' },
+  losses: { tab: 'Losses', blurb: 'by total losses' },
+  kills: { tab: 'Kills', blurb: 'by total kills' },
+  deaths: { tab: 'Deaths', blurb: 'by total deaths' },
+  level: { tab: 'Level', blurb: 'by level' },
+};
+
+/** Which stat group a category emphasizes, so rows can highlight the ranked
+ *  metric and quiet the rest. K/D and W–L each pair two categories. */
+function accentOf(category: LeaderboardCategory): {
+  kd: boolean;
+  wl: boolean;
+  level: boolean;
+} {
+  return {
+    kd: category === 'kills' || category === 'deaths',
+    wl: category === 'wins' || category === 'losses',
+    level: category === 'level',
+  };
+}
 
 /** Win rate as a whole percent, or null when the player has no decided matches. */
 function winRate(wins: number, losses: number): number | null {
@@ -89,34 +118,130 @@ function YouTag() {
   );
 }
 
-/** K / D pair, shared between layouts. */
-function KillDeath({ kills, deaths }: { kills: number; deaths: number }) {
+/** Underline the number the active leaderboard ranks by, so the eye lands on the
+ *  metric that ordered the rows without losing the K/D • W–L semantic colors. */
+const RANKED = 'underline decoration-gold/70 decoration-2 underline-offset-2';
+
+/** K / D pair, shared between layouts. `category` decides emphasis: the whole
+ *  pair dims when this isn't the active board; the ranked number is underlined. */
+function KillDeath({
+  kills,
+  deaths,
+  category,
+}: {
+  kills: number;
+  deaths: number;
+  category: LeaderboardCategory;
+}) {
+  const a = accentOf(category);
   return (
-    <span className="tabular-nums" title="Kills / Deaths">
-      <span className="font-semibold text-positive">{kills}</span>
+    <span className={`tabular-nums ${a.kd ? '' : 'opacity-45'}`} title="Kills / Deaths">
+      <span className={`font-semibold text-positive ${category === 'kills' ? RANKED : ''}`}>
+        {kills}
+      </span>
       <span className="text-muted">/</span>
-      <span className="font-semibold text-negative">{deaths}</span>
+      <span className={`font-semibold text-negative ${category === 'deaths' ? RANKED : ''}`}>
+        {deaths}
+      </span>
     </span>
   );
 }
 
-/** W–L record with the derived win-rate as a quiet secondary insight. */
-function Record({ wins, losses }: { wins: number; losses: number }) {
+/** W–L record with the derived win-rate as a quiet secondary insight. Dims when
+ *  this isn't the active board; the ranked number (wins or losses) is underlined. */
+function Record({
+  wins,
+  losses,
+  category,
+}: {
+  wins: number;
+  losses: number;
+  category: LeaderboardCategory;
+}) {
+  const a = accentOf(category);
   const rate = winRate(wins, losses);
   return (
-    <span className="inline-flex items-baseline gap-1.5 tabular-nums" title="Wins–Losses">
+    <span
+      className={`inline-flex items-baseline gap-1.5 tabular-nums ${a.wl ? '' : 'opacity-45'}`}
+      title="Wins–Losses"
+    >
       <span>
-        <span className="font-semibold text-positive">{wins}</span>
+        <span className={`font-semibold text-positive ${category === 'wins' ? RANKED : ''}`}>
+          {wins}
+        </span>
         <span className="text-muted">–</span>
-        <span className="font-semibold text-negative">{losses}</span>
+        <span className={`font-semibold text-negative ${category === 'losses' ? RANKED : ''}`}>
+          {losses}
+        </span>
       </span>
       {rate !== null && <span className="text-[0.8em] text-muted">{rate}%</span>}
     </span>
   );
 }
 
+/** Segmented control to switch the active leaderboard. Scrolls rather than wraps
+ *  on narrow panels so all five categories stay reachable without a layout jump. */
+function CategoryTabs({
+  active,
+  onPick,
+}: {
+  active: LeaderboardCategory;
+  onPick: (c: LeaderboardCategory) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Leaderboard category"
+      className="flex gap-1 overflow-x-auto rounded-lg border border-white/10 bg-black/20 p-1"
+    >
+      {LEADERBOARD_CATEGORIES.map((c) => {
+        const on = c === active;
+        return (
+          <button
+            key={c}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onPick(c)}
+            className={
+              'flex-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[clamp(0.72rem,2.2cqi,0.9rem)] font-semibold transition ' +
+              (on
+                ? 'bg-gold/20 text-gold shadow-[inset_0_0_0_1px_var(--color-gold)]'
+                : 'text-muted hover:bg-white/5 hover:text-text')
+            }
+          >
+            {CATEGORY_META[c].tab}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A gold ring on the level badge when the board is ranked by level. */
+function LevelChip({ level, active, size }: { level: number; active: boolean; size: 'xs' | 'xxs' }) {
+  return (
+    <span
+      className={active ? 'rounded-md shadow-[0_0_0_1.5px_var(--color-gold)]' : undefined}
+      title={active ? 'Ranked by level' : undefined}
+    >
+      <LevelBadge level={level} size={size} />
+    </span>
+  );
+}
+
 /** Desktop row — dense, aligned columns. */
-function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; me: boolean }) {
+function DeskRow({
+  entry,
+  rank,
+  me,
+  category,
+}: {
+  entry: LeaderboardEntry;
+  rank: number;
+  me: boolean;
+  category: LeaderboardCategory;
+}) {
   const cls = classInfo(entry.characterClass);
   return (
     <TableRow
@@ -128,7 +253,7 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
       </TableCell>
       <TableCell className="py-2.5 pl-3">
         <div className="flex items-center gap-2.5">
-          <LevelBadge level={entry.level} size="xs" />
+          <LevelChip level={entry.level} active={category === 'level'} size="xs" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
@@ -141,17 +266,27 @@ function DeskRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; m
         </div>
       </TableCell>
       <TableCell className="py-2.5 text-right text-[0.92em]">
-        <KillDeath kills={entry.kills} deaths={entry.deaths} />
+        <KillDeath kills={entry.kills} deaths={entry.deaths} category={category} />
       </TableCell>
       <TableCell className="py-2.5 pr-4 text-right text-[0.92em]">
-        <Record wins={entry.wins} losses={entry.losses} />
+        <Record wins={entry.wins} losses={entry.losses} category={category} />
       </TableCell>
     </TableRow>
   );
 }
 
 /** Mobile row — stacked card: identity on top, stats on a second line. No scroll. */
-function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number; me: boolean }) {
+function MobileRow({
+  entry,
+  rank,
+  me,
+  category,
+}: {
+  entry: LeaderboardEntry;
+  rank: number;
+  me: boolean;
+  category: LeaderboardCategory;
+}) {
   const cls = classInfo(entry.characterClass);
   return (
     <li
@@ -159,7 +294,7 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
       style={me ? { boxShadow: 'inset 2px 0 0 0 var(--color-gold)' } : undefined}
     >
       <RankBadge rank={rank} />
-      <LevelBadge level={entry.level} size="xxs" />
+      <LevelChip level={entry.level} active={category === 'level'} size="xxs" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate font-semibold text-text">{entry.name}</span>
@@ -170,9 +305,9 @@ function MobileRow({ entry, rank, me }: { entry: LeaderboardEntry; rank: number;
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5 text-[0.92em]">
-        <Record wins={entry.wins} losses={entry.losses} />
+        <Record wins={entry.wins} losses={entry.losses} category={category} />
         <span className="text-[0.8em] text-muted">
-          <KillDeath kills={entry.kills} deaths={entry.deaths} /> K/D
+          <KillDeath kills={entry.kills} deaths={entry.deaths} category={category} /> K/D
         </span>
       </div>
     </li>
@@ -225,21 +360,25 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
  * scrolls sideways.
  */
 export function Leaderboard() {
-  const { open, loading, enabled, entries, setOpen, setLoading } = useLeaderboardStore();
+  const { open, loading, enabled, category, boards, setOpen, setLoading, setCategory } =
+    useLeaderboardStore();
+  const entries = boards[category] ?? [];
   const username = useAuthStore((s) => s.username);
   // Cinematic focus engaged from the town tablet → dock right, no backdrop, so the
   // podium champions stay visible on the left. Centered (today's look) otherwise.
   const docked = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
 
-  // Fetch fresh standings whenever the dialog opens — wherever it was opened
-  // from. Radix's onOpenChange only fires for its own close interactions, so an
+  // Fetch fresh standings whenever the dialog opens or the active tab changes.
+  // Radix's onOpenChange only fires for its own close interactions, so an
   // externally-driven `open` (the game menu) wouldn't trigger a fetch otherwise.
+  // Show the spinner only when this tab has no cached rows yet — switching back
+  // to an already-seen board shows it instantly and refreshes silently. Read the
+  // cache via getState so a reply landing doesn't re-trigger this effect (loop).
   useEffect(() => {
-    if (open) {
-      setLoading(true);
-      requestLeaderboard();
-    }
-  }, [open, setLoading]);
+    if (!open) return;
+    if (!useLeaderboardStore.getState().boards[category]) setLoading(true);
+    requestLeaderboard(category);
+  }, [open, category, setLoading]);
 
   // Release the camera focus + movement lock whenever the dialog isn't open, and
   // on unmount (e.g. leaving town) so a stale focus can't hijack another scene.
@@ -281,7 +420,8 @@ export function Leaderboard() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-5 pb-5 pt-3">
-          <SectionLabel>Top players · by total wins</SectionLabel>
+          <CategoryTabs active={category} onPick={setCategory} />
+          <SectionLabel>Top players · {CATEGORY_META[category].blurb}</SectionLabel>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-black/15 text-[clamp(0.82rem,2.7cqi,1.12rem)]">
             {loading ? (
               <LoadingRows />
@@ -298,13 +438,31 @@ export function Leaderboard() {
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
                         <TableHead className="pl-3">Player</TableHead>
-                        <TableHead className="text-right">K / D</TableHead>
-                        <TableHead className="pr-4 text-right">W–L</TableHead>
+                        <TableHead
+                          className={
+                            'text-right ' + (accentOf(category).kd ? 'text-gold' : '')
+                          }
+                        >
+                          K / D
+                        </TableHead>
+                        <TableHead
+                          className={
+                            'pr-4 text-right ' + (accentOf(category).wl ? 'text-gold' : '')
+                          }
+                        >
+                          W–L
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {entries.map((entry, i) => (
-                        <DeskRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
+                        <DeskRow
+                          key={i}
+                          entry={entry}
+                          rank={i + 1}
+                          me={isLocalPlayer(entry.name, username)}
+                          category={category}
+                        />
                       ))}
                     </TableBody>
                   </Table>
@@ -313,7 +471,13 @@ export function Leaderboard() {
                 {/* Mobile: stacked cards, no horizontal scroll. */}
                 <ul className="divide-y divide-white/5 sm:hidden">
                   {entries.map((entry, i) => (
-                    <MobileRow key={i} entry={entry} rank={i + 1} me={isLocalPlayer(entry.name, username)} />
+                    <MobileRow
+                      key={i}
+                      entry={entry}
+                      rank={i + 1}
+                      me={isLocalPlayer(entry.name, username)}
+                      category={category}
+                    />
                   ))}
                 </ul>
               </>

@@ -156,6 +156,19 @@ export interface MatchScore {
   deaths: number;
 }
 
+/** Which metric a leaderboard is ranked by. Each is a column on `class_progress`,
+ *  so the same per-(player+class) rows are simply re-sorted per category. */
+export type LeaderboardCategory = 'wins' | 'losses' | 'kills' | 'deaths' | 'level';
+
+/** All leaderboard categories, in display order (the dialog renders one tab each). */
+export const LEADERBOARD_CATEGORIES: readonly LeaderboardCategory[] = [
+  'wins',
+  'losses',
+  'kills',
+  'deaths',
+  'level',
+] as const;
+
 /** One ranked row on the global leaderboard (a player's progress for a class). */
 export interface LeaderboardEntry {
   name: string;
@@ -206,7 +219,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.ZombieJoinByCode]: { code: string };
   [ClientMessage.ZombieLeaveLobby]: Record<string, never>;
   [ClientMessage.ZombieStartMatch]: Record<string, never>;
-  [ClientMessage.RequestLeaderboard]: Record<string, never>;
+  [ClientMessage.RequestLeaderboard]: { category: LeaderboardCategory };
   [ClientMessage.Emote]: { emote: string };
   /** New aim direction for the active channel (normalized server-side). */
   [ClientMessage.AimChannel]: { dirX: number; dirZ: number };
@@ -220,6 +233,8 @@ export interface ClientMessagePayloads {
     pedestalId: string;
     titleId: string;
     rimId: string;
+    weaponId: string;
+    enchantId: string;
     paintRev?: string;
   };
   /** Movement "feel" overrides (global). Walk speed is the per-class stat. */
@@ -297,9 +312,12 @@ export interface ServerMessagePayloads {
     scores: MatchScore[];
   };
   [ServerMessage.Leaderboard]: {
+    /** Which ranking these entries are for — echoed back so the client can route
+     *  the reply to the right tab and ignore stale responses for an old tab. */
+    category: LeaderboardCategory;
     /** False when persistence is disabled (no DATABASE_URL) — show a notice. */
     enabled: boolean;
-    /** Top entries, already ranked (best first). */
+    /** Top entries, already ranked (best first) for {@link category}. */
     entries: LeaderboardEntry[];
   };
   [ServerMessage.LevelUp]: { sessionId: string; level: number };
