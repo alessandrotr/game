@@ -44,25 +44,18 @@ const CATEGORY_META: Record<LeaderboardCategory, { tab: string; blurb: string }>
   level: { tab: 'Level', blurb: 'by level' },
 };
 
-/** Which stat group a category emphasizes, so rows can highlight the ranked
- *  metric and quiet the rest. K/D and W–L each pair two categories. */
-function accentOf(category: LeaderboardCategory): {
-  kd: boolean;
-  wl: boolean;
-  level: boolean;
-} {
-  return {
-    kd: category === 'kills' || category === 'deaths',
-    wl: category === 'wins' || category === 'losses',
-    level: category === 'level',
-  };
-}
-
-/** Win rate as a whole percent, or null when the player has no decided matches. */
-function winRate(wins: number, losses: number): number | null {
-  const total = wins + losses;
-  return total === 0 ? null : Math.round((wins / total) * 100);
-}
+/** The single stat each board ranks by: which entry field to show and its tone.
+ *  Each leaderboard shows only this value — not the full K/D • W–L spread. */
+const METRIC: Record<
+  LeaderboardCategory,
+  { key: 'wins' | 'losses' | 'kills' | 'deaths' | 'level'; tone: string }
+> = {
+  wins: { key: 'wins', tone: 'text-positive' },
+  losses: { key: 'losses', tone: 'text-negative' },
+  kills: { key: 'kills', tone: 'text-positive' },
+  deaths: { key: 'deaths', tone: 'text-negative' },
+  level: { key: 'level', tone: 'text-gold' },
+};
 
 /** Case-insensitive name match so the local player's row can be highlighted. */
 function isLocalPlayer(name: string, username: string | null): boolean {
@@ -118,69 +111,15 @@ function YouTag() {
   );
 }
 
-/** Underline the number the active leaderboard ranks by, so the eye lands on the
- *  metric that ordered the rows without losing the K/D • W–L semantic colors. */
-const RANKED = 'underline decoration-gold/70 decoration-2 underline-offset-2';
-
-/** K / D pair, shared between layouts. `category` decides emphasis: the whole
- *  pair dims when this isn't the active board; the ranked number is underlined. */
-function KillDeath({
-  kills,
-  deaths,
-  category,
-}: {
-  kills: number;
-  deaths: number;
-  category: LeaderboardCategory;
-}) {
-  const a = accentOf(category);
-  return (
-    <span className={`tabular-nums ${a.kd ? '' : 'opacity-45'}`} title="Kills / Deaths">
-      <span className={`font-semibold text-positive ${category === 'kills' ? RANKED : ''}`}>
-        {kills}
-      </span>
-      <span className="text-muted">/</span>
-      <span className={`font-semibold text-negative ${category === 'deaths' ? RANKED : ''}`}>
-        {deaths}
-      </span>
-    </span>
-  );
+/** The ranked value for a row on the active board — the only stat each
+ *  leaderboard shows, colored by its tone (positive / negative / gold). */
+function Metric({ entry, category }: { entry: LeaderboardEntry; category: LeaderboardCategory }) {
+  const m = METRIC[category];
+  return <span className={`font-bold tabular-nums ${m.tone}`}>{entry[m.key]}</span>;
 }
 
-/** W–L record with the derived win-rate as a quiet secondary insight. Dims when
- *  this isn't the active board; the ranked number (wins or losses) is underlined. */
-function Record({
-  wins,
-  losses,
-  category,
-}: {
-  wins: number;
-  losses: number;
-  category: LeaderboardCategory;
-}) {
-  const a = accentOf(category);
-  const rate = winRate(wins, losses);
-  return (
-    <span
-      className={`inline-flex items-baseline gap-1.5 tabular-nums ${a.wl ? '' : 'opacity-45'}`}
-      title="Wins–Losses"
-    >
-      <span>
-        <span className={`font-semibold text-positive ${category === 'wins' ? RANKED : ''}`}>
-          {wins}
-        </span>
-        <span className="text-muted">–</span>
-        <span className={`font-semibold text-negative ${category === 'losses' ? RANKED : ''}`}>
-          {losses}
-        </span>
-      </span>
-      {rate !== null && <span className="text-[0.8em] text-muted">{rate}%</span>}
-    </span>
-  );
-}
-
-/** Segmented control to switch the active leaderboard. Scrolls rather than wraps
- *  on narrow panels so all five categories stay reachable without a layout jump. */
+/** Segmented control to switch the active leaderboard — a fixed five-up grid so
+ *  the tabs share the width evenly and never overlap or clip. */
 function CategoryTabs({
   active,
   onPick,
@@ -192,7 +131,7 @@ function CategoryTabs({
     <div
       role="tablist"
       aria-label="Leaderboard category"
-      className="flex gap-1 overflow-x-auto rounded-lg border border-white/10 bg-black/20 p-1"
+      className="grid grid-cols-5 gap-1 rounded-lg border border-white/10 bg-black/20 p-1"
     >
       {LEADERBOARD_CATEGORIES.map((c) => {
         const on = c === active;
@@ -204,7 +143,7 @@ function CategoryTabs({
             aria-selected={on}
             onClick={() => onPick(c)}
             className={
-              'flex-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[clamp(0.72rem,2.2cqi,0.9rem)] font-semibold transition ' +
+              'truncate rounded-md px-1 py-1.5 text-center text-[clamp(0.7rem,2.1cqi,0.88rem)] font-semibold transition ' +
               (on
                 ? 'bg-gold/20 text-gold shadow-[inset_0_0_0_1px_var(--color-gold)]'
                 : 'text-muted hover:bg-white/5 hover:text-text')
@@ -215,18 +154,6 @@ function CategoryTabs({
         );
       })}
     </div>
-  );
-}
-
-/** A gold ring on the level badge when the board is ranked by level. */
-function LevelChip({ level, active, size }: { level: number; active: boolean; size: 'xs' | 'xxs' }) {
-  return (
-    <span
-      className={active ? 'rounded-md shadow-[0_0_0_1.5px_var(--color-gold)]' : undefined}
-      title={active ? 'Ranked by level' : undefined}
-    >
-      <LevelBadge level={level} size={size} />
-    </span>
   );
 }
 
@@ -253,7 +180,7 @@ function DeskRow({
       </TableCell>
       <TableCell className="py-2.5 pl-3">
         <div className="flex items-center gap-2.5">
-          <LevelChip level={entry.level} active={category === 'level'} size="xs" />
+          <LevelBadge level={entry.level} size="xs" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="max-w-[150px] truncate font-semibold text-text">{entry.name}</span>
@@ -265,11 +192,8 @@ function DeskRow({
           </div>
         </div>
       </TableCell>
-      <TableCell className="py-2.5 text-right text-[0.92em]">
-        <KillDeath kills={entry.kills} deaths={entry.deaths} category={category} />
-      </TableCell>
-      <TableCell className="py-2.5 pr-4 text-right text-[0.92em]">
-        <Record wins={entry.wins} losses={entry.losses} category={category} />
+      <TableCell className="py-2.5 pr-4 text-right text-[1.05em]">
+        <Metric entry={entry} category={category} />
       </TableCell>
     </TableRow>
   );
@@ -294,7 +218,7 @@ function MobileRow({
       style={me ? { boxShadow: 'inset 2px 0 0 0 var(--color-gold)' } : undefined}
     >
       <RankBadge rank={rank} />
-      <LevelChip level={entry.level} active={category === 'level'} size="xxs" />
+      <LevelBadge level={entry.level} size="xxs" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate font-semibold text-text">{entry.name}</span>
@@ -304,11 +228,8 @@ function MobileRow({
           {cls.name}
         </div>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5 text-[0.92em]">
-        <Record wins={entry.wins} losses={entry.losses} category={category} />
-        <span className="text-[0.8em] text-muted">
-          <KillDeath kills={entry.kills} deaths={entry.deaths} category={category} /> K/D
-        </span>
+      <div className="shrink-0 text-[1.05em]">
+        <Metric entry={entry} category={category} />
       </div>
     </li>
   );
@@ -438,19 +359,8 @@ export function Leaderboard() {
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
                         <TableHead className="pl-3">Player</TableHead>
-                        <TableHead
-                          className={
-                            'text-right ' + (accentOf(category).kd ? 'text-gold' : '')
-                          }
-                        >
-                          K / D
-                        </TableHead>
-                        <TableHead
-                          className={
-                            'pr-4 text-right ' + (accentOf(category).wl ? 'text-gold' : '')
-                          }
-                        >
-                          W–L
+                        <TableHead className="pr-4 text-right text-gold">
+                          {CATEGORY_META[category].tab}
                         </TableHead>
                       </TableRow>
                     </TableHeader>
