@@ -20,6 +20,8 @@ export interface Appearance {
   pedestalId: string;
   titleId: string;
   rimId: string;
+  weaponId: string;
+  enchantId: string;
 }
 
 interface CosmeticsStore {
@@ -75,6 +77,8 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
       pedestalId: loadout.pedestalId,
       titleId: loadout.titleId,
       rimId: loadout.rimId,
+      weaponId: loadout.weaponId,
+      enchantId: loadout.enchantId,
     };
   },
 
@@ -116,6 +120,8 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
       pedestalId: loadout.pedestalId,
       titleId: loadout.titleId,
       rimId: loadout.rimId,
+      weaponId: loadout.weaponId,
+      enchantId: loadout.enchantId,
     });
     scheduleSave(get);
   },
@@ -125,4 +131,16 @@ export const useCosmeticsStore = create<CosmeticsStore>((set, get) => ({
 export function equipSkin(characterClass: CharacterClass, skinId: string): void {
   if (skinId && getCosmeticOfType(skinId, 'skin')?.characterClass !== characterClass) return;
   useCosmeticsStore.getState().equip(characterClass, { skinId });
+}
+
+/** Equip a weapon for a class (or clear to the base weapon with ''). Class-bound. */
+export function equipWeapon(characterClass: CharacterClass, weaponId: string): void {
+  if (weaponId && getCosmeticOfType(weaponId, 'weapon')?.characterClass !== characterClass) return;
+  useCosmeticsStore.getState().equip(characterClass, { weaponId });
+}
+
+/** Equip a weapon enchant for a class (or clear it with ''). Class-bound. */
+export function equipEnchant(characterClass: CharacterClass, enchantId: string): void {
+  if (enchantId && getCosmeticOfType(enchantId, 'enchant')?.characterClass !== characterClass) return;
+  useCosmeticsStore.getState().equip(characterClass, { enchantId });
 }

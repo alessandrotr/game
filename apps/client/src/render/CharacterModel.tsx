@@ -18,6 +18,7 @@ import type {
 } from '@arena/shared';
 import { assets } from '../assets/registry';
 import { AssetMesh } from './AssetMesh';
+import type { EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
 
@@ -71,6 +72,10 @@ interface CharacterModelProps {
   /** Procedural motion (idle bob etc.). Set false to hold a still pose — e.g. the
    *  paint studio, where a bobbing body would fight the brush. */
   animate?: boolean;
+  /** Equipped weapon enchant (resolved via `resolveEnchant`). Applied to the grip
+   *  weapon's showpiece parts; undefined = no enchant. Requires an `EnchantClock`
+   *  mounted in the same canvas for animation. */
+  enchant?: EnchantParams;
 }
 
 /**
@@ -85,6 +90,7 @@ export function CharacterModel({
   lightweight = false,
   paint,
   animate = true,
+  enchant,
 }: CharacterModelProps) {
   const phase = useMemo(() => seedOf(descriptor.id), [descriptor.id]);
   const weapon = descriptor.weaponId ? assets.getWeapon(descriptor.weaponId) : undefined;
@@ -104,27 +110,27 @@ export function CharacterModel({
             />
           </Suspense>
         </AssetErrorBoundary>
-        {weapon && <WeaponMount weapon={weapon} />}
+        {weapon && <WeaponMount weapon={weapon} enchant={enchant} />}
       </group>
     );
   }
 
   return (
     <PlaceholderCharacter descriptor={descriptor} getAnimation={getAnimation} phase={phase} paint={paint} animate={animate}>
-      {weapon && <WeaponMount weapon={weapon} />}
+      {weapon && <WeaponMount weapon={weapon} enchant={enchant} />}
     </PlaceholderCharacter>
   );
 }
 
 /** A weapon mounted in the character's grip transform. */
-function WeaponMount({ weapon }: { weapon: WeaponDescriptor }) {
+function WeaponMount({ weapon, enchant }: { weapon: WeaponDescriptor; enchant?: EnchantParams }) {
   return (
     <group
       position={weapon.grip?.position ?? [0, 0, 0]}
       rotation={weapon.grip?.rotation ?? [0, 0, 0]}
       scale={weapon.grip?.scale ?? 1}
     >
-      <AssetMesh source={weapon.render} />
+      <AssetMesh source={weapon.render} enchant={enchant} />
     </group>
   );
 }

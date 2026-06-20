@@ -114,6 +114,8 @@ function PaperdollCard({
             skinId={data.skinId}
             dyeId={data.dyeId}
             pedestalId={data.pedestalId}
+            weaponId={data.weaponId}
+            enchantId={data.enchantId}
             paint={paint}
           />
           <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">

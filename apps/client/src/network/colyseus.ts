@@ -168,6 +168,8 @@ function snapshotState(state: RawState): {
       pedestalId: player.pedestalId ?? '',
       titleId: player.titleId ?? '',
       rimId: player.rimId ?? 'rim.standard',
+      weaponId: player.weaponId ?? '',
+      enchantId: player.enchantId ?? '',
       pid: player.pid ?? 0,
       paintRev: player.paintRev ?? '',
       animState: player.animState,
@@ -429,6 +431,8 @@ let joinOptions: {
   pedestalId?: string;
   titleId?: string;
   rimId?: string;
+  weaponId?: string;
+  enchantId?: string;
   paintRev?: string;
   sessionKey: string;
 } | null = null;
@@ -925,6 +929,8 @@ export async function connectToRoom(
     pedestalId: look.pedestalId,
     titleId: look.titleId,
     rimId: look.rimId,
+    weaponId: look.weaponId,
+    enchantId: look.enchantId,
     paintRev: usePaintStore.getState().revFor(characterClass),
     sessionKey: TAB_SESSION,
   };
@@ -1174,6 +1180,8 @@ export function sendEquipLoadout(look: Appearance): void {
     joinOptions.pedestalId = look.pedestalId;
     joinOptions.titleId = look.titleId;
     joinOptions.rimId = look.rimId;
+    joinOptions.weaponId = look.weaponId;
+    joinOptions.enchantId = look.enchantId;
   }
   room?.send(ClientMessage.EquipLoadout, look);
 }

@@ -9,6 +9,7 @@ import {
   type CharacterDescriptor,
   type PlaceholderPart,
 } from '@arena/shared';
+import type { EnchantParams } from '../render/enchantMaterial';
 import { assets } from './registry';
 
 /**
@@ -157,6 +158,7 @@ export function resolveCharacter(
   characterClass: CharacterClass,
   skinId?: string,
   dyeId?: string,
+  weaponId?: string,
 ): CharacterDescriptor {
   let result = assets.getCharacter(CLASS_TO_ASSET[characterClass]);
 
@@ -173,5 +175,20 @@ export function resolveCharacter(
     if (dye.recolor) result = applyRecolor(result, dye.recolor);
   }
 
+  // Equipped weapon cosmetic overrides the class's base grip weapon (class-bound;
+  // an invalid / wrong-class id leaves the base weapon in place). '' = base.
+  const weapon = weaponId ? getCosmeticOfType(weaponId, 'weapon') : undefined;
+  if (weapon && weapon.characterClass === characterClass) {
+    result = { ...result, weaponId: weapon.weaponId };
+  }
+
   return result;
+}
+
+/** Resolve an equipped enchant id into the params the renderer needs, or
+ *  undefined for no enchant. Class binding is enforced server-side; here we only
+ *  need the visual fields. */
+export function resolveEnchant(enchantId?: string): EnchantParams | undefined {
+  const e = enchantId ? getCosmeticOfType(enchantId, 'enchant') : undefined;
+  return e ? { effect: e.effect, color: e.color, color2: e.color2 } : undefined;
 }

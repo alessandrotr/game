@@ -28,6 +28,8 @@ import {
   resolvePedestalId,
   resolveRimId,
   resolveSkinId,
+  resolveWeaponId,
+  resolveEnchantId,
   resolveTitleId,
   type JoinOptions,
 } from './util/identity.js';
@@ -147,6 +149,8 @@ export class TownRoom extends AvatarRoom {
     player.pedestalId = resolvePedestalId(options);
     player.titleId = resolveTitleId(options);
     player.rimId = resolveRimId(options);
+    player.weaponId = resolveWeaponId(options, player.characterClass);
+    player.enchantId = resolveEnchantId(options, player.characterClass);
     player.pid = claims?.pid ?? 0;
     player.paintRev = resolvePaintRev(options);
     // Seed max HP/mana from the class so the floating bar (and its chunk ticks)

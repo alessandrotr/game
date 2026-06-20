@@ -107,6 +107,12 @@ export class Player extends Schema {
   @type('string') perk2 = '';
   /** Zombie perk slot 3 (a `PerkId` or '' if empty). */
   @type('string') perk3 = '';
+  /** Equipped weapon cosmetic id ('' = the class's default base weapon). Class-
+   *  bound. Kept last so existing replicated field offsets are unchanged. */
+  @type('string') weaponId = '';
+  /** Equipped weapon-enchant id ('' = no enchant) — drives the held-weapon shader.
+   *  Class-bound. Kept last so existing replicated field offsets are unchanged. */
+  @type('string') enchantId = '';
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

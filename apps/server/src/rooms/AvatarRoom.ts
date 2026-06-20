@@ -123,7 +123,12 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         const resolve = (id: unknown, type: CosmeticType): string => {
           const c: Cosmetic | undefined = getCosmetic(String(id ?? ''));
           if (!c || c.type !== type || !isUnlocked(c, player.level)) return '';
-          if (c.type === 'skin' && c.characterClass !== player.characterClass) return '';
+          // Class-bound types (skin/weapon/enchant) must match this player's class.
+          if (
+            (c.type === 'skin' || c.type === 'weapon' || c.type === 'enchant') &&
+            c.characterClass !== player.characterClass
+          )
+            return '';
           return c.id;
         };
         player.skinId = resolve(message?.skinId, 'skin');
@@ -132,6 +137,8 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
         player.titleId = resolve(message?.titleId, 'title');
         // Avatar rim: fall back to the standard frame so a player always has one.
         player.rimId = resolve(message?.rimId, 'rim') || 'rim.standard';
+        player.weaponId = resolve(message?.weaponId, 'weapon');
+        player.enchantId = resolve(message?.enchantId, 'enchant');
         // Custom paint revision: appearance only (bounded string). When it changes,
         // peers refetch the paint PNG over HTTP via the public /paint/:pid route.
         if (typeof message?.paintRev === 'string') player.paintRev = message.paintRev.slice(0, 32);

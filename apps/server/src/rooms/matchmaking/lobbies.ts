@@ -12,6 +12,8 @@ export interface Identity {
   pedestalId: string;
   titleId: string;
   rimId: string;
+  weaponId: string;
+  enchantId: string;
   /** The tab/session key, carried into the arena seat reservation. */
   sessionKey: string;
 }

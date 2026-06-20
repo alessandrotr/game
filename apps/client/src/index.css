@@ -45,6 +45,16 @@
   background-image: radial-gradient(circle at 50% 22%, #191b2c, #07080d 72%);
 }
 
+/* Hide the scrollbar on horizontally-scrollable strips (e.g. the store's filter
+   chips) while keeping them scrollable. */
+@utility scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Tailwind v4 made buttons use the default cursor; restore the pointer. */
 @layer base {
   button:not(:disabled),

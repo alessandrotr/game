@@ -37,7 +37,7 @@ import { useSpeechStore } from '../store/useSpeechStore';
 import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
-import { resolveCharacter } from '../assets/CharacterFactory';
+import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
 import { usePaintStore } from '../store/usePaintStore';
 import { paintTexturesFor, applyClassPaint } from '../paint/paintSurface';
 import { fetchPublicPaint } from '../network/paint';
@@ -136,12 +136,19 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   });
 
   const descriptor = useMemo(() => {
-    const desc = resolveCharacter(player?.characterClass ?? 'warrior', player?.skinId, player?.dyeId);
+    const desc = resolveCharacter(
+      player?.characterClass ?? 'warrior',
+      player?.skinId,
+      player?.dyeId,
+      player?.weaponId,
+    );
     if (isRaged) {
       return { ...desc, tint: '#ff3333' };
     }
     return desc;
-  }, [player?.characterClass, player?.skinId, player?.dyeId, isRaged]);
+  }, [player?.characterClass, player?.skinId, player?.dyeId, player?.weaponId, isRaged]);
+
+  const enchant = useMemo(() => resolveEnchant(player?.enchantId), [player?.enchantId]);
 
   // Custom paint. The LOCAL player edits + sees their own paint live (the texture
   // object is stable, so brush strokes update it without a remount). REMOTE players
@@ -502,6 +509,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         pedestalId: latest.pedestalId,
         titleId: latest.titleId,
         rimId: latest.rimId,
+        weaponId: latest.weaponId ?? '',
+        enchantId: latest.enchantId ?? '',
         pid: latest.pid ?? 0,
       });
     }
@@ -520,6 +529,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           getSpeed={getSpeed}
           lightweight={isZombieSkin(player?.skinId ?? '')}
           paint={paint}
+          enchant={enchant}
         />
       </group>
 

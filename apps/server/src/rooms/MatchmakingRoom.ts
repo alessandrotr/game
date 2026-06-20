@@ -18,6 +18,8 @@ import {
   resolveRimId,
   resolveSkinId,
   resolveTitleId,
+  resolveWeaponId,
+  resolveEnchantId,
   sessionKeyOf,
   type JoinOptions,
 } from './util/identity.js';
@@ -86,15 +88,18 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
 
   private setupMatchmakingJoin(client: Client, options?: JoinOptions): void {
     const claims = this.enforceSingleSession(client, options);
+    const characterClass = resolveClass(options);
     this.lobbies.setIdentity(client.sessionId, {
       token: String(options?.token ?? ''),
       name: resolveName(claims, options),
-      characterClass: resolveClass(options),
+      characterClass,
       skinId: resolveSkinId(options),
       dyeId: resolveDyeId(options),
       pedestalId: resolvePedestalId(options),
       titleId: resolveTitleId(options),
       rimId: resolveRimId(options),
+      weaponId: resolveWeaponId(options, characterClass),
+      enchantId: resolveEnchantId(options, characterClass),
       sessionKey: sessionKeyOf(options),
     });
   }
@@ -193,6 +198,8 @@ export class MatchmakingRoom extends BaseGameRoom<MatchmakingState> {
           pedestalId: identity?.pedestalId ?? '',
           titleId: identity?.titleId ?? '',
           rimId: identity?.rimId ?? '',
+          weaponId: identity?.weaponId ?? '',
+          enchantId: identity?.enchantId ?? '',
           team: slot.team,
           sessionKey: identity?.sessionKey ?? '',
         });

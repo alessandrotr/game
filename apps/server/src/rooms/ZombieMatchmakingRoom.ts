@@ -20,6 +20,8 @@ import {
   resolveRimId,
   resolveSkinId,
   resolveTitleId,
+  resolveWeaponId,
+  resolveEnchantId,
   sessionKeyOf,
   type JoinOptions,
 } from './util/identity.js';
@@ -76,15 +78,18 @@ export class ZombieMatchmakingRoom extends BaseGameRoom<ZombieMatchmakingState> 
   override onJoin(client: Client, options?: JoinOptions): void {
     try {
       const claims = this.enforceSingleSession(client, options);
+      const characterClass = resolveClass(options);
       this.identities.set(client.sessionId, {
         token: String(options?.token ?? ''),
         name: resolveName(claims, options),
-        characterClass: resolveClass(options),
+        characterClass,
         skinId: resolveSkinId(options),
         dyeId: resolveDyeId(options),
         pedestalId: resolvePedestalId(options),
         titleId: resolveTitleId(options),
         rimId: resolveRimId(options),
+        weaponId: resolveWeaponId(options, characterClass),
+        enchantId: resolveEnchantId(options, characterClass),
         sessionKey: sessionKeyOf(options),
       });
     } catch (err) {
@@ -216,6 +221,8 @@ export class ZombieMatchmakingRoom extends BaseGameRoom<ZombieMatchmakingState> 
           pedestalId: identity?.pedestalId ?? '',
           titleId: identity?.titleId ?? '',
           rimId: identity?.rimId ?? '',
+          weaponId: identity?.weaponId ?? '',
+          enchantId: identity?.enchantId ?? '',
           team: 'blue', // co-op: one squad, all on blue
           sessionKey: identity?.sessionKey ?? '',
         });

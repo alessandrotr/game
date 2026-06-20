@@ -9,6 +9,7 @@ import { PrimitiveGeometry } from './geometry';
 import { glassMaterialFor } from './glassMaterial';
 import { brickOnBeforeCompile, brickCacheKey } from './brickMaterial';
 import { roofTileOnBeforeCompile, roofTileCacheKey } from './roofTileMaterial';
+import { enchantMaterialFor, type EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 
 /** The paint texture for a given part name, or null when it has none / unpainted. */
@@ -27,7 +28,16 @@ function partMap(paint: PaintTextures | undefined, name?: string) {
  * `body`/`head`), applied as that part's color map so a player's custom paint job
  * shows on their character. Ignored by non-character assets (no matching parts).
  */
-export function AssetMesh({ source, paint }: { source: RenderSource; paint?: PaintTextures }) {
+export function AssetMesh({
+  source,
+  paint,
+  enchant,
+}: {
+  source: RenderSource;
+  paint?: PaintTextures;
+  /** When set, a weapon's `enchantable` parts render with this animated enchant. */
+  enchant?: EnchantParams;
+}) {
   if (source.kind === 'gltf') {
     return (
       <AssetErrorBoundary label={source.url}>
@@ -37,10 +47,18 @@ export function AssetMesh({ source, paint }: { source: RenderSource; paint?: Pai
       </AssetErrorBoundary>
     );
   }
-  return <PlaceholderMesh model={source} paint={paint} />;
+  return <PlaceholderMesh model={source} paint={paint} enchant={enchant} />;
 }
 
-function PlaceholderMesh({ model, paint }: { model: PlaceholderModel; paint?: PaintTextures }) {
+function PlaceholderMesh({
+  model,
+  paint,
+  enchant,
+}: {
+  model: PlaceholderModel;
+  paint?: PaintTextures;
+  enchant?: EnchantParams;
+}) {
   // One shared glass material per renderer — see glassMaterialFor. The hook runs
   // unconditionally even when a model has no glass parts; that's just a WeakMap
   // lookup, so it's free.
@@ -48,7 +66,20 @@ function PlaceholderMesh({ model, paint }: { model: PlaceholderModel; paint?: Pa
   return (
     <group>
       {model.parts.map((part, i) =>
-        part.material === 'glass' ? (
+        enchant && part.enchantable ? (
+          <mesh
+            key={part.name ?? i}
+            name={part.name ?? ''}
+            position={part.position ?? [0, 0, 0]}
+            rotation={part.rotation ?? [0, 0, 0]}
+            scale={part.scale ?? 1}
+            castShadow={part.castShadow ?? true}
+            receiveShadow={false}
+            material={enchantMaterialFor(enchant.effect, enchant.color, enchant.color2)}
+          >
+            <PrimitiveGeometry shape={part.shape} args={part.args} />
+          </mesh>
+        ) : part.material === 'glass' ? (
           <mesh
             key={part.name ?? i}
             name={part.name ?? ''}

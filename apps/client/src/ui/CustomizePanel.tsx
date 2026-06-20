@@ -10,8 +10,10 @@ import {
   ShoppingBag,
   Smile,
   Sparkles,
+  Sword,
   Tag,
   User,
+  Wand2,
   X,
 } from 'lucide-react';
 import {
@@ -81,19 +83,40 @@ const TYPE_ICON: Record<CosmeticType, typeof Tag> = {
   emote: Smile,
   title: Tag,
   rim: Frame,
+  weapon: Sword,
+  enchant: Wand2,
 };
+
+/** Cosmetic types that are owned/equipped per class (only this class's show). */
+const CLASS_BOUND: ReadonlySet<CosmeticType> = new Set(['skin', 'weapon', 'enchant']);
+
+/** The catalog of a type, narrowed to a class for class-bound types. */
+function itemsFor(type: CosmeticType, characterClass: CharacterClass): Cosmetic[] {
+  const all = cosmeticsOfType(type);
+  if (!CLASS_BOUND.has(type)) return all;
+  return all.filter((c) => (c as { characterClass?: string }).characterClass === characterClass);
+}
+
+/** Every catalog item relevant to a class (shared types + this class's class-bound). */
+function classCatalog(characterClass: CharacterClass): Cosmetic[] {
+  return COSMETICS.filter(
+    (c) => !CLASS_BOUND.has(c.type) || (c as { characterClass?: string }).characterClass === characterClass,
+  );
+}
 
 /** The display color a cosmetic "is" (its own color, or its rarity accent). */
 function colorOf(c: Cosmetic): string {
-  // Only items that *are* a color carry one (pedestals/dyes/skins). Emotes and
-  // titles stay neutral so the grid doesn't turn into a rainbow — their rarity
+  // Only items that *are* a color carry one (pedestals/dyes/rims/enchants). The
+  // rest stay neutral so the grid doesn't turn into a rainbow — their rarity
   // reads from the small dot/label instead.
-  if (c.type === 'dye' || c.type === 'pedestal' || c.type === 'rim') return c.color;
+  if (c.type === 'dye' || c.type === 'pedestal' || c.type === 'rim' || c.type === 'enchant') return c.color;
   return '#9aa3b8';
 }
 
 /** Category display metadata, in store order. */
 const CATEGORIES: { type: CosmeticType; label: string; icon: typeof Tag }[] = [
+  { type: 'weapon', label: 'Weapons', icon: Sword },
+  { type: 'enchant', label: 'Enchants', icon: Wand2 },
   { type: 'rim', label: 'Avatar Rims', icon: Frame },
   { type: 'pedestal', label: 'Pedestals', icon: Footprints },
   { type: 'emote', label: 'Emotes', icon: Smile },
@@ -118,6 +141,11 @@ function isEquipped(c: Cosmetic, loadout: Loadout): boolean {
       return loadout.rimId === c.id;
     case 'emote':
       return loadout.emotes.includes(c.id);
+    case 'weapon':
+      // The base weapon reads as equipped when no weapon override is set ('').
+      return loadout.weaponId === c.id || (loadout.weaponId === '' && !!c.default);
+    case 'enchant':
+      return loadout.enchantId === c.id;
   }
 }
 
@@ -142,6 +170,14 @@ function equipCosmetic(characterClass: CharacterClass, c: Cosmetic): void {
     case 'rim':
       // Toggling a rim off reverts to the standard frame (sanitize defaults '').
       store.equip(characterClass, { rimId: on ? '' : c.id });
+      break;
+    case 'weapon':
+      // Selecting a weapon equips it; re-selecting the active one falls back to
+      // the class's base ('' = base weapon).
+      store.equip(characterClass, { weaponId: on ? '' : c.id });
+      break;
+    case 'enchant':
+      store.equip(characterClass, { enchantId: on ? '' : c.id });
       break;
     case 'emote': {
       const bound = loadout.emotes;
@@ -465,7 +501,7 @@ function CategorySection({
   characterClass: CharacterClass;
   level: number;
 }) {
-  const items = cosmeticsOfType(type);
+  const items = itemsFor(type, characterClass);
   const ownedHere = useCosmeticsStore(
     (s) =>
       items.filter((c) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id)).length,
@@ -500,12 +536,8 @@ type StoreFilter = 'all' | CosmeticType;
  *  category sections. "All" shows every section stacked; a filter narrows to one. */
 function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
   const [filter, setFilter] = useState<StoreFilter>('all');
-  const ownedCount = useCosmeticsStore(
-    (s) =>
-      classCosmeticsOf(s.byClass, characterClass).owned.filter((id) =>
-        COSMETICS.some((c) => c.id === id),
-      ).length,
-  );
+  // The catalog relevant to this class (shared items + this class's class-bound).
+  const catalogTotal = classCatalog(characterClass).length;
   // This class's level gates what can be unlocked (live value if playing it,
   // else the persisted per-class level).
   const progress = useAuthStore((s) => s.progress);
@@ -521,12 +553,14 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
     // h-full so this fills its (full-height) grid cell — otherwise the flex-1
     // scroll/canvas wrapper below has no height to flex into and collapses.
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-white/10 px-5 py-2.5">
-        <div className="flex gap-1">
+      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-2.5">
+        {/* Chips scroll horizontally rather than wrapping — there are enough
+            categories (weapons/enchants included) to overflow on narrower panels. */}
+        <div className="scrollbar-none flex min-w-0 flex-1 gap-1 overflow-x-auto">
           <FilterChip
             active={filter === 'all'}
             label="All"
-            count={COSMETICS.length}
+            count={catalogTotal}
             onClick={() => setFilter('all')}
           />
           {CATEGORIES.map((cat) => (
@@ -534,15 +568,11 @@ function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
               key={cat.type}
               active={filter === cat.type}
               label={cat.label}
-              count={cosmeticsOfType(cat.type).length}
+              count={itemsFor(cat.type, characterClass).length}
               onClick={() => setFilter(cat.type)}
             />
           ))}
         </div>
-        <span className="ml-auto text-[11px] text-muted">
-          <span className="font-semibold text-text">{ownedCount}</span> / {COSMETICS.length}{' '}
-          unlocked
-        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -578,7 +608,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-lg px-2.5 py-1 text-xs transition ${
+      className={`shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs transition ${
         active ? 'bg-gold/15 font-semibold text-gold' : 'text-muted hover:text-text'
       }`}
     >
@@ -665,6 +695,34 @@ function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: 
   );
 }
 
+/** A generic "none" tile (clears a single-select slot). Used by the enchant slot
+ *  so a player can remove the effect and show a plain weapon. */
+function NoneTile({ active, onSelect, label = 'None' }: { active: boolean; onSelect: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      title={label}
+      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
+        active ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
+      }`}
+    >
+      <div className="relative grid h-16 place-items-center bg-black/20">
+        <span className="grid h-10 w-10 place-items-center rounded-xl border border-dashed border-white/20 text-white/40">
+          <X size={18} />
+        </span>
+        {active && (
+          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
+            <Check size={11} />
+          </span>
+        )}
+      </div>
+      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">{label}</span>
+    </button>
+  );
+}
+
 /** Section header with the slot name + a "browse store" affordance. */
 function SlotHeader({
   title,
@@ -721,23 +779,31 @@ function SingleSlot({
 }: {
   title: string;
   icon: typeof Tag;
-  type: 'pedestal' | 'title' | 'rim';
+  type: 'pedestal' | 'title' | 'rim' | 'weapon' | 'enchant';
   characterClass: CharacterClass;
   equippedId: string;
   onClear: () => void;
   onBrowse: () => void;
 }) {
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
-  const items = cosmeticsOfType(type).filter((c) => owned.includes(c.id));
-  const withDefault = type === 'pedestal';
+  const items = itemsFor(type, characterClass).filter((c) => owned.includes(c.id));
+  // Pedestal leads with the gray-ring default; enchant leads with a "None" tile
+  // (remove the effect). Weapon never clears — its base is always an owned tile.
+  const lead =
+    type === 'pedestal'
+      ? 'pedestal'
+      : type === 'enchant'
+        ? 'none'
+        : 'none-needed';
   return (
     <section className="mb-5">
       <SlotHeader title={title} icon={icon} onBrowse={onBrowse} />
-      {items.length === 0 && !withDefault ? (
+      {items.length === 0 && lead === 'none-needed' ? (
         <EmptySlot onBrowse={onBrowse} />
       ) : (
         <div className="grid grid-cols-3 gap-2">
-          {withDefault && <DefaultPedestalTile active={!equippedId} onSelect={onClear} />}
+          {lead === 'pedestal' && <DefaultPedestalTile active={!equippedId} onSelect={onClear} />}
+          {lead === 'none' && <NoneTile active={!equippedId} onSelect={onClear} />}
           {items.map((c) => (
             <OptionTile key={c.id} c={c} characterClass={characterClass} />
           ))}
@@ -766,6 +832,8 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const pedestalId = preview?.type === 'pedestal' ? preview.id : loadout.pedestalId;
   const titleId = preview?.type === 'title' ? preview.id : loadout.titleId;
   const rimId = preview?.type === 'rim' ? preview.id : loadout.rimId;
+  const weaponId = preview?.type === 'weapon' ? preview.id : loadout.weaponId;
+  const enchantId = preview?.type === 'enchant' ? preview.id : loadout.enchantId;
   const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
   // Previewing (clicking) an emote makes the showcase character perform it.
   const animation: AnimationName = preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
@@ -786,6 +854,8 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
         skinId={skinId}
         dyeId={dyeId}
         pedestalId={pedestalId}
+        weaponId={weaponId}
+        enchantId={enchantId}
         animation={animation}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
@@ -849,6 +919,24 @@ function CustomizeContent({ characterClass }: { characterClass: CharacterClass }
 
   return (
     <div className="h-full overflow-y-auto px-5 py-4">
+      <SingleSlot
+        title="Weapon"
+        icon={Sword}
+        type="weapon"
+        characterClass={characterClass}
+        equippedId={loadout.weaponId}
+        onClear={() => clearSlot({ weaponId: '' })}
+        onBrowse={browse}
+      />
+      <SingleSlot
+        title="Enchant"
+        icon={Wand2}
+        type="enchant"
+        characterClass={characterClass}
+        equippedId={loadout.enchantId}
+        onClear={() => clearSlot({ enchantId: '' })}
+        onBrowse={browse}
+      />
       <SingleSlot
         title="Avatar Rim"
         icon={Frame}
@@ -960,6 +1048,11 @@ export function CustomizePanel() {
     characterClass,
     level,
   );
+  // Overall unlock progress for this class (shown in the header on the Store tab).
+  const catalog = classCatalog(characterClass);
+  const ownedCount = classCosmeticsOf(byClass, characterClass).owned.filter((id) =>
+    catalog.some((c) => c.id === id),
+  ).length;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -995,8 +1088,13 @@ export function CustomizePanel() {
               );
             })}
           </div>
+          {tab === 'store' && (
+            <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted">
+              <span className="font-semibold text-text">{ownedCount}</span> / {catalog.length} unlocked
+            </span>
+          )}
           <DialogClose asChild>
-            <IconButton icon={X} aria-label="Close" className="ml-auto" />
+            <IconButton icon={X} aria-label="Close" className={tab === 'store' ? '' : 'ml-auto'} />
           </DialogClose>
         </div>
 

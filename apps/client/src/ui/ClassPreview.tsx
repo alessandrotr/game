@@ -4,10 +4,11 @@ import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
 import { getCosmeticOfType, type AnimationName, type CharacterClass } from '@arena/shared';
 import { useCharacterStore } from '../store/useCharacterStore';
-import { resolveCharacter } from '../assets/CharacterFactory';
+import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
 import { usePaintStore } from '../store/usePaintStore';
 import { paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
 import { CharacterModel } from '../render/CharacterModel';
+import { EnchantClock } from '../render/enchantMaterial';
 import { Pedestal } from '../render/Pedestal';
 
 /** Default pedestal color when nothing is equipped (neutral gray, every class). */
@@ -43,6 +44,10 @@ interface ClassPreviewProps {
   /** Equipped/previewed pedestal cosmetic id (drives its color + shader effect).
    *  Defaults to a neutral gray ring when absent. */
   pedestalId?: string;
+  /** Equipped/previewed weapon cosmetic id ('' = the class's base weapon). */
+  weaponId?: string;
+  /** Equipped/previewed weapon-enchant id ('' = none). */
+  enchantId?: string;
   /** Framing for the full (non-lite) showcase. `'center'` keeps the model
    *  centered; `'top'` pulls the camera back and tilts the look-point down so the
    *  whole model sits in the upper part of a full-height canvas, leaving the
@@ -75,6 +80,8 @@ function ClassPreviewImpl({
   skinId,
   dyeId,
   pedestalId,
+  weaponId,
+  enchantId,
   align = 'center',
   transparent = false,
   animation = 'idle',
@@ -83,9 +90,10 @@ function ClassPreviewImpl({
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
   const descriptor = useMemo(
-    () => resolveCharacter(selected, skinId, dyeId),
-    [selected, skinId, dyeId],
+    () => resolveCharacter(selected, skinId, dyeId, weaponId),
+    [selected, skinId, dyeId, weaponId],
   );
+  const enchant = useMemo(() => resolveEnchant(enchantId), [enchantId]);
   // Stable getter that always reads the latest `animation` prop, so the GLTF
   // animator (which captures the getter once) crossfades to a previewed emote.
   const animRef = useRef(animation);
@@ -106,7 +114,7 @@ function ClassPreviewImpl({
     const bust = (
       <>
         <group key={selected}>
-          <CharacterModel descriptor={descriptor} paint={paint} />
+          <CharacterModel descriptor={descriptor} paint={paint} enchant={enchant} />
         </group>
         <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       </>
@@ -117,6 +125,7 @@ function ClassPreviewImpl({
         camera={{ position: [0, 1.25, 6], fov: 38 }}
         onCreated={({ camera }) => camera.lookAt(0, 1.0, 0)}
       >
+        <EnchantClock />
         <ambientLight intensity={0.85} />
         <directionalLight position={[2, 4, 3]} intensity={1.4} color="#fff1d4" />
         <directionalLight position={[-3, 2, -2]} intensity={0.5} color="#8ea8ff" />
@@ -129,6 +138,7 @@ function ClassPreviewImpl({
 
   return (
     <Canvas shadows dpr={[1, 2]} camera={{ position: frame.position, fov: frame.fov }}>
+      <EnchantClock />
       {/* Opaque dark stage by default; skipped when `transparent` so a backdrop
           (the live town) shows through around the model. */}
       {!transparent && (
@@ -158,7 +168,7 @@ function ClassPreviewImpl({
 
       {/* Remount on class change so the new model pops in cleanly. */}
       <group key={selected}>
-        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} paint={paint} />
+        <CharacterModel descriptor={descriptor} getAnimation={getAnimation} paint={paint} enchant={enchant} />
       </group>
       <Pedestal effect={pedEffect} color={pedColor} color2={pedColor2} />
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={6} blur={2.4} far={4} />

@@ -24,6 +24,8 @@ export interface JoinOptions {
   pedestalId?: string;
   titleId?: string;
   rimId?: string;
+  weaponId?: string;
+  enchantId?: string;
   /** Short revision of the player's custom paint for their class ('' = none). */
   paintRev?: string;
   team?: string;
@@ -79,6 +81,32 @@ export function resolveTitleId(options?: JoinOptions): string {
  *  to the standard frame so every player always has a rim. */
 export function resolveRimId(options?: JoinOptions): string {
   return resolveCosmeticId(options?.rimId, 'rim') || 'rim.standard';
+}
+
+/** A class-bound cosmetic id (weapon/enchant) from join options, accepted only if
+ *  it's a known cosmetic of the expected type AND belongs to `characterClass`
+ *  (else ''). Appearance only — ownership/level is enforced when the loadout is
+ *  persisted over HTTP and re-checked on EquipLoadout. */
+function resolveClassCosmeticId(
+  id: string | undefined,
+  type: 'weapon' | 'enchant',
+  characterClass: string,
+): string {
+  const clean = String(id ?? '').slice(0, MAX_SKIN_ID_LENGTH);
+  const c = getCosmetic(clean);
+  if (!c || c.type !== type) return '';
+  return (c as { characterClass?: string }).characterClass === characterClass ? clean : '';
+}
+
+/** The equipped weapon cosmetic id, validated against the catalog + class
+ *  ('' = the class's default base weapon, resolved client-side). */
+export function resolveWeaponId(options: JoinOptions | undefined, characterClass: string): string {
+  return resolveClassCosmeticId(options?.weaponId, 'weapon', characterClass);
+}
+
+/** The equipped weapon-enchant id, validated against the catalog + class ('' = none). */
+export function resolveEnchantId(options: JoinOptions | undefined, characterClass: string): string {
+  return resolveClassCosmeticId(options?.enchantId, 'enchant', characterClass);
 }
 
 /** The tab/session key (used for single-session enforcement), coerced to string. */

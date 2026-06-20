@@ -52,6 +52,10 @@ export interface PlayerView {
   titleId: string;
   /** Equipped avatar-rim cosmetic id — the 2D frame around this player's avatar. */
   rimId: string;
+  /** Equipped weapon cosmetic id ('' = the class's default base weapon). */
+  weaponId: string;
+  /** Equipped weapon-enchant id ('' = no enchant) — drives the held-weapon shader. */
+  enchantId: string;
   /** Account id (0 = guest) — lets peers fetch this player's custom paint. */
   pid: number;
   /** Revision of this player's custom paint ('' = none) — peers refetch on change. */

@@ -53,6 +53,7 @@ import { useArenaLayout } from './useArenaLayout';
 import { MapZones } from '../render/MapZones';
 import { VfxLayer } from '../render/VfxLayer';
 import { FloatingCombatText } from '../render/FloatingCombatText';
+import { EnchantClock } from '../render/enchantMaterial';
 import { Npcs } from './Npcs';
 
 /**
@@ -119,6 +120,7 @@ export function GameScene() {
     >
       <ToneMap mode={env.toneMapping} exposure={env.exposure} />
       <ContextGuard />
+      <EnchantClock />
       <PauseWhileCovered />
       {/* Environment: the arena uses its fixed dusk lighting + IBL; the town uses
           TownAtmosphere, which animates sky/fog/sun toward each focus scene's

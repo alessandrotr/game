@@ -11,9 +11,22 @@
  * `Player.skinId` carries the cosmetic id directly with no mapping.
  */
 
-import { CHARACTER_CLASSES, type AnimationName, type CharacterClass } from './assets.js';
+import {
+  CHARACTER_CLASSES,
+  type AnimationName,
+  type CharacterClass,
+  type WeaponAssetId,
+} from './assets.js';
 
-export type CosmeticType = 'skin' | 'emote' | 'dye' | 'pedestal' | 'title' | 'rim';
+export type CosmeticType =
+  | 'skin'
+  | 'emote'
+  | 'dye'
+  | 'pedestal'
+  | 'title'
+  | 'rim'
+  | 'weapon'
+  | 'enchant';
 
 /** Display tier — drives the card accent in the store. */
 export type CosmeticRarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -99,13 +112,49 @@ export interface RimCosmetic extends BaseCosmetic {
   effect?: RimEffect;
 }
 
+/** The held weapon's silhouette. Class-bound; its `id` doubles as the client
+ *  `WeaponDescriptor` id (same convention as skins), so `Player.weaponId` carries
+ *  the cosmetic id directly with no mapping. Each class has one `default` base. */
+export interface WeaponCosmetic extends BaseCosmetic {
+  type: 'weapon';
+  characterClass: CharacterClass;
+  /** The weapon asset id to render (identical to `id`). */
+  weaponId: WeaponAssetId;
+}
+
+/** Visual style of a weapon enchant — the client maps each to a GLSL injection
+ *  driven by one shared time uniform (no extra draw calls; see `enchantMaterial`).
+ *  Every effect is animated emissive + a fresnel rim ("glow" without bloom). */
+export type EnchantEffect =
+  | 'ember' // upward licking heat, warm flicker
+  | 'frost' // slow shimmer + cool rim
+  | 'arcane' // swirling energy bands
+  | 'venom' // dripping toxic pulse
+  | 'holy' // steady radiant rim + soft pulse
+  | 'storm' // fast crackling arcs
+  | 'void'; // dark core, violet edge
+
+/** A purely-visual enchant applied to the equipped weapon's showpiece parts
+ *  (blade / orb / head). Class-bound so the effect always fits the class. */
+export interface EnchantCosmetic extends BaseCosmetic {
+  type: 'enchant';
+  characterClass: CharacterClass;
+  effect: EnchantEffect;
+  /** Primary energy color. */
+  color: string;
+  /** Secondary color for two-tone effects (rim / core gradients). */
+  color2?: string;
+}
+
 export type Cosmetic =
   | SkinCosmetic
   | EmoteCosmetic
   | DyeCosmetic
   | PedestalCosmetic
   | TitleCosmetic
-  | RimCosmetic;
+  | RimCosmetic
+  | WeaponCosmetic
+  | EnchantCosmetic;
 
 /**
  * One character's equipped cosmetics. Ids reference {@link COSMETICS}; an empty
@@ -121,6 +170,10 @@ export interface Loadout {
   titleId: string;
   /** Avatar frame/border (2D UI). Always set — defaults to `rim.standard`. */
   rimId: string;
+  /** Equipped weapon cosmetic id ('' = the class's default base weapon). */
+  weaponId: string;
+  /** Equipped weapon-enchant id ('' = no enchant). */
+  enchantId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +246,62 @@ const RIMS: RimCosmetic[] = [
   { id: 'rim.prismatic', type: 'rim', effect: 'prismatic', color: '#ff4d8d', name: 'Prismatic', description: 'A rotating spectrum of pure, shifting light.', rarity: 'legendary', requiredLevel: 38 },
 ];
 
+// Weapons — each class owns a `default` base (its id matches the character's
+// grip weapon), then unlocks upgraded silhouettes. The id IS the client weapon
+// asset id, so equipping one renders that descriptor (see assets/data/weapons).
+const WEAPONS: WeaponCosmetic[] = [
+  // Warrior — sword line.
+  { id: 'weapon.sword', weaponId: 'weapon.sword', type: 'weapon', characterClass: 'warrior', name: 'Arming Sword', description: 'The blade every recruit is issued.', rarity: 'common', default: true },
+  { id: 'weapon.warrior.greatblade', weaponId: 'weapon.warrior.greatblade', type: 'weapon', characterClass: 'warrior', name: 'Greatblade', description: 'A broad, fullered two-hander.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'weapon.warrior.runeblade', weaponId: 'weapon.warrior.runeblade', type: 'weapon', characterClass: 'warrior', name: 'Runeblade', description: 'A dark blade veined with rune channels.', rarity: 'epic', requiredLevel: 20 },
+  // Mage — staff line.
+  { id: 'weapon.staff', weaponId: 'weapon.staff', type: 'weapon', characterClass: 'mage', name: 'Apprentice Staff', description: 'A simple focus topped with a gem.', rarity: 'common', default: true },
+  { id: 'weapon.mage.archonstaff', weaponId: 'weapon.mage.archonstaff', type: 'weapon', characterClass: 'mage', name: 'Archon Staff', description: 'A clawed staff cradling a faceted core.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'weapon.mage.voidscepter', weaponId: 'weapon.mage.voidscepter', type: 'weapon', characterClass: 'mage', name: 'Void Scepter', description: 'A halo-ringed scepter around a dark star.', rarity: 'epic', requiredLevel: 20 },
+  // Archer — bow line.
+  { id: 'weapon.bow', weaponId: 'weapon.bow', type: 'weapon', characterClass: 'archer', name: 'Hunting Bow', description: 'A reliable recurve of seasoned wood.', rarity: 'common', default: true },
+  { id: 'weapon.archer.recurve', weaponId: 'weapon.archer.recurve', type: 'weapon', characterClass: 'archer', name: 'War Recurve', description: 'A reinforced limb with bladed tips.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'weapon.archer.dawnbow', weaponId: 'weapon.archer.dawnbow', type: 'weapon', characterClass: 'archer', name: 'Dawnbow', description: 'A sweeping longbow lit at the nocks.', rarity: 'epic', requiredLevel: 20 },
+  // Priest — mace line.
+  { id: 'weapon.mace', weaponId: 'weapon.mace', type: 'weapon', characterClass: 'priest', name: 'Acolyte Mace', description: 'A blessed cudgel of plain gold.', rarity: 'common', default: true },
+  { id: 'weapon.priest.flanged', weaponId: 'weapon.priest.flanged', type: 'weapon', characterClass: 'priest', name: 'Flanged Mace', description: 'A heavy head of radiant flanges.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'weapon.priest.censer', weaponId: 'weapon.priest.censer', type: 'weapon', characterClass: 'priest', name: 'Sun Censer', description: 'A haloed orb-head crowned in gold.', rarity: 'epic', requiredLevel: 20 },
+];
+
+// Enchants — animated shader FX on the equipped weapon. Class-bound and themed,
+// staggered across the rarity bands. The `effect` selects the GLSL injection.
+const ENCHANTS: EnchantCosmetic[] = [
+  // Warrior — fire & fury.
+  { id: 'enchant.warrior.ember', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ff7a2a', name: 'Embered', description: 'Heat licks up the steel.', rarity: 'common', requiredLevel: 3 },
+  { id: 'enchant.warrior.tempest', type: 'enchant', characterClass: 'warrior', effect: 'storm', color: '#6fd0ff', color2: '#ffffff', name: 'Tempest', description: 'Lightning crackles along the edge.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'enchant.warrior.dread', type: 'enchant', characterClass: 'warrior', effect: 'void', color: '#9a6cff', color2: '#1a0030', name: 'Dreadbound', description: 'A hungry dark clings to the blade.', rarity: 'epic', requiredLevel: 20 },
+  { id: 'enchant.warrior.sunforge', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ffd24a', color2: '#ff5a1a', name: 'Sunforged', description: 'Forged in molten gold, never cooling.', rarity: 'legendary', requiredLevel: 32 },
+  // Mage — arcane & ice.
+  { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#7a5cff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
+  { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#8fe6ff', color2: '#cfffff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
+  { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#b06cff', color2: '#1a0030', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
+  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#ff5ad0', color2: '#5a8cff', name: 'Astral', description: 'Twin galaxies wind through the orb.', rarity: 'legendary', requiredLevel: 34 },
+  // Archer — venom & wind.
+  { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#7fff4a', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },
+  { id: 'enchant.archer.gale', type: 'enchant', characterClass: 'archer', effect: 'storm', color: '#aef0ff', color2: '#ffffff', name: 'Galeforce', description: 'A sharp wind sings off the string.', rarity: 'rare', requiredLevel: 13 },
+  { id: 'enchant.archer.frostbite', type: 'enchant', characterClass: 'archer', effect: 'frost', color: '#9fe8ff', color2: '#dffaff', name: 'Frostbite', description: 'A cold haze clings to every shot.', rarity: 'epic', requiredLevel: 22 },
+  { id: 'enchant.archer.plague', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#b6ff3a', color2: '#2a6a00', name: 'Plaguebearer', description: 'A roiling green corruption.', rarity: 'legendary', requiredLevel: 34 },
+  // Priest — holy & divine.
+  { id: 'enchant.priest.blessed', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#ffe6a3', name: 'Blessed', description: 'A warm, steady radiance.', rarity: 'common', requiredLevel: 4 },
+  { id: 'enchant.priest.sanctified', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#fff1c4', color2: '#ffd86b', name: 'Sanctified', description: 'Hallowed light pulses from the head.', rarity: 'rare', requiredLevel: 14 },
+  { id: 'enchant.priest.divinity', type: 'enchant', characterClass: 'priest', effect: 'arcane', color: '#ffd86b', color2: '#fff6da', name: 'Divinity', description: 'Golden sigils orbit the mace.', rarity: 'epic', requiredLevel: 22 },
+  { id: 'enchant.priest.celestial', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#fff6da', color2: '#8fb4ff', name: 'Celestial', description: 'The light of a fallen star.', rarity: 'legendary', requiredLevel: 36 },
+];
+
 /** The full cosmetics catalog, in display order within each type. */
-export const COSMETICS: readonly Cosmetic[] = [...EMOTES, ...PEDESTALS, ...TITLES, ...RIMS];
+export const COSMETICS: readonly Cosmetic[] = [
+  ...EMOTES,
+  ...PEDESTALS,
+  ...TITLES,
+  ...RIMS,
+  ...WEAPONS,
+  ...ENCHANTS,
+];
 
 const BY_ID = new Map<string, Cosmetic>(COSMETICS.map((c) => [c.id, c]));
 
@@ -283,7 +390,8 @@ export function claimableCount(
   let n = 0;
   for (const c of COSMETICS) {
     if (set.has(c.id)) continue;
-    if (c.type === 'skin' && c.characterClass !== characterClass) continue;
+    // Class-bound types only count toward their own class.
+    if ((c.type === 'skin' || c.type === 'weapon' || c.type === 'enchant') && c.characterClass !== characterClass) continue;
     if (isUnlocked(c, level)) n++;
   }
   return n;
@@ -301,6 +409,9 @@ export const DEFAULT_LOADOUT: Loadout = {
   pedestalId: '',
   titleId: 'title.novice',
   rimId: 'rim.standard',
+  // '' = the class's default base weapon (resolved client-side), no enchant.
+  weaponId: '',
+  enchantId: '',
 };
 
 /** Max emotes bindable to number keys (1..N). */
@@ -359,6 +470,13 @@ export function sanitizeLoadout(
   const skin = typeof obj.skinId === 'string' ? getCosmeticOfType(obj.skinId, 'skin') : undefined;
   const skinId = skin && ownedSet.has(skin.id) && skin.characterClass === characterClass ? skin.id : '';
 
+  // Weapon & enchant are class-bound like skins: must be owned and match the class.
+  const weapon = typeof obj.weaponId === 'string' ? getCosmeticOfType(obj.weaponId, 'weapon') : undefined;
+  const weaponId = weapon && ownedSet.has(weapon.id) && weapon.characterClass === characterClass ? weapon.id : '';
+
+  const enchant = typeof obj.enchantId === 'string' ? getCosmeticOfType(obj.enchantId, 'enchant') : undefined;
+  const enchantId = enchant && ownedSet.has(enchant.id) && enchant.characterClass === characterClass ? enchant.id : '';
+
   const rawEmotes = Array.isArray(obj.emotes) ? obj.emotes : [];
   const emotes = rawEmotes
     .filter((id): id is string => typeof id === 'string' && ownedSet.has(id) && !!getCosmeticOfType(id, 'emote'))
@@ -374,6 +492,8 @@ export function sanitizeLoadout(
     pedestalId: equipped(obj.pedestalId, 'pedestal'),
     titleId: equipped(obj.titleId, 'title') || (ownedSet.has('title.novice') ? 'title.novice' : ''),
     rimId: equipped(obj.rimId, 'rim') || (ownedSet.has('rim.standard') ? 'rim.standard' : ''),
+    weaponId,
+    enchantId,
   };
 }
 

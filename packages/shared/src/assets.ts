@@ -110,6 +110,10 @@ export interface PlaceholderPart {
    *  and `'tile'` overlay a procedural masonry / roof-tile pattern on the
    *  standard lit material. */
   material?: 'glass' | 'brick' | 'tile';
+  /** Marks this part as the weapon's "showpiece" (blade / orb / mace-head). When
+   *  the holder has an enchant equipped, this part renders with the animated
+   *  enchant material instead of its plain look. Ignored otherwise. */
+  enchantable?: boolean;
   /** Shadow participation (default true). Disable on small/flat decor to keep
    *  the shadow pass cheap when a scene has many props. */
   castShadow?: boolean;
