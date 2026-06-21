@@ -38,6 +38,7 @@ import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { getLocalMovement } from '../tuning';
 import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
+import { zombieBody } from '../assets/data/zombies';
 import { usePaintStore } from '../store/usePaintStore';
 import { paintTexturesFor, applyClassPaint } from '../paint/paintSurface';
 import { fetchPublicPaint } from '../network/paint';
@@ -142,8 +143,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       player?.dyeId,
       player?.weaponId,
     );
-    if (isRaged) {
-      return { ...desc, tint: '#ff3333' };
+    // Mini-boss berserk cue (<50% HP): the primitive body has its own red rage
+    // palette (placeholder bodies don't honor `tint`, unlike the old GLB).
+    if (isRaged && desc.render.kind === 'placeholder') {
+      return { ...desc, render: { ...desc.render, parts: zombieBody('miniboss', { raged: true }) } };
     }
     return desc;
   }, [player?.characterClass, player?.skinId, player?.dyeId, player?.weaponId, isRaged]);
@@ -373,7 +376,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // so the player can't walk through walls into locked sections.
       if (isZombieRoom) {
         const store = useGameStore.getState();
-        const layout = (window as any).__arenaRoomLayout;
+        const layout = window.__arenaRoomLayout;
         if (layout) {
           const clamped = clampToUnlockedArea(
             pos.x,

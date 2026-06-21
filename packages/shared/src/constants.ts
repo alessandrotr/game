@@ -615,14 +615,30 @@ export const ZOMBIE_WANDER_FALLOFF = 13;
 /** A zombie re-picks its wander bias on a randomized interval in this range (ms). */
 export const ZOMBIE_WANDER_REROLL_MIN_MS = 1500;
 export const ZOMBIE_WANDER_REROLL_MAX_MS = 4000;
+
+// --- Stuck-detection reroute -------------------------------------------------
+// Zombies have no pathfinding; they bee-line (plus the wander arc) at the target.
+// Against wide / multi-circle cover the collision push-out can trap them
+// oscillating at a surface. When a chasing zombie stops making net progress for a
+// short window, it commits to a forced ~perpendicular detour to slide off the
+// obstacle, then resumes the bee-line — a cheap one-obstacle escape, not a navmesh.
+/** Net movement per tick (world units) below which a chasing zombie counts as
+ *  not progressing. Well under a normal ~0.2u/tick step. */
+export const ZOMBIE_STUCK_MOVE_EPS = 0.06;
+/** Consecutive non-progress ticks before committing a detour (~0.75s at 20Hz). */
+export const ZOMBIE_STUCK_TICKS = 15;
+/** How long a committed detour steers perpendicular before re-evaluating (ms). */
+export const ZOMBIE_DETOUR_MS = 700;
+/** The detour heading offset off the bee-line, in radians (~80°). */
+export const ZOMBIE_DETOUR_RAD = 1.4;
 /** XP a player earns for killing a zombie — far less than a player kill
  *  ({@link XP_PER_KILL}), so grinding hordes doesn't trivialise progression. */
 export const ZOMBIE_XP_PER_KILL = 10;
-/** Skin id the server tags zombies with; the client maps it to the zombie GLB
- *  (a Mixamo-rigged shambling model) in place of the warrior body. */
+/** Skin id the server tags zombies with; the client maps it to a stylized
+ *  primitive zombie body (see client `data/zombies.ts`) in place of the warrior. */
 export const ZOMBIE_SKIN_ID = 'skin.zombie';
-/** Skin id for the Sprinter variant; the client maps it to the zombie-sprinter
- *  GLB. A fast, fragile rusher (see below). */
+/** Skin id for the Sprinter variant; the client maps it to a lean primitive body.
+ *  A fast, fragile rusher (see below). */
 export const ZOMBIE_SPRINTER_SKIN_ID = 'skin.zombie.sprinter';
 /** Chance a horde slot spawns a Sprinter in place of a normal zombie. */
 export const ZOMBIE_SPRINTER_SPAWN_CHANCE = 0.35;

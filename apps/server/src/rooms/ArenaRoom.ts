@@ -42,6 +42,10 @@ import {
   ZOMBIE_FAT_SPEED_PENALTY,
   ZOMBIE_FAT_ATTACK_BONUS_MS,
   ZOMBIE_SPEED_JITTER,
+  ZOMBIE_STUCK_MOVE_EPS,
+  ZOMBIE_STUCK_TICKS,
+  ZOMBIE_DETOUR_MS,
+  ZOMBIE_DETOUR_RAD,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
   ZOMBIE_WANDER_REROLL_MAX_MS,
@@ -149,6 +153,24 @@ interface PendingCast {
   resolveAt: number;
 }
 
+/** Per-zombie movement personality + stuck-detection state. The personality
+ *  (speed/wander/attack) spreads the horde out; the stuck fields drive a
+ *  perpendicular reroute when a zombie wedges on cover instead of pathfinding. */
+interface ZombieAiState {
+  speedOffset: number;
+  wander: number;
+  wanderUntil: number;
+  attackBonusMs: number;
+  /** Last chase position + consecutive near-stationary ticks while out of range. */
+  lastX: number;
+  lastZ: number;
+  stuckTicks: number;
+  /** While `simTime < detourUntil`, steer a forced ~perpendicular heading
+   *  (sign = `detourSide`) to escape the obstacle instead of re-ramming it. */
+  detourUntil: number;
+  detourSide: number;
+}
+
 /**
  * Authoritative arena simulation. Clients send point-and-click move targets,
  * jump and ability-cast requests; the room validates and integrates everything
@@ -229,10 +251,7 @@ export class ArenaRoom extends AvatarRoom {
   /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
    *  lateral chase-wander bias that re-rolls on its own clock — so a horde spreads
    *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
-  private readonly zombieAi = new Map<
-    string,
-    { speedOffset: number; wander: number; wanderUntil: number; attackBonusMs: number }
-  >();
+  private readonly zombieAi = new Map<string, ZombieAiState>();
   /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
   private readonly bossNextActionAt = new Map<string, number>();
 
@@ -241,6 +260,16 @@ export class ArenaRoom extends AvatarRoom {
    *  Mutated by the cover system — a crumbled structure's circle is removed so it
    *  stops blocking. */
   private obstacles: ArenaObstacle[] = [];
+
+  /** Per-tick scratch obstacle lists, reused across ticks (cleared + re-pushed)
+   *  to avoid ~720 array allocations/sec at the zombie cap. Built once in
+   *  `update()` and shared by every consumer that tick. */
+  private readonly zombieBlockers: ArenaObstacle[] = [];
+  private readonly propObstacles: ArenaObstacle[] = [];
+  /** `obstacles` + live props — what zombies slide against while chasing and get
+   *  re-resolved against post-collision. Stable across a tick (props move only in
+   *  the later physics step). */
+  private readonly zombieStaticObstacles: ArenaObstacle[] = [];
 
   /** Live-tunable balance for this room (per-room copy of the shared canon). */
   private readonly tuning = new ArenaTuning();
@@ -1079,23 +1108,46 @@ export class ArenaRoom extends AvatarRoom {
           1,
           zBase + speedOffset,
         );
-        // Arc off the straight line toward this zombie's COMMITTED flank side by
-        // an angle that ramps with distance (full when far, zero at attack range)
-        // so the horde curls around to swarm you, then spirals in to strike.
-        // Re-roll only the arc magnitude on the AI's clock — the side has a 40%
-        // chance to switch so they dynamically weave/flank unpredictably.
-        if (this.simTime >= ai.wanderUntil) {
-          let side = ai.wander >= 0 ? 1 : -1;
-          if (Math.random() < 0.4) {
-            side = -side;
-          }
-          ai.wander = side * (0.55 + Math.random() * 0.45);
-          ai.wanderUntil = this.simTime + this.rollWanderInterval();
+        // Stuck detection: track net movement per tick. Against wide / multi-circle
+        // cover the collision push-out can trap a zombie oscillating at a surface
+        // (it re-aims straight at the player, re-rams, gets pushed back). If it
+        // stops making progress for a short window, commit to a forced ~perpendicular
+        // detour to slide off the obstacle, then resume the bee-line.
+        const moved = Math.hypot(attacker.x - ai.lastX, attacker.z - ai.lastZ);
+        ai.lastX = attacker.x;
+        ai.lastZ = attacker.z;
+        if (moved < ZOMBIE_STUCK_MOVE_EPS) ai.stuckTicks += 1;
+        else ai.stuckTicks = 0;
+        if (ai.stuckTicks >= ZOMBIE_STUCK_TICKS && this.simTime >= ai.detourUntil) {
+          // Commit (or re-commit) a detour. If a previous detour just ran and we're
+          // still stuck, flip to the other side to try around the other way.
+          ai.detourSide = ai.detourUntil > 0 ? -ai.detourSide : ai.wander >= 0 ? 1 : -1;
+          ai.detourUntil = this.simTime + ZOMBIE_DETOUR_MS;
         }
-        const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
-        const isSprinter = attacker.skinId === ZOMBIE_SPRINTER_SKIN_ID;
-        const wanderFactor = isSprinter ? 0.3 : 1.0;
-        const ang = Math.atan2(ndx, ndz) + ai.wander * ZOMBIE_WANDER_MAX_RAD * ramp * wanderFactor;
+
+        let ang: number;
+        if (this.simTime < ai.detourUntil) {
+          // Mid-detour: steer hard off the bee-line to clear the obstacle.
+          ang = Math.atan2(ndx, ndz) + ai.detourSide * ZOMBIE_DETOUR_RAD;
+        } else {
+          // Arc off the straight line toward this zombie's COMMITTED flank side by
+          // an angle that ramps with distance (full when far, zero at attack range)
+          // so the horde curls around to swarm you, then spirals in to strike.
+          // Re-roll only the arc magnitude on the AI's clock — the side has a 40%
+          // chance to switch so they dynamically weave/flank unpredictably.
+          if (this.simTime >= ai.wanderUntil) {
+            let side = ai.wander >= 0 ? 1 : -1;
+            if (Math.random() < 0.4) {
+              side = -side;
+            }
+            ai.wander = side * (0.55 + Math.random() * 0.45);
+            ai.wanderUntil = this.simTime + this.rollWanderInterval();
+          }
+          const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
+          const isSprinter = attacker.skinId === ZOMBIE_SPRINTER_SKIN_ID;
+          const wanderFactor = isSprinter ? 0.3 : 1.0;
+          ang = Math.atan2(ndx, ndz) + ai.wander * ZOMBIE_WANDER_MAX_RAD * ramp * wanderFactor;
+        }
         cdx = Math.sin(ang);
         cdz = Math.cos(ang);
         attacker.rotation = ang; // face where it's actually heading
@@ -1105,8 +1157,18 @@ export class ArenaRoom extends AvatarRoom {
       const perkSpeed = getPerkMoveSpeedMult(this.perkSystem, attacker);
       const speed = (baseSpeed + perkSpeed.bonus) * moveSpeedMultiplier(attacker) * perkSpeed.mult;
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
-      attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
-      attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
+      if (isZombie) {
+        // Slide along cover instead of stopping dead at it: resolving the stepped
+        // position against static obstacles preserves the tangential component, so
+        // a zombie glides around a circle rather than oscillating into its face.
+        const r = attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
+        const slid = collideObstacles(attacker.x + cdx * step, attacker.z + cdz * step, this.zombieStaticObstacles, r);
+        attacker.x = clamp(slid.x, -limit, limit);
+        attacker.z = clamp(slid.z, -limit, limit);
+      } else {
+        attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
+        attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
+      }
       // Out of range: re-arm a zombie's first-swing wind-up so it can't bite the
       // instant it closes back in (the in-range branch sees no timer → winds up).
       if (isZombie) this.attackReadyAt.delete(sessionId);
@@ -1195,8 +1257,12 @@ export class ArenaRoom extends AvatarRoom {
     // client predicts with — using `isZombieSkin` to pick the same bodies — so a
     // player is blocked by the horde without rubber-banding). `height: 0` makes
     // them satisfy ArenaObstacle for the post-move resolve too.
-    const zombieBlockers: ArenaObstacle[] = [];
-    const propObstacles: ArenaObstacle[] = [];
+    // Reused scratch lists (cleared + re-pushed) instead of fresh arrays each tick.
+    const zombieBlockers = this.zombieBlockers;
+    const propObstacles = this.propObstacles;
+    zombieBlockers.length = 0;
+    propObstacles.length = 0;
+    this.zombieStaticObstacles.length = 0;
     if (this.zombieMode) {
       this.bots.forEach((_profile, id) => {
         const z = this.state.players.get(id);
@@ -1211,6 +1277,10 @@ export class ArenaRoom extends AvatarRoom {
       this.state.destructibles.forEach((d) => {
         propObstacles.push({ x: d.x, z: d.z, radius: 0.45, height: 0 });
       });
+      // Static cover + props: what zombies slide against while chasing and are
+      // re-resolved against post-collision. Built once; shared across the tick.
+      for (const o of this.obstacles) this.zombieStaticObstacles.push(o);
+      for (const p of propObstacles) this.zombieStaticObstacles.push(p);
     }
 
     this.state.players.forEach((player, sessionId) => {
@@ -1274,7 +1344,7 @@ export class ArenaRoom extends AvatarRoom {
       const moveObstacles =
         !this.bots.has(sessionId)
           ? (zombieBlockers.length > 0 ? this.obstacles.concat(zombieBlockers) : this.obstacles)
-          : this.obstacles.concat(propObstacles);
+          : (this.zombieMode ? this.zombieStaticObstacles : this.obstacles);
 
       // Forced displacement (dash / knockback) overrides locomotion while active.
       const disp = this.displacements.get(sessionId);
@@ -1649,14 +1719,9 @@ export class ArenaRoom extends AvatarRoom {
     });
 
     // Re-resolve cover and prop collisions for any zombie nudged into an obstacle.
-    const propObstacles: ArenaObstacle[] = [];
-    this.state.barrels.forEach((b) => {
-      if (b.alive) propObstacles.push({ x: b.x, z: b.z, radius: 0.45, height: 0 });
-    });
-    this.state.destructibles.forEach((d) => {
-      propObstacles.push({ x: d.x, z: d.z, radius: 0.45, height: 0 });
-    });
-    const zombieStaticObstacles = this.obstacles.concat(propObstacles);
+    // Reuses the cover+prop list built once for this tick in `update()` (props
+    // move only in the later physics step, so it's still current here).
+    const zombieStaticObstacles = this.zombieStaticObstacles;
 
     for (const z of zombies) {
       const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
@@ -1701,9 +1766,7 @@ export class ArenaRoom extends AvatarRoom {
 
   /** This zombie's movement personality (lazily created — covers any spawned
    *  before this map existed, though `spawnZombie` seeds it). */
-  private zombieAiFor(
-    id: string,
-  ): { speedOffset: number; wander: number; wanderUntil: number; attackBonusMs: number } {
+  private zombieAiFor(id: string): ZombieAiState {
     let ai = this.zombieAi.get(id);
     if (!ai) {
       ai = {
@@ -1713,6 +1776,11 @@ export class ArenaRoom extends AvatarRoom {
         wander: (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.45),
         wanderUntil: this.simTime + this.rollWanderInterval(),
         attackBonusMs: 0,
+        lastX: 0,
+        lastZ: 0,
+        stuckTicks: 0,
+        detourUntil: 0,
+        detourSide: 1,
       };
       this.zombieAi.set(id, ai);
     }
