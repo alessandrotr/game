@@ -5,8 +5,18 @@ import {
   generateRoomLayout,
   generateSectionCover,
   type GeneratedArenaLayout,
+  type RoomLayout,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+
+declare global {
+  interface Window {
+    /** The current zombie-mode room layout, cached for PlayerEntity's prediction
+     *  clamp (read in `useFrame`, where a hook call isn't possible). Null when not
+     *  in zombie mode. */
+    __arenaRoomLayout: RoomLayout | null;
+  }
+}
 
 /**
  * The current match's procedural arena layout (cover obstacles + props), rebuilt
@@ -29,13 +39,13 @@ export function useArenaLayout(): GeneratedArenaLayout {
     const base = generateArenaLayout(seed, zombieMode);
     if (!zombieMode) {
       // Clear the cached layout when not in zombie mode.
-      (window as any).__arenaRoomLayout = null;
+      window.__arenaRoomLayout = null;
       return base;
     }
 
     // Cache the room layout on window for the PlayerEntity prediction clamp.
     const roomLayout = generateRoomLayout(seed);
-    (window as any).__arenaRoomLayout = roomLayout;
+    window.__arenaRoomLayout = roomLayout;
 
     if (unlockedSections <= 0) return base;
 

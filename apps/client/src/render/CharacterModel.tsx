@@ -153,10 +153,15 @@ function PlaceholderCharacter({
 }) {
   const group = useRef<Group>(null);
   useProceduralAnimator(group, getAnimation, phase, animate);
+  // The procedural animator rewrites the animated group's transform every frame
+  // (including scale), so a model-wide scale rides an OUTER wrapper it never touches.
+  const scale = descriptor.render.kind === 'placeholder' ? descriptor.render.scale ?? 1 : 1;
   return (
-    <group ref={group}>
-      <AssetMesh source={descriptor.render} paint={paint} />
-      {children}
+    <group scale={scale}>
+      <group ref={group}>
+        <AssetMesh source={descriptor.render} paint={paint} />
+        {children}
+      </group>
     </group>
   );
 }

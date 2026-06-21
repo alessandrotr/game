@@ -11,6 +11,7 @@ import {
 } from '@arena/shared';
 import type { EnchantParams } from '../render/enchantMaterial';
 import { assets } from './registry';
+import { zombieBody } from './data/zombies';
 
 /**
  * A skin layers cosmetic overrides on top of a base character. Recolors are
@@ -26,6 +27,9 @@ export interface SkinDefinition {
   tint?: string;
   /** Replace the entire render source (future GLTF skins). */
   render?: CharacterDescriptor['render'];
+  /** Drop the base character's grip weapon (e.g. zombies don't wield the
+   *  warrior's sword — they claw). */
+  hideWeapon?: boolean;
 }
 
 const skins = new Map<string, SkinDefinition>();
@@ -51,90 +55,42 @@ registerSkin({
 });
 
 /**
- * Zombie skin: swaps the whole body for the Mixamo-rigged "ZombieGirl" GLB. It
- * carries a single shambling run clip (`Armature|mixamo.com|Layer0`) — mapped to
- * both walk and run, so any locomotion drives the shamble; its playback is
- * speed-matched to the zombie's slow pace (see CharacterModel). Unmapped states
- * (idle/attack/die) hold a rest pose. Tagged onto zombies via {@link ZOMBIE_SKIN_ID}.
+ * Zombie skins swap the whole body for a stylized PRIMITIVE figure (see
+ * `data/zombies.ts`) — the same zero-cost placeholder path the players use, so a
+ * full horde carries no skeleton/skinning/animation-mixer cost. Procedural motion
+ * (idle bob / run lurch / attack lunge) is driven by `useProceduralAnimator`.
+ * Each variant differs by body shape, color, eye glow, and hunch.
  */
 registerSkin({
   id: ZOMBIE_SKIN_ID,
   baseId: 'char.warrior',
-  render: {
-    kind: 'gltf',
-    url: '/models/characters/zombie-run.glb',
-    scale: 1.05, // ~2.07u model → matches the warrior's on-screen height
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      walk: 'Armature|mixamo.com|Layer0',
-      run: 'Armature|mixamo.com|Layer0',
-    },
-  },
+  render: { kind: 'placeholder', parts: zombieBody('standard') },
+  hideWeapon: true,
 });
 
-/**
- * Sprinter skin: the fast, fragile zombie variant — its own Mixamo-rigged GLB
- * with the same single-clip layout as the base zombie (so any locomotion drives
- * its run, speed-matched to the Sprinter's quicker pace). Tagged via
- * {@link ZOMBIE_SPRINTER_SKIN_ID}.
- */
+/** Sprinter: lean, fast, red-eyed. {@link ZOMBIE_SPRINTER_SKIN_ID}. */
 registerSkin({
   id: ZOMBIE_SPRINTER_SKIN_ID,
   baseId: 'char.warrior',
-  render: {
-    kind: 'gltf',
-    url: '/models/characters/zombie-sprinter.glb',
-    scale: 1.05,
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      walk: 'Armature|mixamo.com|Layer0',
-      run: 'Armature|mixamo.com|Layer0',
-    },
-  },
+  render: { kind: 'placeholder', parts: zombieBody('sprinter') },
+  hideWeapon: true,
 });
 
-/**
- * Fat skin: the slow, high-health tank — its own bulky Mixamo-rigged GLB, same
- * single-clip layout as the other zombies (locomotion drives its run, speed-
- * matched to the Fat's slow pace). Tagged via {@link ZOMBIE_FAT_SKIN_ID}.
- */
+/** Fat: bloated, high-health tank. {@link ZOMBIE_FAT_SKIN_ID}. */
 registerSkin({
   id: ZOMBIE_FAT_SKIN_ID,
   baseId: 'char.warrior',
-  render: {
-    kind: 'gltf',
-    url: '/models/characters/zombie-fat.glb',
-    scale: 1.05, // matches the warrior's on-screen height (tune if it sits off)
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      walk: 'Armature|mixamo.com|Layer0',
-      run: 'Armature|mixamo.com|Layer0',
-    },
-  },
+  render: { kind: 'placeholder', parts: zombieBody('fat') },
+  hideWeapon: true,
 });
 
-/**
- * Mini-Boss skin: the massive, slow boss zombie — its own rigged GLB, same
- * single-clip layout as the other zombies, but scaled 5x larger. Tagged via
- * {@link ZOMBIE_MINIBOSS_SKIN_ID}.
- */
+/** Mini-Boss: a darker rot, rendered 2.5× oversized via the placeholder scale.
+ *  {@link ZOMBIE_MINIBOSS_SKIN_ID}. */
 registerSkin({
   id: ZOMBIE_MINIBOSS_SKIN_ID,
   baseId: 'char.warrior',
-  render: {
-    kind: 'gltf',
-    url: '/models/characters/zombie-miniboss.glb',
-    scale: 1.05 * 2.5, // 2.5x visual scale (halved from 5x)
-    offset: [0, 0, 0],
-    yaw: 0,
-    clips: {
-      walk: 'Armature|mixamo.com|Layer0',
-      run: 'Armature|mixamo.com|Layer0',
-    },
-  },
+  render: { kind: 'placeholder', parts: zombieBody('miniboss'), scale: 2.5 },
+  hideWeapon: true,
 });
 
 function applyRecolor(
@@ -167,6 +123,7 @@ export function resolveCharacter(
     if (skin.render) result = { ...result, render: skin.render };
     if (skin.tint) result = { ...result, tint: skin.tint };
     if (skin.recolor) result = applyRecolor(result, skin.recolor);
+    if (skin.hideWeapon) result = { ...result, weaponId: undefined };
   }
 
   const dye = dyeId ? getCosmeticOfType(dyeId, 'dye') : undefined;

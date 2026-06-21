@@ -124,6 +124,10 @@ export interface PlaceholderPart {
 export interface PlaceholderModel {
   kind: 'placeholder';
   parts: PlaceholderPart[];
+  /** Uniform scale applied to the whole figure (mirrors `GltfModel.scale`).
+   *  Defaults to 1; used e.g. to render the zombie mini-boss oversized without
+   *  re-authoring every part. */
+  scale?: number;
 }
 
 /** A model backed by a GLTF/GLB file — the future drop-in replacement. */
