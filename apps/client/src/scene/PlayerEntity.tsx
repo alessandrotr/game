@@ -454,7 +454,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     // Rendered ground speed (local & remote) — feeds the run-clip timeScale match.
     const moved = Math.hypot(sdx, sdz);
     speedRef.current = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-    if (isLocal) {
+    if (isLocal || latest.skinId === 'skin.zombie.miniboss') {
       const speed = speedRef.current;
       const predicted = fsm.current.step(
         { speed, alive: true, event: consumeAnimationEvent(sessionId) },

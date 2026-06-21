@@ -173,8 +173,8 @@ export class CombatSystem {
     // only humans take a zombie's. A blast with no player source (neutral car
     // explosion) has no attacker here, so it still hits anyone.
     if (this.ctx.state.zombieMode) {
-      const attacker = this.ctx.state.players.get(fromId);
-      if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(target.skinId)) return;
+      const attacker = fromId ? this.ctx.state.players.get(fromId) : undefined;
+      if (attacker && (isZombieSkin(attacker.skinId) === isZombieSkin(target.skinId))) return;
     }
     const now = this.ctx.now();
     // An `empower` buff on the attacker adds flat damage to this one hit, then is
@@ -350,7 +350,7 @@ export class CombatSystem {
     // Friendly fire CC check in Zombie Mode
     if (this.ctx.state.zombieMode && fromId) {
       const attacker = this.ctx.state.players.get(fromId);
-      if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(target.skinId)) {
+      if (attacker && (isZombieSkin(attacker.skinId) === isZombieSkin(target.skinId))) {
         if (spec.kind === 'stun' || spec.kind === 'root' || spec.kind === 'slow' || spec.kind === 'silence') {
           return;
         }
