@@ -32,6 +32,7 @@ import { CoverStructureEntity } from './CoverStructureEntity';
 import { Projectiles } from './Projectiles';
 import { Pickables } from './Pickables';
 import { GroundZones } from './GroundZones';
+import { Traps } from './Traps';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
@@ -219,6 +220,7 @@ export function GameScene() {
 
       {isArena && <Pickables />}
       {isArena && <GroundZones />}
+      {isArena && zombieMode && <Traps />}
 
       <VfxLayer />
       {isArena && (

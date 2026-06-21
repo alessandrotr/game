@@ -51,6 +51,46 @@ export const ZOMBIE_ROOM_HALF_SIZE = 150;
  *  `onWaveClear` fires the unlock, adding the next section's cover and portals. */
 export const DOOR_UNLOCK_WAVES: readonly number[] = [3, 6, 9, 12];
 
+// --- Traps (zombie mode only, never gun mode) -------------------------------
+// A trap is a fixed 6-radius zone placed in a generated section. It "charges"
+// from zombies dying inside it: when enough die within a short window it fires
+// an effect (heal drop / fire field), then goes on cooldown. Placement
+// alternates across sections (even indices host one) and the type is chosen
+// deterministically from the match seed — see `trapForSection` in roomLayout.
+
+/** Trap area radius (world units) — the visible ring and the death-count zone. */
+export const TRAP_RADIUS = 6;
+
+/** Rolling window (ms) over which qualifying zombie deaths are counted toward
+ *  activation. Deaths older than this are pruned before each threshold check. */
+export const TRAP_DEATH_WINDOW_MS = 2000;
+
+/** Heal trap: drops a team-heal pickup (same as the mini-boss drop) when this
+ *  many zombies die inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */
+export const HEAL_TRAP_THRESHOLD = 8;
+/** Heal trap cooldown after it fires (4 minutes). */
+export const HEAL_TRAP_COOLDOWN_MS = 4 * 60 * 1000;
+/** Scale of the dropped heal pickup (matches the mini-boss heal drop). */
+export const HEAL_TRAP_DROP_SCALE = 4;
+
+/** Death trap: releases a molotov-style fire field when this many zombies die
+ *  inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */
+export const DEATH_TRAP_THRESHOLD = 12;
+/** Death trap cooldown after it fires (2 minutes). */
+export const DEATH_TRAP_COOLDOWN_MS = 2 * 60 * 1000;
+/** Death trap fire field — molotov puddle behaviour, but sized to the full trap
+ *  radius so the burning area matches the trap ring (VFX = damage area). The
+ *  field is ownerless, so like a neutral explosion it burns anyone inside —
+ *  zombies and players alike — so lure the horde in, then step out. */
+export const DEATH_TRAP_FIRE = {
+  radius: TRAP_RADIUS,
+  tickDamage: 5,
+  tickMs: 500,
+  // Lingers far longer than a thrown molotov (5s) — a death trap is meant to
+  // turn its whole section into a sustained kill zone for the horde.
+  durationMs: 12000,
+} as const;
+
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
 
@@ -631,9 +671,17 @@ export const ZOMBIE_STUCK_TICKS = 15;
 export const ZOMBIE_DETOUR_MS = 700;
 /** The detour heading offset off the bee-line, in radians (~80°). */
 export const ZOMBIE_DETOUR_RAD = 1.4;
-/** XP a player earns for killing a zombie — far less than a player kill
- *  ({@link XP_PER_KILL}), so grinding hordes doesn't trivialise progression. */
+/** XP a player earns for killing a (normal) zombie — far less than a player kill
+ *  ({@link XP_PER_KILL}), so grinding hordes doesn't trivialise progression.
+ *  Tougher variants are worth more (see below). */
 export const ZOMBIE_XP_PER_KILL = 10;
+/** XP for killing a Sprinter (fast/fragile) — slightly above a normal zombie. */
+export const ZOMBIE_SPRINTER_XP = 15;
+/** XP for killing a Fat (slow/tanky) — more than a Sprinter for the effort. */
+export const ZOMBIE_FAT_XP = 20;
+/** XP a Mini-Boss kill awards — granted to EVERY member of the killer's team
+ *  (not just the killer), since it's a shared objective for the squad. */
+export const ZOMBIE_MINIBOSS_XP = 100;
 /** Skin id the server tags zombies with; the client maps it to a stylized
  *  primitive zombie body (see client `data/zombies.ts`) in place of the warrior. */
 export const ZOMBIE_SKIN_ID = 'skin.zombie';

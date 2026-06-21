@@ -19,6 +19,7 @@
 import {
   ARENA_HALF_SIZE,
   DOOR_UNLOCK_WAVES,
+  TRAP_RADIUS,
   type SpawnPoint,
 } from './constants.js';
 import type { PropAssetId, MapProp } from './assets.js';
@@ -336,6 +337,7 @@ export interface SectionCoverResult {
 export function generateSectionCover(
   seed: number,
   section: SectionDef,
+  trap?: TrapDef | null,
 ): SectionCoverResult {
   const rng = mulberry32((seed >>> 0) + 0xcafe + section.index * 0x1111);
   const boxes = section.boxes;
@@ -354,6 +356,11 @@ export function generateSectionCover(
   const tireStacks: { x: number; z: number }[] = [];
   const props: MapProp[] = [];
   const taken: { x: number; z: number; r: number }[] = [];
+
+  // Reserve the trap zone first so nothing — trailers, cars, drums, decor —
+  // ever spawns on top of a trap (its area must stay clear to be usable). The
+  // full trap radius is blocked; `farFromTaken` keeps a GAP beyond that too.
+  if (trap) taken.push({ x: trap.x, z: trap.z, r: trap.radius });
 
   // Portal clearance — keep cover away from spawn portals.
   const portalClear = 4;
@@ -599,6 +606,50 @@ function sectionCenter(section: SectionDef): { x: number; z: number } {
     }
   }
   return { x: (best.minX + best.maxX) / 2, z: (best.minZ + best.maxZ) / 2 };
+}
+
+// ---------------------------------------------------------------------------
+// Traps
+// ---------------------------------------------------------------------------
+
+/** The two trap behaviours (see constants for thresholds/cooldowns). */
+export type TrapKind = 'heal' | 'death';
+
+/** A trap to place in a section — its kind and world-space centre. */
+export interface TrapDef {
+  /** The section this trap belongs to. */
+  sectionIndex: number;
+  kind: TrapKind;
+  /** Trap centre (anchored on the section's largest box). */
+  x: number;
+  z: number;
+  /** Trap area radius (world units). */
+  radius: number;
+}
+
+/**
+ * Decide the trap (if any) for a section. Placement alternates so traps stay a
+ * scarce, rhythmic reward: even-indexed sections host a trap, odd ones don't.
+ * The type is chosen deterministically from the match seed (so server and any
+ * observer agree) unless `forcedKind` overrides it. Returns null for sections
+ * that host no trap.
+ */
+export function trapForSection(
+  seed: number,
+  section: SectionDef,
+  forcedKind?: TrapKind,
+): TrapDef | null {
+  if (section.index % 2 !== 0) return null;
+  const c = sectionCenter(section);
+  let kind: TrapKind;
+  if (forcedKind) {
+    kind = forcedKind;
+  } else {
+    // Own RNG stream, offset off the section so it doesn't track cover layout.
+    const rng = mulberry32((seed >>> 0) + 0x7ace + section.index * 0x9e37);
+    kind = rng() < 0.5 ? 'heal' : 'death';
+  }
+  return { sectionIndex: section.index, kind, x: c.x, z: c.z, radius: TRAP_RADIUS };
 }
 
 export function clampToUnlockedArea(

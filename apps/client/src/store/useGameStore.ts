@@ -9,6 +9,7 @@ import type {
   PickableView,
   PlayerView,
   ProjectileView,
+  TrapView,
 } from '@arena/shared';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
@@ -73,6 +74,8 @@ interface GameStore {
   pickableIds: string[];
   /** Reactive list of ground-zone ids (the molotov puddle) — drives mounting. */
   groundZoneIds: string[];
+  /** Reactive list of trap ids (zombie mode) — drives mounting their visuals. */
+  trapIds: string[];
   /** Alive (un-crumbled) structures as collision circles, for local prediction.
    *  Recomputed only when a structure crumbles (rare) — not every tick. */
   structureObstacles: ArenaObstacle[];
@@ -92,6 +95,7 @@ interface GameStore {
   readonly structures: Map<string, CoverStructureView>;
   readonly pickables: Map<string, PickableView>;
   readonly groundZones: Map<string, GroundZoneView>;
+  readonly traps: Map<string, TrapView>;
 
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -121,6 +125,7 @@ interface GameStore {
     structures: Map<string, CoverStructureView>,
     pickables: Map<string, PickableView>,
     groundZones: Map<string, GroundZoneView>,
+    traps: Map<string, TrapView>,
     tick: number,
   ) => void;
   reset: () => void;
@@ -170,6 +175,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   structureIds: [],
   pickableIds: [],
   groundZoneIds: [],
+  trapIds: [],
   structureObstacles: [],
   players: new Map<string, PlayerView>(),
   projectiles: new Map<string, ProjectileView>(),
@@ -178,6 +184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   structures: new Map<string, CoverStructureView>(),
   pickables: new Map<string, PickableView>(),
   groundZones: new Map<string, GroundZoneView>(),
+  traps: new Map<string, TrapView>(),
   /** Signature of the last-applied alive-structure set (internal; gates rebuilds). */
   _structureSig: '',
 
@@ -221,6 +228,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     incomingStructures,
     incomingPickables,
     incomingGroundZones,
+    incomingTraps,
     tick,
   ) => {
     const {
@@ -231,6 +239,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       structures,
       pickables,
       groundZones,
+      traps,
       playerIds,
       projectileIds,
       barrelIds,
@@ -238,6 +247,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       structureIds,
       pickableIds,
       groundZoneIds,
+      trapIds,
     } = get();
 
     players.clear();
@@ -254,6 +264,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     for (const [id, view] of incomingPickables) pickables.set(id, view);
     groundZones.clear();
     for (const [id, view] of incomingGroundZones) groundZones.set(id, view);
+    traps.clear();
+    for (const [id, view] of incomingTraps) traps.set(id, view);
 
     const nextPlayerIds = [...players.keys()].sort();
     const nextProjectileIds = [...projectiles.keys()].sort();
@@ -262,6 +274,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextStructureIds = [...structures.keys()].sort();
     const nextPickableIds = [...pickables.keys()].sort();
     const nextGroundZoneIds = [...groundZones.keys()].sort();
+    const nextTrapIds = [...traps.keys()].sort();
 
     const patch: Partial<GameStore> = { tick };
     if (!sameMembership(playerIds, nextPlayerIds)) patch.playerIds = nextPlayerIds;
@@ -271,6 +284,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sameMembership(structureIds, nextStructureIds)) patch.structureIds = nextStructureIds;
     if (!sameMembership(pickableIds, nextPickableIds)) patch.pickableIds = nextPickableIds;
     if (!sameMembership(groundZoneIds, nextGroundZoneIds)) patch.groundZoneIds = nextGroundZoneIds;
+    if (!sameMembership(trapIds, nextTrapIds)) patch.trapIds = nextTrapIds;
     // Rebuild the prediction collision circles only when a structure crumbles.
     const sig = aliveStructureSig(structures);
     if (sig !== get()._structureSig) {
@@ -294,6 +308,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().structures.clear();
     get().pickables.clear();
     get().groundZones.clear();
+    get().traps.clear();
     set({
       status: 'idle',
       error: null,
@@ -316,6 +331,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       structureIds: [],
       pickableIds: [],
       groundZoneIds: [],
+      trapIds: [],
       structureObstacles: [],
       _structureSig: '',
     });

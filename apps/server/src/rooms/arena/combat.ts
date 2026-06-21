@@ -3,6 +3,12 @@ import {
   RESPAWN_DELAY_MS,
   XP_PER_KILL,
   ZOMBIE_XP_PER_KILL,
+  ZOMBIE_SPRINTER_XP,
+  ZOMBIE_FAT_XP,
+  ZOMBIE_MINIBOSS_XP,
+  ZOMBIE_SPRINTER_SKIN_ID,
+  ZOMBIE_FAT_SKIN_ID,
+  ZOMBIE_MINIBOSS_SKIN_ID,
   isZombieSkin,
   ServerMessage,
   damageTakenMultiplier,
@@ -21,6 +27,14 @@ import type { ProjectileSystem } from './projectiles.js';
 import type { BarrelSystem } from './barrels.js';
 import type { DestructibleSystem } from './destructibles.js';
 import type { CoverSystem } from './cover.js';
+
+/** XP awarded for killing a single (non-miniboss) zombie, by variant. Mini-boss
+ *  rewards are team-wide and handled separately. */
+function zombieKillXp(skinId: string): number {
+  if (skinId === ZOMBIE_SPRINTER_SKIN_ID) return ZOMBIE_SPRINTER_XP;
+  if (skinId === ZOMBIE_FAT_SKIN_ID) return ZOMBIE_FAT_XP;
+  return ZOMBIE_XP_PER_KILL;
+}
 
 /**
  * Everything that resolves an ability's or attack's effect against the world:
@@ -280,18 +294,20 @@ export class CombatSystem {
         // does NOT count toward the killer's kill tally (so it never inflates
         // career/scoreboard kills).
         const isZombieKill = isZombieSkin(target.skinId);
-        const beforeLevel = killer.level;
-        if (!isZombieKill) killer.kills += 1;
-        killer.xp += isZombieKill ? ZOMBIE_XP_PER_KILL : XP_PER_KILL;
-        killer.level = levelForXp(killer.xp);
-        if (killer.level > beforeLevel) {
-          this.ctx.broadcast(ServerMessage.LevelUp, {
-            sessionId: killer.sessionId,
-            level: killer.level,
+        if (!isZombieKill) {
+          killer.kills += 1;
+          this.grantXp(killer, XP_PER_KILL);
+        } else if (target.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
+          // A Mini-Boss is a shared objective: every living member of the
+          // killer's team (including the killer) earns the full bounty.
+          this.ctx.state.players.forEach((member) => {
+            if (member.team === killer.team && !isZombieSkin(member.skinId)) {
+              this.grantXp(member, ZOMBIE_MINIBOSS_XP);
+            }
           });
+        } else {
+          this.grantXp(killer, zombieKillXp(target.skinId));
         }
-
-
       }
       target.deaths += 1;
 
@@ -306,6 +322,20 @@ export class CombatSystem {
           until: now + HIT_ONESHOT_MS,
         });
       }
+    }
+  }
+
+  /** Grant `amount` XP to a player, recompute their level, and broadcast a
+   *  level-up if it rose. The single path all kill rewards funnel through. */
+  private grantXp(player: Player, amount: number): void {
+    const beforeLevel = player.level;
+    player.xp += amount;
+    player.level = levelForXp(player.xp);
+    if (player.level > beforeLevel) {
+      this.ctx.broadcast(ServerMessage.LevelUp, {
+        sessionId: player.sessionId,
+        level: player.level,
+      });
     }
   }
 

@@ -220,6 +220,20 @@ export class GroundZone extends Schema {
   @type('number') radius = 1;
 }
 
+/** A trap zone (zombie mode only). Mirrors `TrapView` in `@arena/shared`. The
+ *  server owns activation + cooldown; the client renders the ring + cooldown
+ *  indicator. */
+export class Trap extends Schema {
+  @type('string') id = '';
+  /** 'heal' | 'death' (a `TrapKind`) — drives the client ring style. */
+  @type('string') kind = 'heal';
+  @type('number') x = 0;
+  @type('number') z = 0;
+  @type('number') radius = 6;
+  /** Cooldown recharge 0→1. 1 = armed/ready; <1 = recharging. */
+  @type('number') cooldownProgress = 1;
+}
+
 export class ArenaState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
@@ -228,6 +242,7 @@ export class ArenaState extends Schema {
   @type({ map: CoverStructure }) structures = new MapSchema<CoverStructure>();
   @type({ map: Pickable }) pickables = new MapSchema<Pickable>();
   @type({ map: GroundZone }) groundZones = new MapSchema<GroundZone>();
+  @type({ map: Trap }) traps = new MapSchema<Trap>();
   @type('number') tick = 0;
   /** Per-match seed for the procedural arena layout. Clients rebuild the same
    *  obstacles + props from it (see `generateArenaLayout`). 0 until onCreate. */

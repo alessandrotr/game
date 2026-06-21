@@ -18,6 +18,7 @@ import {
   type GroundZoneView,
   type GunView,
   type PickableView,
+  type TrapView,
   type ClientMessagePayloads,
   type LeaderboardCategory,
   type LobbyMode,
@@ -86,6 +87,7 @@ type RawDestructible = DestructibleView;
 type RawStructure = CoverStructureView;
 type RawPickable = PickableView;
 type RawGroundZone = GroundZoneView;
+type RawTrap = TrapView;
 interface RawState {
   players: { forEach(cb: (player: RawPlayer, key: string) => void): void };
   projectiles: { forEach(cb: (projectile: RawProjectile, key: string) => void): void };
@@ -99,6 +101,8 @@ interface RawState {
   pickables?: { forEach(cb: (p: RawPickable, key: string) => void): void };
   /** Arena rooms only — lingering ground zones, e.g. the molotov puddle. */
   groundZones?: { forEach(cb: (z: RawGroundZone, key: string) => void): void };
+  /** Zombie mode only — trap zones (heal / death). */
+  traps?: { forEach(cb: (t: RawTrap, key: string) => void): void };
   tick: number;
   /** Arena rooms only — per-match procedural layout seed (absent in town). */
   layoutSeed?: number;
@@ -143,6 +147,7 @@ function snapshotState(state: RawState): {
   structures: Map<string, CoverStructureView>;
   pickables: Map<string, PickableView>;
   groundZones: Map<string, GroundZoneView>;
+  traps: Map<string, TrapView>;
 } {
   const players = new Map<string, PlayerView>();
   state.players.forEach((player, sessionId) => {
@@ -277,7 +282,19 @@ function snapshotState(state: RawState): {
     groundZones.set(id, { id, kind: z.kind, x: z.x, z: z.z, radius: z.radius });
   });
 
-  return { players, projectiles, barrels, destructibles, structures, pickables, groundZones };
+  const traps = new Map<string, TrapView>();
+  state.traps?.forEach((t, id) => {
+    traps.set(id, {
+      id,
+      kind: t.kind,
+      x: t.x,
+      z: t.z,
+      radius: t.radius,
+      cooldownProgress: t.cooldownProgress,
+    });
+  });
+
+  return { players, projectiles, barrels, destructibles, structures, pickables, groundZones, traps };
 }
 
 /** Map an ability cast event to a transient client-side VFX + a character
@@ -504,7 +521,7 @@ function wireRoom(joined: Room): void {
   joined.onStateChange((state) => {
     try {
       const raw = state as unknown as RawState;
-      const { players, projectiles, barrels, destructibles, structures, pickables, groundZones } =
+      const { players, projectiles, barrels, destructibles, structures, pickables, groundZones, traps } =
         snapshotState(raw);
       useGameStore
         .getState()
@@ -516,6 +533,7 @@ function wireRoom(joined: Room): void {
           structures,
           pickables,
           groundZones,
+          traps,
           raw.tick,
         );
       // Arena rooms sync a layout seed; the scene rebuilds cover from it.

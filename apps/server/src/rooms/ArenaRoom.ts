@@ -6,6 +6,7 @@ import {
   generateArenaLayout,
   generateSectionCover,
   generateRoomLayout,
+  trapForSection,
   pickWeightedPortal,
   clampToUnlockedArea,
   collideObstacles,
@@ -102,6 +103,7 @@ import { BarrelSystem, BARREL_RADIUS } from './arena/barrels.js';
 import { DestructibleSystem } from './arena/destructibles.js';
 import { GroundZoneSystem } from './arena/groundZones.js';
 import { PickableSystem } from './arena/pickables.js';
+import { TrapSystem } from './arena/traps.js';
 import { ArenaPhysics } from './arena/physics.js';
 import { CoverSystem } from './arena/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
@@ -288,6 +290,8 @@ export class ArenaRoom extends AvatarRoom {
   private groundZones!: GroundZoneSystem;
   /** Pickable objects (molotov / grenade): grab/carry/throw + drum drops. */
   private pickables!: PickableSystem;
+  /** Trap zones (zombie mode only): charge off zombie deaths, fire heal/fire. */
+  private traps!: TrapSystem;
   /** Shared Rapier world for the destructible props + launched barrels. */
   private physics!: ArenaPhysics;
   private botDirector!: BotDirector;
@@ -615,6 +619,7 @@ export class ArenaRoom extends AvatarRoom {
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.groundZones = new GroundZoneSystem(ctx, this.combat);
     this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
+    this.traps = new TrapSystem(ctx, this.pickables, this.groundZones);
     // A destroyed oil drum may drop a molotov (zombie mode only — see spawnFromDrum).
     this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
     this.combat.attachProjectiles(this.projectiles);
@@ -1325,6 +1330,9 @@ export class ArenaRoom extends AvatarRoom {
           if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
             this.pickables.spawnGround('heal_pack', player.x, player.z, 4);
           }
+          // Charge any trap whose radius contains this death (no-op in gun mode
+          // / when no traps exist). Position is still valid pre-removal.
+          this.traps.recordZombieDeath(player.x, player.z);
           this.removeBot(sessionId);
           return;
         }
@@ -1530,6 +1538,9 @@ export class ArenaRoom extends AvatarRoom {
     // periodic damage). Run after combat so they read this tick's positions.
     this.pickables.update();
     this.groundZones.update();
+    // Traps: advance cooldown recharge + re-arm finished traps (no-op until one
+    // is placed when a section unlocks).
+    this.traps.update();
     // Co-op run: once every member has fallen, end the run (defeat → town).
     if (this.coopZombie) this.checkCoopGameOver();
     this.state.tick++;
@@ -2018,11 +2029,20 @@ export class ArenaRoom extends AvatarRoom {
     // Generate cover for the newly unlocked section.
     const section = this.roomLayout.sections[nextIndex];
     if (section) {
-      const sectionCover = generateSectionCover(this.state.layoutSeed, section);
+      // Traps are zombie-mode only and never appear in gun mode. Compute it up
+      // front so cover generation can reserve its area (nothing spawns on a
+      // trap) — the client mirrors this exact call so both layouts agree.
+      const trap = this.gunMode ? null : trapForSection(this.state.layoutSeed, section);
+      const sectionCover = generateSectionCover(this.state.layoutSeed, section, trap);
       this.cover.addSection(sectionCover.structures);
       this.barrels.addBarrels(sectionCover.barrels);
       this.destructibles.addObjects(sectionCover.drums, sectionCover.tireStacks);
       console.log(`[doors] Section ${section.name} loaded: ${sectionCover.structures.length} structures, ${sectionCover.barrels.length} barrels`);
+
+      if (trap) {
+        this.traps.addTrap(trap);
+        console.log(`[traps] ${trap.kind} trap placed in ${section.name} at (${trap.x}, ${trap.z})`);
+      }
     }
 
     // Increment the replicated counter (drives client rendering + minimap).

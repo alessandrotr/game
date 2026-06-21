@@ -200,6 +200,24 @@ export interface GroundZoneView {
   radius: number;
 }
 
+/**
+ * Replicated trap (zombie mode only). Mirrors `Trap` in the server schema. The
+ * server owns the activation/cooldown logic; the client renders a ring sized to
+ * `radius` (styled by `kind`) plus a cooldown indicator driven by
+ * `cooldownProgress`.
+ */
+export interface TrapView {
+  readonly id: string;
+  /** 'heal' | 'death' — drives the ring colour/style. A {@link TrapKind}. */
+  kind: string;
+  x: number;
+  z: number;
+  /** Trap area radius (world units) — the ring matches this exactly. */
+  radius: number;
+  /** Cooldown recharge, 0→1. 1 = armed/ready; <1 = recharging (drives the arc). */
+  cooldownProgress: number;
+}
+
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */
 export interface ProjectileView {
   readonly id: string;
