@@ -24,9 +24,10 @@ function PickableEntity({ id }: { id: string }) {
   });
 
   if (!initial) return null;
+  const scale = initial.scale ?? 1;
   const ringColor = initial.kind === 'heal_pack' ? '#22c55e' : '#ffd761';
   return (
-    <group ref={group} position={[initial.x, initial.y, initial.z]}>
+    <group ref={group} position={[initial.x, initial.y, initial.z]} scale={[scale, scale, scale]}>
       <PickableVisual kind={initial.kind} />
       {/* Glow ring on the ground marking it as grabbable. */}
       <mesh position={[0, -initial.y + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>

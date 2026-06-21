@@ -381,7 +381,7 @@ export class CombatSystem {
     fromId?: string,
   ): void {
     if (speed <= 0 || distance <= 0) return;
-    if (this.ctx.state.zombieMode && fromId) {
+    if (this.ctx.state.zombieMode && fromId && entity.sessionId !== fromId) {
       const attacker = this.ctx.state.players.get(fromId);
       if (attacker && !isZombieSkin(attacker.skinId) && !isZombieSkin(entity.skinId)) {
         return;

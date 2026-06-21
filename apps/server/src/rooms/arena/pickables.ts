@@ -47,13 +47,14 @@ export class PickableSystem {
   }
 
   /** Create a loose pickable on the ground (replicated + TTL-tracked). */
-  spawnGround(kind: PickableKind, x: number, z: number): void {
+  spawnGround(kind: PickableKind, x: number, z: number, scale = 1): void {
     const obj = new Pickable();
     obj.id = `pk${this.seq++}`;
     obj.kind = kind;
     obj.x = x;
     obj.y = PICKABLE_GROUND_Y;
     obj.z = z;
+    obj.scale = scale;
     this.ctx.state.pickables.set(obj.id, obj);
     this.groundTtl.set(obj.id, this.ctx.now() + PICKABLE_GROUND_TTL_MS);
   }
@@ -154,7 +155,9 @@ export class PickableSystem {
           if (!player.alive || isZombieSkin(player.skinId)) return;
           const dx = p.x - player.x;
           const dz = p.z - player.z;
-          if (dx * dx + dz * dz <= 1.44) { // step radius of 1.2 units (1.2^2 = 1.44)
+          const scale = p.scale ?? 1;
+          const pickupR = 1.2 * Math.sqrt(scale);
+          if (dx * dx + dz * dz <= pickupR * pickupR) {
             this.consumeHealPack(player, id);
           }
         });

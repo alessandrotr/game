@@ -136,7 +136,7 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
       )}
       {isCar && stage === 'smoke' && <CarSmoke height={s.height} radius={s.radius} />}
       {isCar && stage === 'fire' && <CarFire height={s.height} radius={s.radius} />}
-      {!s.destroyed && (
+      {!s.destroyed && !structureId.startsWith('door-') && (
         <mesh position={[0, s.height / 2, 0]} onPointerDown={onAttack}>
           <cylinderGeometry args={[s.radius, s.radius, s.height, 12]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />

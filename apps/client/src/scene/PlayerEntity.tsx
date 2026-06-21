@@ -304,8 +304,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         pos.x = clamp(pos.x + dashState.vx * delta, -halfBounds, halfBounds);
         pos.z = clamp(pos.z + dashState.vz * delta, -halfBounds, halfBounds);
         // Dashes only happen in the arena (abilities are arena-only), so collide
-        // against the match's cover like the auto-attack chase does.
-        const fixed = collideObstacles(pos.x, pos.z, arenaObstacles, PLAYER_RADIUS);
+        // against the match's cover and active move blockers (zombies).
+        const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
         pos.x = fixed.x;
         pos.z = fixed.z;
         predictedRot.current = Math.atan2(dashState.dirX, dashState.dirZ);

@@ -213,6 +213,7 @@ function CountdownState({
 export function WaveAnnouncement() {
   const zombieMode = useGameStore((s) => s.zombieMode);
   const level = useGameStore((s) => s.zombieLevel);
+  const unlockedSections = useGameStore((s) => s.unlockedSections);
 
   // Fire the flash on each wave increment (not on the initial observe, so joining
   // mid-run doesn't re-announce a wave already in progress).
@@ -230,58 +231,126 @@ export function WaveAnnouncement() {
     return () => clearTimeout(id);
   }, [level]);
 
-  if (!zombieMode || !shown) return null;
-  const total = zombieHordeSize(shown.level);
-  // Difficulty milestones reached at THIS wave (vs the one before), so the player
-  // is told when the horde just got harder — speed steps up every few levels;
-  // tougher (more HP) and bigger (more concurrent) ramp every wave.
-  const speedUp = zombieSpeedForLevel(shown.level) > zombieSpeedForLevel(shown.level - 1);
+  // Door unlock announcement — fires when unlockedSections actually changes
+  // (i.e. when a wave is CLEARED and the door opens), not when the wave starts.
+  const prevSections = useRef<number | null>(null);
+  const [doorMsg, setDoorMsg] = useState<string | null>(null);
+  const doorNonce = useRef(0);
+
+  useEffect(() => {
+    const before = prevSections.current;
+    prevSections.current = unlockedSections;
+    if (before === null || unlockedSections <= before) return;
+    const names = ['North Wing', 'East Wing', 'South Wing', 'West Wing'];
+    const name = names[before] ?? 'New Area';
+    doorNonce.current += 1;
+    setDoorMsg(`${name} Unlocked!`);
+    const id = setTimeout(() => setDoorMsg(null), 3000);
+    return () => clearTimeout(id);
+  }, [unlockedSections]);
+
+  if (!zombieMode) return null;
 
   return (
-    <div
-      className="pointer-events-none absolute left-1/2 top-[24%] z-toast -translate-x-1/2"
-      role="status"
-      aria-live="polite"
-    >
-      <div
-        key={shown.nonce}
-        className="flex flex-col items-center"
-        style={{ animation: 'wave-flash 2.8s ease-out forwards' }}
-      >
-        <div className="flex items-center gap-4" style={{ color: TOX }}>
-          <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
-          <span
-            className="font-display text-6xl font-black tracking-[0.15em]"
-            style={{ textShadow: '0 0 32px rgba(120,224,74,0.7), 0 3px 10px rgba(0,0,0,0.7)' }}
-          >
-            WAVE {shown.level}
-          </span>
-          <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
-        </div>
-        {/* Underline streak. */}
-        <div
-          className="mt-2 h-px w-56"
-          style={{ background: `linear-gradient(90deg, transparent, ${TOX}, transparent)` }}
-        />
-        <div
-          className="mt-2 text-sm font-bold uppercase tracking-[0.3em]"
-          style={{ color: THREAT, textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}
-        >
-          {total} undead approaching
-        </div>
-        {speedUp && (
+    <>
+      {/* Wave start flash */}
+      {shown && (() => {
+        const total = zombieHordeSize(shown.level);
+        const speedUp = zombieSpeedForLevel(shown.level) > zombieSpeedForLevel(shown.level - 1);
+        const bossWave = shown.level > 0 && shown.level % 6 === 0;
+
+        return (
           <div
-            className="mt-2 flex items-center gap-1.5 rounded-full border border-gold/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-gold"
-            style={{
-              textShadow: '0 0 12px rgba(200,162,74,0.6)',
-              animation: 'threat-pulse 0.5s ease-in-out 4',
-            }}
+            className="pointer-events-none absolute left-1/2 top-[24%] z-toast -translate-x-1/2"
+            role="status"
+            aria-live="polite"
           >
-            <Zap size={13} aria-hidden="true" />
-            The horde is faster
+            <div
+              key={shown.nonce}
+              className="flex flex-col items-center gap-1.5"
+              style={{ animation: 'wave-flash 2.8s ease-out forwards' }}
+            >
+              <div className="flex items-center gap-4" style={{ color: TOX }}>
+                <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
+                <span
+                  className="font-display text-6xl font-black tracking-[0.15em]"
+                  style={{ textShadow: '0 0 32px rgba(120,224,74,0.7), 0 3px 10px rgba(0,0,0,0.7)' }}
+                >
+                  WAVE {shown.level}
+                </span>
+                <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
+              </div>
+              {/* Underline streak. */}
+              <div
+                className="mt-1 h-px w-56"
+                style={{ background: `linear-gradient(90deg, transparent, ${TOX}, transparent)` }}
+              />
+              <div
+                className="mt-1 text-sm font-bold uppercase tracking-[0.3em]"
+                style={{ color: THREAT, textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}
+              >
+                {total} undead approaching
+              </div>
+              
+              {/* Alerts container */}
+              <div className="flex flex-col items-center gap-1.5 mt-2">
+                {speedUp && (
+                  <div
+                    className="flex items-center gap-1.5 rounded-full border border-gold/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-gold"
+                    style={{
+                      textShadow: '0 0 12px rgba(200,162,74,0.6)',
+                      animation: 'threat-pulse 0.5s ease-in-out 4',
+                    }}
+                  >
+                    <Zap size={13} aria-hidden="true" />
+                    The horde is faster
+                  </div>
+                )}
+                
+                {bossWave && (
+                  <div
+                    className="flex items-center gap-1.5 rounded-full border border-red-500/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                    style={{
+                      textShadow: '0 0 12px rgba(239,68,68,0.6)',
+                      animation: 'threat-pulse 0.5s ease-in-out 4',
+                    }}
+                  >
+                    <Skull size={13} aria-hidden="true" />
+                    Mini-Boss Spawned!
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        );
+      })()}
+
+      {/* Door unlock announcement — separate from wave flash */}
+      {doorMsg && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-[40%] z-toast -translate-x-1/2"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            key={doorNonce.current}
+            className="flex flex-col items-center gap-1.5"
+            style={{ animation: 'wave-flash 3s ease-out forwards' }}
+          >
+            <div
+              className="flex items-center gap-2 rounded-full border border-blue-400/60 bg-black/60 px-5 py-2 text-sm font-bold uppercase tracking-[0.2em] text-blue-300 shadow-[0_0_20px_rgba(96,165,250,0.4)]"
+              style={{
+                textShadow: '0 0 14px rgba(96,165,250,0.7)',
+                animation: 'threat-pulse 0.5s ease-in-out 4',
+              }}
+            >
+              <Zap size={16} aria-hidden="true" />
+              {doorMsg}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
+

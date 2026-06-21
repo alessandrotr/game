@@ -1,5 +1,11 @@
 import RAPIER, { type Collider, type RigidBody, type World } from '@dimforge/rapier3d-compat';
-import { DESTRUCTIBLE_BOUND, DESTRUCTIBLE_GRAVITY, TICK_RATE, type ArenaObstacle } from '@arena/shared';
+import {
+  DESTRUCTIBLE_BOUND,
+  DESTRUCTIBLE_GRAVITY,
+  TICK_RATE,
+  ZOMBIE_ROOM_HALF_SIZE,
+  type ArenaObstacle,
+} from '@arena/shared';
 
 /** A dynamic cylinder body to add to the world (tires, drums, launched barrels). */
 export interface CylinderSpec {
@@ -29,21 +35,22 @@ export interface CylinderSpec {
 export class ArenaPhysics {
   readonly world: World;
 
-  constructor(obstacles: readonly ArenaObstacle[]) {
+  constructor(obstacles: readonly ArenaObstacle[], zombieMode: boolean = false) {
     this.world = new RAPIER.World({ x: 0, y: -DESTRUCTIBLE_GRAVITY, z: 0 });
     this.world.timestep = 1 / TICK_RATE; // one step per server tick
-    this.buildStatics(obstacles);
+    this.buildStatics(obstacles, zombieMode);
   }
 
   /** Ground slab, perimeter walls, and a fixed cylinder per cover piece. */
-  private buildStatics(obstacles: readonly ArenaObstacle[]): void {
+  private buildStatics(obstacles: readonly ArenaObstacle[], zombieMode: boolean): void {
     const w = this.world;
-    // Ground: a thick slab whose top surface is y = 0.
+    const limit = zombieMode ? ZOMBIE_ROOM_HALF_SIZE : DESTRUCTIBLE_BOUND;
+    // Ground: a thick slab whose top surface is y = 0. Extend ground if expanded.
     w.createCollider(
-      RAPIER.ColliderDesc.cuboid(120, 0.5, 120).setTranslation(0, -0.5, 0).setFriction(1).setRestitution(0),
+      RAPIER.ColliderDesc.cuboid(limit + 10, 0.5, limit + 10).setTranslation(0, -0.5, 0).setFriction(1).setRestitution(0),
     );
     // Perimeter walls so nothing slides/rolls out of the arena.
-    const b = DESTRUCTIBLE_BOUND;
+    const b = limit;
     const wall = (hx: number, hz: number, x: number, z: number) =>
       w.createCollider(RAPIER.ColliderDesc.cuboid(hx, 4, hz).setTranslation(x, 4, z));
     wall(b + 1, 1, 0, b + 1);

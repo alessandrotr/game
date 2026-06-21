@@ -103,6 +103,22 @@ export function structureFootprint(
   height: number,
   lengthScale = 1,
 ): ArenaObstacle[] {
+  if (assetId === 'prop.arena.fence.rust') {
+    const halfWidth = 0.8;
+    const halfLength = radius; // door.width / 2
+    const dirX = Math.cos(rotation);
+    const dirZ = -Math.sin(rotation);
+    const reach = halfLength - halfWidth;
+    if (reach < 1e-3) return [{ x, z, radius: halfWidth, height }];
+    const segments = Math.max(1, Math.ceil((reach * 2) / halfWidth));
+    const circles: ArenaObstacle[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = -reach + (reach * 2 * i) / segments;
+      circles.push({ x: x + dirX * t, z: z + dirZ * t, radius: halfWidth, height });
+    }
+    return circles;
+  }
+
   if (!isTrailerAsset(assetId)) return [{ x, z, radius, height }];
   const halfWidth = TRAILER_HALF_WIDTH;
   const halfLength = TRAILER_HALF_LENGTH * lengthScale;

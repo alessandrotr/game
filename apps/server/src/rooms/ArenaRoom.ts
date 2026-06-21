@@ -553,7 +553,7 @@ export class ArenaRoom extends AvatarRoom {
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
     this.guns = new GunSystem(ctx, this.projectiles);
-    this.physics = new ArenaPhysics(this.obstacles);
+    this.physics = new ArenaPhysics(this.obstacles, this.zombieMode);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
@@ -1066,7 +1066,7 @@ export class ArenaRoom extends AvatarRoom {
         const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - (this.gunMode ? 0 : 1);
         let speedOffset = ai.speedOffset;
         if (attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID && attacker.hp < attacker.maxHp * 0.5) {
-          speedOffset = -1.5; // Berserk speed multiplier offset
+          speedOffset = -0.5; // Berserk speed multiplier offset (made 1 unit faster)
         }
         baseSpeed = Math.max(
           1,
@@ -1215,7 +1215,7 @@ export class ArenaRoom extends AvatarRoom {
         // client and clears the level's "all dead" check the instant it dies.
         if (this.zombieMode && this.bots.has(sessionId)) {
           if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
-            this.pickables.spawnGround('heal_pack', player.x, player.z);
+            this.pickables.spawnGround('heal_pack', player.x, player.z, 4);
           }
           this.removeBot(sessionId);
           return;
@@ -1243,6 +1243,9 @@ export class ArenaRoom extends AvatarRoom {
       // Update Mini-Boss AI if this player is the mini-boss
       if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
         this.updateMiniBossAI(player, sessionId);
+        // Knock dynamic objects (barrels, drums, tires) over while walking
+        this.barrels.triggerInRadius(player.x, player.z, 1.6, sessionId);
+        this.destructibles.pushInRadius(player.x, player.z, 1.6, sessionId, 1);
       }
 
       // Capture pre-move position to derive locomotion (run vs idle) below.
@@ -1303,6 +1306,11 @@ export class ArenaRoom extends AvatarRoom {
           // (drums are rate-limited, tires scatter once) — a pure physical bump.
           this.barrels.triggerInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
           this.destructibles.pushInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
+        } else if (this.zombieMode) {
+          // In zombie mode, even non-damaging dashes knock barrels/drums over!
+          const fromId = disp.fromId ?? sessionId;
+          this.barrels.triggerInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
+          this.destructibles.pushInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
         }
       } else if (pending) {
         // Rooted wind-up: no movement while casting.
@@ -1352,8 +1360,11 @@ export class ArenaRoom extends AvatarRoom {
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,
       // idle overlaps); stepMove already resolved the move path.
+      // During a displacement (dash/knockback), collide against the same blockers
+      // as normal movement (including zombie bodies/props) so dashing hits or slides on them.
       const r = player.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-      const fixed = collideObstacles(player.x, player.z, moveObstacles, r);
+      const collisionSet = moveObstacles;
+      const fixed = collideObstacles(player.x, player.z, collisionSet, r);
       player.x = fixed.x;
       player.z = fixed.z;
 
@@ -1792,7 +1803,7 @@ export class ArenaRoom extends AvatarRoom {
     this.bots.set(id, makeZombieProfile());
     
     const ai = this.zombieAiFor(id);
-    ai.speedOffset = -2.5; // Slow movement speed
+    ai.speedOffset = -1.5; // Slow movement speed (made 1 unit faster)
   }
 
   private updateMiniBossAI(bot: Player, id: string): void {
@@ -1876,11 +1887,19 @@ export class ArenaRoom extends AvatarRoom {
   /** If `level` matches the next door's unlock wave, open that door and load
    *  the section behind it. No-op if all doors are already open. */
   private tryUnlockDoor(level: number): void {
-    if (!this.roomLayout) return;
+    if (!this.roomLayout) {
+      console.log(`[doors] tryUnlockDoor(${level}): no roomLayout — skipping`);
+      return;
+    }
     const nextIndex = this.state.unlockedSections;
     if (nextIndex >= this.roomLayout.doors.length) return;
     const door = this.roomLayout.doors[nextIndex]!;
-    if (level < door.unlockWave) return;
+    if (level < door.unlockWave) {
+      console.log(`[doors] tryUnlockDoor(${level}): wave ${level} < required ${door.unlockWave} for door ${door.index}`);
+      return;
+    }
+
+    console.log(`[doors] UNLOCKING door ${door.index} at (${door.x}, ${door.z}) — wave ${level}, width ${door.width}`);
 
     // Remove the door's wall from the collision set.
     this.cover.removeDoor(`door-${door.index}`);
@@ -1892,10 +1911,12 @@ export class ArenaRoom extends AvatarRoom {
       this.cover.addSection(sectionCover.structures);
       this.barrels.addBarrels(sectionCover.barrels);
       this.destructibles.addObjects(sectionCover.drums, sectionCover.tireStacks);
+      console.log(`[doors] Section ${section.name} loaded: ${sectionCover.structures.length} structures, ${sectionCover.barrels.length} barrels`);
     }
 
     // Increment the replicated counter (drives client rendering + minimap).
     this.state.unlockedSections = nextIndex + 1;
+    console.log(`[doors] unlockedSections now = ${this.state.unlockedSections}`);
 
     // Broadcast a door-open event so clients play the crumble VFX.
     this.broadcast(ServerMessage.StructureCrumbled, {
