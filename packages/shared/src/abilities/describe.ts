@@ -69,6 +69,8 @@ function statusPhrase(s: StatusSpec): string {
       return `heals ${s.tickAmount ?? 0} every ${secs(s.tickMs ?? 1000)}s ${dur}`;
     case 'shield':
       return `shields ${dur}`;
+    case 'poison':
+      return `deals ${s.tickAmount ?? 0} poison damage every ${secs(s.tickMs ?? 1000)}s ${dur}`;
   }
 }
 
