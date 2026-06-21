@@ -48,7 +48,7 @@ function EffectAnchor({ effect, children }: { effect: ActiveEffect; children: Re
     return player?.skinId === 'skin.zombie.miniboss';
   }, [effect.vfxId, effect.followId]);
 
-  const scale = isMiniBossStomp ? 1.4 : 1.0;
+  const scale = (effect.scale ?? 1.0) * (isMiniBossStomp ? 1.4 : 1.0);
 
   return (
     <group ref={ref} position={effect.origin} scale={scale}>

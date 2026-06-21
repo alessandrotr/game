@@ -14,11 +14,19 @@ export interface ActiveEffect {
   /** When following, keep the effect this many units in front of the tracked
    *  entity along `direction` (e.g. a frontal smash that stays ahead while you run). */
   offset?: number;
+  scale?: number;
 }
 
 interface EffectsStore {
   effects: ActiveEffect[];
-  spawn: (vfxId: VfxAssetId, origin: Vec3, direction?: Vec3, followId?: string, offset?: number) => void;
+  spawn: (
+    vfxId: VfxAssetId,
+    origin: Vec3,
+    direction?: Vec3,
+    followId?: string,
+    offset?: number,
+    scale?: number,
+  ) => void;
   remove: (key: number) => void;
 }
 
@@ -30,9 +38,9 @@ let nextKey = 1;
  */
 export const useEffectsStore = create<EffectsStore>((set) => ({
   effects: [],
-  spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset) =>
+  spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset, scale) =>
     set((s) => {
-      const next = [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset }];
+      const next = [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset, scale }];
       // Cap concurrent effects per the quality tier — a big multi-target blast can
       // spawn many overlapping additive bursts at once. Drop the OLDEST (already
       // fading) so the just-triggered effect always shows.

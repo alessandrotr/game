@@ -1,4 +1,5 @@
 import {
+  ABILITIES,
   PLAYER_RADIUS,
   RESPAWN_DELAY_MS,
   XP_PER_KILL,
@@ -8,6 +9,7 @@ import {
   damageTakenMultiplier,
   levelForXp,
   type AbilityDef,
+  type AbilityKind,
   type LeafEffect,
   type StatusSpec,
 } from '@arena/shared';
@@ -206,7 +208,12 @@ export class CombatSystem {
       }
     }
 
-    const perkScaled = total * attackerPerks.abilityDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
+    let aoeDamageMult = 1.0;
+    if (ability && ABILITIES[ability as AbilityKind]?.aoeRadius !== undefined && ABILITIES[ability as AbilityKind].aoeRadius! > 0) {
+      aoeDamageMult = attackerPerks.aoeDamageMult;
+    }
+
+    const perkScaled = total * attackerPerks.abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {
@@ -254,6 +261,41 @@ export class CombatSystem {
       }
     }
 
+    // Poison perk on hit
+    if (
+      attacker &&
+      attackerPerks.poisonDurationMs > 0 &&
+      attacker.alive &&
+      target.sessionId !== attacker.sessionId &&
+      ability &&
+      ability !== 'lightning_spark' &&
+      ability !== 'chain_explosion' &&
+      ability !== 'poison_dot'
+    ) {
+      this.applyStatus(target, {
+        kind: 'poison',
+        durationMs: attackerPerks.poisonDurationMs,
+        tickMs: 1000,
+        tickAmount: attackerPerks.poisonDamagePerSecond,
+        ability: 'poison_dot',
+      }, attacker.sessionId);
+
+      // Plague perk: spreads poison to other zombies in a 1.5 radius of the hit
+      if (attackerPerks.poisonSpreadRadius > 0) {
+        this.forEachEnemyInRadius(target.x, target.z, attackerPerks.poisonSpreadRadius, attacker.sessionId, (otherEnemy) => {
+          if (otherEnemy.sessionId !== target.sessionId && isZombieSkin(otherEnemy.skinId)) {
+            this.applyStatus(otherEnemy, {
+              kind: 'poison',
+              durationMs: attackerPerks.poisonDurationMs,
+              tickMs: 1000,
+              tickAmount: attackerPerks.poisonDamagePerSecond,
+              ability: 'poison_dot',
+            }, attacker.sessionId);
+          }
+        });
+      }
+    }
+
     // Broadcast the Damage feedback. For zombies, the client plays a blood splash
     // and flinch without showing floating text, ensuring high performance.
     this.ctx.broadcast(ServerMessage.Damage, {
@@ -280,6 +322,36 @@ export class CombatSystem {
         // does NOT count toward the killer's kill tally (so it never inflates
         // career/scoreboard kills).
         const isZombieKill = isZombieSkin(target.skinId);
+
+        // AoE chain-explosion logic
+        if (isZombieKill && attackerPerks.chainExplosionChance > 0) {
+          const isAoe = ability && ABILITIES[ability as AbilityKind]?.aoeRadius !== undefined && ABILITIES[ability as AbilityKind].aoeRadius! > 0;
+          if (isAoe && Math.random() < attackerPerks.chainExplosionChance) {
+            const explosionRadius = 4 + attackerPerks.aoeSizeBonus;
+            const explosionDamage = 40;
+
+            // Trigger explosion visuals
+            this.ctx.broadcast(ServerMessage.Detonation, {
+              kind: 'chain_explosion',
+              x: target.x,
+              z: target.z,
+              radius: explosionRadius,
+            });
+
+            // Find other enemies around the dead zombie's position and deal damage
+            const list: Player[] = [];
+            this.forEachEnemyInRadius(target.x, target.z, explosionRadius, killer.sessionId, (otherEnemy) => {
+              if (otherEnemy.sessionId !== target.sessionId) {
+                list.push(otherEnemy);
+              }
+            });
+
+            list.forEach((otherEnemy) => {
+              this.dealDamage(otherEnemy, explosionDamage, killer.sessionId, 'chain_explosion');
+            });
+          }
+        }
+
         const beforeLevel = killer.level;
         if (!isZombieKill) killer.kills += 1;
         killer.xp += isZombieKill ? ZOMBIE_XP_PER_KILL : XP_PER_KILL;
@@ -436,9 +508,9 @@ export class CombatSystem {
         list.splice(i, 1);
         continue;
       }
-      if ((s.kind === 'dot' || s.kind === 'hot' || s.kind === 'field') && s.tickMs > 0 && now >= s.nextTickAt) {
-        if (s.kind === 'dot') {
-          this.dealDamage(player, s.tickAmount, s.sourceId);
+      if ((s.kind === 'dot' || s.kind === 'poison' || s.kind === 'hot' || s.kind === 'field') && s.tickMs > 0 && now >= s.nextTickAt) {
+        if (s.kind === 'dot' || s.kind === 'poison') {
+          this.dealDamage(player, s.tickAmount, s.sourceId, s.kind === 'poison' ? 'poison_dot' : undefined);
         } else if (s.kind === 'hot') {
           this.healTarget(player, s.tickAmount);
         } else {

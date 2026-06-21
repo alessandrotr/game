@@ -125,20 +125,21 @@ describe('PerkSystem & Adrenaline Perks', () => {
     
     const mods = system.getModifiers('p1');
     expect(mods.lowHpDamageMult).toBe(1.30);
-    expect(mods.lowHpSpeedMult).toBe(1.15);
+    expect(mods.lowHpSpeedBonus).toBe(1);
 
     // Test getPerkMoveSpeedMult helper
-    // 100% HP -> no multiplier
+    // 100% HP -> no bonus
     player.hp = 100;
-    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.0);
+    expect(getPerkMoveSpeedMult(system, player).bonus).toBe(0);
 
-    // 50% HP -> still no multiplier (needs to be < 40%)
+    // 50% HP -> still no bonus (needs to be < 40%)
     player.hp = 50;
-    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.0);
+    expect(getPerkMoveSpeedMult(system, player).bonus).toBe(0);
 
-    // 30% HP -> multiplier applied!
+    // 30% HP -> flat bonus applied!
     player.hp = 30;
-    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.15);
+    expect(getPerkMoveSpeedMult(system, player).bonus).toBe(1);
+    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.0);
   });
 
   it('correctly calculates modifiers for the Precision perk chain', () => {
@@ -170,5 +171,36 @@ describe('PerkSystem & Adrenaline Perks', () => {
     expect(deadMods.critChance).toBe(0.20);
     expect(deadMods.critMultiplier).toBe(2.0);
     expect(deadMods.critCooldownResetChance).toBe(0.30);
+  });
+
+  it('correctly calculates modifiers for the Poison perk chain', () => {
+    const ctx = makeMockContext();
+    const system = new PerkSystem(ctx);
+    system.init('p1');
+
+    // 1. Poison Touch (Common)
+    (system as any).perks.set('p1', ['poison_touch']);
+    const touchMods = system.getModifiers('p1');
+    expect(touchMods.poisonDurationMs).toBe(2000);
+    expect(touchMods.poisonDamagePerSecond).toBe(5);
+    expect(touchMods.poisonSpreadRadius).toBe(0);
+
+    // 2. Toxic Spores (Rare)
+    system.reset('p1');
+    system.init('p1');
+    (system as any).perks.set('p1', ['toxic_spores']);
+    const sporesMods = system.getModifiers('p1');
+    expect(sporesMods.poisonDurationMs).toBe(4000);
+    expect(sporesMods.poisonDamagePerSecond).toBe(5);
+    expect(sporesMods.poisonSpreadRadius).toBe(0);
+
+    // 3. Plague (Legendary)
+    system.reset('p1');
+    system.init('p1');
+    (system as any).perks.set('p1', ['plague']);
+    const plagueMods = system.getModifiers('p1');
+    expect(plagueMods.poisonDurationMs).toBe(6000);
+    expect(plagueMods.poisonDamagePerSecond).toBe(5);
+    expect(plagueMods.poisonSpreadRadius).toBe(1.5);
   });
 });

@@ -338,6 +338,21 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   const spawn = useEffectsStore.getState().spawn;
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
 
+  const caster = useGameStore.getState().players.get(msg.casterId);
+  let aoeSizeBonus = 0;
+  if (caster) {
+    const perks = [caster.perk1, caster.perk2, caster.perk3];
+    for (const perkId of perks) {
+      if (perkId === 'wide_reach') aoeSizeBonus += 1;
+      else if (perkId === 'blast_master') aoeSizeBonus += 2;
+      else if (perkId === 'cataclysm') aoeSizeBonus += 3;
+    }
+  }
+
+  const def = ABILITIES[msg.ability];
+  const baseRadius = def?.aoeRadius ?? 0;
+  const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
+
   const burst = ABILITY_CAST_VFX[msg.ability];
   if (burst) {
     let x = msg.x;
@@ -368,15 +383,14 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
         z += msg.dirZ * burst.forward;
       }
     }
-    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset);
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset, scale);
     return;
   }
 
   // Default (projectiles / single-target casts): a quick rune flash at the
   // caster's feet — the projectile itself carries the rest of the visual.
-  const def = ABILITIES[msg.ability];
   if (def?.effects[0]?.type === 'aoe' || msg.tx !== undefined) {
-    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1]);
+    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1], undefined, undefined, scale);
   } else {
     spawn('vfx.cast', [msg.x, 0.05, msg.z], dir);
   }
@@ -554,6 +568,9 @@ function wireRoom(joined: Room): void {
   joined.onMessage(ServerMessage.Damage, guarded(onDamage));
   joined.onMessage(ServerMessage.Heal, guarded(onHeal));
   joined.onMessage(ServerMessage.LevelUp, guarded(onLevelUp));
+  joined.onMessage(ServerMessage.ResetCooldown, (msg) => {
+    resetCooldowns(msg?.ability);
+  });
   joined.onMessage(ServerMessage.Chat, (msg) => {
     useChatStore.getState().add(msg);
     if (msg.senderId) useSpeechStore.getState().say(msg.senderId, msg.text);
@@ -592,9 +609,17 @@ function wireRoom(joined: Room): void {
     // A thrown pickable burst (server already applied the area damage). The
     // grenade gets the bigger fireball; the molotov a smaller fire pop (its
     // lingering puddle renders separately from replicated ground-zone state).
+    let vfxId: VfxAssetId = 'vfx.barrel_explosion';
+    let scale: number | undefined;
+    if (msg.kind === 'grenade') {
+      vfxId = 'vfx.car_explosion';
+    } else if (msg.kind === 'chain_explosion') {
+      vfxId = 'vfx.barrel_explosion';
+      scale = msg.radius / 4.0;
+    }
     useEffectsStore
       .getState()
-      .spawn(msg.kind === 'grenade' ? 'vfx.car_explosion' : 'vfx.barrel_explosion', [msg.x, 0, msg.z]);
+      .spawn(vfxId, [msg.x, 0, msg.z], [0, 0, 1], undefined, undefined, scale);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.category, msg.enabled, msg.entries),

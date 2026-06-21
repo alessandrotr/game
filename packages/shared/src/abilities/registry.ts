@@ -321,11 +321,9 @@ export const ABILITY_REGISTRY = {
     castTimeMs: 0,
     range: 16,
     damage: 26,
-    healAmount: 4,
     aoeRadius: 2,
     effects: [
       { type: 'aoe', at: 'point', radius: 2, onHit: [{ type: 'damage', amount: 26 }] },
-      { type: 'heal_allies', at: 'point', radius: 2, amount: 4 },
     ],
   },
   // W — Sanctuary: a damaging field that follows the priest for 3s.

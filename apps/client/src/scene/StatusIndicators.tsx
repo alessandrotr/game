@@ -28,6 +28,7 @@ const STATUS_COLOR: Record<StatusKind, string> = {
   dot: '#9b5cff',
   hot: '#7cff9e',
   shield: '#aab4ff',
+  poison: '#2ecc71',
 };
 
 const PIP_Y = 2.7;

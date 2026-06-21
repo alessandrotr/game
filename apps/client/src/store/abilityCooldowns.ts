@@ -1,4 +1,5 @@
 import type { AbilityKind } from '@arena/shared';
+import { useGameStore } from './useGameStore';
 
 /**
  * Client-side ability cooldown tracker — for the action-bar display and to avoid
@@ -27,7 +28,40 @@ export function isOnCooldown(ability: AbilityKind): boolean {
   return cooldownRemaining(ability) > 0;
 }
 
-/** Clear all cooldowns (e.g. on disconnect / respawn into a fresh match). */
-export function resetCooldowns(): void {
-  readyAt.clear();
+/** Clear all cooldowns, or a specific ability's cooldown if provided. */
+export function resetCooldowns(ability?: AbilityKind): void {
+  if (ability) {
+    readyAt.delete(ability);
+  } else {
+    readyAt.clear();
+  }
+}
+
+/** Get local player's cooldown multiplier based on active perks. */
+export function getLocalCooldownMult(): number {
+  const { sessionId, players } = useGameStore.getState();
+  const me = sessionId ? players.get(sessionId) : undefined;
+  if (!me) return 1;
+  let mult = 1;
+  const perks = [me.perk1, me.perk2, me.perk3];
+  for (const perk of perks) {
+    if (perk === 'quick_hands') mult *= 0.85;
+    else if (perk === 'rapid_fire') mult *= 0.70;
+    else if (perk === 'overclock') mult *= 0.55;
+  }
+  return mult;
+}
+
+/** Get local player's mana cost multiplier based on active perks. */
+export function getLocalManaCostMult(): number {
+  const { sessionId, players } = useGameStore.getState();
+  const me = sessionId ? players.get(sessionId) : undefined;
+  if (!me) return 1;
+  let mult = 1;
+  const perks = [me.perk1, me.perk2, me.perk3];
+  for (const perk of perks) {
+    if (perk === 'arcane_reservoir') mult *= 0.85;
+    else if (perk === 'infinite_power') mult *= 0.70;
+  }
+  return mult;
 }

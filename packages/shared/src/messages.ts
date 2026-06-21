@@ -143,6 +143,8 @@ export enum ServerMessage {
    *  a wave clear. The client renders the picker; the player replies with
    *  {@link ClientMessage.PerkPick}. */
   PerkOffer = 'perk_offer',
+  /** Reset cooldowns for a specific ability or all abilities. */
+  ResetCooldown = 'reset_cooldown',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -360,5 +362,9 @@ export interface ServerMessagePayloads {
     fixedUpgradeFrom?: PerkId;
     /** The destination perk id for the fixed-offer upgrade. */
     fixedUpgradeTo?: PerkId;
+  };
+  [ServerMessage.ResetCooldown]: {
+    /** The ability kind to reset. If omitted, resets all. */
+    ability?: string;
   };
 }
