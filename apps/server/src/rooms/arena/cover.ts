@@ -1,6 +1,7 @@
 import { type Collider } from '@dimforge/rapier3d-compat';
 import {
   ARENA_HALF_SIZE,
+  ZOMBIE_ROOM_HALF_SIZE,
   PLAYER_RADIUS,
   ServerMessage,
   structureFootprint,
@@ -147,8 +148,15 @@ export class CoverSystem {
     const cs = new CoverStructure();
     cs.id = id;
     cs.assetId = 'prop.arena.fence.rust'; // rendered as a corrugated-metal wall
-    cs.x = door.x;
-    cs.z = door.z;
+    
+    // Shift the door slightly outward (toward the next section) so its collision
+    // circles (radius 0.8) do not protrude into the main room.
+    const offset = 0.8;
+    const shiftedX = door.isVertical ? door.x + (door.x > 0 ? offset : -offset) : door.x;
+    const shiftedZ = !door.isVertical ? door.z + (door.z > 0 ? offset : -offset) : door.z;
+
+    cs.x = shiftedX;
+    cs.z = shiftedZ;
     cs.rotation = door.isVertical ? Math.PI / 2 : 0;
     cs.radius = door.width / 2;
     cs.height = 2.4;
@@ -157,12 +165,19 @@ export class CoverSystem {
     cs.destroyed = false;
     cs.lengthScale = 1;
     this.ctx.state.structures.set(id, cs);
-    const circles = [{ x: door.x, z: door.z, radius: door.width / 2, height: 2.4 }];
+    const circles = structureFootprint(cs.assetId, cs.x, cs.z, cs.rotation, cs.radius, cs.height, cs.lengthScale);
     this.circles.set(id, circles);
     for (const c of circles) this.collision.push(c);
     this.colliders.set(
       id,
-      this.physics.addStaticCylinder(door.x, door.z, door.width / 2, 2.4),
+      this.physics.addStaticBox(
+        shiftedX,
+        shiftedZ,
+        door.width / 2,
+        0.4,
+        2.4,
+        cs.rotation,
+      ),
     );
     this.indestructible.add(id);
   }
@@ -373,7 +388,8 @@ export class CoverSystem {
       let nx = s.x + vel.vx * dt;
       let nz = s.z + vel.vz * dt;
       // Arena walls: clamp and kill the velocity into the wall.
-      const lim = ARENA_HALF_SIZE - s.radius;
+      const limit = this.ctx.state.zombieMode ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE;
+      const lim = limit - s.radius;
       if (nx > lim) {
         nx = lim;
         vel.vx = 0;

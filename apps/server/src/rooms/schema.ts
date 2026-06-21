@@ -205,6 +205,7 @@ export class Pickable extends Schema {
   @type('number') x = 0;
   @type('number') y = 0;
   @type('number') z = 0;
+  @type('number') scale = 1;
 }
 
 /** A lingering ground effect — the molotov's burning puddle. Mirrors

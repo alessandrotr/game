@@ -2,13 +2,12 @@
  * Procedural Room System — zombie mode map expansion.
  *
  * The original trailer-park arena (50×50, x/z ∈ [-25, 25]) is the "Main Room."
- * Three additional sections attach around it in a U-loop, each gated by a
- * corrugated-metal door that opens when a specific wave is cleared. The loop
- * direction is:
+ * Three additional sections attach **northward** in a linear chain, each gated
+ * by a corrugated-metal door that opens when a specific wave is cleared:
  *
- *   Main Room → Section 1 (left) → Section 2 (top) → Section 3 (right) → Main Room
+ *   Main Room → Section 1 (z 25–65) → Section 2 (z 65–105) → Section 3 (z 105–145)
  *
- * Each section slot has 3–4 shape templates selected per-match by the seed, so
+ * Each section slot has 4 shape templates selected per-match by the seed, so
  * every run feels different while the connection topology stays fixed. Cover
  * (trailers, drums, barrels, etc.) is scattered inside each section's bounds
  * using the same procedural logic as the main room.
@@ -43,12 +42,13 @@ export interface SectionBounds {
 
 /** A section's full definition (bounds + meta produced by the generator). */
 export interface SectionDef {
-  /** 0-based index (0 = Section 1 / left, 1 = Section 2 / top, 2 = Section 3 / right). */
+  /** 0-based index (0 = Section 1, 1 = Section 2, 2 = Section 3). */
   index: number;
   /** Human-readable tag. */
   name: string;
-  bounds: SectionBounds;
-  /** Zombie spawn portals inside this section (4 per section). */
+  bounds: SectionBounds; // Union bounding box of all boxes in this section
+  boxes: SectionBounds[]; // The individual rectangles forming the room shape
+  /** Zombie spawn portals inside this section. */
   portalPoints: SpawnPoint[];
   /** Which template was picked for this slot. */
   templateId: string;
@@ -56,7 +56,7 @@ export interface SectionDef {
 
 /** A door between two sections (or between a section and the main room). */
 export interface DoorDef {
-  /** 0-based index (matches DOOR_UNLOCK_WAVES index). */
+  /** 0-based index. */
   index: number;
   /** World-space centre of the gap. */
   x: number;
@@ -77,93 +77,74 @@ export interface RoomLayout {
 }
 
 // ---------------------------------------------------------------------------
-// Section templates
+// Section templates — Cardinal Layout
 // ---------------------------------------------------------------------------
 
-/** A shape template for a section slot. Bounds are relative to the slot's anchor
- *  (the generator maps them to world space). `coverDensity` controls how many
- *  structures/barrels the scatter plants. */
+interface LocalBounds {
+  minU: number;
+  maxU: number;
+  minV: number;
+  maxV: number;
+}
+
+interface LocalPortal {
+  u: number;
+  v: number;
+}
+
+/** A shape template in local (u, v) coordinates relative to the direction anchor.
+ *  u is outward distance [0, 50], v is perpendicular distance [-25, 25]. */
 interface SectionTemplate {
   id: string;
-  /** Bounds relative to the slot anchor. The generator offsets these into world
-   *  space depending on which slot (left/top/right) the template fills. */
-  relBounds: SectionBounds;
-  /** Multiplier on the base cover count (1 = normal, 0.6 = sparse, 1.4 = dense). */
+  relBoxes: LocalBounds[];
+  relPortals: LocalPortal[];
   coverDensity: number;
 }
 
-// -- Section 1 (left wing) templates --
-// Slot anchor: the left edge of the main room (x = -25).
-// Templates extend leftward (negative X) and span some Z range.
-const LEFT_TEMPLATES: SectionTemplate[] = [
+
+const LOCAL_TEMPLATES: SectionTemplate[] = [
   {
-    id: 'left.wide_yard',
-    relBounds: { minX: -25, maxX: 0, minZ: -15, maxZ: 25 },
-    coverDensity: 1,
+    id: 'yard.wide',
+    relBoxes: [
+      { minU: 0, maxU: 50, minV: -20, maxV: 20 },
+    ],
+    relPortals: [{ u: 45, v: 0 }],
+    coverDensity: 1.0,
   },
   {
-    id: 'left.narrow_alley',
-    relBounds: { minX: -18, maxX: 0, minZ: -15, maxZ: 25 },
-    coverDensity: 0.7,
+    id: 'yard.l_bend_right',
+    relBoxes: [
+      { minU: 0, maxU: 30, minV: -20, maxV: 15 },
+      { minU: 25, maxU: 50, minV: -5, maxV: 25 },
+    ],
+    relPortals: [{ u: 45, v: 20 }],
+    coverDensity: 1.0,
   },
   {
-    id: 'left.l_bend',
-    relBounds: { minX: -25, maxX: 0, minZ: -5, maxZ: 25 },
-    coverDensity: 0.9,
+    id: 'yard.l_bend_left',
+    relBoxes: [
+      { minU: 0, maxU: 30, minV: -15, maxV: 20 },
+      { minU: 25, maxU: 50, minV: -25, maxV: 5 },
+    ],
+    relPortals: [{ u: 45, v: -20 }],
+    coverDensity: 1.0,
+  },
+  {
+    id: 'yard.t_junction',
+    relBoxes: [
+      { minU: 0, maxU: 50, minV: -15, maxV: 15 },
+      { minU: 20, maxU: 38, minV: -25, maxV: 25 },
+    ],
+    relPortals: [
+      { u: 29, v: -22 },
+      { u: 29, v: 22 },
+    ],
+    coverDensity: 1.0,
   },
 ];
 
-// -- Section 2 (top corridor) templates --
-// Slot anchor: the top edge of the main room (z = 25).
-// Templates extend upward (positive Z) spanning from left-section's left edge
-// to right-section's right edge.
-const TOP_TEMPLATES: SectionTemplate[] = [
-  {
-    id: 'top.long_hall',
-    relBounds: { minX: -50, maxX: 25, minZ: 0, maxZ: 25 },
-    coverDensity: 1,
-  },
-  {
-    id: 'top.divided_hall',
-    relBounds: { minX: -50, maxX: 25, minZ: 0, maxZ: 25 },
-    coverDensity: 1.3,
-  },
-  {
-    id: 'top.wide_plaza',
-    relBounds: { minX: -50, maxX: 25, minZ: 0, maxZ: 18 },
-    coverDensity: 0.7,
-  },
-];
-
-// -- Section 3 (right wing) templates --
-// Slot anchor: the right edge of the main room (x = 25).
-// Templates extend rightward (positive X).
-const RIGHT_TEMPLATES: SectionTemplate[] = [
-  {
-    id: 'right.wide_yard',
-    relBounds: { minX: 0, maxX: 25, minZ: -15, maxZ: 25 },
-    coverDensity: 1,
-  },
-  {
-    id: 'right.split_rooms',
-    relBounds: { minX: 0, maxX: 25, minZ: -15, maxZ: 25 },
-    coverDensity: 1.3,
-  },
-  {
-    id: 'right.narrow_alley',
-    relBounds: { minX: 0, maxX: 18, minZ: -15, maxZ: 25 },
-    coverDensity: 0.7,
-  },
-  {
-    id: 'right.t_junction',
-    relBounds: { minX: 0, maxX: 25, minZ: -5, maxZ: 25 },
-    coverDensity: 0.9,
-  },
-];
-
-const SLOT_TEMPLATES: SectionTemplate[][] = [LEFT_TEMPLATES, TOP_TEMPLATES, RIGHT_TEMPLATES];
-
-const SLOT_NAMES = ['Left Wing', 'Top Corridor', 'Right Wing'];
+const DIRECTIONS: ('N' | 'E' | 'S' | 'W')[] = ['N', 'E', 'S', 'W'];
+const SLOT_NAMES = ['North Wing', 'East Wing', 'South Wing', 'West Wing'];
 
 // ---------------------------------------------------------------------------
 // Deterministic PRNG (same mulberry32 used by the arena layout generator)
@@ -183,52 +164,89 @@ function mulberry32(seed: number): () => number {
 // Layout generator
 // ---------------------------------------------------------------------------
 
-/** Offset a template's relative bounds into world space for the given slot. */
-function worldBounds(slot: number, tmpl: SectionTemplate): SectionBounds {
-  switch (slot) {
-    case 0: // left wing: anchor at x = -ARENA_HALF_SIZE
+function getUnionBounds(boxes: SectionBounds[]): SectionBounds {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const b of boxes) {
+    if (b.minX < minX) minX = b.minX;
+    if (b.maxX > maxX) maxX = b.maxX;
+    if (b.minZ < minZ) minZ = b.minZ;
+    if (b.maxZ > maxZ) maxZ = b.maxZ;
+  }
+  return { minX, maxX, minZ, maxZ };
+}
+
+function transformBounds(
+  dir: 'N' | 'E' | 'S' | 'W',
+  b: LocalBounds,
+): SectionBounds {
+  const H = ARENA_HALF_SIZE;
+  switch (dir) {
+    case 'N':
       return {
-        minX: -ARENA_HALF_SIZE + tmpl.relBounds.minX,
-        maxX: -ARENA_HALF_SIZE + tmpl.relBounds.maxX,
-        minZ: tmpl.relBounds.minZ,
-        maxZ: tmpl.relBounds.maxZ,
+        minX: b.minV,
+        maxX: b.maxV,
+        minZ: H + b.minU,
+        maxZ: H + b.maxU,
       };
-    case 1: // top corridor: anchor at z = +ARENA_HALF_SIZE
+    case 'S':
       return {
-        minX: tmpl.relBounds.minX,
-        maxX: tmpl.relBounds.maxX,
-        minZ: ARENA_HALF_SIZE + tmpl.relBounds.minZ,
-        maxZ: ARENA_HALF_SIZE + tmpl.relBounds.maxZ,
+        minX: b.minV,
+        maxX: b.maxV,
+        minZ: -H - b.maxU,
+        maxZ: -H - b.minU,
       };
-    case 2: // right wing: anchor at x = +ARENA_HALF_SIZE
+    case 'E':
       return {
-        minX: ARENA_HALF_SIZE + tmpl.relBounds.minX,
-        maxX: ARENA_HALF_SIZE + tmpl.relBounds.maxX,
-        minZ: tmpl.relBounds.minZ,
-        maxZ: tmpl.relBounds.maxZ,
+        minX: H + b.minU,
+        maxX: H + b.maxU,
+        minZ: b.minV,
+        maxZ: b.maxV,
       };
-    default:
-      throw new Error(`Invalid slot ${slot}`);
+    case 'W':
+      return {
+        minX: -H - b.maxU,
+        maxX: -H - b.minU,
+        minZ: b.minV,
+        maxZ: b.maxV,
+      };
   }
 }
 
-/** Place 4 portal points inside a section's bounds (inset from edges). */
-function sectionPortals(b: SectionBounds): SpawnPoint[] {
-  const inset = 3;
-  const cx = (b.minX + b.maxX) / 2;
-  const cz = (b.minZ + b.maxZ) / 2;
-  const ix = Math.min(inset, (b.maxX - b.minX) / 2 - 1);
-  const iz = Math.min(inset, (b.maxZ - b.minZ) / 2 - 1);
-  return [
-    { x: b.minX + ix, z: cz },       // left/west edge
-    { x: b.maxX - ix, z: cz },       // right/east edge
-    { x: cx, z: b.minZ + iz },       // bottom/south edge
-    { x: cx, z: b.maxZ - iz },       // top/north edge
-  ];
+function transformPoint(
+  dir: 'N' | 'E' | 'S' | 'W',
+  p: LocalPortal,
+): SpawnPoint {
+  const H = ARENA_HALF_SIZE;
+  switch (dir) {
+    case 'N':
+      return { x: p.v, z: H + p.u };
+    case 'S':
+      return { x: p.v, z: -H - p.u };
+    case 'E':
+      return { x: H + p.u, z: p.v };
+    case 'W':
+      return { x: -H - p.u, z: p.v };
+  }
+}
+
+function getDoorDef(slot: number): { x: number; z: number; isVertical: boolean } {
+  const H = ARENA_HALF_SIZE;
+  switch (slot) {
+    case 0: // North
+      return { x: 0, z: H, isVertical: false };
+    case 1: // East
+      return { x: H, z: 0, isVertical: true };
+    case 2: // South
+      return { x: 0, z: -H, isVertical: false };
+    case 3: // West
+      return { x: -H, z: 0, isVertical: true };
+    default:
+      return { x: 0, z: H, isVertical: false };
+  }
 }
 
 /** Door gap width. */
-const DOOR_WIDTH = 6;
+const DOOR_WIDTH = 16;
 
 /**
  * Generate the room layout for a zombie match from the match seed. Deterministic:
@@ -242,55 +260,29 @@ export function generateRoomLayout(seed: number): RoomLayout {
   const sections: SectionDef[] = [];
   const doors: DoorDef[] = [];
 
-  for (let slot = 0; slot < 3; slot++) {
-    const pool = SLOT_TEMPLATES[slot]!;
-    const tmpl = pool[Math.floor(rng() * pool.length)]!;
-    const bounds = worldBounds(slot, tmpl);
+  for (let slot = 0; slot < 4; slot++) {
+    const dir = DIRECTIONS[slot]!;
+    const tmpl = LOCAL_TEMPLATES[Math.floor(rng() * LOCAL_TEMPLATES.length)]!;
+    const boxes = tmpl.relBoxes.map(b => transformBounds(dir, b));
     sections.push({
       index: slot,
       name: SLOT_NAMES[slot]!,
-      bounds,
-      portalPoints: sectionPortals(bounds),
-      templateId: tmpl.id,
+      bounds: getUnionBounds(boxes),
+      boxes,
+      portalPoints: tmpl.relPortals.map(p => transformPoint(dir, p)),
+      templateId: `${dir.toLowerCase()}.${tmpl.id}`,
+    });
+
+    const doorPos = getDoorDef(slot);
+    doors.push({
+      index: slot,
+      x: doorPos.x,
+      z: doorPos.z,
+      width: DOOR_WIDTH,
+      isVertical: doorPos.isVertical,
+      unlockWave: DOOR_UNLOCK_WAVES[slot]!,
     });
   }
-
-  // Door 1: left wall of main room → Section 1
-  doors.push({
-    index: 0,
-    x: -ARENA_HALF_SIZE,
-    z: 5,
-    width: DOOR_WIDTH,
-    isVertical: true,
-    unlockWave: DOOR_UNLOCK_WAVES[0]!,
-  });
-  // Door 2: top wall of Section 1 → Section 2
-  doors.push({
-    index: 1,
-    x: -ARENA_HALF_SIZE - 12,
-    z: ARENA_HALF_SIZE,
-    width: DOOR_WIDTH,
-    isVertical: false,
-    unlockWave: DOOR_UNLOCK_WAVES[1]!,
-  });
-  // Door 3: top wall of main room → Section 2 (right portion)
-  doors.push({
-    index: 2,
-    x: 12,
-    z: ARENA_HALF_SIZE,
-    width: DOOR_WIDTH,
-    isVertical: false,
-    unlockWave: DOOR_UNLOCK_WAVES[2]!,
-  });
-  // Door 4: right wall of main room → Section 3 (loop close)
-  doors.push({
-    index: 3,
-    x: ARENA_HALF_SIZE,
-    z: 5,
-    width: DOOR_WIDTH,
-    isVertical: true,
-    unlockWave: DOOR_UNLOCK_WAVES[3]!,
-  });
 
   return { sections, doors };
 }
@@ -346,8 +338,13 @@ export function generateSectionCover(
   section: SectionDef,
 ): SectionCoverResult {
   const rng = mulberry32((seed >>> 0) + 0xcafe + section.index * 0x1111);
-  const b = section.bounds;
-  const area = (b.maxX - b.minX) * (b.maxZ - b.minZ);
+  const boxes = section.boxes;
+  
+  // Calculate total area of all boxes in this section
+  let area = 0;
+  for (const b of boxes) {
+    area += (b.maxX - b.minX) * (b.maxZ - b.minZ);
+  }
   const mainArea = ARENA_HALF_SIZE * 2 * ARENA_HALF_SIZE * 2; // 2500
   const areaScale = area / mainArea;
 
@@ -369,10 +366,24 @@ export function generateSectionCover(
 
   /** Find a random spot inside the section for footprint `fr`. */
   function findSpot(fr: number): { x: number; z: number } | null {
-    const margin = 2;
-    for (let i = 0; i < 40; i++) {
+    const margin = 2.5;
+    const boxAreas = boxes.map(b => (b.maxX - b.minX) * (b.maxZ - b.minZ));
+    const totalArea = boxAreas.reduce((s, a) => s + a, 0);
+
+    for (let i = 0; i < 60; i++) {
+      let r = rng() * totalArea;
+      let boxIndex = 0;
+      for (let j = 0; j < boxes.length; j++) {
+        r -= boxAreas[j]!;
+        if (r <= 0) {
+          boxIndex = j;
+          break;
+        }
+      }
+      const b = boxes[boxIndex]!;
       const x = b.minX + margin + rng() * (b.maxX - b.minX - 2 * margin);
       const z = b.minZ + margin + rng() * (b.maxZ - b.minZ - 2 * margin);
+
       if (!farFromPortals(x, z, fr)) continue;
       if (!farFromTaken(x, z, fr)) continue;
       taken.push({ x, z, r: fr });
@@ -512,10 +523,80 @@ export function pickWeightedPortal(
  * (client) to prevent entities from walking through walls into locked areas.
  *
  * The main room is always accessible: x ∈ [-H, H], z ∈ [-H, H].
- * Each section has its own axis-aligned bounds, accessible only when unlocked.
- * Doors are narrow gaps in the walls between sections; a position is allowed
- * through a wall only if it's within the door's gap.
+ * Sections extend northward. Each door is a horizontal gap at constant z;
+ * passage is allowed only through the door's gap when the section is unlocked.
+ *
+ * `prevX`/`prevZ` determine which side of a wall the entity was on before
+ * this step, so the clamp pushes them back to the correct side (no teleports).
  */
+function isInsideBox(
+  x: number,
+  z: number,
+  r: number,
+  dir: 'N' | 'E' | 'S' | 'W',
+  b: SectionBounds,
+): boolean {
+  let minX = b.minX;
+  let maxX = b.maxX;
+  let minZ = b.minZ;
+  let maxZ = b.maxZ;
+
+  if (dir === 'N') {
+    minX += r;
+    maxX -= r;
+    maxZ -= r;
+  } else if (dir === 'S') {
+    minX += r;
+    maxX -= r;
+    minZ += r;
+  } else if (dir === 'E') {
+    minZ += r;
+    maxZ -= r;
+    maxX -= r;
+  } else if (dir === 'W') {
+    minZ += r;
+    maxZ -= r;
+    minX += r;
+  }
+
+  return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+}
+
+function clampToBox(
+  x: number,
+  z: number,
+  r: number,
+  dir: 'N' | 'E' | 'S' | 'W',
+  b: SectionBounds,
+): { x: number; z: number } {
+  let minX = b.minX;
+  let maxX = b.maxX;
+  let minZ = b.minZ;
+  let maxZ = b.maxZ;
+
+  if (dir === 'N') {
+    minX += r;
+    maxX -= r;
+    maxZ -= r;
+  } else if (dir === 'S') {
+    minX += r;
+    maxX -= r;
+    minZ += r;
+  } else if (dir === 'E') {
+    minZ += r;
+    maxZ -= r;
+    maxX -= r;
+  } else if (dir === 'W') {
+    minZ += r;
+    maxZ -= r;
+    minX += r;
+  }
+
+  const cx = clampVal(x, minX, maxX);
+  const cz = clampVal(z, minZ, maxZ);
+  return { x: cx, z: cz };
+}
+
 export function clampToUnlockedArea(
   x: number,
   z: number,
@@ -526,99 +607,83 @@ export function clampToUnlockedArea(
   prevZ?: number,
 ): { x: number; z: number } {
   const H = ARENA_HALF_SIZE;
+  const r = radius;
 
-  if (prevX !== undefined && prevZ !== undefined) {
-    const buf = radius > 0 ? radius : 1e-3;
+  const px = prevX !== undefined ? prevX : x;
+  const pz = prevZ !== undefined ? prevZ : z;
 
-    // 1. Left Wall of Main Room: x = -25, z ∈ [-25, 25]
-    if ((prevX > -H && x < -H) || (prevX < -H && x > -H)) {
-      const t = (-H - prevX) / (x - prevX);
-      const zCross = prevZ + t * (z - prevZ);
-      if (zCross >= -H && zCross <= H) {
-        // Door 1 is at z = 5. Passable range z ∈ [2, 8] if unlockedSections >= 1
-        const passable = unlockedSections >= 1 && zCross >= 2 && zCross <= 8;
-        if (!passable) {
-          x = prevX > -H ? -H + buf : -H - buf;
-        }
-      }
-    }
+  // 1. Keep within the overall maximum play area bounds (ZOMBIE_ROOM_HALF_SIZE = 150)
+  // Note: individual section boundaries are strictly enforced in step 3.
+  const maxLimit = 150;
+  x = clampVal(x, -maxLimit + r, maxLimit - r);
+  z = clampVal(z, -maxLimit + r, maxLimit - r);
 
-    // 2. Right Wall of Main Room: x = 25, z ∈ [-25, 25]
-    if ((prevX < H && x > H) || (prevX > H && x < H)) {
-      const t = (H - prevX) / (x - prevX);
-      const zCross = prevZ + t * (z - prevZ);
-      if (zCross >= -H && zCross <= H) {
-        // Door 4 is at z = 5. Passable range z ∈ [2, 8] if unlockedSections >= 4
-        const passable = unlockedSections >= 4 && zCross >= 2 && zCross <= 8;
-        if (!passable) {
-          x = prevX < H ? H - buf : H + buf;
-        }
-      }
-    }
+  // 2. Enforce each inter-section wall.
+  //    All doors in the layout are either horizontal (isVertical = false)
+  //    or vertical (isVertical = true) at the main room edges. The wall blocks
+  //    passage unless the door is unlocked AND the entity is within the door's gap.
+  for (let i = 0; i < layout.doors.length; i++) {
+    const door = layout.doors[i]!;
+    const halfW = door.width / 2;
 
-    // 3. Left dividing wall (between Section 1 and Section 2): z = 25, x ∈ [-50, -25]
-    // 4. Top wall of Main Room (between Main Room and Section 2): z = 25, x ∈ [-25, 25]
-    if ((prevZ < H && z > H) || (prevZ > H && z < H)) {
-      const t = (H - prevZ) / (z - prevZ);
-      const xCross = prevX + t * (x - prevX);
-      if (xCross >= -50 && xCross <= H) {
-        if (xCross >= -50 && xCross < -H) {
-          // Left dividing wall. Door 2 is at x = -37. Passable range x ∈ [-40, -34] if unlockedSections >= 2
-          const passable = unlockedSections >= 2 && xCross >= -40 && xCross <= -34;
-          if (!passable) {
-            z = prevZ < H ? H - buf : H + buf;
-          }
-        } else if (xCross >= -H && xCross <= H) {
-          // Top wall of Main Room. Door 3 is at x = 12. Passable range x ∈ [9, 15] if unlockedSections >= 3
-          const passable = unlockedSections >= 3 && xCross >= 9 && xCross <= 15;
-          if (!passable) {
-            z = prevZ < H ? H - buf : H + buf;
-          }
-        }
+    const inGap = door.isVertical
+      ? (z >= door.z - halfW + r && z <= door.z + halfW - r)
+      : (x >= door.x - halfW + r && x <= door.x + halfW - r);
+    const passable = unlockedSections > i && inGap;
+
+    if (!passable) {
+      if (door.isVertical) {
+        if (px <= door.x) x = Math.min(x, door.x - r);
+        else x = Math.max(x, door.x + r);
+      } else {
+        if (pz <= door.z) z = Math.min(z, door.z - r);
+        else z = Math.max(z, door.z + r);
       }
     }
   }
 
-  // Quick out: if nothing is unlocked, clamp to main room.
-  if (unlockedSections === 0) {
-    return { x: clampVal(x, -H, H), z: clampVal(z, -H, H) };
-  }
-
-  // Check if the position is inside the main room (always ok).
-  if (x >= -H && x <= H && z >= -H && z <= H) {
-    return { x, z };
-  }
-
-  // Check each unlocked section — if we're inside one, it's fine.
-  for (let i = 0; i < unlockedSections && i < layout.sections.length; i++) {
-    const b = layout.sections[i]!.bounds;
-    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {
-      return { x, z };
+  // 3. If the entity is outside the main room, verify it's inside an
+  //    unlocked section box. If not, push to the nearest allowed position.
+  const outsideMain = x < -H || x > H || z < -H || z > H;
+  if (outsideMain) {
+    // Check unlocked section boxes.
+    for (let i = 0; i < unlockedSections && i < layout.sections.length; i++) {
+      const section = layout.sections[i]!;
+      const dir = DIRECTIONS[section.index]!;
+      for (const b of section.boxes) {
+        if (isInsideBox(x, z, r, dir, b)) {
+          return { x, z }; // Inside a valid section box
+        }
+      }
     }
-  }
 
-  // Position is outside all accessible areas. Push it back to the nearest
-  // accessible region. Try the main room first.
-  let bx = clampVal(x, -H, H);
-  let bz = clampVal(z, -H, H);
-  let bestD2 = (x - bx) * (x - bx) + (z - bz) * (z - bz);
+    // Not inside any section box — push to the nearest allowed position.
+    let bestX = clampVal(x, -H + r, H - r);
+    let bestZ = clampVal(z, -H + r, H - r);
+    let bestD2 = (x - bestX) * (x - bestX) + (z - bestZ) * (z - bestZ);
 
-  // Then try each unlocked section.
-  for (let i = 0; i < unlockedSections && i < layout.sections.length; i++) {
-    const b = layout.sections[i]!.bounds;
-    const cx = clampVal(x, b.minX, b.maxX);
-    const cz = clampVal(z, b.minZ, b.maxZ);
-    const d2 = (x - cx) * (x - cx) + (z - cz) * (z - cz);
-    if (d2 < bestD2) {
-      bestD2 = d2;
-      bx = cx;
-      bz = cz;
+    for (let i = 0; i < unlockedSections && i < layout.sections.length; i++) {
+      const section = layout.sections[i]!;
+      const dir = DIRECTIONS[section.index]!;
+      for (const b of section.boxes) {
+        const { x: cx, z: cz } = clampToBox(x, z, r, dir, b);
+        const d2 = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestX = cx;
+          bestZ = cz;
+        }
+      }
     }
+
+    return { x: bestX, z: bestZ };
   }
 
-  return { x: bx, z: bz };
+  // Inside the main room
+  return { x, z };
 }
 
 function clampVal(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
+

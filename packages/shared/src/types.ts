@@ -182,6 +182,7 @@ export interface PickableView {
   x: number;
   y: number;
   z: number;
+  scale?: number;
 }
 
 /**

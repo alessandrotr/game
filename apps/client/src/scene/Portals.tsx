@@ -1,5 +1,11 @@
+import { useMemo } from 'react';
 import { Billboard, Text } from '@react-three/drei';
-import { ZOMBIE_FLANK_PORTALS, type MapAssetId } from '@arena/shared';
+import {
+  ZOMBIE_FLANK_PORTALS,
+  generateRoomLayout,
+  type MapAssetId,
+  type SpawnPoint,
+} from '@arena/shared';
 import { assets } from '../assets/registry';
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useFocusStore } from '../store/useFocusStore';
@@ -63,13 +69,34 @@ function portalStyle(zone: { mode?: 'zombie' | 'gunzombie' }, room: RoomType | n
 export function Portals({ mapId }: { mapId: MapAssetId }) {
   const room = useGameStore((s) => s.room);
   const zombieMode = useGameStore((s) => s.zombieMode);
+  const arenaSeed = useGameStore((s) => s.arenaSeed);
+  const unlockedSections = useGameStore((s) => s.unlockedSections);
+
   // Recede the travel gateways while a town structure is cinematically focused.
   const show = useFocusStore((s) => !s.target);
   const map = assets.getMap(mapId);
   // Zombie mode: the flanking side portals the hordes pour out of — purely visual
   // sickly-green gateways (not clickable; the back gate stays the travel portal).
   const showFlankPortals = zombieMode && mapId === 'map.arena';
-  if (!map?.zones && !showFlankPortals) return null;
+
+  const roomLayout = useMemo(() => {
+    if (!zombieMode || !arenaSeed) return null;
+    return generateRoomLayout(arenaSeed);
+  }, [zombieMode, arenaSeed]);
+
+  const sectionPortals = useMemo(() => {
+    if (!zombieMode || mapId !== 'map.arena' || !roomLayout) return [];
+    const portals: SpawnPoint[] = [];
+    for (let i = 0; i < unlockedSections && i < roomLayout.sections.length; i++) {
+      const section = roomLayout.sections[i];
+      if (section) {
+        portals.push(...section.portalPoints);
+      }
+    }
+    return portals;
+  }, [zombieMode, mapId, roomLayout, unlockedSections]);
+
+  if (!map?.zones && !showFlankPortals && sectionPortals.length === 0) return null;
 
   return (
     <FadeGroup show={show}>
@@ -84,6 +111,12 @@ export function Portals({ mapId }: { mapId: MapAssetId }) {
               distance={8}
               decay={2}
             />
+          </group>
+        ))}
+      {zombieMode &&
+        sectionPortals.map((p, i) => (
+          <group key={`section-portal-${i}`} position={[p.x, 0, p.z]}>
+            <PortalEffect radius={1.5} core="#d8ffb0" edge="#3a7d1f" />
           </group>
         ))}
       {map?.zones
