@@ -391,7 +391,14 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   const { players, sessionId } = useGameStore.getState();
   const target = players.get(msg.to);
   if (!target) return;
-  if (msg.ability === 'lightning_spark') {
+  if (msg.crit) {
+    if (isZombieSkin(target.skinId)) {
+      useEffectsStore.getState().spawn('vfx.blood_splash', [target.x, 1, target.z], [0, 0, 1]);
+    } else {
+      useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
+    }
+    spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `CRIT! -${Math.round(msg.amount)}`, '#ffaa00');
+  } else if (msg.ability === 'lightning_spark') {
     useEffectsStore.getState().spawn('vfx.lightning_spark', [target.x, 0.8, target.z], [0, 0, 1]);
     spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, '#00d5ff');
   } else if (isZombieSkin(target.skinId)) {

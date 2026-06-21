@@ -78,6 +78,12 @@ export interface PerkModifiers {
   lowHpStunImmune: boolean;
   /** Dodge chance: probability (0-1) of avoiding a zombie melee hit. */
   dodgeChance: number;
+  /** Critical hit chance: probability (0-1) of a critical hit. */
+  critChance: number;
+  /** Critical hit damage multiplier (e.g. 1.5 = +50% damage). */
+  critMultiplier: number;
+  /** Critical hit cooldown reset chance: probability (0-1) on crit. */
+  critCooldownResetChance: number;
 }
 
 export const IDENTITY_MODIFIERS: PerkModifiers = {
@@ -110,6 +116,9 @@ export const IDENTITY_MODIFIERS: PerkModifiers = {
   lowHpSpeedMult: 1,
   lowHpStunImmune: false,
   dodgeChance: 0,
+  critChance: 0,
+  critMultiplier: 1.5,
+  critCooldownResetChance: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -555,6 +564,21 @@ export class PerkSystem {
           m.aoeSizeBonus += 3;
           m.aoeDamageMult *= 1.20;
           m.chainExplosionChance = 0.15;
+          break;
+
+        // ── Precision chain ──────────────────────────────────────────
+        case 'keen_eye':
+          m.critChance = 0.10;
+          m.critMultiplier = 1.5;
+          break;
+        case 'sharpshooter':
+          m.critChance = 0.15;
+          m.critMultiplier = 1.75;
+          break;
+        case 'deadeye':
+          m.critChance = 0.20;
+          m.critMultiplier = 2.0;
+          m.critCooldownResetChance = 0.30;
           break;
       }
     }

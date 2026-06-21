@@ -30,6 +30,8 @@ const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {
     respawnAt: new Map(),
     displacements: new Map(),
     perkModifiers: () => ({} as any),
+    recordKill: () => {},
+    resetCooldowns: () => {},
     ...over,
   };
 };
@@ -137,5 +139,36 @@ describe('PerkSystem & Adrenaline Perks', () => {
     // 30% HP -> multiplier applied!
     player.hp = 30;
     expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.15);
+  });
+
+  it('correctly calculates modifiers for the Precision perk chain', () => {
+    const ctx = makeMockContext();
+    const system = new PerkSystem(ctx);
+    system.init('p1');
+
+    // 1. Keen Eye (Common)
+    (system as any).perks.set('p1', ['keen_eye']);
+    const keenMods = system.getModifiers('p1');
+    expect(keenMods.critChance).toBe(0.10);
+    expect(keenMods.critMultiplier).toBe(1.5);
+    expect(keenMods.critCooldownResetChance).toBe(0);
+
+    // 2. Sharpshooter (Rare)
+    system.reset('p1');
+    system.init('p1');
+    (system as any).perks.set('p1', ['sharpshooter']);
+    const sharpMods = system.getModifiers('p1');
+    expect(sharpMods.critChance).toBe(0.15);
+    expect(sharpMods.critMultiplier).toBe(1.75);
+    expect(sharpMods.critCooldownResetChance).toBe(0);
+
+    // 3. Deadeye (Legendary)
+    system.reset('p1');
+    system.init('p1');
+    (system as any).perks.set('p1', ['deadeye']);
+    const deadMods = system.getModifiers('p1');
+    expect(deadMods.critChance).toBe(0.20);
+    expect(deadMods.critMultiplier).toBe(2.0);
+    expect(deadMods.critCooldownResetChance).toBe(0.30);
   });
 });

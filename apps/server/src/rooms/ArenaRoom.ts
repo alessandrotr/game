@@ -546,6 +546,28 @@ export class ArenaRoom extends AvatarRoom {
       displacements: this.displacements,
       perkModifiers: (sessionId) =>
         this.perkSystem?.getModifiers(sessionId) ?? { ...IDENTITY_MODIFIERS },
+      recordKill: (sessionId) => {
+        if (this.perkSystem && this.perkSystem.recordKill(sessionId, this.simTime)) {
+          const cd = this.cooldowns.get(sessionId);
+          if (cd) {
+            for (const key of Object.keys(cd)) {
+              delete cd[key as AbilityKind];
+            }
+          }
+        }
+      },
+      resetCooldowns: (sessionId, abilityId) => {
+        const cd = this.cooldowns.get(sessionId);
+        if (cd) {
+          if (abilityId) {
+            delete cd[abilityId as AbilityKind];
+          } else {
+            for (const key of Object.keys(cd)) {
+              delete cd[key as AbilityKind];
+            }
+          }
+        }
+      },
     };
   }
 

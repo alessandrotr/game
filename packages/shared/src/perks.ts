@@ -51,7 +51,9 @@ export type PerkId =
   // Chain 8 — Adrenaline
   | 'adrenaline' | 'frenzy' | 'last_stand'
   // Chain 9 — AoE
-  | 'wide_reach' | 'blast_master' | 'cataclysm';
+  | 'wide_reach' | 'blast_master' | 'cataclysm'
+  // Chain 10 — Precision
+  | 'keen_eye' | 'sharpshooter' | 'deadeye';
 
 /** A single perk definition. */
 export interface PerkDef {
@@ -90,6 +92,7 @@ export const PERK_CHAINS: readonly PerkChain[] = [
   /* 6 */ { common: 'focused_mind',    rare: 'spell_surge',      legendary: 'archmage' },
   /* 7 */ { common: 'adrenaline',      rare: 'frenzy',           legendary: 'last_stand' },
   /* 8 */ { common: 'wide_reach',      rare: 'blast_master',     legendary: 'cataclysm' },
+  /* 9 */ { common: 'keen_eye',        rare: 'sharpshooter',     legendary: 'deadeye' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -189,12 +192,12 @@ export const PERKS: Record<PerkId, PerkDef> = {
     upgradesTo: 'overcharge',
   },
   overcharge: {
-    id: 'overcharge', name: 'Overcharge', icon: 'Zap', tier: 'rare', chain: 5,
+    id: 'overcharge', name: 'Overcharge', icon: 'BatteryCharging', tier: 'rare', chain: 5,
     description: 'Ability hits have a 30% chance to chain to 3 enemies for 20 damage',
     upgradesFrom: 'static_shock', upgradesTo: 'thunderstorm',
   },
   thunderstorm: {
-    id: 'thunderstorm', name: 'Thunderstorm', icon: 'Zap', tier: 'legendary', chain: 5,
+    id: 'thunderstorm', name: 'Thunderstorm', icon: 'CloudLightning', tier: 'legendary', chain: 5,
     description: 'Ability hits have a 35% chance to chain to 5 enemies for 35 damage and stun them for 0.5s',
     upgradesFrom: 'overcharge',
   },
@@ -211,7 +214,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
     upgradesFrom: 'focused_mind', upgradesTo: 'archmage',
   },
   archmage: {
-    id: 'archmage', name: 'Archmage', icon: 'Flame', tier: 'legendary', chain: 6,
+    id: 'archmage', name: 'Archmage', icon: 'Wand2', tier: 'legendary', chain: 6,
     description: '+50% ability damage, abilities leave a 2s burn DoT on hit',
     upgradesFrom: 'spell_surge',
   },
@@ -228,7 +231,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
     upgradesFrom: 'adrenaline', upgradesTo: 'last_stand',
   },
   last_stand: {
-    id: 'last_stand', name: 'Last Stand', icon: 'Shield', tier: 'legendary', chain: 7,
+    id: 'last_stand', name: 'Last Stand', icon: 'ShieldAlert', tier: 'legendary', chain: 7,
     description: '+50% ability damage, +25% move speed, and immune to stun when below 40% HP',
     upgradesFrom: 'frenzy',
   },
@@ -248,6 +251,23 @@ export const PERKS: Record<PerkId, PerkDef> = {
     id: 'cataclysm', name: 'Cataclysm', icon: 'Orbit', tier: 'legendary', chain: 8,
     description: '+3 AoE radius, +20% AoE damage, AoE kills 15% chain-explode',
     upgradesFrom: 'blast_master',
+  },
+
+  // ── Chain 9: Precision ───────────────────────────────────────────────────
+  keen_eye: {
+    id: 'keen_eye', name: 'Keen Eye', icon: 'Eye', tier: 'common', chain: 9,
+    description: '+10% critical hit chance (1.5× damage)',
+    upgradesTo: 'sharpshooter',
+  },
+  sharpshooter: {
+    id: 'sharpshooter', name: 'Sharpshooter', icon: 'Crosshair', tier: 'rare', chain: 9,
+    description: '+15% critical hit chance (1.75× damage)',
+    upgradesFrom: 'keen_eye', upgradesTo: 'deadeye',
+  },
+  deadeye: {
+    id: 'deadeye', name: 'Deadeye', icon: 'Target', tier: 'legendary', chain: 9,
+    description: '+20% critical hit chance (2× damage), crits have 30% chance to reset ability cooldown',
+    upgradesFrom: 'sharpshooter',
   },
 };
 

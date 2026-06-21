@@ -67,7 +67,7 @@ function PerkSlot({ perkId }: { perkId: PerkId | '' }) {
   const [hover, setHover] = useState(false);
   if (!perkId || !(perkId in PERKS)) {
     return (
-      <div className="h-8 w-8 rounded-md border border-dashed border-white/15 bg-black/30" />
+      <div className="h-10 w-10 rounded-lg border border-dashed border-white/15 bg-black/30" />
     );
   }
 
@@ -83,23 +83,23 @@ function PerkSlot({ perkId }: { perkId: PerkId | '' }) {
       onMouseLeave={() => setHover(false)}
     >
       <div
-        className="flex h-8 w-8 items-center justify-center rounded-md border bg-black/60 backdrop-blur-sm transition-transform hover:scale-110"
+        className="flex h-10 w-10 items-center justify-center rounded-lg border bg-black/60 backdrop-blur-sm transition-transform hover:scale-110"
         style={{
           borderColor,
           boxShadow: `0 0 8px ${glowColor}`,
         }}
       >
-        <Icon size={16} style={{ color: borderColor }} />
+        <Icon size={20} style={{ color: borderColor }} />
       </div>
       {hover && (
         <div
-          className="absolute bottom-full left-1/2 z-50 mb-2 w-36 -translate-x-1/2 rounded-lg border border-white/15 bg-black/90 px-2.5 py-2 text-center backdrop-blur-md"
+          className="absolute bottom-full left-1/2 z-50 mb-2 w-44 -translate-x-1/2 rounded-lg border border-white/15 bg-black/90 px-3 py-2 text-center backdrop-blur-md"
           style={{ boxShadow: `0 0 12px ${glowColor}` }}
         >
-          <span className="block text-[10px] font-bold" style={{ color: borderColor }}>
+          <span className="block text-xs font-bold" style={{ color: borderColor }}>
             {perk.name}
           </span>
-          <span className="block text-[9px] leading-tight text-white/60">{perk.description}</span>
+          <span className="block text-[11px] leading-tight text-white/60">{perk.description}</span>
         </div>
       )}
     </div>

@@ -295,7 +295,7 @@ export interface ServerMessagePayloads {
     /** Locked target's session id for unit-targeted abilities (else absent). */
     targetId?: string;
   };
-  [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean; ability?: string };
+  [ServerMessage.Damage]: { from: string; to: string; amount: number; lethal: boolean; ability?: string; crit?: boolean };
   [ServerMessage.Heal]: { to: string; amount: number };
   [ServerMessage.Chat]: ChatMessage;
   [ServerMessage.ChatHistory]: { messages: ChatMessage[] };

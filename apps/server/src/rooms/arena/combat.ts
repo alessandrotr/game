@@ -188,7 +188,25 @@ export class CombatSystem {
     if (attacker && attacker.alive && attacker.maxHp > 0 && attacker.hp / attacker.maxHp < 0.40) {
       lowHpDamageMult = attackerPerks.lowHpDamageMult;
     }
-    const perkScaled = total * attackerPerks.abilityDamageMult * targetPerks.damageTakenMult * lowHpDamageMult;
+
+    // Critical Hits
+    let isCrit = false;
+    let critMult = 1.0;
+    if (attacker && attackerPerks.critChance > 0) {
+      if (Math.random() < attackerPerks.critChance) {
+        isCrit = true;
+        critMult = attackerPerks.critMultiplier;
+
+        // Cooldown reset chance
+        if (attackerPerks.critCooldownResetChance > 0 && Math.random() < attackerPerks.critCooldownResetChance) {
+          if (ability) {
+            this.ctx.resetCooldowns?.(attacker.sessionId, ability);
+          }
+        }
+      }
+    }
+
+    const perkScaled = total * attackerPerks.abilityDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {
@@ -244,6 +262,7 @@ export class CombatSystem {
       amount: applied,
       lethal,
       ability,
+      crit: isCrit,
     });
 
 
@@ -254,6 +273,9 @@ export class CombatSystem {
       // is flushed on leave). `fromId === target` is self-damage — no kill credit.
       const killer = fromId !== target.sessionId ? this.ctx.state.players.get(fromId) : undefined;
       if (killer) {
+        // Record kill for perks (e.g. Overclock)
+        this.ctx.recordKill?.(killer.sessionId);
+
         // A zombie is a wave enemy, not a PvP kill: it grants reduced XP and
         // does NOT count toward the killer's kill tally (so it never inflates
         // career/scoreboard kills).

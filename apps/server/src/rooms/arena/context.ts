@@ -49,4 +49,8 @@ export interface ArenaContext {
   /** Get the aggregate perk stat modifiers for a player (identity when no perk
    *  system is active). */
   perkModifiers(sessionId: string): PerkModifiers;
+  /** Record a kill for the player's active perks (e.g. Overclock). */
+  recordKill(sessionId: string): void;
+  /** Reset cooldowns for a player (all, or a specific ability). */
+  resetCooldowns(sessionId: string, abilityId?: string): void;
 }

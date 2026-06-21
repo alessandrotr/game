@@ -33,6 +33,8 @@ const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {
     respawnAt: new Map(),
     displacements: new Map(),
     perkModifiers: () => ({} as any),
+    recordKill: () => {},
+    resetCooldowns: () => {},
     ...over,
   };
 };
