@@ -1381,7 +1381,10 @@ export class ArenaRoom extends AvatarRoom {
       }
 
       const perkMods = this.perkSystem?.getModifiers(sessionId);
-      const manaRegenMult = perkMods?.manaRegenMult ?? 1;
+      let manaRegenMult = perkMods?.manaRegenMult ?? 1;
+      if (player.statuses.some((s) => s.kind === 'buff')) {
+        manaRegenMult *= 1.5;
+      }
       regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);

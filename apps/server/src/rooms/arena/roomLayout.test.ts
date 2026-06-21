@@ -4,6 +4,7 @@ import {
   clampToUnlockedArea,
   randomSpawnPoint,
   unlockedPlayArea,
+  trapForSection,
   type SectionDef,
 } from '@arena/shared';
 
@@ -217,3 +218,42 @@ describe('Spawn distribution — randomSpawnPoint / unlockedPlayArea', () => {
     expect(cap(unlockedPlayArea(layout, 4))).toBeLessThanOrEqual(60);
   });
 });
+
+describe('Trap Generation and Distribution', () => {
+  it('assigns a trap of a valid TrapKind to each section deterministically', () => {
+    const layout = generateRoomLayout(12345);
+    const kinds = new Set<string>();
+
+    for (const section of layout.sections) {
+      const trap = trapForSection(12345, section);
+      expect(trap).not.toBeNull();
+      expect(trap!.sectionIndex).toBe(section.index);
+      expect(['heal', 'death', 'singularity', 'buff']).toContain(trap!.kind);
+      kinds.add(trap!.kind);
+    }
+    // Should be deterministic
+    for (const section of layout.sections) {
+      const trap1 = trapForSection(12345, section);
+      const trap2 = trapForSection(12345, section);
+      expect(trap1!.kind).toBe(trap2!.kind);
+    }
+  });
+
+  it('can generate different trap kinds across different seeds', () => {
+    const allKinds = new Set<string>();
+    for (let seed = 1000; seed < 1050; seed++) {
+      const layout = generateRoomLayout(seed);
+      for (const section of layout.sections) {
+        const trap = trapForSection(seed, section);
+        if (trap) {
+          allKinds.add(trap.kind);
+        }
+      }
+    }
+    expect(allKinds.has('heal')).toBe(true);
+    expect(allKinds.has('death')).toBe(true);
+    expect(allKinds.has('singularity')).toBe(true);
+    expect(allKinds.has('buff')).toBe(true);
+  });
+});
+

@@ -238,7 +238,12 @@ export class CombatSystem {
     }
 
     const abilityDamageMult = isInternal ? 1 : attackerPerks.abilityDamageMult;
-    const perkScaled = total * abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
+    // A `buff` status on the attacker amps outgoing ability damage — but not
+    // inert perk damage (reflect / aura / burn), which never scales.
+    const buffMult =
+      !isInternal && attacker && attacker.statuses.some((s) => s.kind === 'buff') ? 1.5 : 1.0;
+    const perkScaled =
+      total * abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult * buffMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {

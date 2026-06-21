@@ -6,6 +6,12 @@ import {
   HEAL_TRAP_DROP_SCALE,
   HEAL_TRAP_THRESHOLD,
   TRAP_DEATH_WINDOW_MS,
+  SINGULARITY_TRAP_THRESHOLD,
+  SINGULARITY_TRAP_COOLDOWN_MS,
+  SINGULARITY_DURATION_MS,
+  BUFF_TRAP_THRESHOLD,
+  BUFF_TRAP_COOLDOWN_MS,
+  BUFF_DURATION_MS,
   type TrapDef,
 } from '@arena/shared';
 import { Trap } from '../schema.js';
@@ -22,6 +28,8 @@ interface TrapTuning {
 const TUNING: Record<string, TrapTuning> = {
   heal: { threshold: HEAL_TRAP_THRESHOLD, cooldownMs: HEAL_TRAP_COOLDOWN_MS },
   death: { threshold: DEATH_TRAP_THRESHOLD, cooldownMs: DEATH_TRAP_COOLDOWN_MS },
+  singularity: { threshold: SINGULARITY_TRAP_THRESHOLD, cooldownMs: SINGULARITY_TRAP_COOLDOWN_MS },
+  buff: { threshold: BUFF_TRAP_THRESHOLD, cooldownMs: BUFF_TRAP_COOLDOWN_MS },
 };
 
 /** Server-only bookkeeping for one trap (the replicated transform + cooldown
@@ -114,11 +122,17 @@ export class TrapSystem {
       // Same drop as the mini-boss: a team heal pickup (heals 100 HP to the
       // stepper and every living teammate when grabbed).
       this.pickables.spawnGround('heal_pack', x, z, HEAL_TRAP_DROP_SCALE);
-    } else {
+    } else if (kind === 'death') {
       // Molotov-style burning field sized to the whole trap. Ownerless (fromId
       // ''), so like a neutral explosion it burns zombies and players alike.
       const f = DEATH_TRAP_FIRE;
       this.groundZones.spawn('molotov_fire', x, z, radius, f.tickDamage, f.tickMs, f.durationMs, '');
+    } else if (kind === 'singularity') {
+      // Gravity well: pulls entities to the center for 5 seconds, then explodes.
+      this.groundZones.spawn('singularity', x, z, radius, 0, 1000, SINGULARITY_DURATION_MS, '');
+    } else if (kind === 'buff') {
+      // Buff core: radiates energy for 10 seconds.
+      this.groundZones.spawn('buff_core', x, z, radius, 0, 1000, BUFF_DURATION_MS, '');
     }
     t.deaths.length = 0;
     t.obj.chargeProgress = 0;
