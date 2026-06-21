@@ -613,7 +613,7 @@ function sectionCenter(section: SectionDef): { x: number; z: number } {
 // ---------------------------------------------------------------------------
 
 /** The two trap behaviours (see constants for thresholds/cooldowns). */
-export type TrapKind = 'heal' | 'death';
+export type TrapKind = 'heal' | 'death' | 'singularity' | 'buff';
 
 /** A trap to place in a section — its kind and world-space centre. */
 export interface TrapDef {
@@ -628,18 +628,15 @@ export interface TrapDef {
 }
 
 /**
- * Decide the trap (if any) for a section. Placement alternates so traps stay a
- * scarce, rhythmic reward: even-indexed sections host a trap, odd ones don't.
- * The type is chosen deterministically from the match seed (so server and any
- * observer agree) unless `forcedKind` overrides it. Returns null for sections
- * that host no trap.
+ * Decide the trap (if any) for a section. Placement covers all sections.
+ * The type is chosen randomly and deterministically from the match seed (so server and any
+ * observer agree) unless `forcedKind` overrides it.
  */
 export function trapForSection(
   seed: number,
   section: SectionDef,
   forcedKind?: TrapKind,
 ): TrapDef | null {
-  if (section.index % 2 !== 0) return null;
   const c = sectionCenter(section);
   let kind: TrapKind;
   if (forcedKind) {
@@ -647,7 +644,11 @@ export function trapForSection(
   } else {
     // Own RNG stream, offset off the section so it doesn't track cover layout.
     const rng = mulberry32((seed >>> 0) + 0x7ace + section.index * 0x9e37);
-    kind = rng() < 0.5 ? 'heal' : 'death';
+    const rVal = rng();
+    if (rVal < 0.25) kind = 'heal';
+    else if (rVal < 0.5) kind = 'death';
+    else if (rVal < 0.75) kind = 'singularity';
+    else kind = 'buff';
   }
   return { sectionIndex: section.index, kind, x: c.x, z: c.z, radius: TRAP_RADIUS };
 }

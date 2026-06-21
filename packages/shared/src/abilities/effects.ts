@@ -36,7 +36,8 @@ export type StatusKind =
   | 'dot' // damage over time (tickAmount every tickMs)
   | 'hot' // heal over time (tickAmount every tickMs)
   | 'shield' // tracks the lifetime of an absorb shield
-  | 'poison'; // poison damage over time (ticks tickAmount every tickMs, handles spreading)
+  | 'poison' // poison damage over time (ticks tickAmount every tickMs, handles spreading)
+  | 'buff'; // Buff Core damage + mana regen overcharge buff
 
 /** All status kinds, for iteration/validation. */
 export const STATUS_KINDS: readonly StatusKind[] = [
@@ -53,6 +54,7 @@ export const STATUS_KINDS: readonly StatusKind[] = [
   'hot',
   'shield',
   'poison',
+  'buff',
 ];
 
 /** A status to apply to a target — authored on an ability, realized on the schema. */

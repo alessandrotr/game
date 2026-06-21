@@ -227,7 +227,12 @@ export class CombatSystem {
       aoeDamageMult = attackerPerks.aoeDamageMult;
     }
 
-    const perkScaled = total * attackerPerks.abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
+    let buffMult = 1.0;
+    if (attacker && attacker.statuses.some((s) => s.kind === 'buff')) {
+      buffMult = 1.5;
+    }
+
+    const perkScaled = total * attackerPerks.abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult * buffMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {

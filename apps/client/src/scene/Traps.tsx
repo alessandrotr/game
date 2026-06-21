@@ -4,7 +4,7 @@ import { CanvasTexture, Mesh, MeshBasicMaterial } from 'three';
 import { useGameStore } from '../store/useGameStore';
 
 /** Create a canvas-based high-quality flat texture for the traps' center icons. */
-function createTrapIconTexture(kind: 'heal' | 'death'): CanvasTexture | null {
+function createTrapIconTexture(kind: 'heal' | 'death' | 'singularity' | 'buff'): CanvasTexture | null {
   if (typeof document === 'undefined') return null;
 
   const canvas = document.createElement('canvas');
@@ -28,7 +28,7 @@ function createTrapIconTexture(kind: 'heal' | 'death'): CanvasTexture | null {
     ctx.fillRect(center - length / 2, center - thickness / 2, length, thickness);
     // Vertical bar
     ctx.fillRect(center - thickness / 2, center - length / 2, thickness, length);
-  } else {
+  } else if (kind === 'death') {
     // Stylized Flame
     ctx.fillStyle = '#ff5a1f'; // Orange base
     ctx.shadowColor = 'rgba(255, 90, 31, 0.9)';
@@ -62,6 +62,55 @@ function createTrapIconTexture(kind: 'heal' | 'death'): CanvasTexture | null {
     ctx.bezierCurveTo(170, 120, 170, 170, 128, 200);
     ctx.closePath();
     ctx.fill();
+  } else if (kind === 'singularity') {
+    // Solid black center sphere
+    ctx.fillStyle = '#000000';
+    ctx.shadowColor = 'rgba(139, 92, 246, 0.9)'; // Purple glow
+    ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.arc(128, 128, 50, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dark purple swirling arms
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#6d28d9';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    
+    // Draw 3 spiral arms
+    for (let j = 0; j < 3; j++) {
+      ctx.beginPath();
+      const offset = (j * Math.PI * 2) / 3;
+      for (let theta = 0; theta < Math.PI * 1.5; theta += 0.1) {
+        const r = 50 + theta * 18;
+        const xVal = 128 + Math.cos(theta + offset) * r;
+        const yVal = 128 + Math.sin(theta + offset) * r;
+        if (theta === 0) ctx.moveTo(xVal, yVal);
+        else ctx.lineTo(xVal, yVal);
+      }
+      ctx.stroke();
+    }
+  } else if (kind === 'buff') {
+    // Glowing cyan center circle
+    ctx.fillStyle = '#06b6d4';
+    ctx.shadowColor = 'rgba(34, 211, 238, 0.9)'; // Cyan glow
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(128, 128, 45, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Lightning bolt in gold / yellow overlay
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(135, 45);   // top right
+    ctx.lineTo(100, 125);  // middle left
+    ctx.lineTo(125, 125);  // middle right shift
+    ctx.lineTo(115, 205);  // bottom tip
+    ctx.lineTo(155, 115);  // middle right
+    ctx.lineTo(130, 115);  // middle left shift
+    ctx.closePath();
+    ctx.fill();
   }
 
   const texture = new CanvasTexture(canvas);
@@ -72,6 +121,8 @@ function createTrapIconTexture(kind: 'heal' | 'death'): CanvasTexture | null {
 const iconTextures = {
   heal: typeof document !== 'undefined' ? createTrapIconTexture('heal') : null,
   death: typeof document !== 'undefined' ? createTrapIconTexture('death') : null,
+  singularity: typeof document !== 'undefined' ? createTrapIconTexture('singularity') : null,
+  buff: typeof document !== 'undefined' ? createTrapIconTexture('buff') : null,
 };
 
 /** Per-kind palette. Heal reads green / medical / safe; death reads red-orange /
@@ -79,10 +130,12 @@ const iconTextures = {
 const STYLE = {
   heal: { main: '#22c55e', fill: '#16a34a', charge: '#4ade80' },
   death: { main: '#ff5a1f', fill: '#b91c1c', charge: '#ffea00' },
+  singularity: { main: '#5b21b6', fill: '#2e1065', charge: '#a78bfa' },
+  buff: { main: '#0891b2', fill: '#083344', charge: '#22d3ee' },
 } as const;
 
 function styleFor(kind: string) {
-  return kind === 'death' ? STYLE.death : STYLE.heal;
+  return STYLE[kind as keyof typeof STYLE] ?? STYLE.heal;
 }
 
 /** Segment count of the border ring (also its draw-range granularity). */
@@ -172,7 +225,7 @@ function TrapEntity({ id }: { id: string }) {
   if (!initial) return null;
   const s = styleFor(initial.kind);
   const r = initial.radius;
-  const kindKey = initial.kind === 'death' ? 'death' : 'heal';
+  const kindKey = (initial.kind as keyof typeof iconTextures) || 'heal';
 
   return (
     <group position={[initial.x, 0, initial.z]}>
@@ -202,7 +255,7 @@ function TrapEntity({ id }: { id: string }) {
       {/* Center Flat Icon Plane */}
       {iconTextures[kindKey] && (
         <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[r * 0.7, r * 0.7]} />
+          <planeGeometry args={[r * 1.4, r * 1.4]} />
           <meshBasicMaterial
             ref={iconMat}
             map={iconTextures[kindKey]!}

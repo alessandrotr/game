@@ -71,6 +71,8 @@ function statusPhrase(s: StatusSpec): string {
       return `shields ${dur}`;
     case 'poison':
       return `deals ${s.tickAmount ?? 0} poison damage every ${secs(s.tickMs ?? 1000)}s ${dur}`;
+    case 'buff':
+      return `gains +50% extra damage and +50% mana regen ${dur}`;
   }
   return '';
 }

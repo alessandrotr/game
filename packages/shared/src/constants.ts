@@ -75,7 +75,7 @@ export const HEAL_TRAP_DROP_SCALE = 4;
 
 /** Death trap: releases a molotov-style fire field when this many zombies die
  *  inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */
-export const DEATH_TRAP_THRESHOLD = 12;
+export const DEATH_TRAP_THRESHOLD = 6;
 /** Death trap cooldown after it fires (2 minutes). */
 export const DEATH_TRAP_COOLDOWN_MS = 2 * 60 * 1000;
 /** Death trap fire field — molotov puddle behaviour, but sized to the full trap
@@ -84,12 +84,31 @@ export const DEATH_TRAP_COOLDOWN_MS = 2 * 60 * 1000;
  *  zombies and players alike — so lure the horde in, then step out. */
 export const DEATH_TRAP_FIRE = {
   radius: TRAP_RADIUS,
-  tickDamage: 5,
+  tickDamage: 15,
   tickMs: 500,
   // Lingers far longer than a thrown molotov (5s) — a death trap is meant to
   // turn its whole section into a sustained kill zone for the horde.
-  durationMs: 12000,
+  durationMs: 16000,
 } as const;
+
+/** Singularity trap: creates a gravity vortex when this many zombies die inside range. */
+export const SINGULARITY_TRAP_THRESHOLD = 6;
+/** Singularity trap cooldown (3 minutes). */
+export const SINGULARITY_TRAP_COOLDOWN_MS = 3 * 60 * 1000;
+/** Duration of the singularity vortex (5 seconds). */
+export const SINGULARITY_DURATION_MS = 5000;
+/** Damage dealt by the singularity explosion at the end. */
+export const SINGULARITY_DAMAGE = 80;
+
+/** Buff Core trap: grants a damage and mana overcharge zone when this many zombies die. */
+export const BUFF_TRAP_THRESHOLD = 8;
+/** Buff Core trap cooldown (3 minutes). */
+export const BUFF_TRAP_COOLDOWN_MS = 3 * 60 * 1000;
+/** Duration of the buff core zone (10 seconds). */
+export const BUFF_DURATION_MS = 10000;
+/** Duration of the buff status applied to players (3 seconds, refreshed while inside). */
+export const BUFF_BUFF_DURATION_MS = 3000;
+
 
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
