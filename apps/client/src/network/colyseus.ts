@@ -391,8 +391,10 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   const { players, sessionId } = useGameStore.getState();
   const target = players.get(msg.to);
   if (!target) return;
+  const isMiniboss = target.skinId === 'skin.zombie.miniboss';
+
   if (msg.crit) {
-    if (isZombieSkin(target.skinId)) {
+    if (isZombieSkin(target.skinId) && !isMiniboss) {
       useEffectsStore.getState().spawn('vfx.blood_splash', [target.x, 1, target.z], [0, 0, 1]);
     } else {
       useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
@@ -401,14 +403,14 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   } else if (msg.ability === 'lightning_spark') {
     useEffectsStore.getState().spawn('vfx.lightning_spark', [target.x, 0.8, target.z], [0, 0, 1]);
     spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, '#00d5ff');
-  } else if (isZombieSkin(target.skinId)) {
+  } else if (isZombieSkin(target.skinId) && !isMiniboss) {
     useEffectsStore.getState().spawn('vfx.blood_splash', [target.x, 1, target.z], [0, 0, 1]);
   } else {
     useEffectsStore.getState().spawn('vfx.cast', [target.x, 1, target.z], [0, 0, 1]);
     spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
   }
   // Local flinch is predicted; remote players' hit pose comes from server animState.
-  if (!msg.lethal && msg.to === sessionId) pushAnimationEvent(msg.to, 'hit');
+  if (!msg.lethal && (msg.to === sessionId || isMiniboss)) pushAnimationEvent(msg.to, 'hit');
 }
 
 /** Show a healing number above the healed player. */
