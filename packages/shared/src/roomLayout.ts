@@ -529,13 +529,15 @@ export function pickWeightedPortal(
  * `prevX`/`prevZ` determine which side of a wall the entity was on before
  * this step, so the clamp pushes them back to the correct side (no teleports).
  */
-function isInsideBox(
-  x: number,
-  z: number,
-  r: number,
-  dir: 'N' | 'E' | 'S' | 'W',
+/** Shrink a section box inward by `r`, but only on its *outer* walls — the edge
+ *  facing the main room (the door side) is left untouched so objects/entities can
+ *  sit flush against the connecting passage. The wall layout is determined by the
+ *  section's cardinal direction. */
+function shrinkBoxForDir(
   b: SectionBounds,
-): boolean {
+  dir: 'N' | 'E' | 'S' | 'W',
+  r: number,
+): SectionBounds {
   let minX = b.minX;
   let maxX = b.maxX;
   let minZ = b.minZ;
@@ -559,7 +561,18 @@ function isInsideBox(
     minX += r;
   }
 
-  return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+  return { minX, maxX, minZ, maxZ };
+}
+
+function isInsideBox(
+  x: number,
+  z: number,
+  r: number,
+  dir: 'N' | 'E' | 'S' | 'W',
+  b: SectionBounds,
+): boolean {
+  const s = shrinkBoxForDir(b, dir, r);
+  return x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ;
 }
 
 function clampToBox(
@@ -569,32 +582,23 @@ function clampToBox(
   dir: 'N' | 'E' | 'S' | 'W',
   b: SectionBounds,
 ): { x: number; z: number } {
-  let minX = b.minX;
-  let maxX = b.maxX;
-  let minZ = b.minZ;
-  let maxZ = b.maxZ;
+  const s = shrinkBoxForDir(b, dir, r);
+  return { x: clampVal(x, s.minX, s.maxX), z: clampVal(z, s.minZ, s.maxZ) };
+}
 
-  if (dir === 'N') {
-    minX += r;
-    maxX -= r;
-    maxZ -= r;
-  } else if (dir === 'S') {
-    minX += r;
-    maxX -= r;
-    minZ += r;
-  } else if (dir === 'E') {
-    minZ += r;
-    maxZ -= r;
-    maxX -= r;
-  } else if (dir === 'W') {
-    minZ += r;
-    maxZ -= r;
-    minX += r;
+/** Centre of a section, anchored on its *largest* box so L/T shapes land on real
+ *  floor (the union-bounds centre can fall in the concave notch). */
+function sectionCenter(section: SectionDef): { x: number; z: number } {
+  let best = section.boxes[0]!;
+  let bestArea = -Infinity;
+  for (const b of section.boxes) {
+    const a = (b.maxX - b.minX) * (b.maxZ - b.minZ);
+    if (a > bestArea) {
+      bestArea = a;
+      best = b;
+    }
   }
-
-  const cx = clampVal(x, minX, maxX);
-  const cz = clampVal(z, minZ, maxZ);
-  return { x: cx, z: cz };
+  return { x: (best.minX + best.maxX) / 2, z: (best.minZ + best.maxZ) / 2 };
 }
 
 export function clampToUnlockedArea(
@@ -685,5 +689,109 @@ export function clampToUnlockedArea(
 
 function clampVal(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
+}
+
+/**
+ * Pick a random spawn point spread evenly across the whole *unlocked* play area —
+ * the main room plus every unlocked section. Each candidate box is shrunk inward
+ * by `margin` (outer walls only, via {@link shrinkBoxForDir}), boxes are chosen
+ * weighted by their usable area (so density is uniform across the floor, not
+ * per-room), and a point is sampled uniformly inside the chosen box.
+ *
+ * When `centerExclusionRadius > 0`, points within that radius of a section's
+ * centre are rejected, reserving the wing centre for a future structure (the
+ * main room has no reserved centre).
+ *
+ * Returns a single candidate — the caller is expected to loop and run its own
+ * collision accept-test (cover / players / other objects), exactly as the barrel
+ * and destructible respawners do. Returns `null` when no box has usable area, or
+ * (with exclusion enabled) when every internal sample landed in a reserved centre.
+ *
+ * `layout === null` falls back to the main room only, matching non-zombie play.
+ */
+/** Total floor area (world units²) currently accessible: the main room plus every
+ *  unlocked section's boxes. Used to scale object capacity so spawn density stays
+ *  roughly constant as the arena grows. Overlapping boxes within a section are
+ *  counted as-sampled (matching {@link randomSpawnPoint}'s weighting). */
+export function unlockedPlayArea(
+  layout: RoomLayout | null,
+  unlockedSections: number,
+): number {
+  const H = ARENA_HALF_SIZE;
+  let area = 2 * H * (2 * H); // main room (50×50)
+  if (layout) {
+    const n = Math.min(unlockedSections, layout.sections.length);
+    for (let i = 0; i < n; i++) {
+      for (const b of layout.sections[i]!.boxes) {
+        area += (b.maxX - b.minX) * (b.maxZ - b.minZ);
+      }
+    }
+  }
+  return area;
+}
+
+export function randomSpawnPoint(
+  layout: RoomLayout | null,
+  unlockedSections: number,
+  margin: number,
+  rng: () => number,
+  centerExclusionRadius = 0,
+): { x: number; z: number } | null {
+  const H = ARENA_HALF_SIZE;
+
+  interface Candidate {
+    box: SectionBounds;
+    area: number;
+    center: { x: number; z: number } | null;
+  }
+  const candidates: Candidate[] = [];
+
+  // Main room: a full AABB shrunk on all four sides.
+  const main: SectionBounds = {
+    minX: -H + margin,
+    maxX: H - margin,
+    minZ: -H + margin,
+    maxZ: H - margin,
+  };
+  const mainArea = Math.max(0, main.maxX - main.minX) * Math.max(0, main.maxZ - main.minZ);
+  if (mainArea > 0) candidates.push({ box: main, area: mainArea, center: null });
+
+  if (layout) {
+    const n = Math.min(unlockedSections, layout.sections.length);
+    for (let i = 0; i < n; i++) {
+      const section = layout.sections[i]!;
+      const dir = DIRECTIONS[section.index]!;
+      const center = centerExclusionRadius > 0 ? sectionCenter(section) : null;
+      for (const b of section.boxes) {
+        const s = shrinkBoxForDir(b, dir, margin);
+        const area = Math.max(0, s.maxX - s.minX) * Math.max(0, s.maxZ - s.minZ);
+        if (area > 0) candidates.push({ box: s, area, center });
+      }
+    }
+  }
+
+  let total = 0;
+  for (const c of candidates) total += c.area;
+  if (total <= 0) return null;
+
+  // A few internal tries so the centre-exclusion rejection doesn't waste the
+  // caller's (collision-checked) attempts.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let roll = rng() * total;
+    let chosen = candidates[candidates.length - 1]!;
+    for (const c of candidates) {
+      if (roll < c.area) { chosen = c; break; }
+      roll -= c.area;
+    }
+    const x = chosen.box.minX + rng() * (chosen.box.maxX - chosen.box.minX);
+    const z = chosen.box.minZ + rng() * (chosen.box.maxZ - chosen.box.minZ);
+    if (chosen.center) {
+      const dx = x - chosen.center.x;
+      const dz = z - chosen.center.z;
+      if (dx * dx + dz * dz < centerExclusionRadius * centerExclusionRadius) continue;
+    }
+    return { x, z };
+  }
+  return null;
 }
 

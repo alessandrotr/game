@@ -1,6 +1,5 @@
 import { type RigidBody } from '@dimforge/rapier3d-compat';
 import {
-  ARENA_HALF_SIZE,
   DAMAGE_COOLDOWN_MS,
   DESTRUCTIBLE_CONFIG,
   DRUM_HALF_HEIGHT,
@@ -12,6 +11,7 @@ import {
   TIRE_STACK_SPACING,
   TIRE_TUBE,
   clampToUnlockedArea,
+  randomSpawnPoint,
   type DestructibleCategory,
   type DestructibleCategoryConfig,
   type DestructibleKind,
@@ -19,12 +19,19 @@ import {
 } from '@arena/shared';
 
 // --- Zombie-mode oil-drum respawn (mirrors the burning-barrel respawn) --------
-/** Min/max drums added per respawn wave. */
+/** Smallest wave (also the main-room baseline). */
 const DRUM_RESPAWN_MIN_COUNT = 2;
-const DRUM_RESPAWN_MAX_COUNT = 4;
+/** Largest wave, reached once the whole arena is unlocked. */
+const DRUM_RESPAWN_MAX_COUNT = 8;
 /** Min/max delay (ms) between drum respawn waves. */
 const DRUM_RESPAWN_MIN_MS = 15_000;
 const DRUM_RESPAWN_MAX_MS = 25_000;
+/** Empty radius reserved at each wing's centre for a future structure. */
+const CENTER_RESERVE = 6;
+
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
+}
 import { DestructibleObject } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
@@ -140,9 +147,11 @@ export class DestructibleSystem {
     return n;
   }
 
-  /** Zombie mode: drop a wave of fresh drums onto open ground, up to the target. */
+  /** Zombie mode: drop a wave of fresh drums onto open ground, up to the target.
+   *  Wave size grows with the target so a larger arena refills at a believable pace. */
   private respawnDrumWave(): void {
-    const want = DRUM_RESPAWN_MIN_COUNT + Math.floor(Math.random() * (DRUM_RESPAWN_MAX_COUNT - DRUM_RESPAWN_MIN_COUNT + 1));
+    const maxWave = clamp(Math.round(this.targetDrums * 0.25), DRUM_RESPAWN_MIN_COUNT, DRUM_RESPAWN_MAX_COUNT);
+    const want = DRUM_RESPAWN_MIN_COUNT + Math.floor(Math.random() * (maxWave - DRUM_RESPAWN_MIN_COUNT + 1));
     const room = this.targetDrums - this.drumCount();
     const n = Math.min(want, room);
     const radius = DESTRUCTIBLE_CONFIG.barrel.radius;
@@ -152,12 +161,20 @@ export class DestructibleSystem {
     }
   }
 
-  /** A random point clear of cover, players and other props — or null if crowded. */
+  /** A random point — spread across the main room + unlocked sections — clear of
+   *  cover, players and other props, or null if too crowded after several tries. */
   private findOpenSpot(radius: number): { x: number; z: number } | null {
-    const limit = ARENA_HALF_SIZE - 2;
-    for (let i = 0; i < 30; i++) {
-      const x = (Math.random() * 2 - 1) * limit;
-      const z = (Math.random() * 2 - 1) * limit;
+    for (let i = 0; i < 40; i++) {
+      const spot = randomSpawnPoint(
+        this.roomLayout,
+        this.ctx.state.unlockedSections,
+        radius + 1,
+        Math.random,
+        CENTER_RESERVE,
+      );
+      if (!spot) continue;
+      const x = spot.x;
+      const z = spot.z;
       let clear = true;
       for (const o of this.ctx.obstacles) {
         const dx = x - o.x;

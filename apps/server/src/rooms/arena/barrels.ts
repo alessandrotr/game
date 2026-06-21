@@ -1,5 +1,11 @@
 import { type RigidBody } from '@dimforge/rapier3d-compat';
-import { ARENA_HALF_SIZE, PLAYER_RADIUS, ServerMessage } from '@arena/shared';
+import {
+  PLAYER_RADIUS,
+  ServerMessage,
+  randomSpawnPoint,
+  unlockedPlayArea,
+  type RoomLayout,
+} from '@arena/shared';
 import { Barrel } from '../schema.js';
 import type { ArenaContext } from './context.js';
 import type { CombatSystem } from './combat.js';
@@ -9,14 +15,25 @@ import type { ArenaPhysics } from './physics.js';
 export const BARREL_RADIUS = 0.6;
 
 // --- Periodic respawn: drop a fresh wave of barrels onto open ground. ---
-/** Min/max barrels added per respawn wave. */
+/** Smallest wave (also the main-room baseline). */
 const RESPAWN_MIN_COUNT = 2;
-const RESPAWN_MAX_COUNT = 4;
+/** Largest wave, reached once the whole arena is unlocked. */
+const RESPAWN_MAX_COUNT = 8;
 /** Min/max delay (ms) between respawn waves. */
 const RESPAWN_MIN_MS = 15_000;
 const RESPAWN_MAX_MS = 25_000;
-/** Cap on live barrels so waves can't pile up without bound if nobody pops them. */
-const MAX_BARRELS = 10;
+/** Live-barrel capacity scales with the unlocked floor area to keep density
+ *  roughly constant: 1 barrel per this many world units² (≈ the main room's
+ *  10 barrels / 2500u²). Clamped to [BARREL_CAP_MIN, BARREL_CAP_MAX]. */
+const AREA_PER_BARREL = 250;
+const BARREL_CAP_MIN = 10;
+const BARREL_CAP_MAX = 60;
+/** Empty radius reserved at each wing's centre for a future structure. */
+const CENTER_RESERVE = 6;
+
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
+}
 
 // --- Body shape (the burning fire-drum) ---
 const BODY_RADIUS = 0.45;
@@ -66,12 +83,19 @@ export class BarrelSystem {
   private seq = 0;
   /** Sim time (ms) the next respawn wave is due. */
   private nextSpawnAt = 0;
+  /** The room layout — lets respawns spread across unlocked sections (zombie mode). */
+  private roomLayout: RoomLayout | null = null;
 
   constructor(
     private readonly ctx: ArenaContext,
     private readonly combat: CombatSystem,
     private readonly physics: ArenaPhysics,
   ) {}
+
+  /** Set the room layout so respawns target the whole unlocked area (zombie mode). */
+  setRoomLayout(layout: RoomLayout): void {
+    this.roomLayout = layout;
+  }
 
   /** Spawn the match's barrels from the generated layout positions. */
   init(positions: { x: number; z: number }[]): void {
@@ -118,10 +142,19 @@ export class BarrelSystem {
     for (const p of positions) this.spawnAt(p.x, p.z);
   }
 
-  /** Drop a wave of 2–4 fresh barrels onto open ground (up to the live cap). */
+  /** Live-barrel cap, scaled by how much of the arena is unlocked. */
+  private barrelCapacity(): number {
+    const area = unlockedPlayArea(this.roomLayout, this.ctx.state.unlockedSections);
+    return clamp(Math.round(area / AREA_PER_BARREL), BARREL_CAP_MIN, BARREL_CAP_MAX);
+  }
+
+  /** Drop a wave of fresh barrels onto open ground (up to the live cap). Wave size
+   *  grows with capacity so a larger arena refills at a believable pace. */
   private respawnWave(): void {
-    const want = RESPAWN_MIN_COUNT + Math.floor(Math.random() * (RESPAWN_MAX_COUNT - RESPAWN_MIN_COUNT + 1));
-    const room = MAX_BARRELS - this.ctx.state.barrels.size;
+    const cap = this.barrelCapacity();
+    const maxWave = clamp(Math.round(cap * 0.25), RESPAWN_MIN_COUNT, RESPAWN_MAX_COUNT);
+    const want = RESPAWN_MIN_COUNT + Math.floor(Math.random() * (maxWave - RESPAWN_MIN_COUNT + 1));
+    const room = cap - this.ctx.state.barrels.size;
     const n = Math.min(want, room);
     for (let i = 0; i < n; i++) {
       const spot = this.findOpenSpot();
@@ -129,14 +162,18 @@ export class BarrelSystem {
     }
   }
 
-  /** A random point clear of cover, players and other barrels — or null if the
-   *  arena is too crowded after several tries. */
+  /** A random point — spread across the main room + unlocked sections — clear of
+   *  cover, players and other barrels, or null if too crowded after several tries. */
   private findOpenSpot(): { x: number; z: number } | null {
-    const limit = ARENA_HALF_SIZE - 2;
-    for (let i = 0; i < 30; i++) {
-      const x = (Math.random() * 2 - 1) * limit;
-      const z = (Math.random() * 2 - 1) * limit;
-      if (this.isClearSpot(x, z)) return { x, z };
+    for (let i = 0; i < 40; i++) {
+      const spot = randomSpawnPoint(
+        this.roomLayout,
+        this.ctx.state.unlockedSections,
+        BARREL_RADIUS + 1,
+        Math.random,
+        CENTER_RESERVE,
+      );
+      if (spot && this.isClearSpot(spot.x, spot.z)) return spot;
     }
     return null;
   }

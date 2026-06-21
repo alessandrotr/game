@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoomLayout, clampToUnlockedArea } from '@arena/shared';
+import {
+  generateRoomLayout,
+  clampToUnlockedArea,
+  randomSpawnPoint,
+  unlockedPlayArea,
+  type SectionDef,
+} from '@arena/shared';
 
 describe('Room Expansion — Cardinal Hub-and-Spoke Layout', () => {
   const seed = 12345;
@@ -90,5 +96,124 @@ describe('Room Expansion — Cardinal Hub-and-Spoke Layout', () => {
     const res = clampToUnlockedArea(24.8, 0, layout, 2, 0.6, 24, 0);
     expect(res.x).toBeCloseTo(24.8);
     expect(res.z).toBe(0);
+  });
+});
+
+describe('Spawn distribution — randomSpawnPoint / unlockedPlayArea', () => {
+  const H = 25; // ARENA_HALF_SIZE
+  const layout = generateRoomLayout(12345);
+
+  // Deterministic PRNG so the distribution assertions are stable in CI.
+  function rng(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const inBox = (x: number, z: number, b: { minX: number; maxX: number; minZ: number; maxZ: number }) =>
+    x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+
+  // Centroid of a section's largest box (mirrors the private sectionCenter).
+  const largestBoxCenter = (s: SectionDef) => {
+    let best = s.boxes[0]!;
+    let bestArea = -Infinity;
+    for (const b of s.boxes) {
+      const a = (b.maxX - b.minX) * (b.maxZ - b.minZ);
+      if (a > bestArea) { bestArea = a; best = b; }
+    }
+    return { x: (best.minX + best.maxX) / 2, z: (best.minZ + best.maxZ) / 2 };
+  };
+
+  it('falls back to the main room when layout is null', () => {
+    const r = rng(1);
+    for (let i = 0; i < 500; i++) {
+      const p = randomSpawnPoint(null, 0, 0.6, r)!;
+      expect(p).not.toBeNull();
+      expect(Math.abs(p.x)).toBeLessThanOrEqual(H);
+      expect(Math.abs(p.z)).toBeLessThanOrEqual(H);
+    }
+  });
+
+  it('with sections unlocked, every point lands inside a valid box (main + unlocked)', () => {
+    const unlocked = 4;
+    const r = rng(2);
+    for (let i = 0; i < 2000; i++) {
+      const p = randomSpawnPoint(layout, unlocked, 0.6, r)!;
+      const eps = 1e-6;
+      const inMain = inBox(p.x, p.z, { minX: -H, maxX: H, minZ: -H, maxZ: H });
+      const inSection = layout.sections
+        .slice(0, unlocked)
+        .some((s) => s.boxes.some((b) => inBox(p.x, p.z, {
+          minX: b.minX - eps, maxX: b.maxX + eps, minZ: b.minZ - eps, maxZ: b.maxZ + eps,
+        })));
+      expect(inMain || inSection).toBe(true);
+    }
+  });
+
+  it('never samples inside a locked section', () => {
+    const r = rng(3);
+    let outsideMain = 0;
+    for (let i = 0; i < 2000; i++) {
+      const p = randomSpawnPoint(layout, 1, 0.6, r)!; // only North (index 0) unlocked
+      const inMain = Math.abs(p.x) <= H && Math.abs(p.z) <= H;
+      if (!inMain) {
+        outsideMain++;
+        // Must be in section 0's boxes, never in 1/2/3.
+        const inNorth = layout.sections[0]!.boxes.some((b) => inBox(p.x, p.z, b));
+        expect(inNorth).toBe(true);
+      }
+    }
+    expect(outsideMain).toBeGreaterThan(0); // the wing does receive spawns
+  });
+
+  it('respects the centre-exclusion reserve in every unlocked wing', () => {
+    const reserve = 6;
+    const r = rng(4);
+    const centers = layout.sections.map(largestBoxCenter);
+    for (let i = 0; i < 3000; i++) {
+      const p = randomSpawnPoint(layout, 4, 0.6, r, reserve)!;
+      for (const c of centers) {
+        const d2 = (p.x - c.x) ** 2 + (p.z - c.z) ** 2;
+        expect(d2).toBeGreaterThanOrEqual(reserve * reserve - 1e-6);
+      }
+    }
+  });
+
+  it('spreads spawns into the wings (not just the main room)', () => {
+    const r = rng(5);
+    let inWings = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      const p = randomSpawnPoint(layout, 4, 0.6, r)!;
+      if (Math.abs(p.x) > H || Math.abs(p.z) > H) inWings++;
+    }
+    // Wings make up the majority of the unlocked area, so most points land there.
+    expect(inWings / N).toBeGreaterThan(0.5);
+  });
+
+  it('unlockedPlayArea = main room only when nothing is unlocked', () => {
+    expect(unlockedPlayArea(null, 0)).toBe(2500); // 50×50
+    expect(unlockedPlayArea(layout, 0)).toBe(2500);
+  });
+
+  it('unlockedPlayArea grows monotonically as wings unlock', () => {
+    let prev = unlockedPlayArea(layout, 0);
+    for (let n = 1; n <= 4; n++) {
+      const area = unlockedPlayArea(layout, n);
+      expect(area).toBeGreaterThan(prev);
+      prev = area;
+    }
+  });
+
+  it('barrel-capacity formula scales density roughly constant', () => {
+    // capacity = clamp(round(area / 250), 10, 60) — main room alone yields 10.
+    const cap = (area: number) => Math.max(10, Math.min(60, Math.round(area / 250)));
+    expect(cap(unlockedPlayArea(layout, 0))).toBe(10);
+    expect(cap(unlockedPlayArea(layout, 4))).toBeGreaterThan(10);
+    expect(cap(unlockedPlayArea(layout, 4))).toBeLessThanOrEqual(60);
   });
 });

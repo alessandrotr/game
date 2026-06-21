@@ -361,6 +361,7 @@ export class ArenaRoom extends AvatarRoom {
       this.roomLayout = generateRoomLayout(seed);
       this.cover.setRoomLayout(this.roomLayout);
       this.destructibles.setRoomLayout(this.roomLayout);
+      this.barrels.setRoomLayout(this.roomLayout);
       // Place door walls as indestructible cover at each door position.
       for (const door of this.roomLayout.doors) {
         this.cover.addDoor(door);
