@@ -46,15 +46,11 @@ export function useArenaLayout(): GeneratedArenaLayout {
     for (let i = 0; i < unlockedSections && i < roomLayout.sections.length; i++) {
       const section = roomLayout.sections[i]!;
       const sectionCover = generateSectionCover(seed, section);
-      // Merge the section's cover structures as obstacles (for minimap circles).
-      for (const s of sectionCover.structures) {
-        mergedObstacles.push({
-          x: s.x,
-          z: s.z,
-          radius: s.radius,
-          height: s.height,
-        });
-      }
+      // NOTE: section cover *structures* (cars/trailers/dumpsters) are NOT added
+      // to layoutObstacles here. They're already tracked dynamically via the
+      // Zustand store's `structureObstacles` (which updates when a car rolls or
+      // a structure crumbles). Adding them here too would create a phantom
+      // collision circle stuck at the structure's original spawn position.
       // Merge the section's decorative props.
       mergedProps.push(...sectionCover.props);
     }

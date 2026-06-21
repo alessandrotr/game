@@ -4,6 +4,7 @@ import {
   PROJECTILE_LIFETIME_MS,
   ServerMessage,
   DESTRUCTIBLE_BOUND,
+  ZOMBIE_ROOM_HALF_SIZE,
   type AutoAttackConfig,
   type GunConfig,
   type LeafEffect,
@@ -230,7 +231,8 @@ export class ProjectileSystem {
 
         // Map boundary collision check (thrown pickable objects like Molotovs/grenades only):
         if (meta.onImpact) {
-          const boundLimit = DESTRUCTIBLE_BOUND - meta.radius;
+          const bound = this.ctx.state.zombieMode ? ZOMBIE_ROOM_HALF_SIZE : DESTRUCTIBLE_BOUND;
+          const boundLimit = bound - meta.radius;
           if (Math.abs(projectile.x) >= boundLimit || Math.abs(projectile.z) >= boundLimit) {
             projectile.x = Math.max(-boundLimit, Math.min(boundLimit, projectile.x));
             projectile.z = Math.max(-boundLimit, Math.min(boundLimit, projectile.z));

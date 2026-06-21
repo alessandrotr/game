@@ -330,6 +330,8 @@ export class ArenaRoom extends AvatarRoom {
       this.arenaLimit = ZOMBIE_ROOM_HALF_SIZE;
       this.halfLimit = ZOMBIE_ROOM_HALF_SIZE - PLAYER_RADIUS;
       this.roomLayout = generateRoomLayout(seed);
+      this.cover.setRoomLayout(this.roomLayout);
+      this.destructibles.setRoomLayout(this.roomLayout);
       // Place door walls as indestructible cover at each door position.
       for (const door of this.roomLayout.doors) {
         this.cover.addDoor(door);

@@ -11,9 +11,11 @@ import {
   TIRE_STACK_COUNT,
   TIRE_STACK_SPACING,
   TIRE_TUBE,
+  clampToUnlockedArea,
   type DestructibleCategory,
   type DestructibleCategoryConfig,
   type DestructibleKind,
+  type RoomLayout,
 } from '@arena/shared';
 
 // --- Zombie-mode oil-drum respawn (mirrors the burning-barrel respawn) --------
@@ -77,10 +79,17 @@ export class DestructibleSystem {
   /** Called when a drum is destroyed (HP ran out), with its position — lets the
    *  room roll for a pickable drop. Set via {@link onDrumDestroyed}. */
   private drumDestroyedCb?: (x: number, z: number) => void;
+  /** The room layout — needed for cross-shape boundary clamping in zombie mode. */
+  private roomLayout: RoomLayout | null = null;
 
   /** Register a callback fired whenever a drum is destroyed (at its position). */
   onDrumDestroyed(cb: (x: number, z: number) => void): void {
     this.drumDestroyedCb = cb;
+  }
+
+  /** Set the room layout for cross-shape boundary enforcement (zombie mode). */
+  setRoomLayout(layout: RoomLayout): void {
+    this.roomLayout = layout;
   }
 
   constructor(
@@ -458,13 +467,33 @@ export class DestructibleSystem {
     }
   }
 
-  /** Copy the rigid body's transform into the replicated entity. */
+  /** Copy the rigid body's transform into the replicated entity. In zombie mode,
+   *  also enforce the cross-shaped playable area so bodies can't tumble into the
+   *  void corners between sections. */
   private writeTransform(body: Body): void {
     const t = body.rb.translation();
     const r = body.rb.rotation();
-    body.obj.x = t.x;
+    let px = t.x;
+    let pz = t.z;
+
+    // Cross-shape clamp: if the body drifted outside the playable area, teleport
+    // the physics body back and zero its velocity so it doesn't keep grinding.
+    if (this.roomLayout && this.ctx.state.zombieMode) {
+      const clamped = clampToUnlockedArea(
+        px, pz, this.roomLayout,
+        this.ctx.state.unlockedSections, body.radius,
+      );
+      if (clamped.x !== px || clamped.z !== pz) {
+        px = clamped.x;
+        pz = clamped.z;
+        body.rb.setTranslation({ x: px, y: t.y, z: pz }, true);
+        body.rb.setLinvel({ x: 0, y: body.rb.linvel().y, z: 0 }, true);
+      }
+    }
+
+    body.obj.x = px;
     body.obj.y = t.y;
-    body.obj.z = t.z;
+    body.obj.z = pz;
     body.obj.qx = r.x;
     body.obj.qy = r.y;
     body.obj.qz = r.z;

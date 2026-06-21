@@ -8,8 +8,10 @@ import {
   isTrailerAsset,
   TRAILER_HALF_LENGTH,
   TRAILER_HALF_WIDTH,
+  clampToUnlockedArea,
   type ArenaObstacle,
   type CoverStructureSpec,
+  type RoomLayout,
 } from '@arena/shared';
 import { CoverStructure } from '../schema.js';
 import type { ArenaContext } from './context.js';
@@ -73,6 +75,9 @@ export class CoverSystem {
   /** Ids of indestructible structures (zombie-mode trailers): they block movement
    *  and projectiles but ignore all damage and never crumble. */
   private readonly indestructible = new Set<string>();
+  /** The room layout — needed by the cross-shape boundary clamp so cars
+   *  can't be shoved into the void corners outside the playable area. */
+  private roomLayout: RoomLayout | null = null;
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -85,6 +90,11 @@ export class CoverSystem {
      *  dynamic props (drums, launched barrels) collide with them. */
     private readonly physics: ArenaPhysics,
   ) {}
+
+  /** Set the room layout for cross-shape boundary enforcement (zombie mode). */
+  setRoomLayout(layout: RoomLayout): void {
+    this.roomLayout = layout;
+  }
 
   /** Spawn the match's HP-bearing cover from the generated layout. */
   init(specs: CoverStructureSpec[]): void {
@@ -430,11 +440,29 @@ export class CoverSystem {
       // Commit: replicated transform, collision circle, and physics collider.
       s.x = nx;
       s.z = nz;
-      if (self) {
-        self.x = nx;
-        self.z = nz;
+
+      // Cross-shape clamp: the box clamp above only bounds the car to the outer
+      // square. In zombie mode, also enforce the cross-shaped playable area so
+      // cars can't be shoved into the void corners between sections.
+      if (this.roomLayout && this.ctx.state.zombieMode) {
+        const clamped = clampToUnlockedArea(
+          s.x, s.z, this.roomLayout,
+          this.ctx.state.unlockedSections, s.radius,
+        );
+        if (clamped.x !== s.x || clamped.z !== s.z) {
+          s.x = clamped.x;
+          s.z = clamped.z;
+          // Kill velocity into the wall so the car doesn't grind against it.
+          vel.vx = 0;
+          vel.vz = 0;
+        }
       }
-      this.colliders.get(id)?.setTranslation({ x: nx, y: s.height / 2, z: nz });
+
+      if (self) {
+        self.x = s.x;
+        self.z = s.z;
+      }
+      this.colliders.get(id)?.setTranslation({ x: s.x, y: s.height / 2, z: s.z });
       // Rolling friction → coast to a stop, then snap to rest.
       const decay = Math.max(0, 1 - CAR_FRICTION * dt);
       vel.vx *= decay;
