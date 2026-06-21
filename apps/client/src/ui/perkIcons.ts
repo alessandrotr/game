@@ -1,5 +1,69 @@
-import * as LucideIcons from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import {
+  Heart,
+  HeartPulse,
+  ShieldPlus,
+  Footprints,
+  Wind,
+  Ghost,
+  Droplets,
+  Waves,
+  Infinity as InfinityIcon,
+  Timer,
+  TimerOff,
+  Gauge,
+  Shield,
+  Mountain,
+  Castle,
+  Zap,
+  BatteryCharging,
+  CloudLightning,
+  Brain,
+  Sparkles,
+  Wand2,
+  Activity,
+  Flame,
+  ShieldAlert,
+  Expand,
+  CircleDot,
+  Orbit,
+  Eye,
+  Crosshair,
+  Target,
+  type LucideIcon,
+} from 'lucide-react';
+
+const ICON_BY_NAME: Record<string, LucideIcon> = {
+  Heart,
+  HeartPulse,
+  ShieldPlus,
+  Footprints,
+  Wind,
+  Ghost,
+  Droplets,
+  Waves,
+  Infinity: InfinityIcon,
+  Timer,
+  TimerOff,
+  Gauge,
+  Shield,
+  Mountain,
+  Castle,
+  Zap,
+  BatteryCharging,
+  CloudLightning,
+  Brain,
+  Sparkles,
+  Wand2,
+  Activity,
+  Flame,
+  ShieldAlert,
+  Expand,
+  CircleDot,
+  Orbit,
+  Eye,
+  Crosshair,
+  Target,
+};
 
 /**
  * Resolve a Lucide icon component by its PascalCase name (stored in the perk
@@ -7,7 +71,5 @@ import type { LucideIcon } from 'lucide-react';
  * unknown names so the UI never crashes.
  */
 export function resolvePerkIcon(name: string): LucideIcon {
-  const icon = (LucideIcons as Record<string, unknown>)[name];
-  if (typeof icon === 'function') return icon as LucideIcon;
-  return LucideIcons.CircleDot;
+  return ICON_BY_NAME[name] ?? CircleDot;
 }
