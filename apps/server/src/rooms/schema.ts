@@ -232,6 +232,8 @@ export class Trap extends Schema {
   @type('number') radius = 6;
   /** Cooldown recharge 0→1. 1 = armed/ready; <1 = recharging. */
   @type('number') cooldownProgress = 1;
+  /** Charge progress, 0→1. Increases for each zombie killed inside the radius in the death window. */
+  @type('number') chargeProgress = 0;
 }
 
 export class ArenaState extends Schema {

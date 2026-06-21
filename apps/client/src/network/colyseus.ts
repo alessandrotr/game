@@ -291,6 +291,7 @@ function snapshotState(state: RawState): {
       z: t.z,
       radius: t.radius,
       cooldownProgress: t.cooldownProgress,
+      chargeProgress: t.chargeProgress,
     });
   });
 

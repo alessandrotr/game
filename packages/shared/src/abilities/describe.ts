@@ -72,6 +72,7 @@ function statusPhrase(s: StatusSpec): string {
     case 'poison':
       return `deals ${s.tickAmount ?? 0} poison damage every ${secs(s.tickMs ?? 1000)}s ${dur}`;
   }
+  return '';
 }
 
 /** Phrase a leaf effect (the verbs that hit a target). */
@@ -88,6 +89,7 @@ function leafPhrase(leaf: LeafEffect): string {
     case 'status':
       return statusPhrase(leaf.status);
   }
+  return '';
 }
 
 /** Join phrases naturally: 'a', 'a and b', 'a, b and c'. */

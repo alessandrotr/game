@@ -216,6 +216,8 @@ export interface TrapView {
   radius: number;
   /** Cooldown recharge, 0→1. 1 = armed/ready; <1 = recharging (drives the arc). */
   cooldownProgress: number;
+  /** Charge progress, 0→1. Increases for each zombie killed inside the radius in the death window. */
+  chargeProgress: number;
 }
 
 /** Replicated in-flight projectile. Mirrors `Projectile` in the server schema. */

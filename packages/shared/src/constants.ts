@@ -63,7 +63,7 @@ export const TRAP_RADIUS = 6;
 
 /** Rolling window (ms) over which qualifying zombie deaths are counted toward
  *  activation. Deaths older than this are pruned before each threshold check. */
-export const TRAP_DEATH_WINDOW_MS = 2000;
+export const TRAP_DEATH_WINDOW_MS = 6000;
 
 /** Heal trap: drops a team-heal pickup (same as the mini-boss drop) when this
  *  many zombies die inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */

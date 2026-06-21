@@ -74,6 +74,7 @@ export class TrapSystem {
     obj.z = def.z;
     obj.radius = def.radius;
     obj.cooldownProgress = 1;
+    obj.chargeProgress = 0;
     this.ctx.state.traps.set(obj.id, obj);
     this.traps.push({
       obj,
@@ -101,6 +102,7 @@ export class TrapSystem {
       for (const ts of t.deaths) if (ts >= cutoff) t.deaths[kept++] = ts;
       t.deaths.length = kept;
       t.deaths.push(now);
+      t.obj.chargeProgress = t.deaths.length / t.tuning.threshold;
       if (t.deaths.length >= t.tuning.threshold) this.activate(t, now);
     }
   }
@@ -119,6 +121,7 @@ export class TrapSystem {
       this.groundZones.spawn('molotov_fire', x, z, radius, f.tickDamage, f.tickMs, f.durationMs, '');
     }
     t.deaths.length = 0;
+    t.obj.chargeProgress = 0;
     t.cooldownSpan = t.tuning.cooldownMs;
     t.cooldownEndsAt = now + t.tuning.cooldownMs;
     t.obj.cooldownProgress = 0;
@@ -128,14 +131,24 @@ export class TrapSystem {
   update(): void {
     if (this.traps.length === 0) return;
     const now = this.ctx.now();
+    const cutoff = now - TRAP_DEATH_WINDOW_MS;
     for (const t of this.traps) {
-      if (t.cooldownEndsAt === 0) continue;
-      if (now >= t.cooldownEndsAt) {
-        t.cooldownEndsAt = 0;
-        t.obj.cooldownProgress = 1;
+      if (t.cooldownEndsAt === 0) {
+        // Armed: check for expired deaths and update chargeProgress.
+        let kept = 0;
+        for (const ts of t.deaths) if (ts >= cutoff) t.deaths[kept++] = ts;
+        t.deaths.length = kept;
+        t.obj.chargeProgress = t.deaths.length / t.tuning.threshold;
       } else {
-        const remaining = t.cooldownEndsAt - now;
-        t.obj.cooldownProgress = 1 - remaining / t.cooldownSpan;
+        // On cooldown
+        t.obj.chargeProgress = 0;
+        if (now >= t.cooldownEndsAt) {
+          t.cooldownEndsAt = 0;
+          t.obj.cooldownProgress = 1;
+        } else {
+          const remaining = t.cooldownEndsAt - now;
+          t.obj.cooldownProgress = 1 - remaining / t.cooldownSpan;
+        }
       }
     }
   }
