@@ -6,7 +6,7 @@ import { getCursorGround } from '../store/cursorState';
 import { sendCast } from '../network/colyseus';
 import { clearDestination } from '../store/destinationState';
 import { setLocalDash } from '../store/dashState';
-import { isOnCooldown, triggerCooldown } from '../store/abilityCooldowns';
+import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 
@@ -57,7 +57,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const dx = Math.sin(me.rotation);
       const dz = Math.cos(me.rotation);
       sendCast(ability, dx, dz);
-      triggerCooldown(ability, config.cooldownMs);
+      triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -100,7 +100,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
         dz /= len;
       }
       sendCast(ability, dx, dz, undefined, undefined, target?.id);
-      triggerCooldown(ability, config.cooldownMs);
+      triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -132,7 +132,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
           break;
         }
       }
-      triggerCooldown(ability, config.cooldownMs);
+      triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -173,7 +173,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
           sendCast(ability, 0, 1); // re-press interrupts (server ignores the dir)
           return;
         }
-        if (isOnCooldown(ability) || me.mana < config.manaCost) return;
+        if (isOnCooldown(ability) || me.mana < config.manaCost * getLocalManaCostMult()) return;
         const t = getLocalRenderTransform();
         const cur = getCursorGround();
         let dx = cur.x - t.x;
@@ -187,14 +187,14 @@ export function useAbilityHotkeys(enabled: boolean): void {
           dz = Math.cos(t.rotation);
         }
         sendCast(ability, dx, dz);
-        triggerCooldown(ability, config.cooldownMs);
+        triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
         pushAnimationEvent(me.sessionId, 'cast');
         return;
       }
       if (me.channelAbility) return; // locked out while channelling
 
       // Mirror the server's gates so the optimistic cooldown display stays true.
-      if (isOnCooldown(ability) || me.mana < config.manaCost) return;
+      if (isOnCooldown(ability) || me.mana < config.manaCost * getLocalManaCostMult()) return;
 
       if (config.aim === 'direction' || config.aim === 'point') {
         // Hold to aim; the matching keyup fires toward the cursor.
@@ -216,7 +216,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
       useAbilityTargeting.getState().cancel();
       const me = localPlayer();
       // Re-check gates at release (mana may have changed mid-aim).
-      if (pending && me && !isOnCooldown(pending) && me.mana >= ABILITIES[pending].manaCost) {
+      if (pending && me && !isOnCooldown(pending) && me.mana >= ABILITIES[pending].manaCost * getLocalManaCostMult()) {
         fireAimed(pending, me.sessionId);
       }
     };

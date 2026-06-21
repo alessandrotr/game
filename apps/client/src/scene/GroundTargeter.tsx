@@ -5,6 +5,7 @@ import { ABILITIES } from '@arena/shared';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 import { getCursorGround } from '../store/cursorState';
 import { getLocalRenderTransform } from '../store/localPlayer';
+import { useGameStore } from '../store/useGameStore';
 import { UV_VERTEX, useUTime } from '../render/shaders/common';
 import {
   CIRCLE_INDICATOR_FRAG,
@@ -49,10 +50,24 @@ export function GroundTargeter() {
   useUTime(rangeMat);
   useUTime(targetMat);
 
+  const sessionId = useGameStore((s) => s.sessionId);
+  const me = useGameStore((s) => sessionId ? s.players.get(sessionId) : null);
+  const aoeSizeBonus = useMemo(() => {
+    if (!me) return 0;
+    let bonus = 0;
+    const myPerks = [me.perk1, me.perk2, me.perk3];
+    for (const perkId of myPerks) {
+      if (perkId === 'wide_reach') bonus += 1;
+      else if (perkId === 'blast_master') bonus += 2;
+      else if (perkId === 'cataclysm') bonus += 3;
+    }
+    return bonus;
+  }, [me?.perk1, me?.perk2, me?.perk3]);
+
   // Per-ability shader inputs (geometry dims + uniforms). `pending` rarely
   // changes, so rebuilding these on change is free.
   const cfg = pending ? ABILITIES[pending] : null;
-  const radius = cfg?.aoeRadius ?? 2;
+  const radius = (cfg?.aoeRadius ?? 2) + aoeSizeBonus;
   const range = cfg?.range ?? 1;
 
   const laneUniforms = useMemo(
@@ -86,7 +101,7 @@ export function GroundTargeter() {
       uSeed: { value: Math.random() * 10 },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pending],
+    [pending, radius],
   );
 
   // Lane geometry: width set so the crisp rails land exactly on the hit capsule

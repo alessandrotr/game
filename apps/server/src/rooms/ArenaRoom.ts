@@ -588,6 +588,7 @@ export class ArenaRoom extends AvatarRoom {
               delete cd[key as AbilityKind];
             }
           }
+          this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, {});
         }
       },
       resetCooldowns: (sessionId, abilityId) => {
@@ -601,6 +602,7 @@ export class ArenaRoom extends AvatarRoom {
             }
           }
         }
+        this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability: abilityId });
       },
     };
   }

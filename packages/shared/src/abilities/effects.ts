@@ -35,7 +35,8 @@ export type StatusKind =
   | 'field' // a damaging aura: ticks `tickAmount` to enemies within `magnitude` of the carrier
   | 'dot' // damage over time (tickAmount every tickMs)
   | 'hot' // heal over time (tickAmount every tickMs)
-  | 'shield'; // tracks the lifetime of an absorb shield
+  | 'shield' // tracks the lifetime of an absorb shield
+  | 'poison'; // poison damage over time (ticks tickAmount every tickMs, handles spreading)
 
 /** All status kinds, for iteration/validation. */
 export const STATUS_KINDS: readonly StatusKind[] = [
@@ -51,6 +52,7 @@ export const STATUS_KINDS: readonly StatusKind[] = [
   'dot',
   'hot',
   'shield',
+  'poison',
 ];
 
 /** A status to apply to a target — authored on an ability, realized on the schema. */

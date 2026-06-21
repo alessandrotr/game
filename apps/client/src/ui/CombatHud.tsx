@@ -9,7 +9,7 @@ import {
   type CharacterClass,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
-import { cooldownRemaining } from '../store/abilityCooldowns';
+import { cooldownRemaining, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { ClassPreview } from './ClassPreview';
@@ -39,15 +39,16 @@ const XP_POP_MS = 1300;
 function paintSlot(els: SlotEls | undefined, ability: AbilityKind, mana: number): void {
   if (!els) return;
   const config = ABILITIES[ability];
+  const cdMs = config.cooldownMs * getLocalCooldownMult();
   const remaining = cooldownRemaining(ability);
   const onCooldown = remaining > 0;
-  const elapsed = config.cooldownMs - remaining;
+  const elapsed = cdMs - remaining;
   const casting = config.castTimeMs > 0 && onCooldown && elapsed < config.castTimeMs;
-  const noMana = mana < config.manaCost;
+  const noMana = mana < config.manaCost * getLocalManaCostMult();
 
   if (els.sweep) {
     els.sweep.style.display = onCooldown ? 'block' : 'none';
-    if (onCooldown) els.sweep.style.height = `${(remaining / config.cooldownMs) * 100}%`;
+    if (onCooldown) els.sweep.style.height = `${(remaining / cdMs) * 100}%`;
   }
   if (els.cast) {
     els.cast.style.display = casting ? 'block' : 'none';

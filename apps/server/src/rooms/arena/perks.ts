@@ -74,6 +74,8 @@ export interface PerkModifiers {
   lowHpDamageMult: number;
   /** Adrenaline: extra move speed multiplier when below 40% HP. */
   lowHpSpeedMult: number;
+  /** Adrenaline: extra move speed flat bonus when below 40% HP. */
+  lowHpSpeedBonus: number;
   /** Adrenaline: stun immunity when below 40% HP. */
   lowHpStunImmune: boolean;
   /** Dodge chance: probability (0-1) of avoiding a zombie melee hit. */
@@ -84,6 +86,12 @@ export interface PerkModifiers {
   critMultiplier: number;
   /** Critical hit cooldown reset chance: probability (0-1) on crit. */
   critCooldownResetChance: number;
+  /** Poison: duration of poison status effect (ms). */
+  poisonDurationMs: number;
+  /** Poison: damage dealt per second. */
+  poisonDamagePerSecond: number;
+  /** Poison: spreading radius (0 = single target). */
+  poisonSpreadRadius: number;
 }
 
 export const IDENTITY_MODIFIERS: PerkModifiers = {
@@ -114,11 +122,15 @@ export const IDENTITY_MODIFIERS: PerkModifiers = {
   lightningStunMs: 0,
   lowHpDamageMult: 1,
   lowHpSpeedMult: 1,
+  lowHpSpeedBonus: 0,
   lowHpStunImmune: false,
   dodgeChance: 0,
   critChance: 0,
   critMultiplier: 1.5,
   critCooldownResetChance: 0,
+  poisonDurationMs: 0,
+  poisonDamagePerSecond: 0,
+  poisonSpreadRadius: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -544,11 +556,11 @@ export class PerkSystem {
           break;
         case 'frenzy':
           m.lowHpDamageMult = 1.30;
-          m.lowHpSpeedMult = 1.15;
+          m.lowHpSpeedBonus = 1;
           break;
         case 'last_stand':
           m.lowHpDamageMult = 1.50;
-          m.lowHpSpeedMult = 1.25;
+          m.lowHpSpeedBonus = 2;
           m.lowHpStunImmune = true;
           break;
 
@@ -580,6 +592,23 @@ export class PerkSystem {
           m.critMultiplier = 2.0;
           m.critCooldownResetChance = 0.30;
           break;
+
+        // ── Poison chain ─────────────────────────────────────────────
+        case 'poison_touch':
+          m.poisonDurationMs = 2000;
+          m.poisonDamagePerSecond = 5;
+          m.poisonSpreadRadius = 0;
+          break;
+        case 'toxic_spores':
+          m.poisonDurationMs = 4000;
+          m.poisonDamagePerSecond = 5;
+          m.poisonSpreadRadius = 0;
+          break;
+        case 'plague':
+          m.poisonDurationMs = 6000;
+          m.poisonDamagePerSecond = 5;
+          m.poisonSpreadRadius = 1.5;
+          break;
       }
     }
     return m;
@@ -594,8 +623,10 @@ export function getPerkMoveSpeedMult(perkSystem: PerkSystem | undefined, player:
   if (!perkSystem) return { mult: 1, bonus: 0 };
   const mods = perkSystem.getModifiers(player.sessionId);
   let mult = 1;
+  let bonus = mods.moveSpeedBonus;
   if (player.alive && player.maxHp > 0 && player.hp / player.maxHp < 0.40) {
     mult *= mods.lowHpSpeedMult;
+    bonus += mods.lowHpSpeedBonus;
   }
-  return { mult, bonus: mods.moveSpeedBonus };
+  return { mult, bonus };
 }

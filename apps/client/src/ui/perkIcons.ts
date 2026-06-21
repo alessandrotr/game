@@ -29,6 +29,9 @@ import {
   Eye,
   Crosshair,
   Target,
+  Biohazard,
+  FlaskConical,
+  Skull,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -63,6 +66,9 @@ const ICON_BY_NAME: Record<string, LucideIcon> = {
   Eye,
   Crosshair,
   Target,
+  Biohazard,
+  FlaskConical,
+  Skull,
 };
 
 /**

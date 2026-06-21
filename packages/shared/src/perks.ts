@@ -32,7 +32,7 @@ export const PERK_AUTOPICK_MS = 15_000;
 
 export type PerkTier = 'common' | 'rare' | 'legendary';
 
-/** All 27 perk ids, as a literal union. */
+/** All 30 perk ids, as a literal union. */
 export type PerkId =
   // Chain 1 — Durability
   | 'thick_skin' | 'fortified' | 'unstoppable'
@@ -53,7 +53,9 @@ export type PerkId =
   // Chain 9 — AoE
   | 'wide_reach' | 'blast_master' | 'cataclysm'
   // Chain 10 — Precision
-  | 'keen_eye' | 'sharpshooter' | 'deadeye';
+  | 'keen_eye' | 'sharpshooter' | 'deadeye'
+  // Chain 11 — Poison
+  | 'poison_touch' | 'toxic_spores' | 'plague';
 
 /** A single perk definition. */
 export interface PerkDef {
@@ -93,6 +95,7 @@ export const PERK_CHAINS: readonly PerkChain[] = [
   /* 7 */ { common: 'adrenaline',      rare: 'frenzy',           legendary: 'last_stand' },
   /* 8 */ { common: 'wide_reach',      rare: 'blast_master',     legendary: 'cataclysm' },
   /* 9 */ { common: 'keen_eye',        rare: 'sharpshooter',     legendary: 'deadeye' },
+  /* 10 */ { common: 'poison_touch',    rare: 'toxic_spores',     legendary: 'plague' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -227,12 +230,12 @@ export const PERKS: Record<PerkId, PerkDef> = {
   },
   frenzy: {
     id: 'frenzy', name: 'Frenzy', icon: 'Flame', tier: 'rare', chain: 7,
-    description: '+30% ability damage and +15% move speed when below 40% HP',
+    description: '+30% ability damage and +1 move speed when below 40% HP',
     upgradesFrom: 'adrenaline', upgradesTo: 'last_stand',
   },
   last_stand: {
     id: 'last_stand', name: 'Last Stand', icon: 'ShieldAlert', tier: 'legendary', chain: 7,
-    description: '+50% ability damage, +25% move speed, and immune to stun when below 40% HP',
+    description: '+50% ability damage, +2 move speed, and immune to stun when below 40% HP',
     upgradesFrom: 'frenzy',
   },
 
@@ -268,6 +271,22 @@ export const PERKS: Record<PerkId, PerkDef> = {
     id: 'deadeye', name: 'Deadeye', icon: 'Target', tier: 'legendary', chain: 9,
     description: '+20% critical hit chance (2× damage), crits have 30% chance to reset ability cooldown',
     upgradesFrom: 'sharpshooter',
+  },
+  // ── Chain 10: Poison ─────────────────────────────────────────────────────
+  poison_touch: {
+    id: 'poison_touch', name: 'Poison Touch', icon: 'Biohazard', tier: 'common', chain: 10,
+    description: 'Ability hits poison targets dealing 5 damage per second for 2s',
+    upgradesTo: 'toxic_spores',
+  },
+  toxic_spores: {
+    id: 'toxic_spores', name: 'Toxic Spores', icon: 'FlaskConical', tier: 'rare', chain: 10,
+    description: 'Ability hits poison targets dealing 5 damage per second for 4s',
+    upgradesFrom: 'poison_touch', upgradesTo: 'plague',
+  },
+  plague: {
+    id: 'plague', name: 'Plague', icon: 'Skull', tier: 'legendary', chain: 10,
+    description: 'Ability hits poison targets for 6s (5 DPS); hits also poison all zombies in a 1.5 radius',
+    upgradesFrom: 'toxic_spores',
   },
 };
 
