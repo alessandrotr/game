@@ -128,14 +128,14 @@ describe('PerkSystem & Adrenaline Perks', () => {
     // Test getPerkMoveSpeedMult helper
     // 100% HP -> no multiplier
     player.hp = 100;
-    expect(getPerkMoveSpeedMult(system, player)).toBeCloseTo(1.0);
+    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.0);
 
     // 50% HP -> still no multiplier (needs to be < 40%)
     player.hp = 50;
-    expect(getPerkMoveSpeedMult(system, player)).toBeCloseTo(1.0);
+    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.0);
 
     // 30% HP -> multiplier applied!
     player.hp = 30;
-    expect(getPerkMoveSpeedMult(system, player)).toBeCloseTo(1.15);
+    expect(getPerkMoveSpeedMult(system, player).mult).toBeCloseTo(1.15);
   });
 });

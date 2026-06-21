@@ -24,8 +24,8 @@ export interface PerkModifiers {
   maxHpMult: number;
   /** Multiplicative damage-taken scale (e.g. 0.9 = −10%). */
   damageTakenMult: number;
-  /** Multiplicative move-speed scale. */
-  moveSpeedMult: number;
+  /** Flat move-speed bonus (world units/s, additive). */
+  moveSpeedBonus: number;
   /** Multiplicative mana-regen scale. */
   manaRegenMult: number;
   /** Multiplicative ability-cooldown scale (e.g. 0.85 = −15%). */
@@ -34,8 +34,8 @@ export interface PerkModifiers {
   abilityDamageMult: number;
   /** Multiplicative mana-cost scale. */
   manaCostMult: number;
-  /** Multiplicative AoE-radius scale. */
-  aoeSizeMult: number;
+  /** Flat AoE-radius bonus (world units, additive). */
+  aoeSizeBonus: number;
   /** Multiplicative AoE-damage bonus (stacks with abilityDamageMult). */
   aoeDamageMult: number;
   /** Flat damage reflected to melee attackers. */
@@ -76,17 +76,19 @@ export interface PerkModifiers {
   lowHpSpeedMult: number;
   /** Adrenaline: stun immunity when below 40% HP. */
   lowHpStunImmune: boolean;
+  /** Dodge chance: probability (0-1) of avoiding a zombie melee hit. */
+  dodgeChance: number;
 }
 
 export const IDENTITY_MODIFIERS: PerkModifiers = {
   maxHpMult: 1,
   damageTakenMult: 1,
-  moveSpeedMult: 1,
+  moveSpeedBonus: 0,
   manaRegenMult: 1,
   cooldownMult: 1,
   abilityDamageMult: 1,
   manaCostMult: 1,
-  aoeSizeMult: 1,
+  aoeSizeBonus: 0,
   aoeDamageMult: 1,
   reflectDamage: 0,
   kickDamageMult: 1,
@@ -107,6 +109,7 @@ export const IDENTITY_MODIFIERS: PerkModifiers = {
   lowHpDamageMult: 1,
   lowHpSpeedMult: 1,
   lowHpStunImmune: false,
+  dodgeChance: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -445,14 +448,14 @@ export class PerkSystem {
 
         // ── Speed chain ──────────────────────────────────────────────
         case 'swift_feet':
-          m.moveSpeedMult *= 1.10;
+          m.moveSpeedBonus += 1;
           break;
         case 'wind_runner':
-          m.moveSpeedMult *= 1.25;
+          m.moveSpeedBonus += 2;
           break;
         case 'phantom':
-          m.moveSpeedMult *= 1.35;
-          // Phase-through is handled in the movement loop.
+          m.moveSpeedBonus += 3;
+          m.dodgeChance = 0.15;
           break;
 
         // ── Mana chain ───────────────────────────────────────────────
@@ -542,14 +545,14 @@ export class PerkSystem {
 
         // ── AoE chain ────────────────────────────────────────────────
         case 'wide_reach':
-          m.aoeSizeMult *= 1.20;
+          m.aoeSizeBonus += 1;
           break;
         case 'blast_master':
-          m.aoeSizeMult *= 1.40;
+          m.aoeSizeBonus += 2;
           m.aoeDamageMult *= 1.10;
           break;
         case 'cataclysm':
-          m.aoeSizeMult *= 1.60;
+          m.aoeSizeBonus += 3;
           m.aoeDamageMult *= 1.20;
           m.chainExplosionChance = 0.15;
           break;
@@ -563,12 +566,12 @@ export class PerkSystem {
  * Helper to calculate the perk movement speed multiplier, dynamically
  * checking if the player is below 40% HP to apply lowHpSpeedMult.
  */
-export function getPerkMoveSpeedMult(perkSystem: PerkSystem | undefined, player: Player): number {
-  if (!perkSystem) return 1;
+export function getPerkMoveSpeedMult(perkSystem: PerkSystem | undefined, player: Player): { mult: number; bonus: number } {
+  if (!perkSystem) return { mult: 1, bonus: 0 };
   const mods = perkSystem.getModifiers(player.sessionId);
-  let mult = mods.moveSpeedMult;
+  let mult = 1;
   if (player.alive && player.maxHp > 0 && player.hp / player.maxHp < 0.40) {
     mult *= mods.lowHpSpeedMult;
   }
-  return mult;
+  return { mult, bonus: mods.moveSpeedBonus };
 }

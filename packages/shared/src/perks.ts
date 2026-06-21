@@ -117,17 +117,17 @@ export const PERKS: Record<PerkId, PerkDef> = {
   // ── Chain 1: Speed ───────────────────────────────────────────────────────
   swift_feet: {
     id: 'swift_feet', name: 'Swift Feet', icon: 'Footprints', tier: 'common', chain: 1,
-    description: '+10% move speed',
+    description: '+1 move speed',
     upgradesTo: 'wind_runner',
   },
   wind_runner: {
     id: 'wind_runner', name: 'Wind Runner', icon: 'Wind', tier: 'rare', chain: 1,
-    description: '+25% move speed',
+    description: '+2 move speed',
     upgradesFrom: 'swift_feet', upgradesTo: 'phantom',
   },
   phantom: {
     id: 'phantom', name: 'Phantom', icon: 'Ghost', tier: 'legendary', chain: 1,
-    description: '+35% move speed, phase through zombies for 1s after dashing',
+    description: '+3 move speed, 15% chance to dodge zombie melee attacks',
     upgradesFrom: 'wind_runner',
   },
 
@@ -236,17 +236,17 @@ export const PERKS: Record<PerkId, PerkDef> = {
   // ── Chain 8: AoE ─────────────────────────────────────────────────────────
   wide_reach: {
     id: 'wide_reach', name: 'Wide Reach', icon: 'Expand', tier: 'common', chain: 8,
-    description: '+20% AoE radius on all abilities',
+    description: '+1 AoE radius on all abilities',
     upgradesTo: 'blast_master',
   },
   blast_master: {
     id: 'blast_master', name: 'Blast Master', icon: 'CircleDot', tier: 'rare', chain: 8,
-    description: '+40% AoE radius, +10% AoE ability damage',
+    description: '+2 AoE radius, +10% AoE ability damage',
     upgradesFrom: 'wide_reach', upgradesTo: 'cataclysm',
   },
   cataclysm: {
     id: 'cataclysm', name: 'Cataclysm', icon: 'Orbit', tier: 'legendary', chain: 8,
-    description: '+60% AoE radius, +20% AoE damage, AoE kills 15% chain-explode',
+    description: '+3 AoE radius, +20% AoE damage, AoE kills 15% chain-explode',
     upgradesFrom: 'blast_master',
   },
 };

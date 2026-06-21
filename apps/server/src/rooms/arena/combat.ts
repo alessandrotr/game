@@ -146,6 +146,7 @@ export class CombatSystem {
     targetX?: number,
     targetZ?: number,
     unitTargetId?: string,
+    aoeSizeBonus?: number,
   ): void {
     const unitTarget = unitTargetId ? this.ctx.state.players.get(unitTargetId) : undefined;
     const cast: CastContext = {
@@ -156,6 +157,7 @@ export class CombatSystem {
       targetZ,
       unitTarget,
       ability: config.id,
+      aoeSizeBonus,
     };
     runCast(config.effects, cast, this.effectRuntime);
   }

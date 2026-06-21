@@ -904,7 +904,8 @@ export class ArenaRoom extends AvatarRoom {
         resolveAt: this.simTime + config.castTimeMs,
       });
     } else {
-      this.combat.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId);
+      const aoeSizeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
+      this.combat.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId, aoeSizeBonus);
     }
   }
 
@@ -1102,7 +1103,7 @@ export class ArenaRoom extends AvatarRoom {
         baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - (this.gunMode ? 0 : 1);
       }
       const perkSpeed = getPerkMoveSpeedMult(this.perkSystem, attacker);
-      const speed = baseSpeed * moveSpeedMultiplier(attacker) * perkSpeed;
+      const speed = (baseSpeed + perkSpeed.bonus) * moveSpeedMultiplier(attacker) * perkSpeed.mult;
       const step = Math.min(speed * dt, dist - cfg.range + 0.01);
       attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
       attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
@@ -1150,6 +1151,14 @@ export class ArenaRoom extends AvatarRoom {
       // The projectile resolves the hit (player / barrel / structure) on impact.
       this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
     } else if (targetPlayer) {
+      // Dodge check: Phantom perk gives a chance to avoid zombie melee hits.
+      if (isZombie && this.perkSystem) {
+        const dodgeChance = this.perkSystem.getModifiers(targetPlayer.sessionId).dodgeChance;
+        if (dodgeChance > 0 && Math.random() < dodgeChance) {
+          // Dodged — skip the damage entirely.
+          return;
+        }
+      }
       this.combat.dealDamage(targetPlayer, dmg, sessionId);
     } else if (targetBarrel) {
       // Melee shove: launch the barrel away from the attacker.
@@ -1275,6 +1284,7 @@ export class ArenaRoom extends AvatarRoom {
       // Resolve a finished wind-up before this tick's movement decision.
       const pending = this.pendingCasts.get(sessionId);
       if (pending && this.simTime >= pending.resolveAt) {
+        const pendingAoeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
         this.combat.resolveCast(
           player,
           pending.config,
@@ -1283,6 +1293,7 @@ export class ArenaRoom extends AvatarRoom {
           pending.targetX,
           pending.targetZ,
           pending.unitTargetId,
+          pendingAoeBonus,
         );
         this.pendingCasts.delete(sessionId);
       }
@@ -1348,11 +1359,14 @@ export class ArenaRoom extends AvatarRoom {
           player,
           this.destinations.get(sessionId) ?? null,
           {
-            speed:
-              (this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) *
-              moveSpeedMultiplier(player) *
-              getPerkMoveSpeedMult(this.perkSystem, player) *
-              (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1),
+            speed: (() => {
+              const perk = getPerkMoveSpeedMult(this.perkSystem, player);
+              return ((this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) +
+                perk.bonus) *
+                moveSpeedMultiplier(player) *
+                perk.mult *
+                (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1);
+            })(),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,

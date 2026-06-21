@@ -106,6 +106,8 @@ export interface CastContext {
   /** The ability id being resolved — carried into damage so a Q-restricted
    *  empower applies only to its ability. */
   ability?: string;
+  /** Flat AoE radius bonus from perks (world units, additive). */
+  aoeSizeBonus?: number;
 }
 
 /** The single-target frame a {@link LeafEffect} resolves against. */
@@ -208,13 +210,15 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         // Center the blast on the caster, the ground point, or the locked unit.
         const cx = effect.at === 'point' ? (ctx.targetX ?? caster.x) : effect.at === 'unit' ? (ctx.unitTarget?.x ?? caster.x) : caster.x;
         const cz = effect.at === 'point' ? (ctx.targetZ ?? caster.z) : effect.at === 'unit' ? (ctx.unitTarget?.z ?? caster.z) : caster.z;
+        // Perk-boosted radius (flat additive bonus from AoE perks).
+        const aoeRadius = effect.radius + (ctx.aoeSizeBonus ?? 0);
         // Optional frontal arc: only hit targets within ±arc/2 of the cast
         // direction (a target on top of the caster always counts).
         const cosHalf = effect.arc !== undefined && effect.arc < 360 ? Math.cos((effect.arc * Math.PI) / 360) : -1;
         const fl = Math.hypot(ctx.dirX, ctx.dirZ) || 1;
         const fx = ctx.dirX / fl;
         const fz = ctx.dirZ / fl;
-        rt.forEachEnemyInRadius(cx, cz, effect.radius, caster.sessionId, (target) => {
+        rt.forEachEnemyInRadius(cx, cz, aoeRadius, caster.sessionId, (target) => {
           if (cosHalf > -1) {
             const vx = target.x - cx;
             const vz = target.z - cz;
@@ -224,12 +228,12 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
           runLeaves(effect.onHit, caster, target, cx, cz, rt, ctx.ability);
         });
         // Barrels caught in the blast launch + detonate too.
-        rt.triggerBarrelsInRadius(cx, cz, effect.radius, caster.sessionId);
+        rt.triggerBarrelsInRadius(cx, cz, aoeRadius, caster.sessionId);
         // Destructibles in range get a physical shove (tires/barrels/wreckage)
         // and take the blast's damage (chipping drum HP toward destruction).
-        rt.pushDestructiblesInRadius(cx, cz, effect.radius, caster.sessionId, sumLeafDamage(effect.onHit));
+        rt.pushDestructiblesInRadius(cx, cz, aoeRadius, caster.sessionId, sumLeafDamage(effect.onHit));
         // Cover structures (trailers/cars/dumpsters) take the blast's damage.
-        rt.damageStructuresInRadius(cx, cz, effect.radius, sumLeafDamage(effect.onHit));
+        rt.damageStructuresInRadius(cx, cz, aoeRadius, sumLeafDamage(effect.onHit));
         break;
       }
       case 'heal_allies': {
@@ -238,8 +242,9 @@ export function runCast(effects: Effect[], ctx: CastContext, rt: EffectRuntime):
         // hit"). Centre = caster / ground point / locked unit.
         const hx = effect.at === 'point' ? (ctx.targetX ?? caster.x) : effect.at === 'unit' ? (ctx.unitTarget?.x ?? caster.x) : caster.x;
         const hz = effect.at === 'point' ? (ctx.targetZ ?? caster.z) : effect.at === 'unit' ? (ctx.unitTarget?.z ?? caster.z) : caster.z;
+        const healRadius = effect.radius + (ctx.aoeSizeBonus ?? 0);
         rt.heal(caster, effect.amount, caster.sessionId); // the priest always heals himself
-        rt.forEachAllyInRadius(hx, hz, effect.radius, caster, (ally) => rt.heal(ally, effect.amount, caster.sessionId));
+        rt.forEachAllyInRadius(hx, hz, healRadius, caster, (ally) => rt.heal(ally, effect.amount, caster.sessionId));
         break;
       }
       case 'dash':
