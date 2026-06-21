@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { Vector3, type Mesh } from 'three';
-import { Brush, Eraser, Pipette, FlipHorizontal2, Eye, EyeOff, Undo2, Redo2, Trash2, Droplet, Circle, Star, Heart, Square, Triangle, Diamond } from 'lucide-react';
+import { Brush, Eraser, Pipette, FlipHorizontal2, Eye, EyeOff, Undo2, Redo2, Trash2, Droplet } from 'lucide-react';
 import type { CharacterClass } from '@arena/shared';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
 import { getPaintSurface, paintTexturesFor, type PaintPart } from '../paint/paintSurface';
-import { usePaintStore, type BrushShape } from '../store/usePaintStore';
+import { usePaintStore } from '../store/usePaintStore';
 import { IconButton } from './primitives/icon-button';
 import { Slider } from './primitives/slider';
 import { Card } from './primitives/card';
@@ -20,21 +20,6 @@ const isPaintPart = (name: string): name is PaintPart => PAINTABLE.has(name as P
  *  Because painting is done in world space (see PaintSurface.stampWorld), this is
  *  the actual on-body footprint — uniform everywhere, regardless of UV stretch. */
 const brushWorld = (slider: number) => slider * 0.004;
-
-/** Stamp shapes are drawn in texture space; map the brush slider to a texel radius
- *  (PAINT_SIZE is 512, so this spans a small dab up to a bold ~100px stamp). */
-const shapeStampPx = (slider: number) => 8 + slider * 3;
-
-/** Brush forms shown in the rail: freehand round + decorative stamps. */
-const SHAPES: { shape: BrushShape; icon: typeof Brush; label: string }[] = [
-  { shape: 'round', icon: Brush, label: 'Freehand' },
-  { shape: 'circle', icon: Circle, label: 'Circle' },
-  { shape: 'star', icon: Star, label: 'Star' },
-  { shape: 'heart', icon: Heart, label: 'Heart' },
-  { shape: 'square', icon: Square, label: 'Square' },
-  { shape: 'triangle', icon: Triangle, label: 'Triangle' },
-  { shape: 'diamond', icon: Diamond, label: 'Diamond' },
-];
 
 // Scratch vectors reused inside the pointer handlers (avoid per-move allocation).
 const _localA = new Vector3();
@@ -109,7 +94,6 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
   const palette = usePaintStore((s) => s.palette);
   const recents = usePaintStore((s) => s.recents);
   const tool = usePaintStore((s) => s.tool);
-  const shape = usePaintStore((s) => s.shape);
   const mirror = usePaintStore((s) => s.mirror);
   const skinBody = usePaintStore((s) => s.skinFor(characterClass, 'body'));
   const skinHead = usePaintStore((s) => s.skinFor(characterClass, 'head'));
@@ -118,7 +102,6 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
   const setColor = usePaintStore((s) => s.setColor);
   const setBrush = usePaintStore((s) => s.setBrush);
   const setTool = usePaintStore((s) => s.setTool);
-  const setShape = usePaintStore((s) => s.setShape);
   const toggleMirror = usePaintStore((s) => s.toggleMirror);
   const setSkin = usePaintStore((s) => s.setSkin);
   const undo = usePaintStore((s) => s.undo);
@@ -152,8 +135,6 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
   brushRef.current = brush;
   const toolRef = useRef(tool);
   toolRef.current = tool;
-  const shapeRef = useRef(shape);
-  shapeRef.current = shape;
   const mirrorRef = useRef(mirror);
   mirrorRef.current = mirror;
   const painting = useRef(false);
@@ -203,15 +184,6 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
     // Eyedropper: sample the composite at the hit UV into the active color, no stroke.
     if (toolRef.current === 'eyedropper') {
       if (e.uv) setColor(getPaintSurface(characterClass, part).sampleAt(e.uv.x, e.uv.y));
-      return;
-    }
-    // Shape brush: stamp a single filled form at the hit (no drag), then commit.
-    if (toolRef.current === 'brush' && shapeRef.current !== 'round') {
-      if (!e.uv) return;
-      const surface = getPaintSurface(characterClass, part);
-      surface.beginStroke();
-      surface.stampShape(e.uv.x, e.uv.y, shapeStampPx(brushRef.current), colorRef.current, shapeRef.current);
-      markPainted(characterClass, part);
       return;
     }
     painting.current = true;
@@ -277,7 +249,7 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
           target={[0, 1.0, 0]}
           enablePan={false}
           enableDamping
-          minDistance={2.4}
+          minDistance={0.8}
           maxDistance={7}
           minPolarAngle={0.25}
           maxPolarAngle={Math.PI / 2 - 0.04}
@@ -301,23 +273,6 @@ export function PaintStudio({ characterClass }: { characterClass: CharacterClass
             onClick={() => setShowGear((v) => !v)}
             wide
           />
-
-          {/* Brush form: freehand round, or a stamped shape (star, heart, …). */}
-          {tool === 'brush' && (
-            <Section label="Shape">
-              <div className="grid grid-cols-4 gap-1.5">
-                {SHAPES.map((s) => (
-                  <ToolButton
-                    key={s.shape}
-                    icon={s.icon}
-                    label={s.label}
-                    active={shape === s.shape}
-                    onClick={() => setShape(s.shape)}
-                  />
-                ))}
-              </div>
-            </Section>
-          )}
 
           <Divider />
 
