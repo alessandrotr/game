@@ -31,6 +31,8 @@ import {
   type Team,
   type VfxAssetId,
   type ZombieLobbyView,
+  computePerkModifiers,
+  isPerkId,
   isZombieSkin,
 } from '@arena/shared';
 import { useGameStore, type RoomType } from '../store/useGameStore';
@@ -357,15 +359,9 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
 
   const caster = useGameStore.getState().players.get(msg.casterId);
-  let aoeSizeBonus = 0;
-  if (caster) {
-    const perks = [caster.perk1, caster.perk2, caster.perk3];
-    for (const perkId of perks) {
-      if (perkId === 'wide_reach') aoeSizeBonus += 1;
-      else if (perkId === 'blast_master') aoeSizeBonus += 2;
-      else if (perkId === 'cataclysm') aoeSizeBonus += 3;
-    }
-  }
+  const aoeSizeBonus = caster
+    ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus
+    : 0;
 
   const def = ABILITIES[msg.ability];
   const baseRadius = def?.aoeRadius ?? 0;
@@ -1355,6 +1351,11 @@ export function sendStatTune(values: ClientMessagePayloads[ClientMessage.StatTun
 /** Dev-only: set the arena's practice-bot population and AI difficulty. */
 export function sendBotControl(values: ClientMessagePayloads[ClientMessage.BotControl]): void {
   room?.send(ClientMessage.BotControl, values);
+}
+
+/** Dev-only: grant a zombie perk to the local player, or clear all perks. */
+export function sendDevGrantPerk(values: ClientMessagePayloads[ClientMessage.DevGrantPerk]): void {
+  room?.send(ClientMessage.DevGrantPerk, values);
 }
 
 /** Toggle the auto-attack feature flag for the current room. */

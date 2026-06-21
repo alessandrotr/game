@@ -63,6 +63,9 @@ export enum ClientMessage {
   StatTune = 'stat_tune',
   /** Dev-only: set the arena's practice-bot population and AI difficulty. */
   BotControl = 'bot_control',
+  /** Dev-only: grant a specific zombie perk to the caller, or clear all of them
+   *  (so each perk can be tested without surviving to the wave that offers it). */
+  DevGrantPerk = 'dev_grant_perk',
   /** Feature flag: enable/disable auto-attacks for the room (off by default). */
   SetAutoAttack = 'set_auto_attack',
   /** Gun Mode Zombie: fire the equipped gun toward an aim direction (right-click).
@@ -262,6 +265,11 @@ export interface ClientMessagePayloads {
     difficulty: BotDifficulty;
     characterClass?: CharacterClass;
   };
+  /** Dev-only perk debugging: `grant` adds `perkId` to the caller (replacing the
+   *  same chain's lower tier if present, so upgrades apply); `clear` removes all. */
+  [ClientMessage.DevGrantPerk]:
+    | { action: 'grant'; perkId: PerkId }
+    | { action: 'clear' };
   /** Toggle the auto-attack feature flag for the room. */
   [ClientMessage.SetAutoAttack]: { enabled: boolean };
   /** Fire the equipped gun along a normalized aim direction (the cursor). */

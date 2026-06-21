@@ -3,9 +3,12 @@ import {
   CLASS_DEFINITIONS,
   CLASS_STAT_FIELD_META,
   MOVEMENT_FIELD_META,
+  PERKS,
+  PERK_IDS,
   type CharacterClass,
   type ClassStats,
   type MovementConfig,
+  type PerkId,
 } from '@arena/shared';
 import {
   CAMERA_FIELD_META,
@@ -17,7 +20,7 @@ import {
   type CameraConfig,
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
-import { sendBotControl } from '../network/colyseus';
+import { sendBotControl, sendDevGrantPerk } from '../network/colyseus';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
@@ -76,6 +79,20 @@ export default function DevTools() {
       value: useCombatFlagsStore.getState().autoAttack,
       onChange: (v: boolean) => useCombatFlagsStore.getState().setAutoAttack(v),
     },
+  }));
+
+  // Zombie perks (DEV): grant any perk to yourself or wipe them all, to test
+  // each effect without playing to the wave that offers it. The server ignores
+  // these messages in production.
+  const perkOptions = Object.fromEntries(
+    PERK_IDS.map((id) => [`${PERKS[id].name} · ${PERKS[id].tier}`, id]),
+  ) as Record<string, PerkId>;
+  useControls('Perks (debug)', () => ({
+    perk: { value: PERK_IDS[0] as PerkId, options: perkOptions, label: 'Perk' },
+    Grant: button((get) =>
+      sendDevGrantPerk({ action: 'grant', perkId: get('Perks (debug).perk') as PerkId }),
+    ),
+    'Clear all': button(() => sendDevGrantPerk({ action: 'clear' })),
   }));
 
   const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];

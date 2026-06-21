@@ -1,4 +1,4 @@
-import type { AbilityKind } from '@arena/shared';
+import { computePerkModifiers, isPerkId, type AbilityKind } from '@arena/shared';
 import { useGameStore } from './useGameStore';
 
 /**
@@ -37,31 +37,21 @@ export function resetCooldowns(ability?: AbilityKind): void {
   }
 }
 
-/** Get local player's cooldown multiplier based on active perks. */
-export function getLocalCooldownMult(): number {
+/** The local player's aggregate perk modifiers, computed from the same shared
+ *  data the server uses (so the optimistic mirror can't disagree with it). */
+function localPerkModifiers() {
   const { sessionId, players } = useGameStore.getState();
   const me = sessionId ? players.get(sessionId) : undefined;
-  if (!me) return 1;
-  let mult = 1;
-  const perks = [me.perk1, me.perk2, me.perk3];
-  for (const perk of perks) {
-    if (perk === 'quick_hands') mult *= 0.85;
-    else if (perk === 'rapid_fire') mult *= 0.70;
-    else if (perk === 'overclock') mult *= 0.55;
-  }
-  return mult;
+  if (!me) return undefined;
+  return computePerkModifiers([me.perk1, me.perk2, me.perk3].filter(isPerkId));
+}
+
+/** Get local player's cooldown multiplier based on active perks. */
+export function getLocalCooldownMult(): number {
+  return localPerkModifiers()?.cooldownMult ?? 1;
 }
 
 /** Get local player's mana cost multiplier based on active perks. */
 export function getLocalManaCostMult(): number {
-  const { sessionId, players } = useGameStore.getState();
-  const me = sessionId ? players.get(sessionId) : undefined;
-  if (!me) return 1;
-  let mult = 1;
-  const perks = [me.perk1, me.perk2, me.perk3];
-  for (const perk of perks) {
-    if (perk === 'arcane_reservoir') mult *= 0.85;
-    else if (perk === 'infinite_power') mult *= 0.70;
-  }
-  return mult;
+  return localPerkModifiers()?.manaCostMult ?? 1;
 }
