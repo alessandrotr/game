@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, DoubleSide, Vector3, type Group, type Mesh, type ShaderMaterial } from 'three';
-import { ABILITIES } from '@arena/shared';
+import { ABILITIES, computePerkModifiers, isPerkId } from '@arena/shared';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 import { getCursorGround } from '../store/cursorState';
 import { getLocalRenderTransform } from '../store/localPlayer';
@@ -54,14 +54,7 @@ export function GroundTargeter() {
   const me = useGameStore((s) => sessionId ? s.players.get(sessionId) : null);
   const aoeSizeBonus = useMemo(() => {
     if (!me) return 0;
-    let bonus = 0;
-    const myPerks = [me.perk1, me.perk2, me.perk3];
-    for (const perkId of myPerks) {
-      if (perkId === 'wide_reach') bonus += 1;
-      else if (perkId === 'blast_master') bonus += 2;
-      else if (perkId === 'cataclysm') bonus += 3;
-    }
-    return bonus;
+    return computePerkModifiers([me.perk1, me.perk2, me.perk3].filter(isPerkId)).aoeSizeBonus;
   }, [me?.perk1, me?.perk2, me?.perk3]);
 
   // Per-ability shader inputs (geometry dims + uniforms). `pending` rarely

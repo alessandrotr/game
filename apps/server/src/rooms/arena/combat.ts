@@ -38,6 +38,13 @@ function zombieKillXp(skinId: string): number {
   return ZOMBIE_XP_PER_KILL;
 }
 
+/** Synthetic "ability" ids for perk-sourced damage that is itself a perk effect
+ *  (reflect, the Colossus aura, the Archmage burn tick). Damage tagged with one
+ *  of these is inert: it is NOT scaled by ability power, can't crit, and never
+ *  re-procs on-hit perks (lightning / poison / burn) — otherwise an aura ticking
+ *  every second on a horde would cascade procs without bound. */
+const INTERNAL_PERK_DAMAGE = new Set<string>(['reflect', 'aura', 'burn']);
+
 /**
  * Everything that resolves an ability's or attack's effect against the world:
  * damage (with vulnerability + shields), healing, shields, statuses, forced
@@ -193,22 +200,25 @@ export class CombatSystem {
       if (attacker && (isZombieSkin(attacker.skinId) === isZombieSkin(target.skinId))) return;
     }
     const now = this.ctx.now();
+    // Perk-sourced "inert" damage (reflect / aura / burn) bypasses all attacker
+    // scaling and on-hit procs so it can't snowball into itself.
+    const isInternal = ability !== undefined && INTERNAL_PERK_DAMAGE.has(ability);
     // An `empower` buff on the attacker adds flat damage to this one hit, then is
     // consumed (the archer's Tumble = any next hit; the priest's Blessing = Q only).
-    const total = amount + this.consumeEmpower(fromId, target.sessionId, ability);
+    const total = amount + (isInternal ? 0 : this.consumeEmpower(fromId, target.sessionId, ability));
     // Perk modifiers: attacker's ability damage bonus + target's damage reduction.
     const attackerPerks = this.ctx.perkModifiers(fromId);
     const targetPerks = this.ctx.perkModifiers(target.sessionId);
     const attacker = fromId ? this.ctx.state.players.get(fromId) : undefined;
     let lowHpDamageMult = 1.0;
-    if (attacker && attacker.alive && attacker.maxHp > 0 && attacker.hp / attacker.maxHp < 0.40) {
+    if (!isInternal && attacker && attacker.alive && attacker.maxHp > 0 && attacker.hp / attacker.maxHp < 0.40) {
       lowHpDamageMult = attackerPerks.lowHpDamageMult;
     }
 
     // Critical Hits
     let isCrit = false;
     let critMult = 1.0;
-    if (attacker && attackerPerks.critChance > 0) {
+    if (!isInternal && attacker && attackerPerks.critChance > 0) {
       if (Math.random() < attackerPerks.critChance) {
         isCrit = true;
         critMult = attackerPerks.critMultiplier;
@@ -227,7 +237,8 @@ export class CombatSystem {
       aoeDamageMult = attackerPerks.aoeDamageMult;
     }
 
-    const perkScaled = total * attackerPerks.abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
+    const abilityDamageMult = isInternal ? 1 : attackerPerks.abilityDamageMult;
+    const perkScaled = total * abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
     if (target.shield > 0) {
@@ -244,6 +255,7 @@ export class CombatSystem {
 
     // Static / Chain Lightning perk on hit (prevent infinite recursion using ability restriction)
     if (
+      !isInternal &&
       attacker &&
       attackerPerks.lightningChance > 0 &&
       attacker.alive &&
@@ -254,7 +266,7 @@ export class CombatSystem {
         // Find other enemies around target
         const list: Player[] = [];
         this.forEachEnemyInRadius(target.x, target.z, 5.0, attacker.sessionId, (otherEnemy) => {
-          if (otherEnemy.sessionId !== target.sessionId && isZombieSkin(otherEnemy.skinId)) {
+          if (otherEnemy.sessionId !== target.sessionId && this.isProcTarget(otherEnemy)) {
             list.push(otherEnemy);
           }
         });
@@ -277,6 +289,7 @@ export class CombatSystem {
 
     // Poison perk on hit
     if (
+      !isInternal &&
       attacker &&
       attackerPerks.poisonDurationMs > 0 &&
       attacker.alive &&
@@ -297,7 +310,7 @@ export class CombatSystem {
       // Plague perk: spreads poison to other zombies in a 1.5 radius of the hit
       if (attackerPerks.poisonSpreadRadius > 0) {
         this.forEachEnemyInRadius(target.x, target.z, attackerPerks.poisonSpreadRadius, attacker.sessionId, (otherEnemy) => {
-          if (otherEnemy.sessionId !== target.sessionId && isZombieSkin(otherEnemy.skinId)) {
+          if (otherEnemy.sessionId !== target.sessionId && this.isProcTarget(otherEnemy)) {
             this.applyStatus(otherEnemy, {
               kind: 'poison',
               durationMs: attackerPerks.poisonDurationMs,
@@ -308,6 +321,27 @@ export class CombatSystem {
           }
         });
       }
+    }
+
+    // Archmage burn: a real ability hit leaves a flat burn DoT (a `dot` status
+    // ticking `abilityBurnDamage` once per second). Gated to registry abilities so
+    // perk-sourced damage (lightning / poison / reflect / aura, none of which are
+    // in ABILITIES) can't seed or refresh it.
+    if (
+      attacker &&
+      attackerPerks.abilityBurnDamage > 0 &&
+      attacker.alive &&
+      target.sessionId !== attacker.sessionId &&
+      ability &&
+      ABILITIES[ability as AbilityKind]
+    ) {
+      this.applyStatus(target, {
+        kind: 'dot',
+        durationMs: attackerPerks.abilityBurnDurationMs,
+        tickMs: 1000,
+        tickAmount: attackerPerks.abilityBurnDamage,
+        ability: 'burn',
+      }, attacker.sessionId);
     }
 
     // Broadcast the Damage feedback. For zombies, the client plays a blood splash
@@ -332,13 +366,19 @@ export class CombatSystem {
         // Record kill for perks (e.g. Overclock)
         this.ctx.recordKill?.(killer.sessionId);
 
+        // Infinite Power: zombie kills refund flat mana to the killer.
+        if (attackerPerks.manaPerKill > 0 && killer.alive) {
+          killer.mana = Math.min(killer.maxMana, killer.mana + attackerPerks.manaPerKill);
+        }
+
         // A zombie is a wave enemy, not a PvP kill: it grants reduced XP and
         // does NOT count toward the killer's kill tally (so it never inflates
         // career/scoreboard kills).
         const isZombieKill = isZombieSkin(target.skinId);
 
-        // AoE chain-explosion logic
-        if (isZombieKill && attackerPerks.chainExplosionChance > 0) {
+        // AoE chain-explosion logic. In zombie mode it's a zombie-kill payoff; in
+        // the FFA arena it triggers on any AoE kill so the perk is testable there.
+        if ((isZombieKill || !this.ctx.state.zombieMode) && attackerPerks.chainExplosionChance > 0) {
           const isAoe = ability && ABILITIES[ability as AbilityKind]?.aoeRadius !== undefined && ABILITIES[ability as AbilityKind].aoeRadius! > 0;
           if (isAoe && Math.random() < attackerPerks.chainExplosionChance) {
             const explosionRadius = 4 + attackerPerks.aoeSizeBonus;
@@ -540,7 +580,9 @@ export class CombatSystem {
       }
       if ((s.kind === 'dot' || s.kind === 'poison' || s.kind === 'hot' || s.kind === 'field') && s.tickMs > 0 && now >= s.nextTickAt) {
         if (s.kind === 'dot' || s.kind === 'poison') {
-          this.dealDamage(player, s.tickAmount, s.sourceId, s.kind === 'poison' ? 'poison_dot' : undefined);
+          // Carry the status' own ability tag (e.g. 'burn', 'poison_dot') so the
+          // tick is treated as inert perk damage and can't re-proc on-hit perks.
+          this.dealDamage(player, s.tickAmount, s.sourceId, s.ability || (s.kind === 'poison' ? 'poison_dot' : undefined));
         } else if (s.kind === 'hot') {
           this.healTarget(player, s.tickAmount);
         } else {
@@ -553,6 +595,14 @@ export class CombatSystem {
         s.nextTickAt += s.tickMs;
       }
     }
+  }
+
+  /** Whether `p` is a valid secondary-proc target (lightning chain / poison
+   *  spread). In zombie mode that means an actual zombie — never a fellow human;
+   *  in the FFA arena any other combatant the proc reaches qualifies, so the
+   *  perks are testable without zombies around. */
+  private isProcTarget(p: Player): boolean {
+    return !this.ctx.state.zombieMode || isZombieSkin(p.skinId);
   }
 
   /** Invoke `fn` for every living enemy of `exceptId` within `radius` of (x, z).

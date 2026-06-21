@@ -1,137 +1,27 @@
 import {
   COMMON_PERK_IDS,
+  IDENTITY_MODIFIERS,
   PERK_AUTOPICK_MS,
   PERK_MAX_SLOTS,
   PERKS,
   ServerMessage,
+  computePerkModifiers,
   isPerkId,
   perkPhaseAtWave,
   perksFullyMaxed,
   type PerkId,
+  type PerkModifiers,
   type CharacterClass,
 } from '@arena/shared';
 import type { Player } from '../schema.js';
 import type { ArenaContext } from './context.js';
 
-// ---------------------------------------------------------------------------
-// Perk modifiers — the aggregate stat scalars read by the combat/tick loops.
-// ---------------------------------------------------------------------------
-
-/** The computed stat modifiers from a player's active perks. Every field
- *  defaults to the identity (1 for multipliers, 0 for flat adds). */
-export interface PerkModifiers {
-  /** Multiplicative max-HP scale (e.g. 1.15 = +15%). */
-  maxHpMult: number;
-  /** Multiplicative damage-taken scale (e.g. 0.9 = −10%). */
-  damageTakenMult: number;
-  /** Flat move-speed bonus (world units/s, additive). */
-  moveSpeedBonus: number;
-  /** Multiplicative mana-regen scale. */
-  manaRegenMult: number;
-  /** Multiplicative ability-cooldown scale (e.g. 0.85 = −15%). */
-  cooldownMult: number;
-  /** Multiplicative ability-damage scale. */
-  abilityDamageMult: number;
-  /** Multiplicative mana-cost scale. */
-  manaCostMult: number;
-  /** Flat AoE-radius bonus (world units, additive). */
-  aoeSizeBonus: number;
-  /** Multiplicative AoE-damage bonus (stacks with abilityDamageMult). */
-  aoeDamageMult: number;
-  /** Flat damage reflected to melee attackers. */
-  reflectDamage: number;
-  /** Kick damage multiplier. */
-  kickDamageMult: number;
-  /** Kick force multiplier. */
-  kickForceMult: number;
-  /** True if the player is immune to stun. */
-  stunImmune: boolean;
-  /** Mana refunded per zombie kill (flat). */
-  manaPerKill: number;
-  /** Overclock: kills required within the window to reset all cooldowns. */
-  overclockKillThreshold: number;
-  /** AoE kill chain-explosion chance (0–1). */
-  chainExplosionChance: number;
-  /** Kick AoE shockwave damage (0 = no shockwave). */
-  kickAoeDamage: number;
-  /** Kick AoE stun duration (ms, 0 = no stun). */
-  kickAoeStunMs: number;
-  /** Colossus damaging aura DPS. */
-  auraDps: number;
-  /** Ability burn DoT: damage per tick (0 = disabled). */
-  abilityBurnDamage: number;
-  /** Ability burn DoT: duration (ms). */
-  abilityBurnDurationMs: number;
-  /** Static shock: activation chance on ability hit (0-1). */
-  lightningChance: number;
-  /** Static shock: flat damage dealt. */
-  lightningDamage: number;
-  /** Static shock: maximum number of targets to chain to. */
-  lightningTargets: number;
-  /** Static shock: stun duration (ms) applied. */
-  lightningStunMs: number;
-  /** Adrenaline: extra ability damage multiplier when below 40% HP. */
-  lowHpDamageMult: number;
-  /** Adrenaline: extra move speed multiplier when below 40% HP. */
-  lowHpSpeedMult: number;
-  /** Adrenaline: extra move speed flat bonus when below 40% HP. */
-  lowHpSpeedBonus: number;
-  /** Adrenaline: stun immunity when below 40% HP. */
-  lowHpStunImmune: boolean;
-  /** Dodge chance: probability (0-1) of avoiding a zombie melee hit. */
-  dodgeChance: number;
-  /** Critical hit chance: probability (0-1) of a critical hit. */
-  critChance: number;
-  /** Critical hit damage multiplier (e.g. 1.5 = +50% damage). */
-  critMultiplier: number;
-  /** Critical hit cooldown reset chance: probability (0-1) on crit. */
-  critCooldownResetChance: number;
-  /** Poison: duration of poison status effect (ms). */
-  poisonDurationMs: number;
-  /** Poison: damage dealt per second. */
-  poisonDamagePerSecond: number;
-  /** Poison: spreading radius (0 = single target). */
-  poisonSpreadRadius: number;
-}
-
-export const IDENTITY_MODIFIERS: PerkModifiers = {
-  maxHpMult: 1,
-  damageTakenMult: 1,
-  moveSpeedBonus: 0,
-  manaRegenMult: 1,
-  cooldownMult: 1,
-  abilityDamageMult: 1,
-  manaCostMult: 1,
-  aoeSizeBonus: 0,
-  aoeDamageMult: 1,
-  reflectDamage: 0,
-  kickDamageMult: 1,
-  kickForceMult: 1,
-  stunImmune: false,
-  manaPerKill: 0,
-  overclockKillThreshold: 0,
-  chainExplosionChance: 0,
-  kickAoeDamage: 0,
-  kickAoeStunMs: 0,
-  auraDps: 0,
-  abilityBurnDamage: 0,
-  abilityBurnDurationMs: 0,
-  lightningChance: 0,
-  lightningDamage: 0,
-  lightningTargets: 0,
-  lightningStunMs: 0,
-  lowHpDamageMult: 1,
-  lowHpSpeedMult: 1,
-  lowHpSpeedBonus: 0,
-  lowHpStunImmune: false,
-  dodgeChance: 0,
-  critChance: 0,
-  critMultiplier: 1.5,
-  critCooldownResetChance: 0,
-  poisonDurationMs: 0,
-  poisonDamagePerSecond: 0,
-  poisonSpreadRadius: 0,
-};
+// The modifier struct, its identity, and the data-driven fold now live in
+// `@arena/shared` (perk-modifiers.ts) so the server and client compute perk
+// stats from the exact same source. Re-exported here for back-compat with the
+// many call sites that import these from this module.
+export { IDENTITY_MODIFIERS } from '@arena/shared';
+export type { PerkModifiers } from '@arena/shared';
 
 // ---------------------------------------------------------------------------
 // Pending offer (server-only state for one player's unanswered perk offer).
@@ -296,23 +186,25 @@ export class PerkSystem {
     this.modCache.delete(sessionId);
     this.offers.delete(sessionId);
 
-    // Apply HP/maxHP adjustments immediately when picking health perks
-    const stats = this.ctx.tuning.classStats[player.characterClass as CharacterClass];
-    if (stats) {
-      const oldMaxHp = player.maxHp;
-      const newMaxHp = stats.health * (this.computeModifiers(sessionId).maxHpMult ?? 1);
-      if (newMaxHp !== oldMaxHp) {
-        const diff = newMaxHp - oldMaxHp;
-        player.maxHp = newMaxHp;
-        if (diff > 0) {
-          player.hp += diff;
-        } else {
-          player.hp = Math.min(player.hp, player.maxHp);
-        }
-      }
-    }
+    // Apply HP/maxHP adjustments immediately when picking health perks.
+    this.applyMaxHp(sessionId, player);
 
     return true;
+  }
+
+  /** Recompute a player's max HP from their class base × the current maxHp perk
+   *  multiplier, preserving the HP delta (a gain heals; a loss clamps). Call
+   *  after any change to the player's perk set. */
+  private applyMaxHp(sessionId: string, player: Player): void {
+    const stats = this.ctx.tuning.classStats[player.characterClass as CharacterClass];
+    if (!stats) return;
+    const oldMaxHp = player.maxHp;
+    const newMaxHp = stats.health * (this.computeModifiers(sessionId).maxHpMult ?? 1);
+    if (newMaxHp === oldMaxHp) return;
+    const diff = newMaxHp - oldMaxHp;
+    player.maxHp = newMaxHp;
+    if (diff > 0) player.hp += diff;
+    else player.hp = Math.min(player.hp, player.maxHp);
   }
 
   // ── Query ────────────────────────────────────────────────────────────────
@@ -344,6 +236,44 @@ export class PerkSystem {
   /** Initialize empty perk state for a joining player. */
   init(sessionId: string): void {
     this.perks.set(sessionId, []);
+  }
+
+  // ── Dev tooling ────────────────────────────────────────────────────────────
+
+  /** Dev-only: force-grant a perk (bypassing the offer flow), so any perk can be
+   *  tested without playing to its wave. If the player already owns a lower tier
+   *  in the same chain it's upgraded in place; otherwise it fills a free slot
+   *  (replacing the oldest if full). Returns true if the set changed. */
+  devGrant(sessionId: string, perkId: PerkId): boolean {
+    const player = this.ctx.state.players.get(sessionId);
+    if (!player) return false;
+    const myPerks = this.perks.get(sessionId) ?? [];
+    const chain = PERKS[perkId].chain;
+    const existingIdx = myPerks.findIndex((id) => PERKS[id].chain === chain);
+    if (existingIdx >= 0) {
+      if (myPerks[existingIdx] === perkId) return false; // already owned
+      myPerks[existingIdx] = perkId; // swap to the requested tier of this chain
+    } else if (myPerks.length < PERK_MAX_SLOTS) {
+      myPerks.push(perkId);
+    } else {
+      myPerks[0] = perkId; // full: evict the oldest slot
+    }
+    this.perks.set(sessionId, myPerks);
+    this.syncToSchema(sessionId, player);
+    this.modCache.delete(sessionId);
+    this.applyMaxHp(sessionId, player);
+    return true;
+  }
+
+  /** Dev-only: clear every perk from a player (reset to a clean slate). */
+  devClear(sessionId: string): void {
+    const player = this.ctx.state.players.get(sessionId);
+    this.perks.set(sessionId, []);
+    this.modCache.delete(sessionId);
+    if (player) {
+      this.syncToSchema(sessionId, player);
+      this.applyMaxHp(sessionId, player);
+    }
   }
 
   /** Reset per-wave perk charges (called when a new wave begins). */
@@ -445,173 +375,13 @@ export class PerkSystem {
     player.perk3 = p[2] ?? '';
   }
 
-  /** Build the aggregate modifiers from a player's active perks. */
+  /** Build the aggregate modifiers from a player's active perks. The actual
+   *  magnitudes live as data on each {@link PERKS} entry; this just folds the
+   *  player's active set via the shared {@link computePerkModifiers}. */
   private computeModifiers(sessionId: string): PerkModifiers {
     const ids = this.perks.get(sessionId);
     if (!ids || ids.length === 0) return { ...IDENTITY_MODIFIERS };
-
-    const m: PerkModifiers = { ...IDENTITY_MODIFIERS };
-    for (const id of ids) {
-      switch (id) {
-        // ── Durability chain ─────────────────────────────────────────
-        case 'thick_skin':
-          m.maxHpMult *= 1.15;
-          break;
-        case 'fortified':
-          m.maxHpMult *= 1.30;
-          m.damageTakenMult *= 0.90;
-          break;
-        case 'unstoppable':
-          m.maxHpMult *= 1.50;
-          m.damageTakenMult *= 0.85;
-          m.stunImmune = true;
-          break;
-
-        // ── Speed chain ──────────────────────────────────────────────
-        case 'swift_feet':
-          m.moveSpeedBonus += 1;
-          break;
-        case 'wind_runner':
-          m.moveSpeedBonus += 2;
-          break;
-        case 'phantom':
-          m.moveSpeedBonus += 3;
-          m.dodgeChance = 0.15;
-          break;
-
-        // ── Mana chain ───────────────────────────────────────────────
-        case 'mana_well':
-          m.manaRegenMult *= 1.20;
-          break;
-        case 'arcane_reservoir':
-          m.manaRegenMult *= 1.40;
-          m.manaCostMult *= 0.85;
-          break;
-        case 'infinite_power':
-          m.manaRegenMult *= 1.60;
-          m.manaCostMult *= 0.70;
-          m.manaPerKill = 5;
-          break;
-
-        // ── Cooldown chain ───────────────────────────────────────────
-        case 'quick_hands':
-          m.cooldownMult *= 0.85;
-          break;
-        case 'rapid_fire':
-          m.cooldownMult *= 0.70;
-          break;
-        case 'overclock':
-          m.cooldownMult *= 0.55;
-          m.overclockKillThreshold = 10;
-          break;
-
-        // ── Toughness chain ──────────────────────────────────────────
-        case 'iron_will':
-          m.damageTakenMult *= 0.90;
-          break;
-        case 'stoneskin':
-          m.damageTakenMult *= 0.80;
-          m.reflectDamage = 5;
-          break;
-        case 'colossus':
-          m.damageTakenMult *= 0.70;
-          m.reflectDamage = 10;
-          m.auraDps = 3;
-          break;
-
-        // ── Static Shock chain ────────────────────────────────────────
-        case 'static_shock':
-          m.lightningChance = 0.25;
-          m.lightningDamage = 15;
-          m.lightningTargets = 1;
-          break;
-        case 'overcharge':
-          m.lightningChance = 0.30;
-          m.lightningDamage = 20;
-          m.lightningTargets = 3;
-          break;
-        case 'thunderstorm':
-          m.lightningChance = 0.35;
-          m.lightningDamage = 35;
-          m.lightningTargets = 5;
-          m.lightningStunMs = 500;
-          break;
-
-        // ── Ability Power chain ──────────────────────────────────────
-        case 'focused_mind':
-          m.abilityDamageMult *= 1.15;
-          break;
-        case 'spell_surge':
-          m.abilityDamageMult *= 1.30;
-          break;
-        case 'archmage':
-          m.abilityDamageMult *= 1.50;
-          m.abilityBurnDamage = 4;
-          m.abilityBurnDurationMs = 2000;
-          break;
-
-        // ── Adrenaline chain ──────────────────────────────────────────────────
-        case 'adrenaline':
-          m.lowHpDamageMult = 1.20;
-          break;
-        case 'frenzy':
-          m.lowHpDamageMult = 1.30;
-          m.lowHpSpeedBonus = 1;
-          break;
-        case 'last_stand':
-          m.lowHpDamageMult = 1.50;
-          m.lowHpSpeedBonus = 2;
-          m.lowHpStunImmune = true;
-          break;
-
-        // ── AoE chain ────────────────────────────────────────────────
-        case 'wide_reach':
-          m.aoeSizeBonus += 1;
-          break;
-        case 'blast_master':
-          m.aoeSizeBonus += 2;
-          m.aoeDamageMult *= 1.10;
-          break;
-        case 'cataclysm':
-          m.aoeSizeBonus += 3;
-          m.aoeDamageMult *= 1.20;
-          m.chainExplosionChance = 0.15;
-          break;
-
-        // ── Precision chain ──────────────────────────────────────────
-        case 'keen_eye':
-          m.critChance = 0.10;
-          m.critMultiplier = 1.5;
-          break;
-        case 'sharpshooter':
-          m.critChance = 0.15;
-          m.critMultiplier = 1.75;
-          break;
-        case 'deadeye':
-          m.critChance = 0.20;
-          m.critMultiplier = 2.0;
-          m.critCooldownResetChance = 0.30;
-          break;
-
-        // ── Poison chain ─────────────────────────────────────────────
-        case 'poison_touch':
-          m.poisonDurationMs = 2000;
-          m.poisonDamagePerSecond = 5;
-          m.poisonSpreadRadius = 0;
-          break;
-        case 'toxic_spores':
-          m.poisonDurationMs = 4000;
-          m.poisonDamagePerSecond = 5;
-          m.poisonSpreadRadius = 0;
-          break;
-        case 'plague':
-          m.poisonDurationMs = 6000;
-          m.poisonDamagePerSecond = 5;
-          m.poisonSpreadRadius = 1.5;
-          break;
-      }
-    }
-    return m;
+    return computePerkModifiers(ids);
   }
 }
 

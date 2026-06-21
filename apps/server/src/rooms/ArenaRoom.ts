@@ -61,6 +61,7 @@ import {
   type ClientMessagePayloads,
   ServerMessage,
   isAbilityKind,
+  isPerkId,
   isRooted,
   isSilenced,
   isStunned,
@@ -135,6 +136,8 @@ const PROJECTILE_Y = 1;
 /** Contact radius for a damaging dash (Charge) colliding with props — sized so a
  *  fast slide doesn't tunnel between ticks before it bumps a barrel/drum/tire. */
 const DASH_IMPACT_RADIUS = 1.2;
+/** Radius (world units) of the Colossus damaging aura — a melee-range ring. */
+const AURA_RADIUS = 3.5;
 
 /** Cooldown leniency (ms) on casts: a client whose optimistic cooldown just
  *  expired shouldn't have its cast rejected by round-trip / tick jitter (which
@@ -201,6 +204,8 @@ export class ArenaRoom extends AvatarRoom {
   // Arena-specific per-session state (the avatar maps live on AvatarRoom).
   private readonly cooldowns = new Map<string, Partial<Record<AbilityKind, number>>>();
   private readonly respawnAt = new Map<string, number>();
+  /** Sim time (ms) each player's Colossus damaging aura next ticks. */
+  private readonly auraNextAt = new Map<string, number>();
   /** Casts mid wind-up (castTimeMs > 0); the player is rooted until they resolve. */
   private readonly pendingCasts = new Map<string, PendingCast>();
   /** Current auto-attack target (a player session id) per attacker. */
@@ -398,10 +403,13 @@ export class ArenaRoom extends AvatarRoom {
         },
       });
       this.zombieDirector.start(this.simTime);
-      // Perk system: ability-mode zombie only (not gun mode).
-      if (!this.gunMode) {
-        this.perkSystem = new PerkSystem(this.buildContext());
-      }
+    }
+
+    // Perks exist in any ability-mode arena. Zombie waves offer them on wave
+    // clear; the non-zombie FFA / team arena has no wave system, so they're
+    // granted via dev tools for testing. (Gun mode has no ability kit.)
+    if (!this.gunMode) {
+      this.perkSystem = new PerkSystem(this.buildContext());
     }
 
     // Movement / jump / chat / emote / set-name come from AvatarRoom.
@@ -520,6 +528,17 @@ export class ArenaRoom extends AvatarRoom {
       ClientMessage.BotControl,
       (_client, message: ClientMessagePayloads[ClientMessage.BotControl]) =>
         this.setBotPopulation(message),
+    );
+    // Dev-only perk debugging. Ignored in production so a crafted client can't
+    // grant itself perks in a live match.
+    this.onMessage(
+      ClientMessage.DevGrantPerk,
+      (client, message: ClientMessagePayloads[ClientMessage.DevGrantPerk]) => {
+        if (process.env.NODE_ENV === 'production' || !this.perkSystem) return;
+        if (message?.action === 'clear') this.perkSystem.devClear(client.sessionId);
+        else if (message?.action === 'grant' && isPerkId(message.perkId))
+          this.perkSystem.devGrant(client.sessionId, message.perkId);
+      },
     );
     this.onMessage(
       ClientMessage.SetAutoAttack,
@@ -732,6 +751,7 @@ export class ArenaRoom extends AvatarRoom {
     this.flushProfile(client.sessionId);
     this.baseRemove(client.sessionId);
     this.cooldowns.delete(client.sessionId);
+    this.auraNextAt.delete(client.sessionId);
     this.respawnAt.delete(client.sessionId);
     this.pendingCasts.delete(client.sessionId);
     this.attackTargets.delete(client.sessionId);
@@ -1243,8 +1263,10 @@ export class ArenaRoom extends AvatarRoom {
       // The projectile resolves the hit (player / barrel / structure) on impact.
       this.projectiles.spawnAutoProjectile(attacker, ndx, ndz, cfg);
     } else if (targetPlayer) {
-      // Dodge check: Phantom perk gives a chance to avoid zombie melee hits.
-      if (isZombie && this.perkSystem) {
+      // Dodge check: Phantom perk gives a chance to avoid a melee hit. (In zombie
+      // mode only zombies melee humans; in the FFA arena any melee attacker
+      // triggers it, so the perk is testable there too.)
+      if (this.perkSystem) {
         const dodgeChance = this.perkSystem.getModifiers(targetPlayer.sessionId).dodgeChance;
         if (dodgeChance > 0 && Math.random() < dodgeChance) {
           // Dodged — skip the damage entirely.
@@ -1252,6 +1274,12 @@ export class ArenaRoom extends AvatarRoom {
         }
       }
       this.combat.dealDamage(targetPlayer, dmg, sessionId);
+      // Reflect (Stoneskin / Colossus): bounce flat damage back at a melee
+      // attacker. Tagged 'reflect' so it's inert (no scaling, no re-procs).
+      if (this.perkSystem && attacker.alive) {
+        const reflect = this.perkSystem.getModifiers(targetPlayer.sessionId).reflectDamage;
+        if (reflect > 0) this.combat.dealDamage(attacker, reflect, targetPlayer.sessionId, 'reflect');
+      }
     } else if (targetBarrel) {
       // Melee shove: launch the barrel away from the attacker.
       this.combat.triggerBarrel(targetBarrel, ndx, ndz, sessionId);
@@ -1357,6 +1385,17 @@ export class ArenaRoom extends AvatarRoom {
       regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
+
+      // Colossus damaging aura: tick flat damage to enemies in range once per
+      // second. Tagged 'aura' so it's inert (no scaling / re-procs).
+      if (perkMods && perkMods.auraDps > 0) {
+        if (this.simTime >= (this.auraNextAt.get(sessionId) ?? 0)) {
+          this.auraNextAt.set(sessionId, this.simTime + 1000);
+          this.combat.forEachEnemyInRadius(player.x, player.z, AURA_RADIUS, sessionId, (enemy) =>
+            this.combat.dealDamage(enemy, perkMods.auraDps, sessionId, 'aura'),
+          );
+        }
+      }
 
       // Update Mini-Boss AI if this player is the mini-boss
       if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {

@@ -26,7 +26,6 @@ const TIER_GLOW: Record<string, string> = {
  * perk ids actually changes.
  */
 export function PerkBar() {
-  const zombieMode = useGameStore((s) => s.zombieMode);
   const gunMode = useGameStore((s) => s.gunMode);
   const [perks, setPerks] = useState<[string, string, string]>(['', '', '']);
   const prev = useRef('');
@@ -50,7 +49,9 @@ export function PerkBar() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  if (!zombieMode || gunMode) return null;
+  // Gun mode has no ability/perk kit. Otherwise show whenever the player holds a
+  // perk — that's zombie waves normally, or a dev-granted perk in the FFA arena.
+  if (gunMode) return null;
   const anyPerk = perks.some((p) => !!p);
   if (!anyPerk) return null;
 
