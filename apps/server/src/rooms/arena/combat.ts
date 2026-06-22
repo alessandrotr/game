@@ -131,6 +131,11 @@ export class CombatSystem {
     this.barrels.pull(vortexX, vortexZ, pullRadius);
   }
 
+  /** Pull every movable car toward the vortex center. */
+  pullCars(vortexX: number, vortexZ: number, pullRadius: number): void {
+    this.cover.pullCars(vortexX, vortexZ, pullRadius);
+  }
+
   /** Try to hit a destructible with a projectile at (px,pz). Returns true if a
    *  body was struck (the caller then consumes the projectile). */
   hitDestructible(

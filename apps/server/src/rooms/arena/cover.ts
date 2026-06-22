@@ -527,4 +527,29 @@ export class CoverSystem {
     this.combat.triggerBarrelsInRadius(s.x, s.z, CAR_EXPLOSION_RADIUS, s.id);
     this.combat.pushDestructiblesInRadius(s.x, s.z, CAR_EXPLOSION_RADIUS, s.id, CAR_EXPLOSION_DAMAGE);
   }
+
+  /** Pull every movable car toward the vortex center. */
+  pullCars(vortexX: number, vortexZ: number, pullRadius: number): void {
+    this.carVel.forEach((vel, id) => {
+      const s = this.ctx.state.structures.get(id);
+      if (!s || s.destroyed) return;
+      if (this.indestructible.has(s.id)) return;
+      const dx = vortexX - s.x;
+      const dz = vortexZ - s.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.01 && dist <= pullRadius + s.radius) {
+        // Base pull speed (NOT doubled)
+        const pullSpeed = 3.0 + (1.0 - Math.min(1, dist / pullRadius)) * 3.0;
+        // Apply velocity change directly (integrated per tick)
+        const force = pullSpeed * 0.15; // tuning factor
+        vel.vx += (dx / dist) * force;
+        vel.vz += (dz / dist) * force;
+        const m = Math.hypot(vel.vx, vel.vz);
+        if (m > CAR_MAX_SPEED) {
+          vel.vx = (vel.vx / m) * CAR_MAX_SPEED;
+          vel.vz = (vel.vz / m) * CAR_MAX_SPEED;
+        }
+      }
+    });
+  }
 }
