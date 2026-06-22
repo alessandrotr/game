@@ -20,6 +20,7 @@ import {
   SmashEffect,
   BloodSplashEffect,
   LightningSparkEffect,
+  ChestSpawnEffect,
 } from './bursts';
 import { CarExplosionEffect, BarrelExplosionEffect } from './coverEffects';
 import type { BurstShaderProps } from './common';
@@ -60,4 +61,5 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.barrel_explosion': BarrelExplosionEffect,
   'vfx.blood_splash': BloodSplashEffect,
   'vfx.lightning_spark': LightningSparkEffect,
+  'vfx.chest_spawn': ChestSpawnEffect,
 };

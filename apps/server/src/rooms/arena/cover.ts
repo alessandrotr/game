@@ -79,6 +79,12 @@ export class CoverSystem {
    *  can't be shoved into the void corners outside the playable area. */
   private roomLayout: RoomLayout | null = null;
 
+  private chestDestroyedCb?: (x: number, z: number) => void;
+
+  onChestDestroyed(cb: (x: number, z: number) => void): void {
+    this.chestDestroyedCb = cb;
+  }
+
   constructor(
     private readonly ctx: ArenaContext,
     /** The room's live collision set — structure circles are pushed in here and
@@ -134,6 +140,15 @@ export class CoverSystem {
               s.z,
               TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
               TRAILER_HALF_WIDTH,
+              s.height,
+              s.rotation,
+            )
+          : s.assetId === 'prop.arena.chest'
+          ? this.physics.addStaticBox(
+              s.x,
+              s.z,
+              1.0, // half length
+              0.5, // half width
               s.height,
               s.rotation,
             )
@@ -243,11 +258,57 @@ export class CoverSystem {
               s.height,
               s.rotation,
             )
+          : s.assetId === 'prop.arena.chest'
+          ? this.physics.addStaticBox(
+              s.x,
+              s.z,
+              1.0, // half length
+              0.5, // half width
+              s.height,
+              s.rotation,
+            )
           : this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height),
       );
       if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
       if (s.indestructible) this.indestructible.add(cs.id);
     }
+  }
+
+  /** Spawn a treasure chest at a random spot, setting up its state, collision footprint, and box collider. */
+  spawnChest(x: number, z: number, rotation: number): string {
+    const id = `chest-${this.nextStructureIdx++}`;
+    const cs = new CoverStructure();
+    cs.id = id;
+    cs.assetId = 'prop.arena.chest';
+    cs.x = x;
+    cs.z = z;
+    cs.rotation = rotation;
+    cs.radius = 0.5; // width radius
+    cs.height = 1.5;
+    cs.hp = 80;
+    cs.maxHp = 80;
+    cs.destroyed = false;
+    cs.lengthScale = 1.0;
+    this.ctx.state.structures.set(id, cs);
+
+    const circles = structureFootprint(cs.assetId, cs.x, cs.z, cs.rotation, cs.radius, cs.height, cs.lengthScale);
+    this.circles.set(id, circles);
+    for (const c of circles) this.collision.push(c);
+
+    this.colliders.set(
+      id,
+      this.physics.addStaticBox(
+        x,
+        z,
+        1.0, // half length
+        0.5, // half width
+        1.5, // height
+        rotation,
+      ),
+    );
+
+    this.ctx.broadcast(ServerMessage.ChestSpawned, { x, z });
+    return id;
   }
 
   /** A live (un-destroyed) structure by id — for auto-attack targeting. */
@@ -498,6 +559,12 @@ export class CoverSystem {
     }
     this.ctx.broadcast(ServerMessage.StructureCrumbled, { x: s.x, z: s.z, radius: s.radius });
     if (isCar(s.assetId)) this.detonate(s);
+    if (s.assetId === 'prop.arena.chest') {
+      this.chestDestroyedCb?.(s.x, s.z);
+      this.ctx.setTimeout(() => {
+        this.ctx.state.structures.delete(s.id);
+      }, 1000);
+    }
   }
 
   /** A destroyed car explodes: flat area damage to everything in the blast — every

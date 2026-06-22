@@ -32,7 +32,7 @@ export interface GeneratedArenaLayout {
   barrels: { x: number; z: number }[];
   /** Oil-drum positions — the server promotes these to destructible, roll-away
    *  drums (they're NOT static obstacles or props, and they don't explode). */
-  drums: { x: number; z: number }[];
+  drums: { x: number; y?: number; z: number }[];
   /** Tire-stack centers — the server spawns a destructible 3-tire pile at each
    *  (separate physical tires; NOT static props). */
   tireStacks: { x: number; z: number }[];
@@ -103,6 +103,22 @@ export function structureFootprint(
   height: number,
   lengthScale = 1,
 ): ArenaObstacle[] {
+  if (assetId === 'prop.arena.chest') {
+    const halfWidth = 0.5;
+    const halfLength = 1.0;
+    const dirX = Math.cos(rotation);
+    const dirZ = -Math.sin(rotation);
+    const reach = halfLength - halfWidth;
+    if (reach < 1e-3) return [{ x, z, radius: halfWidth, height }];
+    const segments = Math.max(1, Math.ceil((reach * 2) / halfWidth));
+    const circles: ArenaObstacle[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = -reach + (reach * 2 * i) / segments;
+      circles.push({ x: x + dirX * t, z: z + dirZ * t, radius: halfWidth, height });
+    }
+    return circles;
+  }
+
   if (assetId === 'prop.arena.fence.rust') {
     const halfWidth = 0.8;
     const halfLength = radius; // door.width / 2
@@ -246,7 +262,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   const obstacles: ArenaObstacle[] = [];
   const props: MapProp[] = [];
   const barrels: { x: number; z: number }[] = [];
-  const drums: { x: number; z: number }[] = [];
+  const drums: { x: number; y?: number; z: number }[] = [];
   const tireStacks: { x: number; z: number }[] = [];
   const structures: CoverStructureSpec[] = [];
   /** Footprints already taken (includes mirrors) for separation checks. */
@@ -307,6 +323,93 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
         placeCover(props, obstacles, kind, spot.x, spot.z, rot, rng);
         placeCover(props, obstacles, kind, -spot.x, -spot.z, rot + Math.PI, rng);
       }
+    }
+  }
+
+  // 12-drum pyramid (only in normal Arena mode)
+  if (!zombieMode) {
+    const r = 0.45;
+    const baseDrums = [
+      { dx: 0, dz: -2 * r },
+      { dx: 2 * r, dz: -2 * r },
+      { dx: -2 * r, dz: 0 },
+      { dx: 0, dz: 0 },
+      { dx: 2 * r, dz: 0 },
+      { dx: -2 * r, dz: 2 * r },
+      { dx: 0, dz: 2 * r },
+    ];
+    const midDrums = [
+      { dx: -r, dz: -r },
+      { dx: r, dz: -r },
+      { dx: -r, dz: r },
+      { dx: r, dz: r },
+    ];
+    const topDrums = [
+      { dx: 0, dz: 0 },
+    ];
+
+    // Find a spot close to (0, 0) that does not overlap with trailers or cover structures.
+    let pyramidSpot = { x: 0, z: 0 };
+    let found = false;
+    const pyramidRadius = 3 * r; // 1.35
+    for (let radius = 0; radius < 15 && !found; radius += 0.5) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+
+        // Check if this spot is clear of all structures
+        let clear = true;
+        for (const s of structures) {
+          const footprints = structureFootprint(s.assetId, s.x, s.z, s.rotation, s.radius, s.height, s.lengthScale);
+          for (const f of footprints) {
+            const dx = x - f.x;
+            const dz = z - f.z;
+            const minDist = f.radius + pyramidRadius + GAP;
+            if (dx * dx + dz * dz < minDist * minDist) {
+              clear = false;
+              break;
+            }
+          }
+          if (!clear) break;
+        }
+
+        // Also check spawn points clear
+        if (clear) {
+          if (!farFromSpawns(x, z, pyramidRadius) || !farFromPortal(x, z, pyramidRadius)) {
+            clear = false;
+          }
+        }
+
+        if (clear) {
+          pyramidSpot = { x, z };
+          found = true;
+          break;
+        }
+      }
+    }
+
+    const px = pyramidSpot.x;
+    const pz = pyramidSpot.z;
+
+    // Add base drums (y = 0.5)
+    for (const b of baseDrums) {
+      drums.push({ x: px + b.dx, y: 0.5, z: pz + b.dz });
+    }
+    // Add mid drums (y = 1.5)
+    for (const m of midDrums) {
+      drums.push({ x: px + m.dx, y: 1.5, z: pz + m.dz });
+    }
+    // Add top drum (y = 2.5)
+    for (const t of topDrums) {
+      drums.push({ x: px + t.dx, y: 2.5, z: pz + t.dz });
+    }
+
+    // Add the base drums and their mirrors to taken so other dynamic props don't clip them
+    for (const b of baseDrums) {
+      const drumX = px + b.dx;
+      const drumZ = pz + b.dz;
+      taken.push({ x: drumX, z: drumZ, r: r });
+      taken.push({ x: -drumX, z: -drumZ, r: r });
     }
   }
 

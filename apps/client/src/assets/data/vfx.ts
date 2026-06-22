@@ -549,6 +549,27 @@ const lightningSpark: VfxDescriptor = {
   },
 };
 
+const chestSpawn: VfxDescriptor = {
+  id: 'vfx.chest_spawn',
+  displayName: 'Chest Spawn',
+  behavior: 'burst',
+  durationMs: 800,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'flash',
+        shape: 'sphere',
+        args: [0.5, 12, 12],
+        color: '#ffdf7a',
+        emissive: '#ffa81a',
+        emissiveIntensity: 2.5,
+        opacity: 0.8,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -574,5 +595,6 @@ export const VFX: VfxDescriptor[] = [
   barrelExplosion,
   bloodSplash,
   lightningSpark,
+  chestSpawn,
 ];
 

@@ -110,7 +110,7 @@ export class DestructibleSystem {
   /** Spawn the match's destructibles into the shared physics world: a 3-tire
    *  stack at each tire-stack center and a drum at each oil-drum position. */
   init(
-    drumPositions: { x: number; z: number }[],
+    drumPositions: { x: number; y?: number; z: number }[],
     tireStackPositions: { x: number; z: number }[],
   ): void {
     this.bodies.clear();
@@ -118,7 +118,7 @@ export class DestructibleSystem {
     this.seq = 0;
     this.structureSeq = 0;
     for (const p of tireStackPositions) this.spawnTireStack(p.x, p.z);
-    for (const p of drumPositions) this.spawnDrum(p.x, p.z);
+    for (const p of drumPositions) this.spawnDrum(p.x, p.z, p.y);
     // Zombie mode keeps the map stocked: respawn destroyed drums back up to the
     // initial count, in waves, like the burning barrels.
     this.targetDrums = drumPositions.length;
@@ -131,11 +131,11 @@ export class DestructibleSystem {
 
   /** Append drums + tire stacks for a newly unlocked section (room expansion system). */
   addObjects(
-    drumPositions: { x: number; z: number }[],
+    drumPositions: { x: number; y?: number; z: number }[],
     tireStackPositions: { x: number; z: number }[],
   ): void {
     for (const p of tireStackPositions) this.spawnTireStack(p.x, p.z);
-    for (const p of drumPositions) this.spawnDrum(p.x, p.z);
+    for (const p of drumPositions) this.spawnDrum(p.x, p.z, p.y);
     // Grow the respawn target so the drum-respawn system keeps the section stocked.
     this.targetDrums += drumPositions.length;
   }
@@ -267,8 +267,8 @@ export class DestructibleSystem {
   }
 
   /** A single roll-away oil drum (rendered as `prop.arena.drum`). */
-  private spawnDrum(x: number, z: number): void {
-    this.spawn('barrel', 'barrel', '', x, DRUM_HALF_HEIGHT, z);
+  private spawnDrum(x: number, z: number, y = DRUM_HALF_HEIGHT): void {
+    this.spawn('barrel', 'barrel', '', x, y, z);
   }
 
   // --- Spell collision ------------------------------------------------------

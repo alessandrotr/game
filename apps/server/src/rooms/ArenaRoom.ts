@@ -10,6 +10,7 @@ import {
   pickWeightedPortal,
   clampToUnlockedArea,
   collideObstacles,
+  structureFootprint,
   type ArenaObstacle,
   type RoomLayout,
   isLobbyMode,
@@ -261,6 +262,8 @@ export class ArenaRoom extends AvatarRoom {
   private readonly zombieAi = new Map<string, ZombieAiState>();
   /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
   private readonly bossNextActionAt = new Map<string, number>();
+  /** Chest spawn timer (ms). Starts at 1.5 minutes (90000 ms), then resets to 1.5 minutes (90000 ms). */
+  private chestSpawnTimer = 90000;
 
   /** This match's live collision set for movement and projectiles: a circle for
    *  every alive destructible structure (trailers, cars, dumpsters, scrap heaps).
@@ -643,6 +646,10 @@ export class ArenaRoom extends AvatarRoom {
     this.traps = new TrapSystem(ctx, this.pickables, this.groundZones);
     // A destroyed oil drum may drop a molotov (zombie mode only — see spawnFromDrum).
     this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
+    this.cover.onChestDestroyed((x, z) => {
+      this.pickables.spawnGround('heal_pack', x, z, 4);
+      this.chestSpawnTimer = 90000;
+    });
     this.combat.attachProjectiles(this.projectiles);
     this.combat.attachBarrels(this.barrels);
     this.combat.attachDestructibles(this.destructibles);
@@ -1306,6 +1313,23 @@ export class ArenaRoom extends AvatarRoom {
     // Perk system tick: auto-pick for AFK players.
     if (this.perkSystem) this.perkSystem.update(this.simTime);
 
+    // Treasure chest spawning (Arena mode only)
+    if (!this.zombieMode) {
+      let aliveChestsCount = 0;
+      this.state.structures.forEach((s) => {
+        if (s.assetId === 'prop.arena.chest' && !s.destroyed) {
+          aliveChestsCount++;
+        }
+      });
+      if (aliveChestsCount === 0) {
+        this.chestSpawnTimer -= deltaMs;
+        if (this.chestSpawnTimer <= 0) {
+          this.chestSpawnTimer = 0;
+          this.trySpawnChest();
+        }
+      }
+    }
+
     // AI bots decide their intent first — they write the same `destinations` /
     // `attackTargets` / cast seams human input does, consumed by the loop below.
     if (this.bots.size > 0) this.botDirector.update(this.simTime, this.bots);
@@ -1609,6 +1633,92 @@ export class ArenaRoom extends AvatarRoom {
       level: this.zombieDirector?.currentLevel() ?? this.state.zombieLevel,
     });
     this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+  }
+  
+  /** Find a safe spot and spawn a treasure chest, ensuring no overlap with cover, players, or spawn points. */
+  private trySpawnChest(): void {
+    let aliveChestsCount = 0;
+    this.state.structures.forEach((s) => {
+      if (s.assetId === 'prop.arena.chest' && !s.destroyed) {
+        aliveChestsCount++;
+      }
+    });
+
+    if (aliveChestsCount >= 1) {
+      return;
+    }
+
+    const MARGIN = 3;
+    const MAX_R = ARENA_HALF_SIZE - MARGIN - 1.0;
+
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const x = (Math.random() * 2 - 1) * MAX_R;
+      const z = (Math.random() * 2 - 1) * MAX_R;
+      const rotation = Math.random() * Math.PI * 2;
+
+      if (Math.hypot(x, z) < 3.5) continue;
+
+      const footprints = structureFootprint('prop.arena.chest', x, z, rotation, 0.5, 1.5);
+
+      let clear = true;
+
+      const SPAWN_CLEAR = 5;
+      for (const sp of arenaSpawnsForTeam('blue').concat(arenaSpawnsForTeam('red'))) {
+        for (const f of footprints) {
+          if (Math.hypot(f.x - sp.x, f.z - sp.z) < SPAWN_CLEAR + f.radius) {
+            clear = false;
+            break;
+          }
+        }
+        if (!clear) break;
+      }
+      if (!clear) continue;
+
+      for (const o of this.obstacles) {
+        for (const f of footprints) {
+          const dx = f.x - o.x;
+          const dz = f.z - o.z;
+          const minDist = f.radius + o.radius + 2.0;
+          if (dx * dx + dz * dz < minDist * minDist) {
+            clear = false;
+            break;
+          }
+        }
+        if (!clear) break;
+      }
+      if (!clear) continue;
+
+      this.state.barrels.forEach((b) => {
+        if (!clear || !b.alive) return;
+        for (const f of footprints) {
+          const dx = f.x - b.x;
+          const dz = f.z - b.z;
+          const minDist = f.radius + 0.45 + 1.0;
+          if (dx * dx + dz * dz < minDist * minDist) {
+            clear = false;
+            break;
+          }
+        }
+      });
+      if (!clear) continue;
+
+      this.state.players.forEach((p) => {
+        if (!clear || !p.alive) return;
+        for (const f of footprints) {
+          const dx = f.x - p.x;
+          const dz = f.z - p.z;
+          const minDist = f.radius + PLAYER_RADIUS + 2.0;
+          if (dx * dx + dz * dz < minDist * minDist) {
+            clear = false;
+            break;
+          }
+        }
+      });
+      if (!clear) continue;
+
+      this.cover.spawnChest(x, z, rotation);
+      break;
+    }
   }
 
   /** Free the shared Rapier physics world when the room is torn down. */

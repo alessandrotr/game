@@ -1080,3 +1080,35 @@ export const PROPS: PropDescriptor[] = [
   debris,
   tireStack,
 ];
+
+const CHEST_WOOD = '#5c4033'; // Dark brown wood
+const CHEST_METAL = '#3a3d40'; // Iron bands/locks
+const CHEST_GOLD = '#d4af37'; // Golden latch
+
+/** Treasure Chest: A medieval chest model optimized for performance. */
+const treasureChest = prop('arena.chest', 'Treasure Chest', [
+  // Base wood box (dimensions: 2x1, height 1.0, position center at y=0.5)
+  box([2, 1.0, 1], [0, 0.5, 0], CHEST_WOOD),
+
+  // Curved lid: horizontal cylinder along X (length 2, diameter 1 -> topRadius=0.5, bottomRadius=0.5, rotated on Z)
+  cyl(0.5, 0.5, 2.0, 12, [0, 1.0, 0], CHEST_WOOD, { rotation: [0, 0, Math.PI / 2] }),
+
+  // Iron bands wrapping the base box (left, middle, right)
+  box([0.1, 1.04, 1.04], [-0.9, 0.5, 0], CHEST_METAL, ns),
+  box([0.1, 1.04, 1.04], [0, 0.5, 0], CHEST_METAL, ns),
+  box([0.1, 1.04, 1.04], [0.9, 0.5, 0], CHEST_METAL, ns),
+
+  // Iron bands wrapping the curved lid (left, middle, right)
+  cyl(0.52, 0.52, 0.12, 12, [-0.9, 1.0, 0], CHEST_METAL, { rotation: [0, 0, Math.PI / 2], castShadow: false }),
+  cyl(0.52, 0.52, 0.12, 12, [0, 1.0, 0], CHEST_METAL, { rotation: [0, 0, Math.PI / 2], castShadow: false }),
+  cyl(0.52, 0.52, 0.12, 12, [0.9, 1.0, 0], CHEST_METAL, { rotation: [0, 0, Math.PI / 2], castShadow: false }),
+
+  // Lock clasp plate on front face (z = 0.52)
+  box([0.2, 0.3, 0.06], [0, 0.7, 0.52], CHEST_METAL, ns),
+  // Gold latch hanging from lid down to base
+  box([0.08, 0.2, 0.04], [0, 0.85, 0.54], CHEST_GOLD, ns),
+  // Keyhole detail
+  box([0.04, 0.08, 0.03], [0, 0.65, 0.55], '#000000', ns),
+]);
+
+PROPS.push(treasureChest);

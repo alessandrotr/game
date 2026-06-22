@@ -429,3 +429,54 @@ export const LightningSparkEffect = (p: BurstShaderProps) => (
   />
 );
 
+// --- Chest Spawn: golden expanding ground rune + vertical sparkles column ----
+
+const chestSpawnGroundFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;
+    float ang = atan(p.y, p.x);
+    
+    float r1 = smoothstep(0.06, 0.0, abs(r - 0.6 * uProgress));
+    float r2 = smoothstep(0.04, 0.0, abs(r - 0.95 * uProgress));
+    float glyph = pow(max(0.0, sin(ang * 8.0 + uTime * 2.0)), 6.0) * smoothstep(0.95 * uProgress, 0.0, r);
+    
+    float v = r1 + r2 + glyph * 0.5;
+    vec3 col = mix(vec3(1.0, 0.75, 0.1), vec3(1.0, 0.95, 0.6), r2);
+    float fade = 1.0 - uProgress;
+    gl_FragColor = vec4(col * v * 2.0, v * fade);
+  }
+`;
+
+const chestSpawnColFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 uv = vUv;
+    float rise = smoothstep(0.0, 0.15, uProgress) * (1.0 - smoothstep(0.6, 1.0, uProgress));
+    float beam = smoothstep(0.3, 0.0, abs(uv.x - 0.5)) * smoothstep(1.0, 0.0, uv.y);
+    float sparks = smoothstep(0.65, 0.95, noise(uv * vec2(8.0, 5.0) + vec2(uTime * 1.5, -uTime * 2.0)));
+    sparks *= smoothstep(0.4, 0.0, abs(uv.x - 0.5));
+    float flare = smoothstep(0.2, 0.0, distance(uv, vec2(0.5, 0.1))) * rise * 1.5;
+    
+    float v = (beam * 0.4 + sparks * 1.2) * rise + flare;
+    vec3 gold = vec3(1.0, 0.84, 0.0);
+    vec3 whiteGold = vec3(1.0, 0.95, 0.7);
+    vec3 col = mix(gold, whiteGold, uv.y * 0.5 + flare);
+    gl_FragColor = vec4(col * v * 2.5, v * rise);
+  }
+`;
+
+export const ChestSpawnEffect = (p: BurstShaderProps) => (
+  <group>
+    <GroundBurst {...p} size={5} frag={chestSpawnGroundFrag} />
+    <BillboardBurst {...p} width={3.0} height={3.5} frag={chestSpawnColFrag} y={1.5} />
+  </group>
+);
+
+
