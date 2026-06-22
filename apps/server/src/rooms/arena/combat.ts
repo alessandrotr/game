@@ -110,6 +110,11 @@ export class CombatSystem {
     this.barrels.triggerInRadius(x, z, radius, fromId);
   }
 
+  /** Damage every cover structure within `radius` of (x,z). */
+  damageStructuresInRadius(x: number, z: number, radius: number, amount: number): void {
+    this.cover.damageInRadius(x, z, radius, amount);
+  }
+
   /** Shove (and chip) every destructible drum/tire within `radius` of (x,z). */
   pushDestructiblesInRadius(
     x: number,

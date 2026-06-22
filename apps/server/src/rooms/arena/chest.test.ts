@@ -3,16 +3,19 @@ import { Player, CoverStructure, Pickable } from '../schema';
 import { CoverSystem } from './cover';
 import { PickableSystem } from './pickables';
 import { CombatSystem } from './combat';
+import { GroundZoneSystem } from './groundZones';
 import type { ArenaContext } from './context';
 
 const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {
   const players = new Map<string, Player>();
   const pickables = new Map<string, Pickable>();
   const structures = new Map<string, CoverStructure>();
+  const groundZones = new Map<string, any>();
   const state = {
     players,
     pickables,
     structures,
+    groundZones,
     zombieMode: false,
   } as any;
 
@@ -98,5 +101,55 @@ describe('Treasure Chest Spawning & Gameplay', () => {
     expect(pack?.x).toBe(10);
     expect(pack?.z).toBe(20);
     expect(pack?.scale).toBe(4);
+  });
+
+  it('damages cover structures, barrels, and destructibles when a singularity trap explodes', () => {
+    const ctx = makeMockContext();
+    const combat = new CombatSystem(ctx, { outcomeFor: () => 'draw' } as any);
+    const mockPhysics = {
+      addStaticBox: vi.fn(() => ({}) as any),
+      addStaticCylinder: vi.fn(() => ({}) as any),
+      removeCollider: vi.fn(),
+    } as any;
+
+    const obstacles: any[] = [];
+    const cover = new CoverSystem(ctx, obstacles, combat, mockPhysics);
+    combat.attachCover(cover);
+
+    const mockDestructibles = {
+      pushInRadius: vi.fn(),
+    } as any;
+    const mockBarrels = {
+      triggerInRadius: vi.fn(),
+    } as any;
+    combat.attachDestructibles(mockDestructibles);
+    combat.attachBarrels(mockBarrels);
+
+    const groundZones = new GroundZoneSystem(ctx, combat);
+
+    // Spawn a chest structure (HP = 80) at (0, 0)
+    const chestId = cover.spawnChest(0, 0, 0);
+    const chest = ctx.state.structures.get(chestId);
+    expect(chest).toBeDefined();
+
+    // Spawn a singularity ground zone at (0, 0) with radius 5, ending in 1000ms
+    groundZones.spawn('singularity', 0, 0, 5, 0, 1000, 1000, '');
+
+    // Verify it is in state
+    expect(ctx.state.groundZones.size).toBe(1);
+
+    // Fast-forward context time to trigger expiration/detonation in groundZones.update()
+    vi.spyOn(ctx, 'now').mockReturnValue(2500);
+    groundZones.update();
+
+    // Verify singularity expired (removed from state)
+    expect(ctx.state.groundZones.size).toBe(0);
+
+    // Verify chest took 80 damage (bringing it below 0 HP) and got deleted/destroyed
+    expect(ctx.state.structures.get(chestId)).toBeUndefined();
+
+    // Verify barrels and destructibles systems were triggered in radius
+    expect(mockDestructibles.pushInRadius).toHaveBeenCalledWith(0, 0, 5, '', 200);
+    expect(mockBarrels.triggerInRadius).toHaveBeenCalledWith(0, 0, 5, '');
   });
 });

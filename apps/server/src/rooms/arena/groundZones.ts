@@ -95,6 +95,10 @@ export class GroundZoneSystem {
               this.combat.dealDamage(player, SINGULARITY_DAMAGE, '');
             }
           });
+          // Damage cover structures, barrels, and destructibles in range
+          this.combat.damageStructuresInRadius(zone.obj.x, zone.obj.z, radius, SINGULARITY_DAMAGE);
+          this.combat.triggerBarrelsInRadius(zone.obj.x, zone.obj.z, radius, '');
+          this.combat.pushDestructiblesInRadius(zone.obj.x, zone.obj.z, radius, '', SINGULARITY_DAMAGE);
           // Broadcast detonation VFX to clients
           this.ctx.broadcast(ServerMessage.Detonation, {
             kind: 'grenade',
