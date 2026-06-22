@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Player, Pickable } from '../schema';
+import { Player, type Pickable } from '../schema';
 import { ZombieDirector } from './zombies';
 import { PickableSystem } from './pickables';
 import { CombatSystem } from './combat';

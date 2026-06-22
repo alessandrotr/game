@@ -214,6 +214,7 @@ export function WaveAnnouncement() {
   const zombieMode = useGameStore((s) => s.zombieMode);
   const level = useGameStore((s) => s.zombieLevel);
   const unlockedSections = useGameStore((s) => s.unlockedSections);
+  const minibossAlert = useGameStore((s) => s.minibossAlert);
 
   // Fire the flash on each wave increment (not on the initial observe, so joining
   // mid-run doesn't re-announce a wave already in progress).
@@ -248,6 +249,18 @@ export function WaveAnnouncement() {
     const id = setTimeout(() => setDoorMsg(null), 3000);
     return () => clearTimeout(id);
   }, [unlockedSections]);
+
+  // Mini-boss drop alert
+  const [hudAlert, setHudAlert] = useState<string | null>(null);
+  const alertNonce = useRef(0);
+
+  useEffect(() => {
+    if (!minibossAlert) return;
+    alertNonce.current = minibossAlert.nonce;
+    setHudAlert(minibossAlert.text);
+    const id = setTimeout(() => setHudAlert(null), 4000);
+    return () => clearTimeout(id);
+  }, [minibossAlert]);
 
   if (!zombieMode) return null;
 
@@ -346,6 +359,31 @@ export function WaveAnnouncement() {
             >
               <Zap size={16} aria-hidden="true" />
               {doorMsg}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Mini-boss drop announcement */}
+      {hudAlert && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-[47%] z-toast -translate-x-1/2"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            key={alertNonce.current}
+            className="flex flex-col items-center gap-1.5"
+            style={{ animation: 'wave-flash 4s ease-out forwards' }}
+          >
+            <div
+              className="flex items-center gap-2 rounded-full border border-green-500/60 bg-black/60 px-5 py-2 text-sm font-bold uppercase tracking-[0.2em] text-green-300 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+              style={{
+                textShadow: '0 0 14px rgba(34,197,94,0.7)',
+                animation: 'threat-pulse 0.5s ease-in-out 4',
+              }}
+            >
+              <Heart size={16} className="text-green-400 fill-green-400" aria-hidden="true" />
+              {hudAlert}
             </div>
           </div>
         </div>

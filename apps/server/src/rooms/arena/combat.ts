@@ -11,6 +11,7 @@ import {
   ZOMBIE_FAT_SKIN_ID,
   ZOMBIE_MINIBOSS_SKIN_ID,
   isZombieSkin,
+  BUFF_TRAP_DAMAGE_MULT,
   ServerMessage,
   damageTakenMultiplier,
   levelForXp,
@@ -241,11 +242,14 @@ export class CombatSystem {
     // A `buff` status on the attacker amps outgoing ability damage — but not
     // inert perk damage (reflect / aura / burn), which never scales.
     const buffMult =
-      !isInternal && attacker && attacker.statuses.some((s) => s.kind === 'buff') ? 1.5 : 1.0;
+      !isInternal && attacker && attacker.statuses.some((s) => s.kind === 'buff') ? BUFF_TRAP_DAMAGE_MULT : 1.0;
     const perkScaled =
       total * abilityDamageMult * aoeDamageMult * critMult * targetPerks.damageTakenMult * lowHpDamageMult * buffMult;
     // Vulnerability (damage_amp) scales incoming damage; shields absorb first.
     let incoming = perkScaled * damageTakenMultiplier(target);
+    if (ability === 'molotov_fire' && !fromId && !isZombieSkin(target.skinId)) {
+      incoming *= 0.4; // 60% less damage from the fire trap
+    }
     if (target.shield > 0) {
       const absorbed = Math.min(target.shield, incoming);
       target.shield -= absorbed;

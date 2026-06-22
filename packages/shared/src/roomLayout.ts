@@ -247,7 +247,7 @@ function getDoorDef(slot: number): { x: number; z: number; isVertical: boolean }
 }
 
 /** Door gap width. */
-const DOOR_WIDTH = 16;
+const DOOR_WIDTH = 22;
 
 /**
  * Generate the room layout for a zombie match from the match seed. Deterministic:

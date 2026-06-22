@@ -12,6 +12,7 @@ import {
   BUFF_TRAP_THRESHOLD,
   BUFF_TRAP_COOLDOWN_MS,
   BUFF_DURATION_MS,
+  BUFF_TRAP_EFFECT_RADIUS,
   type TrapDef,
 } from '@arena/shared';
 import { Trap } from '../schema.js';
@@ -132,7 +133,7 @@ export class TrapSystem {
       this.groundZones.spawn('singularity', x, z, radius, 0, 1000, SINGULARITY_DURATION_MS, '');
     } else if (kind === 'buff') {
       // Buff core: radiates energy for 10 seconds.
-      this.groundZones.spawn('buff_core', x, z, radius, 0, 1000, BUFF_DURATION_MS, '');
+      this.groundZones.spawn('buff_core', x, z, BUFF_TRAP_EFFECT_RADIUS, 0, 1000, BUFF_DURATION_MS, '');
     }
     t.deaths.length = 0;
     t.obj.chargeProgress = 0;

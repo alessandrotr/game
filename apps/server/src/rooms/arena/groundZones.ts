@@ -24,6 +24,8 @@ interface Zone {
   tickDamage: number;
   /** Session id credited with the damage (excluded from the blast, like all AoE). */
   fromId: string;
+  spawnTime: number;
+  initialRadius: number;
 }
 
 /**
@@ -69,6 +71,8 @@ export class GroundZoneSystem {
       tickMs,
       tickDamage,
       fromId,
+      spawnTime: now,
+      initialRadius: radius,
     });
   }
 
@@ -105,18 +109,26 @@ export class GroundZoneSystem {
         continue;
       }
 
+      // Scale fire trap effect radius dynamically from 6 to 12 over 3 seconds (2 units per second)
+      if (zone.obj.kind === 'molotov_fire' && zone.fromId === '') {
+        const elapsedMs = now - zone.spawnTime;
+        const growth = Math.min(6, (elapsedMs / 1000) * 2);
+        zone.obj.radius = zone.initialRadius + growth;
+      }
+
       // Per-tick gravitational pull / energy buffs
       if (zone.obj.kind === 'singularity') {
         const radius = zone.obj.radius;
+        const pullRadius = radius * 2;
         this.ctx.state.players.forEach((player) => {
           if (!player.alive) return;
           const dx = zone.obj.x - player.x;
           const dz = zone.obj.z - player.z;
           const dist = Math.hypot(dx, dz);
           const r = player.skinId === 'skin.zombie.miniboss' ? 0.8 : PLAYER_RADIUS;
-          if (dist > 0.01 && dist <= radius + r) {
+          if (dist > 0.01 && dist <= pullRadius + r) {
             // Dynamic gravity acceleration pull: stronger closer to center
-            const pullSpeed = 1.5 + (1.0 - Math.min(1, dist / radius)) * 4.5;
+            const pullSpeed = 1.5 + (1.0 - Math.min(1, dist / pullRadius)) * 4.5;
             const step = Math.min(pullSpeed * (1 / TICK_RATE), dist);
             player.x += (dx / dist) * step;
             player.z += (dz / dist) * step;
@@ -143,7 +155,7 @@ export class GroundZoneSystem {
             zone.obj.z,
             zone.obj.radius,
             zone.fromId,
-            (enemy) => this.combat.dealDamage(enemy, zone.tickDamage, zone.fromId),
+            (enemy) => this.combat.dealDamage(enemy, zone.tickDamage, zone.fromId, zone.obj.kind),
           );
         }
         zone.nextTickAt += zone.tickMs;

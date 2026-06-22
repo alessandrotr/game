@@ -438,7 +438,11 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
     spawnFloatingText(target.x, COMBAT_TEXT_Y, target.z, `-${Math.round(msg.amount)}`, DAMAGE_COLOR);
   }
   // Local flinch is predicted; remote players' hit pose comes from server animState.
-  if (!msg.lethal && (msg.to === sessionId || isMiniboss)) pushAnimationEvent(msg.to, 'hit');
+  if (!msg.lethal && (msg.to === sessionId || isMiniboss)) {
+    pushAnimationEvent(msg.to, 'hit');
+  } else if (msg.lethal && isMiniboss) {
+    useGameStore.getState().triggerMinibossAlert('Mini-Boss Defeated! Heal Pack Dropped!');
+  }
 }
 
 /** Show a healing number above the healed player. */

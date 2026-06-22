@@ -98,7 +98,7 @@ export const SINGULARITY_TRAP_COOLDOWN_MS = 3 * 60 * 1000;
 /** Duration of the singularity vortex (5 seconds). */
 export const SINGULARITY_DURATION_MS = 5000;
 /** Damage dealt by the singularity explosion at the end. */
-export const SINGULARITY_DAMAGE = 80;
+export const SINGULARITY_DAMAGE = 200;
 
 /** Buff Core trap: grants a damage and mana overcharge zone when this many zombies die. */
 export const BUFF_TRAP_THRESHOLD = 8;
@@ -108,6 +108,10 @@ export const BUFF_TRAP_COOLDOWN_MS = 3 * 60 * 1000;
 export const BUFF_DURATION_MS = 10000;
 /** Duration of the buff status applied to players (3 seconds, refreshed while inside). */
 export const BUFF_BUFF_DURATION_MS = 3000;
+/** Ability damage multiplier granted by the buff trap (+150% extra damage). */
+export const BUFF_TRAP_DAMAGE_MULT = 2.5;
+/** Active zone effect radius for the buff trap. */
+export const BUFF_TRAP_EFFECT_RADIUS = 9;
 
 
 /** Player movement speed in world units per second. */

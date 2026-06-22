@@ -54,13 +54,13 @@ function HealPack() {
   return (
     <group>
       {/* Horizontal bar of the cross */}
-      <mesh castShadow position={[0, 0.25, 0]}>
-        <boxGeometry args={[0.5, 0.16, 0.16]} />
+      <mesh castShadow position={[0, 0.5, 0]}>
+        <boxGeometry args={[1.0, 0.32, 0.32]} />
         <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} roughness={0.4} />
       </mesh>
       {/* Vertical bar of the cross */}
-      <mesh castShadow position={[0, 0.25, 0]}>
-        <boxGeometry args={[0.16, 0.5, 0.16]} />
+      <mesh castShadow position={[0, 0.5, 0]}>
+        <boxGeometry args={[0.32, 1.0, 0.32]} />
         <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} roughness={0.4} />
       </mesh>
     </group>

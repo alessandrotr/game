@@ -173,7 +173,7 @@ export class CoverSystem {
     cs.hp = 9999;
     cs.maxHp = 9999;
     cs.destroyed = false;
-    cs.lengthScale = 1;
+    cs.lengthScale = door.width / 2;
     this.ctx.state.structures.set(id, cs);
     const circles = structureFootprint(cs.assetId, cs.x, cs.z, cs.rotation, cs.radius, cs.height, cs.lengthScale);
     this.circles.set(id, circles);

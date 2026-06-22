@@ -56,7 +56,8 @@ export class PickableSystem {
     obj.z = z;
     obj.scale = scale;
     this.ctx.state.pickables.set(obj.id, obj);
-    this.groundTtl.set(obj.id, this.ctx.now() + PICKABLE_GROUND_TTL_MS);
+    const ttl = kind === 'heal_pack' ? 120000 : PICKABLE_GROUND_TTL_MS;
+    this.groundTtl.set(obj.id, this.ctx.now() + ttl);
   }
 
   /** Spacebar action: throw the carried object, or (empty-handed) grab the nearest

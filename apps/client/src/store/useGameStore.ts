@@ -97,6 +97,9 @@ interface GameStore {
   readonly groundZones: Map<string, GroundZoneView>;
   readonly traps: Map<string, TrapView>;
 
+  minibossAlert: { text: string; nonce: number } | null;
+  triggerMinibossAlert: (text: string) => void;
+
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
   setRoom: (room: RoomType | null) => void;
@@ -187,6 +190,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   traps: new Map<string, TrapView>(),
   /** Signature of the last-applied alive-structure set (internal; gates rebuilds). */
   _structureSig: '',
+
+  minibossAlert: null,
+  triggerMinibossAlert: (text) => set((s) => ({
+    minibossAlert: { text, nonce: (s.minibossAlert?.nonce ?? 0) + 1 },
+  })),
 
   setStatus: (status, error = null) => set({ status, error }),
   setSessionId: (sessionId) => set({ sessionId }),
@@ -334,6 +342,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       trapIds: [],
       structureObstacles: [],
       _structureSig: '',
+      minibossAlert: null,
     });
   },
 }));
