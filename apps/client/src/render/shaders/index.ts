@@ -17,10 +17,12 @@ import {
   FrostNovaEffect,
   GroundSlamEffect,
   HealEffect,
+  HealBeamEffect,
   SmashEffect,
   BloodSplashEffect,
   LightningSparkEffect,
   ChestSpawnEffect,
+  SingularityBlastEffect,
 } from './bursts';
 import { CarExplosionEffect, BarrelExplosionEffect } from './coverEffects';
 import type { BurstShaderProps } from './common';
@@ -55,6 +57,7 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.smash': SmashEffect,
   'vfx.cast': CastRuneEffect,
   'vfx.heal': HealEffect,
+  'vfx.heal_beam': HealBeamEffect,
   'vfx.condemn': CondemnEffect,
   'vfx.dash': DashEffect,
   'vfx.car_explosion': CarExplosionEffect,
@@ -62,4 +65,5 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.blood_splash': BloodSplashEffect,
   'vfx.lightning_spark': LightningSparkEffect,
   'vfx.chest_spawn': ChestSpawnEffect,
+  'vfx.singularity_blast': SingularityBlastEffect,
 };

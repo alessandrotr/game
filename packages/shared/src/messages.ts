@@ -138,6 +138,9 @@ export enum ServerMessage {
   /** A thrown pickable (molotov / grenade) burst on impact (drives the blast VFX,
    *  sized to its radius; the server has already applied the area damage). */
   Detonation = 'detonation',
+  /** A heal trap fired: drives the heal-beam VFX (a curtain of light rising to
+   *  the sky around the trap radius). The server has already healed the players. */
+  HealTrap = 'heal_trap',
   /** Co-op zombie run ended (every player fell). Carries the wave reached for the
    *  defeat screen; the client returns to town. */
   ZombieGameOver = 'zombie_game_over',
@@ -349,6 +352,9 @@ export interface ServerMessagePayloads {
   /** A thrown pickable burst: its kind, world point, and blast radius (the VFX is
    *  sized to the radius). The server has already applied the area damage. */
   [ServerMessage.Detonation]: { kind: string; x: number; z: number; radius: number };
+  /** A heal trap fired at this world point — drives the heal-beam VFX, sized to
+   *  the trap `radius`. The server has already applied the healing. */
+  [ServerMessage.HealTrap]: { x: number; z: number; radius: number };
   /** Co-op zombie run ended — the wave the squad reached (for the defeat screen). */
   [ServerMessage.ZombieGameOver]: { level: number };
   /** A gun was fired: the shooter, which gun, and the muzzle origin + aim — drives

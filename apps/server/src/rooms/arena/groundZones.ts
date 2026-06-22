@@ -95,9 +95,10 @@ export class GroundZoneSystem {
               this.combat.dealDamage(player, SINGULARITY_DAMAGE, '');
             }
           });
-          // Broadcast detonation VFX to clients
+          // Broadcast the sci-fi singularity blast VFX (its own kind so the
+          // client renders the purple/cyan implosion blast, not the fireball).
           this.ctx.broadcast(ServerMessage.Detonation, {
-            kind: 'grenade',
+            kind: 'singularity',
             x: zone.obj.x,
             z: zone.obj.z,
             radius: zone.obj.radius,

@@ -72,6 +72,9 @@ export const HEAL_TRAP_THRESHOLD = 6;
 export const HEAL_TRAP_COOLDOWN_MS = 2 * 60 * 1000;
 /** Scale of the dropped heal pickup (matches the mini-boss heal drop). */
 export const HEAL_TRAP_DROP_SCALE = 4;
+/** HP restored to every living player when a heal trap fires (instant, area-wide
+ *  — no pickup to grab; the beam IS the heal). */
+export const HEAL_TRAP_HEAL = 100;
 
 /** Death trap: releases a molotov-style fire field when this many zombies die
  *  inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */

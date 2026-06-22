@@ -570,10 +570,60 @@ const chestSpawn: VfxDescriptor = {
   },
 };
 
+/** Heal-trap beacon — a curtain of light rising to the sky around the trap
+ *  radius. Rendered by a custom shader (BURST_SHADERS['vfx.heal_beam']); the
+ *  placeholder part is a fallback only. */
+const healBeam: VfxDescriptor = {
+  id: 'vfx.heal_beam',
+  displayName: 'Heal Beacon',
+  behavior: 'burst',
+  durationMs: 1500,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'beam',
+        shape: 'cylinder',
+        args: [1, 1, 2, 24],
+        position: [0, 1, 0],
+        color: '#7cffc4',
+        emissive: '#39ffb0',
+        emissiveIntensity: 2.4,
+        opacity: 0.5,
+      },
+    ],
+  },
+};
+
+/** Singularity trap detonation — the black hole's final purple/cyan blast.
+ *  Rendered by a custom shader (BURST_SHADERS['vfx.singularity_blast']). */
+const singularityBlast: VfxDescriptor = {
+  id: 'vfx.singularity_blast',
+  displayName: 'Singularity Blast',
+  behavior: 'burst',
+  durationMs: 700,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'flash',
+        shape: 'sphere',
+        args: [0.6, 14, 14],
+        color: '#d6a0ff',
+        emissive: '#a855f7',
+        emissiveIntensity: 3,
+        opacity: 0.8,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
   heal,
+  healBeam,
+  singularityBlast,
   cast,
   portal,
   frost,

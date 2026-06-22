@@ -3,7 +3,7 @@ import {
   DEATH_TRAP_FIRE,
   DEATH_TRAP_THRESHOLD,
   HEAL_TRAP_COOLDOWN_MS,
-  HEAL_TRAP_DROP_SCALE,
+  HEAL_TRAP_HEAL,
   HEAL_TRAP_THRESHOLD,
   TRAP_DEATH_WINDOW_MS,
   SINGULARITY_TRAP_THRESHOLD,
@@ -13,11 +13,13 @@ import {
   BUFF_TRAP_COOLDOWN_MS,
   BUFF_DURATION_MS,
   BUFF_TRAP_EFFECT_RADIUS,
+  ServerMessage,
+  isZombieSkin,
   type TrapDef,
 } from '@arena/shared';
 import { Trap } from '../schema.js';
 import type { ArenaContext } from './context.js';
-import type { PickableSystem } from './pickables.js';
+import type { CombatSystem } from './combat.js';
 import type { GroundZoneSystem } from './groundZones.js';
 
 /** Per-kind tuning resolved once when a trap is created. */
@@ -68,7 +70,7 @@ export class TrapSystem {
 
   constructor(
     private readonly ctx: ArenaContext,
-    private readonly pickables: PickableSystem,
+    private readonly combat: CombatSystem,
     private readonly groundZones: GroundZoneSystem,
   ) {}
 
@@ -120,9 +122,15 @@ export class TrapSystem {
   private activate(t: TrapRuntime, now: number): void {
     const { x, z, radius, kind } = t.obj;
     if (kind === 'heal') {
-      // Same drop as the mini-boss: a team heal pickup (heals 100 HP to the
-      // stepper and every living teammate when grabbed).
-      this.pickables.spawnGround('heal_pack', x, z, HEAL_TRAP_DROP_SCALE);
+      // Heal beacon: instantly restores every living player and fires a beam of
+      // light rising to the sky around the radius (the VFX IS the heal — no
+      // pickup to grab). The beam is client-side; the heal is applied here.
+      this.ctx.state.players.forEach((player) => {
+        if (player.alive && !isZombieSkin(player.skinId)) {
+          this.combat.healTarget(player, HEAL_TRAP_HEAL);
+        }
+      });
+      this.ctx.broadcast(ServerMessage.HealTrap, { x, z, radius });
     } else if (kind === 'death') {
       // Molotov-style burning field sized to the whole trap. Ownerless (fromId
       // ''), so like a neutral explosion it burns zombies and players alike.
