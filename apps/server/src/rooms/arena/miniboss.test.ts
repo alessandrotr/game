@@ -132,4 +132,88 @@ describe('Mini-Boss & Heal Pack Systems', () => {
     expect(p2.hp).toBe(150); // capped at maxHp (150)
     expect(enemy.hp).toBe(10); // unaffected (enemy)
   });
+
+  it('automatically picks up non-heal-pack pickables when a player walks within pickup radius', () => {
+    const ctx = makeMockContext();
+    const combat = new CombatSystem(ctx, { outcomeFor: () => 'draw' } as any);
+    const pickables = new PickableSystem(ctx, combat, {} as any, {} as any);
+
+    const p1 = new Player();
+    p1.sessionId = 'p1';
+    p1.team = 'blue';
+    p1.alive = true;
+    p1.skinId = 'char.warrior';
+    p1.holding = '';
+
+    ctx.state.players.set('p1', p1);
+
+    pickables.spawnGround('molotov', 0, 0);
+
+    expect(ctx.state.pickables.size).toBe(1);
+
+    p1.x = 1.0;
+    p1.z = 1.0;
+
+    pickables.update();
+
+    expect(ctx.state.pickables.size).toBe(0);
+    expect(p1.holding).toBe('molotov');
+  });
+
+  it('does not pick up pickables if player is already holding something', () => {
+    const ctx = makeMockContext();
+    const combat = new CombatSystem(ctx, { outcomeFor: () => 'draw' } as any);
+    const pickables = new PickableSystem(ctx, combat, {} as any, {} as any);
+
+    const p1 = new Player();
+    p1.sessionId = 'p1';
+    p1.team = 'blue';
+    p1.alive = true;
+    p1.skinId = 'char.warrior';
+    p1.holding = 'grenade';
+
+    ctx.state.players.set('p1', p1);
+
+    pickables.spawnGround('molotov', 0, 0);
+
+    p1.x = 1.0;
+    p1.z = 1.0;
+
+    pickables.update();
+
+    expect(ctx.state.pickables.size).toBe(1);
+    expect(p1.holding).toBe('grenade');
+  });
+
+  it('scales the pickup radius based on the pickable scale (e.g. scale=2 allows pickup from further away)', () => {
+    const ctx = makeMockContext();
+    const combat = new CombatSystem(ctx, { outcomeFor: () => 'draw' } as any);
+    const pickables = new PickableSystem(ctx, combat, {} as any, {} as any);
+
+    const p1 = new Player();
+    p1.sessionId = 'p1';
+    p1.team = 'blue';
+    p1.alive = true;
+    p1.skinId = 'char.warrior';
+    p1.holding = '';
+
+    ctx.state.players.set('p1', p1);
+
+    // Spawn scaled molotov (scale=2) at 0, 0
+    pickables.spawnGround('molotov', 0, 0, 2);
+
+    // Verify it is in state
+    expect(ctx.state.pickables.size).toBe(1);
+
+    // Move player p1 to x=1.5, z=1.5 (distance = sqrt(4.5) ~ 2.12 units)
+    // This is greater than PICKABLE_PICKUP_RADIUS (1.8), but less than scaled radius (1.8 * sqrt(2) ~ 2.54)
+    p1.x = 1.5;
+    p1.z = 1.5;
+
+    pickables.update();
+
+    // Verify it is successfully picked up due to scaled pickup radius
+    expect(ctx.state.pickables.size).toBe(0);
+    expect(p1.holding).toBe('molotov');
+  });
 });

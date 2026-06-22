@@ -43,7 +43,7 @@ export class PickableSystem {
   spawnFromDrum(x: number, z: number): void {
     if (!this.ctx.state.zombieMode) return;
     if (Math.random() >= ZOMBIE_DRUM_MOLOTOV_CHANCE) return;
-    this.spawnGround('molotov', x, z);
+    this.spawnGround('molotov', x, z, 2);
   }
 
   /** Create a loose pickable on the ground (replicated + TTL-tracked). */
@@ -71,13 +71,15 @@ export class PickableSystem {
   private tryPickup(player: Player): boolean {
     if (player.holding) return false;
     let bestId: string | null = null;
-    let bestSq = PICKABLE_PICKUP_RADIUS * PICKABLE_PICKUP_RADIUS;
+    let bestSq = Infinity;
     this.ctx.state.pickables.forEach((p, id) => {
       if (p.kind === 'heal_pack') return;
       const dx = p.x - player.x;
       const dz = p.z - player.z;
       const d2 = dx * dx + dz * dz;
-      if (d2 <= bestSq) {
+      const scale = p.scale ?? 1;
+      const pickupR = PICKABLE_PICKUP_RADIUS * Math.sqrt(scale);
+      if (d2 <= pickupR * pickupR && d2 < bestSq) {
         bestSq = d2;
         bestId = id;
       }
@@ -162,6 +164,36 @@ export class PickableSystem {
             this.consumeHealPack(player, id);
           }
         });
+      }
+    });
+
+    // Step-on pickables (molotov, grenade, etc.):
+    this.ctx.state.players.forEach((player) => {
+      if (!player.alive || isZombieSkin(player.skinId) || player.holding) return;
+
+      let bestId: string | null = null;
+      let bestSq = Infinity;
+
+      this.ctx.state.pickables.forEach((p, id) => {
+        if (p.kind === 'heal_pack') return;
+        const dx = p.x - player.x;
+        const dz = p.z - player.z;
+        const d2 = dx * dx + dz * dz;
+        const scale = p.scale ?? 1;
+        const pickupR = PICKABLE_PICKUP_RADIUS * Math.sqrt(scale);
+        if (d2 <= pickupR * pickupR && d2 < bestSq) {
+          bestSq = d2;
+          bestId = id;
+        }
+      });
+
+      if (bestId) {
+        const picked = this.ctx.state.pickables.get(bestId);
+        if (picked) {
+          player.holding = picked.kind;
+          this.ctx.state.pickables.delete(bestId);
+          this.groundTtl.delete(bestId);
+        }
       }
     });
   }

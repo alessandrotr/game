@@ -7,7 +7,7 @@ import { PickableVisual } from './PickableVisual';
 /**
  * Loose pickable objects (molotov / grenade) resting on the ground, dropped by
  * destroyed oil drums. Each gently bobs and spins with a glowing ground ring so it
- * reads as "walk over and grab me" (spacebar). Positions are static once spawned,
+ * reads as "walk over and grab me" (instant/auto-pickup). Positions are static once spawned,
  * so the per-frame work is just the idle flourish.
  */
 function PickableEntity({ id }: { id: string }) {
