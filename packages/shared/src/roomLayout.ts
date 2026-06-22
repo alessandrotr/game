@@ -230,24 +230,7 @@ function transformPoint(
   }
 }
 
-function getDoorDef(slot: number): { x: number; z: number; isVertical: boolean } {
-  const H = ARENA_HALF_SIZE;
-  switch (slot) {
-    case 0: // North
-      return { x: 0, z: H, isVertical: false };
-    case 1: // East
-      return { x: H, z: 0, isVertical: true };
-    case 2: // South
-      return { x: 0, z: -H, isVertical: false };
-    case 3: // West
-      return { x: -H, z: 0, isVertical: true };
-    default:
-      return { x: 0, z: H, isVertical: false };
-  }
-}
 
-/** Door gap width. */
-const DOOR_WIDTH = 22;
 
 /**
  * Generate the room layout for a zombie match from the match seed. Deterministic:
@@ -274,13 +257,39 @@ export function generateRoomLayout(seed: number): RoomLayout {
       templateId: `${dir.toLowerCase()}.${tmpl.id}`,
     });
 
-    const doorPos = getDoorDef(slot);
+    const connBox = tmpl.relBoxes[0]!;
+    const doorWidth = connBox.maxV - connBox.minV;
+    const vCenter = (connBox.minV + connBox.maxV) / 2;
+
+    const H = ARENA_HALF_SIZE;
+    let doorX = 0;
+    let doorZ = 0;
+    let isVertical = false;
+
+    if (dir === 'N') {
+      doorX = vCenter;
+      doorZ = H;
+      isVertical = false;
+    } else if (dir === 'S') {
+      doorX = vCenter;
+      doorZ = -H;
+      isVertical = false;
+    } else if (dir === 'E') {
+      doorX = H;
+      doorZ = vCenter;
+      isVertical = true;
+    } else if (dir === 'W') {
+      doorX = -H;
+      doorZ = vCenter;
+      isVertical = true;
+    }
+
     doors.push({
       index: slot,
-      x: doorPos.x,
-      z: doorPos.z,
-      width: DOOR_WIDTH,
-      isVertical: doorPos.isVertical,
+      x: doorX,
+      z: doorZ,
+      width: doorWidth,
+      isVertical,
       unlockWave: DOOR_UNLOCK_WAVES[slot]!,
     });
   }

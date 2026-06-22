@@ -54,36 +54,40 @@ describe('Room Expansion — Cardinal Hub-and-Spoke Layout', () => {
   });
 
   it('clamps to main room when no sections unlocked (North direction)', () => {
-    // Trying to move north from z=24 to z=26 at x=0 (in door gap)
+    const door = layout.doors[0]!;
+    // Trying to move north from z=24 to z=26 at door.x (in door gap)
     // Should be blocked because section is locked
-    const res = clampToUnlockedArea(0, 26, layout, 0, 0.6, 0, 24);
+    const res = clampToUnlockedArea(door.x, 26, layout, 0, 0.6, door.x, 24);
     expect(res.z).toBeCloseTo(24.4); // z = 25 - radius (0.6)
-    expect(res.x).toBe(0);
+    expect(res.x).toBe(door.x);
   });
 
   it('allows passage through North door when North wing is unlocked', () => {
-    // Trying to move north from z=24 to z=26 at x=0 (in door gap)
+    const door = layout.doors[0]!;
+    // Trying to move north from z=24 to z=26 at door.x (in door gap)
     // Should be allowed because North wing (index 0) is unlocked
-    const res = clampToUnlockedArea(0, 26, layout, 1, 0.6, 0, 24);
+    const res = clampToUnlockedArea(door.x, 26, layout, 1, 0.6, door.x, 24);
     expect(res.z).toBe(26); // allowed through!
-    expect(res.x).toBe(0);
+    expect(res.x).toBe(door.x);
   });
 
   it('blocks passage outside North door gap even when North wing is unlocked', () => {
-    // Trying to move north from z=24 to z=26 at x=20 (outside door gap [-6, 6])
+    const door = layout.doors[0]!;
+    const outsideX = door.x + door.width / 2 + 2.0;
+    // Trying to move north from z=24 to z=26 at x outside door gap
     // Should be blocked
-    const res = clampToUnlockedArea(20, 26, layout, 1, 0.6, 20, 24);
+    const res = clampToUnlockedArea(outsideX, 26, layout, 1, 0.6, outsideX, 24);
     expect(res.z).toBeCloseTo(24.4); // blocked by the wall
-    expect(res.x).toBe(20);
+    expect(res.x).toBe(outsideX);
   });
 
   it('allows passage through East door when East wing is unlocked', () => {
-    // East door is at x=25, gap is z ∈ [-6, 6]
-    // Move from x=24 to x=26 at z=0
+    const door = layout.doors[1]!;
+    // Move from x=24 to x=26 at door.z
     // Allowed when unlockedSections >= 2 (North and East are unlocked)
-    const res = clampToUnlockedArea(26, 0, layout, 2, 0.6, 24, 0);
+    const res = clampToUnlockedArea(26, door.z, layout, 2, 0.6, 24, door.z);
     expect(res.x).toBe(26); // allowed through!
-    expect(res.z).toBe(0);
+    expect(res.z).toBe(door.z);
   });
 
   it('clamps to East wing box when outside East bounds', () => {
@@ -94,9 +98,10 @@ describe('Room Expansion — Cardinal Hub-and-Spoke Layout', () => {
   });
 
   it('no dead zone at East door boundary (transition x=24.4 to x=25)', () => {
-    const res = clampToUnlockedArea(24.8, 0, layout, 2, 0.6, 24, 0);
+    const door = layout.doors[1]!;
+    const res = clampToUnlockedArea(24.8, door.z, layout, 2, 0.6, 24, door.z);
     expect(res.x).toBeCloseTo(24.8);
-    expect(res.z).toBe(0);
+    expect(res.z).toBe(door.z);
   });
 });
 

@@ -85,7 +85,7 @@ const ARENA: EnvConfig = {
   background: '#312b22',
   fogColor: '#3a3328',
   fogNear: ARENA_HALF_SIZE * 0.7,
-  fogFar: ARENA_HALF_SIZE * 2.4,
+  fogFar: 90,
   ambient: 0.34,
   hemiSky: '#9a8a6a',
   hemiGround: '#352a1d',
