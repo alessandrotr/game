@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Billboard } from '@react-three/drei';
-import { AdditiveBlending, NormalBlending, type Blending } from 'three';
+import { AdditiveBlending, DoubleSide, NormalBlending, type Blending } from 'three';
 import { GLSL_NOISE, UV_VERTEX, useBurstClock, yawFromDirection, type BurstShaderProps } from './common';
 
 /**
@@ -427,6 +427,134 @@ export const LightningSparkEffect = (p: BurstShaderProps) => (
     frag={lightningSparkFrag}
     y={0.8}
   />
+);
+
+// --- Heal Trap: a fantasy-futuristic heal beacon — a curtain of vertical
+//     healing lasers rising toward the sky around the trap radius (the radius
+//     curtain), plus a ground glow whose centerpiece is a medical CROSS covering
+//     the floor cross icon. Built at radius 1 / height 2 so the VFX layer's
+//     `scale` (= the trap radius) sizes the wall onto the ring and the cross
+//     onto the floor icon. One open cylinder + one ground quad: cheap,
+//     procedural, no textures or lights. ------------------------------------------
+
+const healBeamWallFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    // vUv.x wraps the circumference; vUv.y rises 0 (ground) → 1 (sky).
+    // A ring of crisp vertical lasers around the perimeter (~10 beams).
+    float lasers = pow(abs(sin(vUv.x * 31.4159)), 14.0);
+    // Energy streaming upward inside the beams.
+    float flow = 0.45 + 0.55 * noise(vec2(vUv.x * 24.0, vUv.y * 4.0 - uTime * 5.0));
+    // Reach for the sky: bright at the base, thinning as it climbs.
+    float rise = pow(max(0.0, 1.0 - vUv.y), 0.7);
+    // A bright pulse sweeping up the column.
+    float sweep = smoothstep(0.12, 0.0, abs(fract(vUv.y - uTime * 0.6) - 0.5));
+    float v = lasers * ((0.5 + flow) * rise + sweep * 0.8);
+    // Snap in, hold, fade out over the back half.
+    float life = smoothstep(0.0, 0.12, uProgress) * (1.0 - smoothstep(0.55, 1.0, uProgress));
+    vec3 teal = vec3(0.1, 1.0, 0.65);
+    vec3 white = vec3(0.85, 1.0, 0.95);
+    vec3 col = mix(teal, white, clamp(flow * lasers + sweep, 0.0, 1.0));
+    gl_FragColor = vec4(col * v * 2.4, v * life);
+  }
+`;
+
+const healBeamGroundFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;             // 0 centre → 1 at the radius edge
+    vec2 n = p * 2.0;                       // ±1, |n| = 1 → trap radius
+    // A medical "+" sized to cover the floor cross icon: a union of two bars.
+    const float HALF_LEN = 0.47;            // arm reach (matches floor cross)
+    const float HALF_THK = 0.14;            // arm thickness
+    const float SOFT = 0.05;
+    float armX = (1.0 - smoothstep(HALF_THK - SOFT, HALF_THK, abs(n.y)))
+               * (1.0 - smoothstep(HALF_LEN - SOFT, HALF_LEN, abs(n.x)));
+    float armZ = (1.0 - smoothstep(HALF_THK - SOFT, HALF_THK, abs(n.x)))
+               * (1.0 - smoothstep(HALF_LEN - SOFT, HALF_LEN, abs(n.y)));
+    float cross = max(armX, armZ);
+    // Subtle living shimmer (no rotation — it reads as steady light on the cross).
+    float shimmer = 0.8 + 0.2 * noise(n * 8.0 + vec2(0.0, -uTime * 2.0));
+    // Bright rim ring sitting on the trap radius (grounds the curtain).
+    float ring = smoothstep(0.06, 0.0, abs(r - 0.94));
+    float v = cross * shimmer * 1.5 + ring * 1.1;
+    vec3 col = mix(vec3(0.1, 1.0, 0.65), vec3(0.85, 1.0, 0.95), clamp(cross + ring, 0.0, 1.0));
+    float life = smoothstep(0.0, 0.1, uProgress) * (1.0 - smoothstep(0.6, 1.0, uProgress));
+    gl_FragColor = vec4(col * v * 2.0, v * life);
+  }
+`;
+
+/** The vertical curtain of light: an open cylinder at radius 1, height 2 (so a
+ *  uniform `scale` of the trap radius lands the wall on the ring and lifts the
+ *  beam ~2× the radius toward the sky). */
+function HealBeamWall({ durationMs, onComplete }: BurstShaderProps) {
+  const { matRef, seed } = useBurstClock(durationMs, onComplete);
+  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  return (
+    <mesh position={[0, 1, 0]}>
+      <cylinderGeometry args={[1, 1, 2, 48, 1, true]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={UV_VERTEX}
+        fragmentShader={healBeamWallFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        side={DoubleSide}
+        blending={AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
+export const HealBeamEffect = (p: BurstShaderProps) => (
+  <group>
+    <HealBeamWall {...p} />
+    <GroundBurst {...p} size={2} frag={healBeamGroundFrag} />
+  </group>
+);
+
+// --- Singularity Blast: the black hole's final detonation — a hot implosion
+//     flash that snaps outward into a purple→magenta shockwave laced with cyan
+//     energy spikes. One ground quad: cheap, procedural, sci-fi. ----------------
+
+const singularityBlastFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;            // 0 centre → 1 at the blast radius
+    float ang = atan(p.y, p.x);
+    // Shockwave front expanding to the full radius.
+    float edge = uProgress;
+    float ring = smoothstep(0.12, 0.0, abs(r - edge));
+    // Radial energy spikes shooting out behind the front.
+    float spikes = pow(max(0.0, sin(ang * 14.0)), 6.0) * smoothstep(edge + 0.1, 0.0, r);
+    // A blinding implosion flash at the very start (the collapsed core releasing).
+    float flash = smoothstep(0.5, 0.0, r) * (1.0 - smoothstep(0.0, 0.3, uProgress));
+    float shimmer = 0.7 + 0.3 * noise(p * 14.0 + uTime * 5.0);
+    float v = (ring * 1.4 + spikes * 0.7) * shimmer + flash * 1.6;
+    vec3 purple = vec3(0.5, 0.1, 0.95);
+    vec3 magenta = vec3(0.95, 0.2, 0.85);
+    vec3 cyan = vec3(0.6, 0.97, 1.0);
+    vec3 col = mix(purple, magenta, ring);
+    col = mix(col, cyan, clamp(flash + spikes * 0.35, 0.0, 1.0));
+    gl_FragColor = vec4(col * v * 2.2, v * (1.0 - uProgress * 0.9));
+  }
+`;
+// Sized so the shockwave front (which reaches r=1.0 of the quad's half-width)
+// lands on the blast radius when spawned with scale = radius (half-width = size/2).
+export const SingularityBlastEffect = (p: BurstShaderProps) => (
+  <GroundBurst {...p} size={2} frag={singularityBlastFrag} />
 );
 
 // --- Chest Spawn: golden expanding ground rune + vertical sparkles column ----

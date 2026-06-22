@@ -99,9 +99,10 @@ export class GroundZoneSystem {
           this.combat.damageStructuresInRadius(zone.obj.x, zone.obj.z, radius, SINGULARITY_DAMAGE);
           this.combat.triggerBarrelsInRadius(zone.obj.x, zone.obj.z, radius, '');
           this.combat.pushDestructiblesInRadius(zone.obj.x, zone.obj.z, radius, '', SINGULARITY_DAMAGE);
-          // Broadcast detonation VFX to clients
+          // Broadcast the sci-fi singularity blast VFX (its own kind so the
+          // client renders the purple/cyan implosion blast, not the fireball).
           this.ctx.broadcast(ServerMessage.Detonation, {
-            kind: 'grenade',
+            kind: 'singularity',
             x: zone.obj.x,
             z: zone.obj.z,
             radius: zone.obj.radius,

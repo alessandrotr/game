@@ -643,7 +643,7 @@ export class ArenaRoom extends AvatarRoom {
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.groundZones = new GroundZoneSystem(ctx, this.combat);
     this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
-    this.traps = new TrapSystem(ctx, this.pickables, this.groundZones);
+    this.traps = new TrapSystem(ctx, this.combat, this.groundZones);
     // A destroyed oil drum may drop a molotov (zombie mode only — see spawnFromDrum).
     this.destructibles.onDrumDestroyed((x, z) => this.pickables.spawnFromDrum(x, z));
     this.cover.onChestDestroyed((x, z) => {

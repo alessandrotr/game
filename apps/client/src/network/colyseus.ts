@@ -638,10 +638,23 @@ function wireRoom(joined: Room): void {
     } else if (msg.kind === 'chain_explosion') {
       vfxId = 'vfx.barrel_explosion';
       scale = msg.radius / 4.0;
+    } else if (msg.kind === 'singularity') {
+      // The black-hole trap's sci-fi blast, sized to its radius (the shader's
+      // shockwave front reaches r=1 at the quad half-width = size/2 = 1).
+      vfxId = 'vfx.singularity_blast';
+      scale = msg.radius;
     }
     useEffectsStore
       .getState()
       .spawn(vfxId, [msg.x, 0, msg.z], [0, 0, 1], undefined, undefined, scale);
+  });
+  joined.onMessage(ServerMessage.HealTrap, (msg) => {
+    // A heal trap fired (server already healed everyone) — the heal-beam VFX is
+    // sized to the trap radius via the spawn scale so the light curtain lands on
+    // the ring.
+    useEffectsStore
+      .getState()
+      .spawn('vfx.heal_beam', [msg.x, 0, msg.z], [0, 0, 1], undefined, undefined, msg.radius);
   });
   joined.onMessage(ServerMessage.Leaderboard, (msg) =>
     useLeaderboardStore.getState().set(msg.category, msg.enabled, msg.entries),
