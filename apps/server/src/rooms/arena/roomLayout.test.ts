@@ -255,5 +255,18 @@ describe('Trap Generation and Distribution', () => {
     expect(allKinds.has('singularity')).toBe(true);
     expect(allKinds.has('buff')).toBe(true);
   });
+
+  it('guarantees at least one heal trap among the four sections for any seed', () => {
+    for (let seed = 0; seed < 500; seed++) {
+      const layout = generateRoomLayout(seed);
+      const kinds: string[] = [];
+      for (const section of layout.sections) {
+        const trap = trapForSection(seed, section);
+        expect(trap).not.toBeNull();
+        kinds.push(trap!.kind);
+      }
+      expect(kinds).toContain('heal');
+    }
+  });
 });
 

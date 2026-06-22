@@ -642,13 +642,31 @@ export function trapForSection(
   if (forcedKind) {
     kind = forcedKind;
   } else {
-    // Own RNG stream, offset off the section so it doesn't track cover layout.
-    const rng = mulberry32((seed >>> 0) + 0x7ace + section.index * 0x9e37);
-    const rVal = rng();
-    if (rVal < 0.25) kind = 'heal';
-    else if (rVal < 0.5) kind = 'death';
-    else if (rVal < 0.75) kind = 'singularity';
-    else kind = 'buff';
+    // 1. Generate the initial random trap kinds for all 4 sections using deterministic seeds
+    const kinds: TrapKind[] = [];
+    for (let i = 0; i < 4; i++) {
+      const rng = mulberry32((seed >>> 0) + 0x7ace + i * 0x9e37);
+      const rVal = rng();
+      let k: TrapKind;
+      if (rVal < 0.25) k = 'heal';
+      else if (rVal < 0.5) k = 'death';
+      else if (rVal < 0.75) k = 'singularity';
+      else k = 'buff';
+      kinds.push(k);
+    }
+
+    // 2. Check if there is at least one 'heal' trap
+    const hasHeal = kinds.includes('heal');
+
+    // 3. If there is no 'heal' trap, deterministically pick one section index to override with 'heal'
+    kind = kinds[section.index]!;
+    if (!hasHeal) {
+      const overrideRng = mulberry32((seed >>> 0) + 0xabcd);
+      const forceSlot = Math.floor(overrideRng() * 4); // slot 0, 1, 2, or 3
+      if (section.index === forceSlot) {
+        kind = 'heal';
+      }
+    }
   }
   return { sectionIndex: section.index, kind, x: c.x, z: c.z, radius: TRAP_RADIUS };
 }
