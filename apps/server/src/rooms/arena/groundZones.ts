@@ -121,7 +121,7 @@ export class GroundZoneSystem {
         const radius = zone.obj.radius;
         const pullRadius = radius * 2;
         this.ctx.state.players.forEach((player) => {
-          if (!player.alive) return;
+          if (!player.alive || !isZombieSkin(player.skinId)) return;
           const dx = zone.obj.x - player.x;
           const dz = zone.obj.z - player.z;
           const dist = Math.hypot(dx, dz);
@@ -134,6 +134,23 @@ export class GroundZoneSystem {
             player.z += (dz / dist) * step;
           }
         });
+
+        // Pull pickables on the ground (coordinate shifting)
+        this.ctx.state.pickables.forEach((pickable) => {
+          const dx = zone.obj.x - pickable.x;
+          const dz = zone.obj.z - pickable.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 0.01 && dist <= pullRadius) {
+            const pullSpeed = 1.5 + (1.0 - Math.min(1, dist / pullRadius)) * 4.5;
+            const step = Math.min(pullSpeed * (1 / TICK_RATE), dist);
+            pickable.x += (dx / dist) * step;
+            pickable.z += (dz / dist) * step;
+          }
+        });
+
+        // Pull dynamic physical props (destructibles and barrels) via combat delegates
+        this.combat.pullDestructibles(zone.obj.x, zone.obj.z, pullRadius);
+        this.combat.pullBarrels(zone.obj.x, zone.obj.z, pullRadius);
       } else if (zone.obj.kind === 'buff_core') {
         const radius = zone.obj.radius;
         this.ctx.state.players.forEach((player) => {

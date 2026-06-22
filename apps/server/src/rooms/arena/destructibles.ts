@@ -537,6 +537,26 @@ export class DestructibleSystem {
       body.rb.applyImpulse({ x: (-dx / d) * body.cfg.mass * 2, y: 0, z: (-dz / d) * body.cfg.mass * 2 }, true);
     });
   }
+
+  /** Pull every destructible toward the vortex center. */
+  pull(vortexX: number, vortexZ: number, pullRadius: number): void {
+    for (const body of this.bodies.values()) {
+      const t = body.rb.translation();
+      const dx = vortexX - t.x;
+      const dz = vortexZ - t.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.01 && dist <= pullRadius + body.radius) {
+        const pullSpeed = 1.5 + (1.0 - Math.min(1, dist / pullRadius)) * 4.5;
+        // Apply an inward impulse towards the center every tick
+        const force = pullSpeed * body.cfg.mass * 0.15; // tuning factor
+        body.rb.applyImpulse({
+          x: (dx / dist) * force,
+          y: 0,
+          z: (dz / dist) * force,
+        }, true);
+      }
+    }
+  }
 }
 
 /** Outward unit direction from (srcX,srcZ) to (x,z), blended with a spell's

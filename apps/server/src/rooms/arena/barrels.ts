@@ -330,4 +330,24 @@ export class BarrelSystem {
     this.bodies.delete(b.id);
     this.ctx.state.barrels.delete(b.id);
   }
+
+  /** Pull every explosive barrel toward the vortex center. */
+  pull(vortexX: number, vortexZ: number, pullRadius: number): void {
+    for (const rb of this.bodies.values()) {
+      const t = rb.translation();
+      const dx = vortexX - t.x;
+      const dz = vortexZ - t.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.01 && dist <= pullRadius + BODY_RADIUS) {
+        const pullSpeed = 1.5 + (1.0 - Math.min(1, dist / pullRadius)) * 4.5;
+        // Apply an inward impulse towards the center every tick
+        const force = pullSpeed * MASS * 0.15; // tuning factor
+        rb.applyImpulse({
+          x: (dx / dist) * force,
+          y: 0,
+          z: (dz / dist) * force,
+        }, true);
+      }
+    }
+  }
 }

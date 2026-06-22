@@ -121,6 +121,16 @@ export class CombatSystem {
     this.destructibles.pushInRadius(x, z, radius, fromId, amount);
   }
 
+  /** Pull every destructible drum/tire toward the vortex center. */
+  pullDestructibles(vortexX: number, vortexZ: number, pullRadius: number): void {
+    this.destructibles.pull(vortexX, vortexZ, pullRadius);
+  }
+
+  /** Pull every explosive barrel toward the vortex center. */
+  pullBarrels(vortexX: number, vortexZ: number, pullRadius: number): void {
+    this.barrels.pull(vortexX, vortexZ, pullRadius);
+  }
+
   /** Try to hit a destructible with a projectile at (px,pz). Returns true if a
    *  body was struck (the caller then consumes the projectile). */
   hitDestructible(

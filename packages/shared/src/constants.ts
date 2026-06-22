@@ -67,9 +67,9 @@ export const TRAP_DEATH_WINDOW_MS = 6000;
 
 /** Heal trap: drops a team-heal pickup (same as the mini-boss drop) when this
  *  many zombies die inside the radius within {@link TRAP_DEATH_WINDOW_MS}. */
-export const HEAL_TRAP_THRESHOLD = 8;
-/** Heal trap cooldown after it fires (4 minutes). */
-export const HEAL_TRAP_COOLDOWN_MS = 4 * 60 * 1000;
+export const HEAL_TRAP_THRESHOLD = 6;
+/** Heal trap cooldown after it fires (2 minutes). */
+export const HEAL_TRAP_COOLDOWN_MS = 2 * 60 * 1000;
 /** Scale of the dropped heal pickup (matches the mini-boss heal drop). */
 export const HEAL_TRAP_DROP_SCALE = 4;
 
@@ -95,8 +95,8 @@ export const DEATH_TRAP_FIRE = {
 export const SINGULARITY_TRAP_THRESHOLD = 6;
 /** Singularity trap cooldown (3 minutes). */
 export const SINGULARITY_TRAP_COOLDOWN_MS = 3 * 60 * 1000;
-/** Duration of the singularity vortex (5 seconds). */
-export const SINGULARITY_DURATION_MS = 5000;
+/** Duration of the singularity vortex (6 seconds). */
+export const SINGULARITY_DURATION_MS = 6000;
 /** Damage dealt by the singularity explosion at the end. */
 export const SINGULARITY_DAMAGE = 200;
 
