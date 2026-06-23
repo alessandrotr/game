@@ -4,7 +4,7 @@ import type { PerkId } from '@arena/shared';
 /** Transient perk-offer state (set by the server message, cleared on pick). */
 interface PerkStore {
   /** The two visible perk ids offered this wave (null = no offer pending). */
-  offer: { visible: [PerkId, PerkId]; isUpgrade: boolean; fixedUpgradeFrom?: PerkId; fixedUpgradeTo?: PerkId } | null;
+  offer: { visible: PerkId[]; isUpgrade: boolean; fixedUpgradeFrom?: PerkId; fixedUpgradeTo?: PerkId } | null;
   /** Set the current offer (fired by the ServerMessage.PerkOffer listener). */
   setOffer: (offer: PerkStore['offer']) => void;
   /** Clear the offer (fired after the player picks). */

@@ -59,7 +59,7 @@ describe('PerkSystem & Adrenaline Perks', () => {
 
     // Pick first common (slot 0)
     const offer3 = (system as any).offers.get('p1');
-    const firstPerk = offer3.visible[0]; // e.g. thick_skin
+    const firstPerk = offer3.visible[0]! as PerkId; // e.g. thick_skin
     expect(PERKS[firstPerk].tier).toBe('common');
     
     const picked3 = system.handlePick('p1', 0);
@@ -89,7 +89,7 @@ describe('PerkSystem & Adrenaline Perks', () => {
     system.onWaveClear(7);
     const offer7 = (system as any).offers.get('p1');
     expect(offer7).toBeDefined();
-    expect(PERKS[offer7.visible[0]].tier).toBe('common'); // Wave 7 offers common -> rare upgrades
+    expect(PERKS[offer7.visible[0]! as PerkId].tier).toBe('common'); // Wave 7 offers common -> rare upgrades
 
     // Player tries to upgrade 'fortified' (rare) to legendary.
     const illegalLegendary = system.handlePick('p1', 0, 'fortified');
@@ -100,7 +100,7 @@ describe('PerkSystem & Adrenaline Perks', () => {
     system.onWaveClear(9);
     const offer9 = (system as any).offers.get('p1');
     expect(offer9).toBeDefined();
-    expect(PERKS[offer9.visible[0]].tier).toBe('rare'); // Wave 9 offers rare -> legendary upgrades
+    expect(PERKS[offer9.visible[0]! as PerkId].tier).toBe('rare'); // Wave 9 offers rare -> legendary upgrades
 
     const legalLegendary = system.handlePick('p1', 0, 'fortified');
     expect(legalLegendary).toBe(true); // ALLOWED!
@@ -202,5 +202,58 @@ describe('PerkSystem & Adrenaline Perks', () => {
     expect(plagueMods.poisonDurationMs).toBe(6000);
     expect(plagueMods.poisonDamagePerSecond).toBe(5);
     expect(plagueMods.poisonSpreadRadius).toBe(1.5);
+  });
+
+  it('verifies 3 visible perk choices + Jolly and auto-pick rules', () => {
+    const ctx = makeMockContext();
+    const system = new PerkSystem(ctx);
+    
+    const player = new Player();
+    player.sessionId = 'p1';
+    player.characterClass = 'warrior';
+    player.hp = 100;
+    player.maxHp = 100;
+    ctx.state.players.set('p1', player);
+
+    system.init('p1');
+
+    // Roll fresh pick offer
+    system.onWaveClear(3);
+    const offer = (system as any).offers.get('p1');
+    expect(offer).toBeDefined();
+    expect(offer.visible.length).toBe(3); // 3 visible options
+    expect(offer.isUpgrade).toBe(false);
+
+    // Pick Jolly (slot 3)
+    const picked = system.handlePick('p1', 3);
+    expect(picked).toBe(true);
+    const owned = system.getPerks('p1');
+    expect(owned.length).toBe(1);
+    // The owned perk should not be in the original visible list
+    expect(offer.visible).not.toContain(owned[0]);
+
+    // Test fresh pick auto-pick slot (slot 3)
+    system.reset('p1');
+    system.init('p1');
+    system.onWaveClear(3);
+    const offerBeforeAuto = (system as any).offers.get('p1');
+    expect(offerBeforeAuto).toBeDefined();
+    system.update(1000 + 15000); // Trigger auto-pick (now() + PERK_AUTOPICK_MS)
+    const ownedAfterAuto = system.getPerks('p1');
+    expect(ownedAfterAuto.length).toBe(1);
+    expect(offerBeforeAuto.visible).not.toContain(ownedAfterAuto[0]);
+
+    // Test upgrade wave auto-pick fallback (slot 2)
+    system.reset('p1');
+    system.init('p1');
+    (system as any).perks.set('p1', ['thick_skin']);
+    system.onWaveClear(6); // Wave 6 is upgrade wave
+    const offerUpgrade = (system as any).offers.get('p1');
+    expect(offerUpgrade).toBeDefined();
+    expect(offerUpgrade.isUpgrade).toBe(true);
+    system.update(1000 + 15000); // Trigger auto-pick
+    const ownedAfterUpgradeAuto = system.getPerks('p1');
+    expect(ownedAfterUpgradeAuto.length).toBe(1);
+    expect(ownedAfterUpgradeAuto[0]).toBe('fortified'); // thick_skin upgraded to fortified
   });
 });

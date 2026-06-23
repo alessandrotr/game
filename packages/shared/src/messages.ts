@@ -372,7 +372,7 @@ export interface ServerMessagePayloads {
    *  rather than pick a new one; `fixedUpgrade` is the pre-rolled upgrade path
    *  offered in slot 2 (e.g. "thick_skin → fortified"). */
   [ServerMessage.PerkOffer]: {
-    visible: [PerkId, PerkId];
+    visible: PerkId[];
     isUpgrade: boolean;
     /** The source perk id for the fixed-offer upgrade in slot 2 (only when
      *  `isUpgrade` is true). */

@@ -34,15 +34,17 @@ export function PerkPicker() {
 
   if (!offer.isUpgrade) {
     // ── Fresh pick mode (waves 3–5) ──
-    const perkA = PERKS[offer.visible[0]];
-    const perkB = PERKS[offer.visible[1]];
+    const perkA = offer.visible[0] ? PERKS[offer.visible[0]] : null;
+    const perkB = offer.visible[1] ? PERKS[offer.visible[1]] : null;
+    const perkC = offer.visible[2] ? PERKS[offer.visible[2]] : null;
     return (
       <div className="pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300 flex flex-col items-center gap-3 pb-4">
         <span className="text-sm font-bold uppercase tracking-wider text-white/70">Choose a Perk</span>
         <div className="flex items-stretch gap-4">
-          <PerkCard perk={perkA} onClick={() => pick(0)} />
-          <PerkCard perk={perkB} onClick={() => pick(1)} />
-          <JollyCard onClick={() => pick(2)} />
+          {perkA && <PerkCard perk={perkA} onClick={() => pick(0)} />}
+          {perkB && <PerkCard perk={perkB} onClick={() => pick(1)} />}
+          {perkC && <PerkCard perk={perkC} onClick={() => pick(2)} />}
+          <JollyCard onClick={() => pick(3)} />
         </div>
       </div>
     );
@@ -55,7 +57,6 @@ export function PerkPicker() {
       <span className="text-sm font-bold uppercase tracking-wider text-white/70">Upgrade a Perk</span>
       <div className="flex items-stretch gap-4">
         <UpgradeSelectList offer={offer} onSelect={(id) => pick(0, id)} />
-        <JollyCard onClick={() => pick(2)} />
       </div>
     </div>
   );
@@ -156,7 +157,7 @@ function UpgradeSelectList({
   offer,
   onSelect,
 }: {
-  offer: { visible: [PerkId, PerkId] };
+  offer: { visible: PerkId[] };
   onSelect: (id: PerkId) => void;
 }) {
   const sessionId = useGameStore((s) => s.sessionId);
@@ -165,8 +166,10 @@ function UpgradeSelectList({
   if (!me) return null;
 
   const perkIds = [me.perk1, me.perk2, me.perk3].filter((id): id is PerkId => !!id && id in PERKS);
-  const targetTier = PERKS[offer.visible[0]].tier;
-  const upgradeable = perkIds.filter((id) => PERKS[id].tier === targetTier && PERKS[id].upgradesTo);
+  const targetTier = offer.visible[0] ? PERKS[offer.visible[0]].tier : undefined;
+  const upgradeable = targetTier
+    ? perkIds.filter((id) => PERKS[id].tier === targetTier && PERKS[id].upgradesTo)
+    : [];
 
   if (upgradeable.length === 0) {
     return <span className="text-sm text-white/50">No upgradeable perks</span>;

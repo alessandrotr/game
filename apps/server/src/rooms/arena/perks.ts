@@ -28,8 +28,8 @@ export type { PerkModifiers } from '@arena/shared';
 // ---------------------------------------------------------------------------
 
 interface PendingOffer {
-  /** The two visible perk ids shown to the player. */
-  visible: [PerkId, PerkId];
+  /** The visible perk ids shown to the player. */
+  visible: PerkId[];
   /** True when this is an upgrade wave (rare or legendary). */
   isUpgrade: boolean;
   /** For upgrade waves: the fixed-offer source perk to upgrade. */
@@ -117,8 +117,8 @@ export class PerkSystem {
   update(now: number): void {
     for (const [sessionId, offer] of this.offers) {
       if (now >= offer.autoPickAt) {
-        // Auto-pick the jolly (slot 2).
-        this.handlePick(sessionId, 2);
+        // Auto-pick the jolly: slot 3 for pick, slot 2 for upgrade.
+        this.handlePick(sessionId, offer.isUpgrade ? 2 : 3);
       }
     }
   }
@@ -138,14 +138,15 @@ export class PerkSystem {
       // ── Fresh pick ──
       if (myPerks.length >= PERK_MAX_SLOTS) { this.offers.delete(sessionId); return false; }
       let chosen: PerkId;
-      if (slot === 0) chosen = offer.visible[0];
-      else if (slot === 1) chosen = offer.visible[1];
+      if (slot === 0) chosen = offer.visible[0]!;
+      else if (slot === 1) chosen = offer.visible[1]!;
+      else if (slot === 2) chosen = offer.visible[2]!;
       else {
-        // Jolly: pick a random common not in the offer and not already owned.
+        // Jolly (slot 3): pick a random common not in the offer and not already owned.
         const pool = COMMON_PERK_IDS.filter(
-          (id) => id !== offer.visible[0] && id !== offer.visible[1] && !myPerks.includes(id),
+          (id) => !offer.visible.includes(id) && !myPerks.includes(id),
         );
-        chosen = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)]! : offer.visible[0];
+        chosen = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)]! : offer.visible[0]!;
       }
       if (myPerks.includes(chosen)) { this.offers.delete(sessionId); return false; }
       myPerks.push(chosen);
@@ -159,7 +160,7 @@ export class PerkSystem {
       if (slot === 0 && upgradeTarget && isPerkId(upgradeTarget)) {
         // Free-choice upgrade: the player picks which perk to upgrade.
         const def = PERKS[upgradeTarget];
-        const samplePerk = offer.visible[0];
+        const samplePerk = offer.visible[0]!;
         const allowedTier = PERKS[samplePerk].tier;
         if (!def.upgradesTo || !myPerks.includes(upgradeTarget) || def.tier !== allowedTier) {
           this.offers.delete(sessionId);
@@ -169,7 +170,7 @@ export class PerkSystem {
       } else {
         // Jolly: randomly upgrade one of the eligible perks.
         // Determine which tier is upgradeable from the visible ids.
-        const samplePerk = offer.visible[0];
+        const samplePerk = offer.visible[0]!;
         const targetTier = PERKS[samplePerk].tier;
         const upgradeable = myPerks.filter(
           (id) => PERKS[id].tier === targetTier && PERKS[id].upgradesTo,
@@ -302,10 +303,10 @@ export class PerkSystem {
   /** Send a fresh-pick offer (waves 3–5). */
   private sendPickOffer(sessionId: string, myPerks: PerkId[]): void {
     const pool = COMMON_PERK_IDS.filter((id) => !myPerks.includes(id));
-    if (pool.length < 2) return; // shouldn't happen (9 chains, max 3 owned)
-    // Pick 2 distinct random commons.
+    if (pool.length < 3) return; // we need at least 3 visible options
+    // Pick 3 distinct random commons.
     const shuffled = pool.sort(() => Math.random() - 0.5);
-    const visible: [PerkId, PerkId] = [shuffled[0]!, shuffled[1]!];
+    const visible: PerkId[] = [shuffled[0]!, shuffled[1]!, shuffled[2]!];
 
     const offer: PendingOffer = {
       visible,
@@ -346,7 +347,7 @@ export class PerkSystem {
     // Visible carries two upgradeable ids so the jolly fallback knows the tier.
     const a = upgradeable[0]!;
     const b = upgradeable.length > 1 ? upgradeable[1]! : a;
-    const visible: [PerkId, PerkId] = [a, b];
+    const visible: PerkId[] = [a, b];
 
     const offer: PendingOffer = {
       visible,

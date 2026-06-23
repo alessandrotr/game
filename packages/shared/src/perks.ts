@@ -117,13 +117,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { maxHpMult: 1.15 },
   },
   fortified: {
-    id: 'fortified', name: 'Fortified', icon: 'HeartPulse', tier: 'rare', chain: 0,
+    id: 'fortified', name: 'Fortified', icon: 'Heart', tier: 'rare', chain: 0,
     description: '+30% max HP, −10% damage taken',
     upgradesFrom: 'thick_skin', upgradesTo: 'unstoppable',
     modifiers: { maxHpMult: 1.30, damageTakenMult: 0.90 },
   },
   unstoppable: {
-    id: 'unstoppable', name: 'Unstoppable', icon: 'ShieldPlus', tier: 'legendary', chain: 0,
+    id: 'unstoppable', name: 'Unstoppable', icon: 'Heart', tier: 'legendary', chain: 0,
     description: '+50% max HP, −15% damage taken, immune to stun',
     upgradesFrom: 'fortified',
     modifiers: { maxHpMult: 1.50, damageTakenMult: 0.85, stunImmune: true },
@@ -131,7 +131,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
 
   // ── Chain 1: Speed ───────────────────────────────────────────────────────
   swift_feet: {
-    id: 'swift_feet', name: 'Swift Feet', icon: 'Footprints', tier: 'common', chain: 1,
+    id: 'swift_feet', name: 'Swift Feet', icon: 'Wind', tier: 'common', chain: 1,
     description: '+1 move speed',
     upgradesTo: 'wind_runner',
     modifiers: { moveSpeedBonus: 1 },
@@ -143,7 +143,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { moveSpeedBonus: 2 },
   },
   phantom: {
-    id: 'phantom', name: 'Phantom', icon: 'Ghost', tier: 'legendary', chain: 1,
+    id: 'phantom', name: 'Phantom', icon: 'Wind', tier: 'legendary', chain: 1,
     description: '+3 move speed, 15% chance to dodge zombie melee attacks',
     upgradesFrom: 'wind_runner',
     modifiers: { moveSpeedBonus: 3, dodgeChance: 0.15 },
@@ -151,13 +151,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
 
   // ── Chain 2: Mana ────────────────────────────────────────────────────────
   mana_well: {
-    id: 'mana_well', name: 'Mana Well', icon: 'Droplets', tier: 'common', chain: 2,
+    id: 'mana_well', name: 'Mana Well', icon: 'Infinity', tier: 'common', chain: 2,
     description: '+20% mana regen',
     upgradesTo: 'arcane_reservoir',
     modifiers: { manaRegenMult: 1.20 },
   },
   arcane_reservoir: {
-    id: 'arcane_reservoir', name: 'Arcane Reservoir', icon: 'Waves', tier: 'rare', chain: 2,
+    id: 'arcane_reservoir', name: 'Arcane Reservoir', icon: 'Infinity', tier: 'rare', chain: 2,
     description: '+40% mana regen, abilities cost 15% less mana',
     upgradesFrom: 'mana_well', upgradesTo: 'infinite_power',
     modifiers: { manaRegenMult: 1.40, manaCostMult: 0.85 },
@@ -177,13 +177,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { cooldownMult: 0.85 },
   },
   rapid_fire: {
-    id: 'rapid_fire', name: 'Rapid Fire', icon: 'TimerOff', tier: 'rare', chain: 3,
+    id: 'rapid_fire', name: 'Rapid Fire', icon: 'Timer', tier: 'rare', chain: 3,
     description: '−30% ability cooldowns',
     upgradesFrom: 'quick_hands', upgradesTo: 'overclock',
     modifiers: { cooldownMult: 0.70 },
   },
   overclock: {
-    id: 'overclock', name: 'Overclock', icon: 'Gauge', tier: 'legendary', chain: 3,
+    id: 'overclock', name: 'Overclock', icon: 'Timer', tier: 'legendary', chain: 3,
     description: '−45% cooldowns, killing 10 zombies within 2s resets all cooldowns',
     upgradesFrom: 'rapid_fire',
     modifiers: { cooldownMult: 0.55, overclockKillThreshold: 10 },
@@ -197,13 +197,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { damageTakenMult: 0.90 },
   },
   stoneskin: {
-    id: 'stoneskin', name: 'Stoneskin', icon: 'Mountain', tier: 'rare', chain: 4,
+    id: 'stoneskin', name: 'Stoneskin', icon: 'Shield', tier: 'rare', chain: 4,
     description: '−20% damage taken, reflect 5 damage to melee attackers',
     upgradesFrom: 'iron_will', upgradesTo: 'colossus',
     modifiers: { damageTakenMult: 0.80, reflectDamage: 5 },
   },
   colossus: {
-    id: 'colossus', name: 'Colossus', icon: 'Castle', tier: 'legendary', chain: 4,
+    id: 'colossus', name: 'Colossus', icon: 'Shield', tier: 'legendary', chain: 4,
     description: '−30% damage taken, reflect 10 damage, 3 DPS damaging aura',
     upgradesFrom: 'stoneskin',
     modifiers: { damageTakenMult: 0.70, reflectDamage: 10, auraDps: 3 },
@@ -217,13 +217,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { lightningChance: 0.25, lightningDamage: 15, lightningTargets: 1 },
   },
   overcharge: {
-    id: 'overcharge', name: 'Overcharge', icon: 'BatteryCharging', tier: 'rare', chain: 5,
+    id: 'overcharge', name: 'Overcharge', icon: 'Zap', tier: 'rare', chain: 5,
     description: 'Ability hits have a 30% chance to chain to 3 enemies for 20 damage',
     upgradesFrom: 'static_shock', upgradesTo: 'thunderstorm',
     modifiers: { lightningChance: 0.30, lightningDamage: 20, lightningTargets: 3 },
   },
   thunderstorm: {
-    id: 'thunderstorm', name: 'Thunderstorm', icon: 'CloudLightning', tier: 'legendary', chain: 5,
+    id: 'thunderstorm', name: 'Thunderstorm', icon: 'Zap', tier: 'legendary', chain: 5,
     description: 'Ability hits have a 35% chance to chain to 5 enemies for 35 damage and stun them for 0.5s',
     upgradesFrom: 'overcharge',
     modifiers: { lightningChance: 0.35, lightningDamage: 35, lightningTargets: 5, lightningStunMs: 500 },
@@ -237,13 +237,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { abilityDamageMult: 1.15 },
   },
   spell_surge: {
-    id: 'spell_surge', name: 'Spell Surge', icon: 'Sparkles', tier: 'rare', chain: 6,
+    id: 'spell_surge', name: 'Spell Surge', icon: 'Brain', tier: 'rare', chain: 6,
     description: '+30% ability damage',
     upgradesFrom: 'focused_mind', upgradesTo: 'archmage',
     modifiers: { abilityDamageMult: 1.30 },
   },
   archmage: {
-    id: 'archmage', name: 'Archmage', icon: 'Wand2', tier: 'legendary', chain: 6,
+    id: 'archmage', name: 'Archmage', icon: 'Brain', tier: 'legendary', chain: 6,
     description: '+50% ability damage, abilities leave a 2s burn DoT on hit',
     upgradesFrom: 'spell_surge',
     modifiers: { abilityDamageMult: 1.50, abilityBurnDamage: 4, abilityBurnDurationMs: 2000 },
@@ -257,13 +257,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { lowHpDamageMult: 1.20 },
   },
   frenzy: {
-    id: 'frenzy', name: 'Frenzy', icon: 'Flame', tier: 'rare', chain: 7,
+    id: 'frenzy', name: 'Frenzy', icon: 'Activity', tier: 'rare', chain: 7,
     description: '+30% ability damage and +1 move speed when below 40% HP',
     upgradesFrom: 'adrenaline', upgradesTo: 'last_stand',
     modifiers: { lowHpDamageMult: 1.30, lowHpSpeedBonus: 1 },
   },
   last_stand: {
-    id: 'last_stand', name: 'Last Stand', icon: 'ShieldAlert', tier: 'legendary', chain: 7,
+    id: 'last_stand', name: 'Last Stand', icon: 'Activity', tier: 'legendary', chain: 7,
     description: '+50% ability damage, +2 move speed, and immune to stun when below 40% HP',
     upgradesFrom: 'frenzy',
     modifiers: { lowHpDamageMult: 1.50, lowHpSpeedBonus: 2, lowHpStunImmune: true },
@@ -277,13 +277,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { aoeSizeBonus: 1 },
   },
   blast_master: {
-    id: 'blast_master', name: 'Blast Master', icon: 'CircleDot', tier: 'rare', chain: 8,
+    id: 'blast_master', name: 'Blast Master', icon: 'Expand', tier: 'rare', chain: 8,
     description: '+2 AoE radius, +10% AoE ability damage',
     upgradesFrom: 'wide_reach', upgradesTo: 'cataclysm',
     modifiers: { aoeSizeBonus: 2, aoeDamageMult: 1.10 },
   },
   cataclysm: {
-    id: 'cataclysm', name: 'Cataclysm', icon: 'Orbit', tier: 'legendary', chain: 8,
+    id: 'cataclysm', name: 'Cataclysm', icon: 'Expand', tier: 'legendary', chain: 8,
     description: '+3 AoE radius, +20% AoE damage, AoE kills 15% chain-explode',
     upgradesFrom: 'blast_master',
     modifiers: { aoeSizeBonus: 3, aoeDamageMult: 1.20, chainExplosionChance: 0.15 },
@@ -291,7 +291,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
 
   // ── Chain 9: Precision ───────────────────────────────────────────────────
   keen_eye: {
-    id: 'keen_eye', name: 'Keen Eye', icon: 'Eye', tier: 'common', chain: 9,
+    id: 'keen_eye', name: 'Keen Eye', icon: 'Crosshair', tier: 'common', chain: 9,
     description: '+10% critical hit chance (1.5× damage)',
     upgradesTo: 'sharpshooter',
     modifiers: { critChance: 0.10, critMultiplier: 1.5 },
@@ -303,7 +303,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { critChance: 0.15, critMultiplier: 1.75 },
   },
   deadeye: {
-    id: 'deadeye', name: 'Deadeye', icon: 'Target', tier: 'legendary', chain: 9,
+    id: 'deadeye', name: 'Deadeye', icon: 'Crosshair', tier: 'legendary', chain: 9,
     description: '+20% critical hit chance (2× damage), crits have 30% chance to reset ability cooldown',
     upgradesFrom: 'sharpshooter',
     modifiers: { critChance: 0.20, critMultiplier: 2.0, critCooldownResetChance: 0.30 },
@@ -316,13 +316,13 @@ export const PERKS: Record<PerkId, PerkDef> = {
     modifiers: { poisonDurationMs: 2000, poisonDamagePerSecond: 5 },
   },
   toxic_spores: {
-    id: 'toxic_spores', name: 'Toxic Spores', icon: 'FlaskConical', tier: 'rare', chain: 10,
+    id: 'toxic_spores', name: 'Toxic Spores', icon: 'Biohazard', tier: 'rare', chain: 10,
     description: 'Ability hits poison targets dealing 5 damage per second for 4s',
     upgradesFrom: 'poison_touch', upgradesTo: 'plague',
     modifiers: { poisonDurationMs: 4000, poisonDamagePerSecond: 5 },
   },
   plague: {
-    id: 'plague', name: 'Plague', icon: 'Skull', tier: 'legendary', chain: 10,
+    id: 'plague', name: 'Plague', icon: 'Biohazard', tier: 'legendary', chain: 10,
     description: 'Ability hits poison targets for 6s (5 DPS); hits also poison all zombies in a 1.5 radius',
     upgradesFrom: 'toxic_spores',
     modifiers: { poisonDurationMs: 6000, poisonDamagePerSecond: 5, poisonSpreadRadius: 1.5 },

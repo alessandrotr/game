@@ -509,7 +509,7 @@ export class ArenaRoom extends AvatarRoom {
       (client, message) => {
         if (!this.perkSystem) return;
         const slot = Number(message?.slot);
-        if (slot < 0 || slot > 2) return;
+        if (slot < 0 || slot > 3) return;
         this.perkSystem.handlePick(client.sessionId, slot, message?.upgradeTarget);
       },
     );
