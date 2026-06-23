@@ -45,7 +45,7 @@ export function JoinScreen() {
       {/* A single full-width selection panel (capped at max-w-xl); each class card
           carries its own live 3D portrait, so there's no separate big model. The
           account controls sit centered above the picker. */}
-      <section className="relative flex h-dvh w-full flex-col items-center justify-center gap-3 px-4 pb-6 pt-20 sm:px-8">
+      <section className="relative flex h-dvh w-full flex-col items-center justify-end gap-3 px-4 py-6 sm:px-8">
         <div className="flex w-full max-w-xl flex-wrap items-center justify-end gap-2 text-xs text-muted">
           <span>
             {guest ? (
@@ -66,7 +66,7 @@ export function JoinScreen() {
           </Button>
         </div>
 
-        <div className="flex max-h-[80dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
+        <div className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-5">
             <div className="w-full">
               <CharacterSelect />

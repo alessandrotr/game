@@ -1,12 +1,31 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronLeft, ChevronRight, Heart, Droplet, type LucideIcon } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Droplet,
+  Swords,
+  Sparkles,
+  Crosshair,
+  Cross,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   CLASS_LIST,
   classCosmeticsOf,
   getClassDefinition,
+  type CharacterClass,
   type AbilityKind,
   type ClassDefinition,
 } from '@arena/shared';
+
+/** Pill/selector icon per class. */
+const CLASS_ICON: Record<CharacterClass, LucideIcon> = {
+  warrior: Swords,
+  mage: Sparkles,
+  archer: Crosshair,
+  priest: Cross,
+};
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
@@ -177,6 +196,31 @@ export function CharacterSelect() {
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Class selector — click a name to jump straight to that class.
+          Scrolls horizontally on mobile; wraps and centers from sm up. */}
+      <div className="-my-2 mb-2 flex items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:justify-center sm:overflow-x-visible">
+        {CLASS_LIST.map((c, i) => {
+          const Icon = CLASS_ICON[c.id];
+          return (
+            <button
+              key={c.id}
+              type="button"
+              aria-label={`Select ${c.name}`}
+              aria-current={i === idx}
+              onClick={() => setSelected(c.id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-display text-xs tracking-[0.18em] transition-colors duration-200 ${
+                i === idx
+                  ? 'bg-gold text-black shadow-sm'
+                  : 'text-white/55 hover:bg-white/8 hover:text-white'
+              }`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              {c.name}
+            </button>
+          );
+        })}
+      </div>
+
       <div
         className="relative select-none"
         role="group"
@@ -222,28 +266,6 @@ export function CharacterSelect() {
         {/* Prev / next — gold medallion arrows matching the ability badges. */}
         <CarouselArrow dir="prev" onClick={() => go(-1)} />
         <CarouselArrow dir="next" onClick={() => go(1)} />
-      </div>
-
-      {/* Identity caption: who this slide is (the level gem sits on the ring above). */}
-      <div className="mt-3 text-center">
-        <div className="font-display text-xl tracking-wide text-white">{def.name}</div>
-        <div className="text-[11px] uppercase tracking-[0.22em] text-muted">{def.role}</div>
-      </div>
-
-      {/* Slide indicator — click a dot to jump straight to that class. */}
-      <div className="mt-1 flex items-center justify-center gap-1.5">
-        {CLASS_LIST.map((c, i) => (
-          <button
-            key={c.id}
-            type="button"
-            aria-label={`Select ${c.name}`}
-            aria-current={i === idx}
-            onClick={() => setSelected(c.id)}
-            className={`h-1.5 rounded-full transition-all ${
-              i === idx ? 'w-5 bg-gold' : 'w-1.5 bg-white/25 hover:bg-white/40'
-            }`}
-          />
-        ))}
       </div>
 
       <ClassInfo def={def} />

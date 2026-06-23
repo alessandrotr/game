@@ -120,8 +120,8 @@ export function ClassCarousel() {
           />
         </div>
 
-        {/* Dot indicators */}
-        <div className="mt-2 flex items-center gap-2">
+        {/* Class selector buttons */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {CLASS_LIST.map((c, i) => (
             <button
               key={c.id}
@@ -130,9 +130,13 @@ export function ClassCarousel() {
               aria-current={i === index}
               onClick={() => setIndex(i)}
               className={
-                i === index ? 'h-2 w-6 rounded-full bg-gold' : 'h-2 w-2 rounded-full bg-white/25'
+                i === index
+                  ? 'rounded-full border border-gold bg-gold/15 px-3 py-1 text-xs uppercase tracking-[0.15em] text-gold'
+                  : 'rounded-full border border-white/15 px-3 py-1 text-xs uppercase tracking-[0.15em] text-white/55 hover:border-white/40 hover:text-white/80'
               }
-            />
+            >
+              {c.name}
+            </button>
           ))}
         </div>
       </div>
