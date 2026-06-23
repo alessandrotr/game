@@ -114,7 +114,25 @@ const arcaneBlastFrag = /* glsl */ `
     gl_FragColor = vec4(col * v * 2.0, v * (1.0 - uProgress * 0.9));
   }
 `;
-export const ArcaneBlastEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={9} frag={arcaneBlastFrag} />;
+
+export const ArcaneBlastEffect = ({ durationMs, onComplete }: BurstShaderProps) => {
+  const { matRef, seed } = useBurstClock(durationMs, onComplete);
+  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
+      <planeGeometry args={[9, 9]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={UV_VERTEX}
+        fragmentShader={arcaneBlastFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        blending={AdditiveBlending}
+      />
+    </mesh>
+  );
+};
 
 // --- Ground Slam: a heavy dust shockwave with radial cracks. -----------------
 
