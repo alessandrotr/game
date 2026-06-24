@@ -45,6 +45,7 @@ import { fetchPublicPaint } from '../network/paint';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
+import { clearCastAim } from '../store/castAim';
 import { PickableVisual } from './PickableVisual';
 
 /** Smoothing for the local player's vertical (jump) toward the server's. */
@@ -218,6 +219,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     // (e.g. the player left), and clear the local render transform.
     return () => {
       clearAnimationEvents(sessionId);
+      clearCastAim(sessionId);
       if (isLocal) clearLocalRenderTransform();
     };
   }, [isLocal, sessionId]);
@@ -533,6 +535,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           lightweight={isZombieSkin(player?.skinId ?? '')}
           paint={paint}
           enchant={enchant}
+          ownerId={sessionId}
         />
       </group>
 

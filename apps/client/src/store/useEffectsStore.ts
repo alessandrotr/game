@@ -15,6 +15,9 @@ export interface ActiveEffect {
    *  entity along `direction` (e.g. a frontal smash that stays ahead while you run). */
   offset?: number;
   scale?: number;
+  /** Weapon glow color recoloring this effect (the caster's equipped weapon);
+   *  undefined keeps the effect's authored default colors. */
+  tint?: string;
 }
 
 interface EffectsStore {
@@ -26,6 +29,7 @@ interface EffectsStore {
     followId?: string,
     offset?: number,
     scale?: number,
+    tint?: string,
   ) => void;
   remove: (key: number) => void;
 }
@@ -38,9 +42,9 @@ let nextKey = 1;
  */
 export const useEffectsStore = create<EffectsStore>((set) => ({
   effects: [],
-  spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset, scale) =>
+  spawn: (vfxId, origin, direction = [0, 0, 1], followId, offset, scale, tint) =>
     set((s) => {
-      const next = [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset, scale }];
+      const next = [...s.effects, { key: nextKey++, vfxId, origin, direction, followId, offset, scale, tint }];
       // Cap concurrent effects per the quality tier — a big multi-target blast can
       // spawn many overlapping additive bursts at once. Drop the OLDEST (already
       // fading) so the just-triggered effect always shows.

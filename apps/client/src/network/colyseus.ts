@@ -51,6 +51,8 @@ import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
 import { usePerkStore } from '../store/usePerkStore';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
+import { setCastAim } from '../store/castAim';
+import { abilityTintColor } from '../assets/CharacterFactory';
 import { resetCooldowns } from '../store/abilityCooldowns';
 import { clearFloatingText, spawnFloatingText } from '../store/floatingText';
 import { clearSnapshots, recordSnapshots } from '../store/snapshotBuffer';
@@ -359,9 +361,19 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
 
   const caster = useGameStore.getState().players.get(msg.casterId);
+  // Aim the caster's weapon down the ability line (remote players only; the local
+  // player set its own aim with zero latency at cast time). The server-driven
+  // `animState: 'cast'` triggers the weapon swing; this supplies its direction.
+  if (caster && msg.casterId !== useGameStore.getState().sessionId) {
+    setCastAim(msg.casterId, Math.atan2(msg.dirX, msg.dirZ), ABILITIES[msg.ability]?.channelMs ?? 0);
+  }
   const aoeSizeBonus = caster
     ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus
     : 0;
+  // Recolor the cast VFX to the caster's equipped weapon glow (null = default).
+  const tint = caster
+    ? abilityTintColor(caster.characterClass, caster.weaponId, caster.enchantId) ?? undefined
+    : undefined;
 
   const def = ABILITIES[msg.ability];
   const baseRadius = def?.aoeRadius ?? 0;
@@ -397,16 +409,16 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
         z += msg.dirZ * burst.forward;
       }
     }
-    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset, scale);
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset, scale, tint);
     return;
   }
 
   // Default (projectiles / single-target casts): a quick rune flash at the
   // caster's feet — the projectile itself carries the rest of the visual.
   if (def?.effects[0]?.type === 'aoe' || msg.tx !== undefined) {
-    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1], undefined, undefined, scale);
+    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1], undefined, undefined, scale, tint);
   } else {
-    spawn('vfx.cast', [msg.x, 0.05, msg.z], dir);
+    spawn('vfx.cast', [msg.x, 0.05, msg.z], dir, undefined, undefined, undefined, tint);
   }
   // Cast poses are server-authoritative (replicated via `animState`) for remote
   // players; the local caster predicts its own in the ability hotkey.

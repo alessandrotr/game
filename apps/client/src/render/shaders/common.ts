@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { ShaderMaterial } from 'three';
+import { Color, type ShaderMaterial } from 'three';
 import type { Vec3 } from '@arena/shared';
 
 /**
@@ -27,6 +27,58 @@ export const GLSL_NOISE = /* glsl */ `
   }
 `;
 
+/**
+ * Recolors any effect's fragment shader to a weapon's glow color, generically —
+ * so the bespoke per-ability palettes don't each need editing. It renames the
+ * shader's `main` to `mainEffect`, captures its output, and applies a
+ * luminance-preserving tint: bright cores stay white-hot, the mid/low glow takes
+ * the weapon color (mirroring how the projectile shaders `mix(color, white)`).
+ *
+ * `uTintAmt` is 0 by default (identical to the original shader); set it >0 with a
+ * `uTint` color to recolor. Every effect frag begins with `precision highp
+ * float;` and writes `gl_FragColor` exactly once, which this relies on.
+ */
+const TINT_DECL = /* glsl */ `
+  uniform vec3 uTint;
+  uniform float uTintAmt;
+  vec4 _fc;
+`;
+const TINT_MAIN = /* glsl */ `
+  void main(){
+    mainEffect();
+    vec3 _rgb = _fc.rgb;
+    if (uTintAmt > 0.0) {
+      // Recolor by SATURATION, not absolute brightness: additive effects output
+      // HDR (>1) almost everywhere, so a brightness threshold would wash the whole
+      // thing to white. Saturated glow takes the tint; near-white cores stay white;
+      // brightness (which may be HDR) is preserved.
+      float _mx = max(max(_rgb.r, _rgb.g), _rgb.b);
+      float _mn = min(min(_rgb.r, _rgb.g), _rgb.b);
+      float _white = _mx > 1e-4 ? _mn / _mx : 1.0;     // 0 saturated → 1 white
+      vec3 _tinted = mix(uTint, vec3(1.0), _white) * _mx;
+      _rgb = mix(_rgb, _tinted, uTintAmt);
+    }
+    gl_FragColor = vec4(_rgb, _fc.a);
+  }
+`;
+export function withTint(frag: string): string {
+  return (
+    frag
+      .replace('precision highp float;', 'precision highp float;' + TINT_DECL)
+      .replace(/void\s+main\s*\(\s*\)\s*\{/, 'void mainEffect(){')
+      .replace(/gl_FragColor/g, '_fc') + TINT_MAIN
+  );
+}
+
+/** Uniforms for {@link withTint}: a tint color and how strongly to apply it
+ *  (0 when no tint, so the effect renders exactly as authored). */
+export function tintUniforms(tint?: string) {
+  return {
+    uTint: { value: new Color(tint ?? '#ffffff') },
+    uTintAmt: { value: tint ? 1.0 : 0.0 },
+  };
+}
+
 /** Flat pass-through vertex shader exposing `vUv`. */
 export const UV_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -44,6 +96,8 @@ export interface BurstShaderProps {
   onComplete: () => void;
   /** Cast direction (for oriented effects like cleave/dash). */
   direction?: Vec3;
+  /** Weapon glow color to recolor the effect to; undefined keeps its default. */
+  tint?: string;
 }
 
 /** Advance a material's `uTime` uniform every frame (for looping projectile shaders). */

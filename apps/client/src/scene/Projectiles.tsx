@@ -6,6 +6,8 @@ import { useGameStore } from '../store/useGameStore';
 import { assets } from '../assets/registry';
 import { AssetMesh } from '../render/AssetMesh';
 import { PROJECTILE_SHADERS } from '../render/shaders';
+import { abilityTintColor, abilityMuzzleOffset } from '../assets/CharacterFactory';
+import { getLocalRenderTransform } from '../store/localPlayer';
 import { PickableVisual } from './PickableVisual';
 
 /** Maps a projectile's source tag (ability kind or auto-attack) to its VFX. */
@@ -27,6 +29,8 @@ const SMOOTHING = 25;
 function ProjectileEntity({ id }: { id: string }) {
   const group = useRef<Group>(null);
   const initialized = useRef(false);
+  // True while a muzzle-launched bolt is still easing its height onto the path.
+  const launched = useRef(false);
 
   const projectile = useGameStore.getState().projectiles.get(id);
   // Thrown pickables (molotov / grenade) render their object mesh, tumbling in
@@ -34,6 +38,11 @@ function ProjectileEntity({ id }: { id: string }) {
   const thrownKind = projectile && isPickableKind(projectile.ability) ? projectile.ability : undefined;
   const vfxId = projectile && !thrownKind ? ABILITY_VFX[projectile.ability] : undefined;
   const descriptor = vfxId ? assets.getVfx(vfxId) : undefined;
+  // Recolor the bolt to the firing player's equipped weapon glow (null = default).
+  const owner = projectile ? useGameStore.getState().players.get(projectile.ownerId) : undefined;
+  const tint = owner
+    ? abilityTintColor(owner.characterClass, owner.weaponId, owner.enchantId) ?? undefined
+    : undefined;
 
   useFrame((_, delta) => {
     const node = group.current;
@@ -41,14 +50,41 @@ function ProjectileEntity({ id }: { id: string }) {
     if (!node || !latest) return;
 
     if (!initialized.current) {
-      node.position.set(latest.x, latest.y, latest.z);
       initialized.current = true;
+      // Launch from the caster's scepter tip (orb), then lerp onto the server
+      // trajectory — so the bolt visibly comes out of the weapon. Falls back to
+      // the server spawn point for weapons with no showpiece.
+      const off = owner && !thrownKind ? abilityMuzzleOffset(owner.characterClass, owner.weaponId) : null;
+      if (off && owner) {
+        launched.current = true;
+        let ox = owner.x;
+        let oz = owner.z;
+        let yaw = owner.rotation;
+        const local = getLocalRenderTransform();
+        if (local.active && useGameStore.getState().sessionId === projectile?.ownerId) {
+          ox = local.x;
+          oz = local.z;
+          yaw = local.rotation;
+        }
+        const sin = Math.sin(yaw);
+        const cos = Math.cos(yaw);
+        node.position.set(ox + off[0] * cos + off[2] * sin, off[1], oz - off[0] * sin + off[2] * cos);
+      } else {
+        node.position.set(latest.x, latest.y, latest.z);
+      }
       return;
     }
     const t = 1 - Math.exp(-SMOOTHING * delta);
     node.position.x = MathUtils.lerp(node.position.x, latest.x, t);
     node.position.z = MathUtils.lerp(node.position.z, latest.z, t);
-    node.position.y = latest.y;
+    // Ease the launch height (orb → trajectory) on muzzle-launched bolts; thrown
+    // arcs and ordinary projectiles take the server height directly.
+    if (launched.current) {
+      node.position.y = MathUtils.lerp(node.position.y, latest.y, t);
+      if (Math.abs(node.position.y - latest.y) < 0.02) launched.current = false;
+    } else {
+      node.position.y = latest.y;
+    }
     if (thrownKind) node.rotation.x = node.rotation.y += delta * 6; // tumble
   });
 
@@ -69,7 +105,7 @@ function ProjectileEntity({ id }: { id: string }) {
   const Shader = vfxId ? PROJECTILE_SHADERS[vfxId] : undefined;
   return (
     <group ref={group}>
-      {Shader ? <Shader radius={radius} /> : <AssetMesh source={descriptor.render} />}
+      {Shader ? <Shader radius={radius} tint={tint} /> : <AssetMesh source={descriptor.render} />}
     </group>
   );
 }

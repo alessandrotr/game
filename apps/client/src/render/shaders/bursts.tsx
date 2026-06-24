@@ -1,7 +1,15 @@
 import { useMemo } from 'react';
 import { Billboard } from '@react-three/drei';
 import { AdditiveBlending, DoubleSide, NormalBlending, type Blending } from 'three';
-import { GLSL_NOISE, UV_VERTEX, useBurstClock, yawFromDirection, type BurstShaderProps } from './common';
+import {
+  GLSL_NOISE,
+  UV_VERTEX,
+  useBurstClock,
+  withTint,
+  tintUniforms,
+  yawFromDirection,
+  type BurstShaderProps,
+} from './common';
 
 /**
  * One-shot "burst" shaders: ground rings, slashes, rising light and streaks.
@@ -18,10 +26,15 @@ function GroundBurst({
   durationMs,
   onComplete,
   direction,
+  tint,
   y = 0.06,
 }: BurstShaderProps & { size: number; frag: string; y?: number }) {
   const { matRef, seed } = useBurstClock(durationMs, onComplete);
-  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  const fragment = useMemo(() => withTint(frag), [frag]);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: seed }, uProgress: { value: 0 }, ...tintUniforms(tint) }),
+    [seed, tint],
+  );
   return (
     <group rotation={[0, yawFromDirection(direction), 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
@@ -29,7 +42,7 @@ function GroundBurst({
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={frag}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}
@@ -47,11 +60,16 @@ function BillboardBurst({
   frag,
   durationMs,
   onComplete,
+  tint,
   y = 1.0,
   blending = AdditiveBlending,
 }: BurstShaderProps & { width: number; height: number; frag: string; y?: number; blending?: Blending }) {
   const { matRef, seed } = useBurstClock(durationMs, onComplete);
-  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  const fragment = useMemo(() => withTint(frag), [frag]);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: seed }, uProgress: { value: 0 }, ...tintUniforms(tint) }),
+    [seed, tint],
+  );
   return (
     <Billboard position={[0, y, 0]}>
       <mesh>
@@ -59,7 +77,7 @@ function BillboardBurst({
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={frag}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}
