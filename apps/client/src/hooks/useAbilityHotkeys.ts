@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot } from '@arena/shared';
+import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot, isStunned, isSilenced } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
 import { sendCast } from '../network/colyseus';
 import { clearDestination } from '../store/destinationState';
-import { setLocalDash } from '../store/dashState';
+import { setLocalDash, clearLocalDash } from '../store/dashState';
 import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { useAbilityTargeting } from '../store/abilityTargeting';
@@ -132,6 +132,9 @@ export function useAbilityHotkeys(enabled: boolean): void {
           break;
         }
       }
+      if (ability === 'ninja_r') {
+        clearLocalDash();
+      }
       triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
@@ -153,6 +156,8 @@ export function useAbilityHotkeys(enabled: boolean): void {
       if (!slot) return;
       const me = localPlayer();
       if (!me) return;
+
+      if (isStunned(me) || isSilenced(me)) return;
 
       const ability = CLASS_LOADOUTS[me.characterClass][slot];
       if (!ability) return; // empty slot

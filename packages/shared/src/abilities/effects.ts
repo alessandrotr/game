@@ -27,6 +27,7 @@ export type StatusKind =
   | 'stun' // cannot move, cast, or auto-attack
   | 'root' // cannot move (may still cast / attack)
   | 'silence' // cannot cast (may still move)
+  | 'blind' // cannot cast abilities or attack (may still move)
   | 'slow' // move speed × magnitude (0..1)
   | 'haste' // move speed × magnitude (>1)
   | 'attack_speed' // auto-attack interval × (1 / magnitude)
@@ -44,6 +45,7 @@ export const STATUS_KINDS: readonly StatusKind[] = [
   'stun',
   'root',
   'silence',
+  'blind',
   'slow',
   'haste',
   'attack_speed',

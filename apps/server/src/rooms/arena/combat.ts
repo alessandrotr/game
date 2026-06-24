@@ -15,10 +15,12 @@ import {
   ServerMessage,
   damageTakenMultiplier,
   levelForXp,
+  collideObstacles,
   type AbilityDef,
   type AbilityKind,
   type LeafEffect,
   type StatusSpec,
+  type Effect,
 } from '@arena/shared';
 import { StatusEffect, type Barrel, type Player } from '../schema.js';
 import { applyDamage, applyHeal } from '../../combat.js';
@@ -203,7 +205,52 @@ export class CombatSystem {
       ability: config.id,
       aoeSizeBonus,
     };
+    if (config.id === 'ninja_r') {
+      const target = collideObstacles(targetX!, targetZ!, this.ctx.obstacles, PLAYER_RADIUS);
+      player.x = target.x;
+      player.z = target.z;
+      this.ctx.destinations.delete(player.sessionId);
+      this.ctx.displacements.delete(player.sessionId);
+      (player as any).lastNinjaQTime = 0;
+    }
     runCast(config.effects, cast, this.effectRuntime);
+
+    if (config.id === 'ninja_q') {
+      const castTime = this.ctx.now();
+      (player as any).lastNinjaQTime = castTime;
+      this.ctx.setTimeout(() => {
+        if (!player || !player.alive) return;
+        if ((player as any).lastNinjaQTime !== castTime) return;
+        const curDirX = Math.sin(player.rotation);
+        const curDirZ = Math.cos(player.rotation);
+        const secondCast: CastContext = {
+          caster: player,
+          dirX: curDirX,
+          dirZ: curDirZ,
+          ability: 'ninja_q',
+          aoeSizeBonus,
+        };
+        const secondEffects: Effect[] = [
+          {
+            type: 'aoe',
+            at: 'caster',
+            radius: 4,
+            arc: 120,
+            onHit: [{ type: 'damage', amount: 10 }],
+          },
+        ];
+        runCast(secondEffects, secondCast, this.effectRuntime);
+        this.ctx.broadcast(ServerMessage.AbilityCast, {
+          casterId: player.sessionId,
+          ability: 'ninja_q',
+          x: player.x,
+          y: 1,
+          z: player.z,
+          dirX: curDirX,
+          dirZ: curDirZ,
+        });
+      }, 300);
+    }
   }
 
   /** Resolve a hit on a player: scale by vulnerability, drain any absorb shield,
@@ -274,6 +321,10 @@ export class CombatSystem {
       const absorbed = Math.min(target.shield, incoming);
       target.shield -= absorbed;
       incoming -= absorbed;
+      const shieldStatus = target.statuses.find((s) => s.kind === 'shield');
+      if (shieldStatus) {
+        shieldStatus.magnitude = target.shield;
+      }
       // Keep the shield status' lifetime in sync so it expires when emptied.
       if (target.shield <= 0) this.removeStatuses(target, 'shield');
     }

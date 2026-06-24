@@ -51,14 +51,20 @@ const FALLBACK_ICON: LucideIcon = Sparkles;
 
 /** Resolve the glyph for an ability via its registry `icon` name. */
 export function abilityIcon(kind: AbilityKind): LucideIcon {
-  return ICON_BY_NAME[ABILITIES[kind]?.icon ?? ''] ?? FALLBACK_ICON;
+  return ICON_BY_NAME[ABILITIES?.[kind]?.icon ?? ''] ?? FALLBACK_ICON;
 }
 
 /**
- * Back-compat icon map keyed by ability id (built from the registry). Existing
+ * Back-compat icon map keyed by ability id (built dynamically via Proxy). Existing
  * consumers (`ABILITY_ICON[kind]`) keep working; new abilities appear here
- * automatically.
+ * automatically, completely avoiding circular import issues at startup.
  */
-export const ABILITY_ICON: Record<AbilityKind, LucideIcon> = Object.fromEntries(
-  (Object.keys(ABILITIES) as AbilityKind[]).map((kind) => [kind, abilityIcon(kind)]),
-) as Record<AbilityKind, LucideIcon>;
+export const ABILITY_ICON: Record<AbilityKind, LucideIcon> = new Proxy({} as any, {
+  get(_target, prop) {
+    if (typeof prop === 'string') {
+      return abilityIcon(prop as AbilityKind);
+    }
+    return undefined;
+  },
+});
+

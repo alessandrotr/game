@@ -98,6 +98,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // over the player instead of swinging a frame behind the body's turn.
   const body = useRef<Group>(null);
   const hpFill = useRef<Mesh>(null);
+  const shieldFill = useRef<Mesh>(null);
   // The floating health bar (background + fill); hidden while dead.
   const hpBar = useRef<Group>(null);
 
@@ -473,10 +474,16 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     }
 
     // HP bar fill, left-anchored.
-    if (hpFill.current) {
-      const ratio = clamp(latest.hp / latest.maxHp, 0, 1);
-      hpFill.current.scale.x = Math.max(0.001, ratio);
-      hpFill.current.position.x = -(HP_BAR_WIDTH * (1 - ratio)) / 2;
+    if (hpFill.current && shieldFill.current) {
+      const hpRatio = clamp(latest.hp / latest.maxHp, 0, 1);
+      const shieldRatio = clamp(latest.shield / latest.maxHp, 0, 1 - hpRatio);
+
+      hpFill.current.scale.x = Math.max(0.001, hpRatio);
+      hpFill.current.position.x = -(HP_BAR_WIDTH * (1 - hpRatio)) / 2;
+
+      shieldFill.current.scale.x = Math.max(0.001, shieldRatio);
+      shieldFill.current.position.x = -HP_BAR_WIDTH / 2 + hpRatio * HP_BAR_WIDTH + (shieldRatio * HP_BAR_WIDTH) / 2;
+      shieldFill.current.visible = latest.shield > 0;
     }
   });
 
@@ -598,6 +605,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           <mesh ref={hpFill} position={[0, 0, 0.001]}>
             <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
             <meshBasicMaterial color="#4ade80" />
+          </mesh>
+          <mesh ref={shieldFill} position={[0, 0, 0.0015]} visible={false}>
+            <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
+            <meshBasicMaterial color="#aab4ff" />
           </mesh>
           {/* LoL-style segment ticks: one divider per HP_PER_CHUNK of max health,
               drawn over the fill so the bar reads as discrete chunks. */}

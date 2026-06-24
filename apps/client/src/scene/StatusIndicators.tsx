@@ -19,6 +19,7 @@ const STATUS_COLOR: Record<StatusKind, string> = {
   stun: '#ffd24a',
   root: '#b9772e',
   silence: '#c060ff',
+  blind: '#7c7c8c',
   slow: '#6bd0ff',
   haste: '#7cff9e',
   attack_speed: '#ffae42',

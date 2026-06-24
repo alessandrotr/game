@@ -40,9 +40,14 @@ export function isRooted(carrier: StatusCarrier): boolean {
   return hasStatus(carrier, 'root') || hasStatus(carrier, 'stun');
 }
 
-/** Silenced (or stunned): cannot cast abilities. */
+/** Silenced (or stunned or blinded): cannot cast abilities. */
 export function isSilenced(carrier: StatusCarrier): boolean {
-  return hasStatus(carrier, 'silence') || hasStatus(carrier, 'stun');
+  return hasStatus(carrier, 'silence') || hasStatus(carrier, 'stun') || hasStatus(carrier, 'blind');
+}
+
+/** Blinded (or stunned): cannot attack. */
+export function isBlinded(carrier: StatusCarrier): boolean {
+  return hasStatus(carrier, 'blind') || hasStatus(carrier, 'stun');
 }
 
 /**

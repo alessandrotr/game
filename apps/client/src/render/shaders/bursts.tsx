@@ -625,4 +625,131 @@ export const ChestSpawnEffect = (p: BurstShaderProps) => (
   </group>
 );
 
+// --- Ninja Slash 1 (120°): a sharp dark-purple front slash fitting exactly its radius of 4.0
+
+const ninjaSlash1Frag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  void main(){
+    const float TAU = 6.28318530718;
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;                        // 0 centre → 1 edge
+    
+    // Signed angle from "forward", in turns: -0.5 .. 0.5
+    float front = atan(p.x, -p.y) / TAU;
+    
+    // Define angular limits for 120° (half is 60° / 360° = 0.16667)
+    float halfAngle = 0.16667;
+    
+    // Very sharp but anti-aliased angular mask
+    float angMask = smoothstep(halfAngle + 0.003, halfAngle - 0.003, abs(front));
+    
+    // Very sharp but anti-aliased radial mask matching EXACTLY the attack radius of 4.0 (r = 1.0)
+    float radMask = smoothstep(1.0, 0.98, r) * smoothstep(0.48, 0.5, r);
+    
+    // Total geometric mask
+    float mask = angMask * radMask;
+    
+    // The blade tip sweeps across the front arc, one side to the other.
+    // Starts at -halfAngle, ends at +halfAngle.
+    float tipPos = -halfAngle + uProgress * (halfAngle * 2.0);
+    float delta = tipPos - front;                     // >=0 → already carved
+    float swept = step(0.0, delta);
+    
+    // Comet trail: brightest at the tip, fading back along the swept arc.
+    float trail = swept * smoothstep(halfAngle * 2.0, 0.0, delta);
+    
+    // Hot leading edge — the steel glint at the blade tip.
+    float tip = smoothstep(0.02, 0.0, abs(delta)) * swept;
+    
+    // Base ring line (faint guide along the outer edge for gameplay clarity)
+    float outerRing = smoothstep(0.05, 0.0, abs(r - 0.99));
+    
+    // Core visual intensity
+    float v = (trail * 0.8 + tip * 2.0 + outerRing * 0.4) * mask;
+    
+    // Almost black base with very dark magenta shadows and almost white glow
+    vec3 baseBlack = vec3(0.005, 0.005, 0.01);
+    vec3 darkMagenta = vec3(0.08, 0.0, 0.04);
+    vec3 almostWhite = vec3(0.96, 0.94, 0.98);
+    
+    vec3 col = mix(baseBlack, darkMagenta, clamp(trail * 1.5 + tip * 0.3 + outerRing * 0.6, 0.0, 1.0));
+    col = mix(col, almostWhite, clamp(tip * 1.4, 0.0, 1.0));
+    
+    // Fade out cleanly over the lifetime
+    float life = 1.0 - smoothstep(0.7, 1.0, uProgress);
+    
+    gl_FragColor = vec4(col * v * 3.0, v * life);
+  }
+`;
+
+export const NinjaSlash1Effect = (p: BurstShaderProps) => (
+  <GroundBurst {...p} size={8} frag={ninjaSlash1Frag} />
+);
+
+// --- Ninja Slash 2 (120°): a sharp dark-purple front slash fitting exactly its radius of 4.0
+
+const ninjaSlash2Frag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  void main(){
+    const float TAU = 6.28318530718;
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;                        // 0 centre → 1 edge
+    
+    // Signed angle from "forward", in turns: -0.5 .. 0.5
+    float front = atan(p.x, -p.y) / TAU;
+    
+    // Define angular limits for 120° (half is 60° / 360° = 0.16667)
+    float halfAngle = 0.16667;
+    
+    // Very sharp but anti-aliased angular mask
+    float angMask = smoothstep(halfAngle + 0.003, halfAngle - 0.003, abs(front));
+    
+    // Very sharp but anti-aliased radial mask matching EXACTLY the attack radius of 4.0 (r = 1.0)
+    float radMask = smoothstep(1.0, 0.98, r) * smoothstep(0.48, 0.5, r);
+    
+    // Total geometric mask
+    float mask = angMask * radMask;
+    
+    // The blade tip sweeps across the front arc, one side to the other.
+    // Starts at -halfAngle, ends at +halfAngle.
+    float tipPos = -halfAngle + uProgress * (halfAngle * 2.0);
+    float delta = tipPos - front;                     // >=0 → already carved
+    float swept = step(0.0, delta);
+    
+    // Comet trail: brightest at the tip, fading back along the swept arc.
+    float trail = swept * smoothstep(halfAngle * 2.0, 0.0, delta);
+    
+    // Hot leading edge — the steel glint at the blade tip.
+    float tip = smoothstep(0.02, 0.0, abs(delta)) * swept;
+    
+    // Base ring line (faint guide along the outer edge for gameplay clarity)
+    float outerRing = smoothstep(0.05, 0.0, abs(r - 0.99));
+    
+    // Core visual intensity
+    float v = (trail * 0.8 + tip * 2.0 + outerRing * 0.4) * mask;
+    
+    // Almost black base with very dark magenta shadows and almost white glow
+    vec3 baseBlack = vec3(0.005, 0.005, 0.01);
+    vec3 darkMagenta = vec3(0.08, 0.0, 0.04);
+    vec3 almostWhite = vec3(0.96, 0.94, 0.98);
+    
+    vec3 col = mix(baseBlack, darkMagenta, clamp(trail * 1.5 + tip * 0.3 + outerRing * 0.6, 0.0, 1.0));
+    col = mix(col, almostWhite, clamp(tip * 1.4, 0.0, 1.0));
+    
+    // Fade out cleanly over the lifetime
+    float life = 1.0 - smoothstep(0.7, 1.0, uProgress);
+    
+    gl_FragColor = vec4(col * v * 3.0, v * life);
+  }
+`;
+
+export const NinjaSlash2Effect = (p: BurstShaderProps) => (
+  <GroundBurst {...p} size={8} frag={ninjaSlash2Frag} />
+);
+
+
 

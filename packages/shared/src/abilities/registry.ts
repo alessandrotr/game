@@ -379,6 +379,95 @@ export const ABILITY_REGISTRY = {
     beamWidth: 1,
     effects: [],
   },
+
+  // === Ninja — high-mobility melee assassin kit ===
+  ninja_q: {
+    id: 'ninja_q',
+    name: 'Katana Slash',
+    icon: 'Swords',
+    aim: 'self',
+    cooldownMs: 600,
+    manaCost: 10,
+    castTimeMs: 0,
+    range: 4,
+    damage: 25,
+    aoeRadius: 4,
+    effects: [
+      {
+        type: 'aoe',
+        at: 'caster',
+        radius: 4,
+        arc: 120,
+        onHit: [{ type: 'damage', amount: 25 }],
+      },
+    ],
+  },
+  ninja_w: {
+    id: 'ninja_w',
+    name: 'Shuriken Showdown',
+    icon: 'Zap',
+    aim: 'direction',
+    cooldownMs: 8000,
+    manaCost: 40,
+    castTimeMs: 0,
+    range: 30,
+    damage: 35,
+    projectileSpeed: 55,
+    projectileRange: 30,
+    projectileRadius: 0.8,
+    effects: [
+      {
+        type: 'projectile',
+        speed: 55,
+        range: 30,
+        radius: 0.8,
+        vfx: 'shuriken',
+        onHit: [{ type: 'damage', amount: 35 }],
+        pierce: true,
+      },
+    ],
+  },
+  ninja_e: {
+    id: 'ninja_e',
+    name: 'Shadow Dash',
+    icon: 'Wind',
+    aim: 'direction',
+    cooldownMs: 3000,
+    manaCost: 20,
+    castTimeMs: 0,
+    range: 6,
+    damage: 0,
+    effects: [
+      {
+        type: 'dash',
+        distance: 6,
+        speed: 32,
+      },
+    ],
+  },
+  ninja_r: {
+    id: 'ninja_r',
+    name: 'Smoke Teleport',
+    icon: 'Bomb',
+    aim: 'point',
+    cooldownMs: 10000,
+    manaCost: 60,
+    castTimeMs: 0,
+    range: 10,
+    damage: 25,
+    aoeRadius: 3,
+    effects: [
+      {
+        type: 'aoe',
+        at: 'caster',
+        radius: 3,
+        onHit: [
+          { type: 'damage', amount: 25 },
+          { type: 'status', status: { kind: 'blind', durationMs: 1500 } },
+        ],
+      },
+    ],
+  },
 } satisfies Record<string, AbilityDef>;
 
 /** Every ability id known to the game (the registry keys, as a literal union). */
@@ -422,4 +511,5 @@ export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, 
   mage: { Q: 'fireball', W: 'frost_nova', E: 'arcane_bolt', R: 'arcane_blast' },
   archer: { Q: 'power_shot', W: 'crippling_shot', E: 'tumble', R: 'pinning_arrow' },
   priest: { Q: 'smite', W: 'heal', E: 'renew', R: 'condemn' },
+  ninja: { Q: 'ninja_q', W: 'ninja_w', E: 'ninja_e', R: 'ninja_r' },
 };

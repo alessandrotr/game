@@ -8,6 +8,7 @@ import {
   Sparkles,
   Crosshair,
   Cross,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -25,6 +26,7 @@ const CLASS_ICON: Record<CharacterClass, LucideIcon> = {
   mage: Sparkles,
   archer: Crosshair,
   priest: Cross,
+  ninja: Zap,
 };
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';

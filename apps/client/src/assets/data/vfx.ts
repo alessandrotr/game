@@ -618,6 +618,167 @@ const singularityBlast: VfxDescriptor = {
   },
 };
 
+const shuriken: VfxDescriptor = {
+  id: 'vfx.shuriken',
+  displayName: 'Shuriken',
+  behavior: 'projectile',
+  speed: 55,
+  durationMs: 1000,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'core',
+        shape: 'cylinder',
+        args: [0.35, 0.35, 0.04, 8],
+        rotation: [Math.PI / 2, 0, 0],
+        color: '#151515',
+        metalness: 0.9,
+        roughness: 0.3,
+      },
+      {
+        name: 'blade1',
+        shape: 'cone',
+        args: [0.1, 0.5, 4],
+        position: [0, 0.55, 0],
+        color: '#2a2d33',
+        metalness: 0.85,
+        roughness: 0.26,
+      },
+      {
+        name: 'blade2',
+        shape: 'cone',
+        args: [0.1, 0.5, 4],
+        position: [0, -0.55, 0],
+        rotation: [0, 0, Math.PI],
+        color: '#2a2d33',
+        metalness: 0.85,
+        roughness: 0.26,
+      },
+      {
+        name: 'blade3',
+        shape: 'cone',
+        args: [0.1, 0.5, 4],
+        position: [0.55, 0, 0],
+        rotation: [0, 0, -Math.PI / 2],
+        color: '#2a2d33',
+        metalness: 0.85,
+        roughness: 0.26,
+      },
+      {
+        name: 'blade4',
+        shape: 'cone',
+        args: [0.1, 0.5, 4],
+        position: [-0.55, 0, 0],
+        rotation: [0, 0, Math.PI / 2],
+        color: '#2a2d33',
+        metalness: 0.85,
+        roughness: 0.26,
+      },
+    ],
+  },
+};
+
+const smokeTeleport: VfxDescriptor = {
+  id: 'vfx.smoke_teleport',
+  displayName: 'Smoke Teleport',
+  behavior: 'burst',
+  durationMs: 600,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'cloud',
+        shape: 'sphere',
+        args: [1.1, 16, 16],
+        position: [0, 0.6, 0],
+        color: '#1a1a1c',
+        roughness: 0.9,
+        opacity: 0.85,
+      },
+      {
+        name: 'puff',
+        shape: 'sphere',
+        args: [1.4, 12, 12],
+        position: [0, 0.4, 0],
+        color: '#111111',
+        roughness: 0.9,
+        opacity: 0.6,
+      },
+      {
+        name: 'ring',
+        shape: 'torus',
+        args: [0.9, 0.09, 8, 24],
+        rotation: [Math.PI / 2, 0, 0],
+        color: '#252528',
+        opacity: 0.7,
+      },
+    ],
+  },
+};
+
+const ninjaSlash1: VfxDescriptor = {
+  id: 'vfx.ninja_slash_1',
+  displayName: 'Ninja Slash 1',
+  behavior: 'burst',
+  durationMs: 250,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'arc.outer',
+        shape: 'torus',
+        args: [4.0, 0.14, 10, 40, (120 * Math.PI) / 180],
+        rotation: [Math.PI / 2, 0, Math.PI / 6],
+        color: '#151518',
+        emissive: '#4a0e7a',
+        emissiveIntensity: 3.0,
+      },
+      {
+        name: 'arc.inner',
+        shape: 'torus',
+        args: [3.5, 0.06, 10, 40, (120 * Math.PI) / 180],
+        rotation: [Math.PI / 2, 0, Math.PI / 6],
+        color: '#101012',
+        emissive: '#9400d3',
+        emissiveIntensity: 4.0,
+        opacity: 0.8,
+      },
+    ],
+  },
+};
+
+const ninjaSlash2: VfxDescriptor = {
+  id: 'vfx.ninja_slash_2',
+  displayName: 'Ninja Slash 2',
+  behavior: 'burst',
+  durationMs: 250,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      {
+        name: 'arc.outer',
+        shape: 'torus',
+        args: [4.0, 0.14, 10, 40, (90 * Math.PI) / 180],
+        rotation: [Math.PI / 2, 0, Math.PI / 4],
+        color: '#151518',
+        emissive: '#4a0e7a',
+        emissiveIntensity: 3.0,
+      },
+      {
+        name: 'arc.inner',
+        shape: 'torus',
+        args: [3.5, 0.06, 10, 40, (90 * Math.PI) / 180],
+        rotation: [Math.PI / 2, 0, Math.PI / 4],
+        color: '#101012',
+        emissive: '#9400d3',
+        emissiveIntensity: 4.0,
+        opacity: 0.8,
+      },
+    ],
+  },
+};
+
 export const VFX: VfxDescriptor[] = [
   fireball,
   arrow,
@@ -646,5 +807,9 @@ export const VFX: VfxDescriptor[] = [
   bloodSplash,
   lightningSpark,
   chestSpawn,
+  shuriken,
+  smokeTeleport,
+  ninjaSlash1,
+  ninjaSlash2,
 ];
 

@@ -23,6 +23,8 @@ import {
   LightningSparkEffect,
   ChestSpawnEffect,
   SingularityBlastEffect,
+  NinjaSlash1Effect,
+  NinjaSlash2Effect,
 } from './bursts';
 import { CarExplosionEffect, BarrelExplosionEffect } from './coverEffects';
 import type { BurstShaderProps } from './common';
@@ -66,4 +68,6 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.lightning_spark': LightningSparkEffect,
   'vfx.chest_spawn': ChestSpawnEffect,
   'vfx.singularity_blast': SingularityBlastEffect,
+  'vfx.ninja_slash_1': NinjaSlash1Effect,
+  'vfx.ninja_slash_2': NinjaSlash2Effect,
 };
