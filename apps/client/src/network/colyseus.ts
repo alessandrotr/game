@@ -377,8 +377,7 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     : 0;
 
   const def = ABILITIES[msg.ability];
-  const baseRadius = def?.aoeRadius ?? 0;
-  const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
+  let baseRadius = def?.aoeRadius ?? 0;
 
   if (msg.ability === 'ninja_q') {
     const now = performance.now();
@@ -386,13 +385,18 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     const isSecondSwing = now - lastCast < 450;
     if (isSecondSwing) {
       lastNinjaQCast.delete(msg.casterId);
+      baseRadius = 4.5;
     } else {
       lastNinjaQCast.set(msg.casterId, now);
+      baseRadius = 4.0;
     }
+    const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
     const vfxId = isSecondSwing ? 'vfx.ninja_slash_2' : 'vfx.ninja_slash_1';
     spawn(vfxId, [msg.x, 0.9, msg.z], dir, msg.casterId, undefined, scale);
     return;
   }
+
+  const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
 
   const burst = ABILITY_CAST_VFX[msg.ability];
   if (burst) {

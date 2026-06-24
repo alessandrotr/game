@@ -138,11 +138,11 @@ describe('Ninja Class Abilities Integration', () => {
     // 2. 300ms later secondary swing
     capturedTimeoutCb!();
 
-    // Check secondary swing deals 10 damage to victim and victim2 (both inside 120° arc)
-    // but not victim3 (outside 120° arc)
+    // Check secondary swing deals 10 damage to victim, victim2 (both inside 120° arc)
+    // and victim3 (inside the updated 180° frontal arc and range 4.5)
     expect(victim.hp).toBe(65);
     expect(victim2.hp).toBe(65);
-    expect(victim3.hp).toBe(100);
+    expect(victim3.hp).toBe(90);
   });
 
   it('R (Smoke Teleport) clamps/resolves target coordinate against obstacles and blinds enemies', () => {
@@ -183,7 +183,7 @@ describe('Ninja Class Abilities Integration', () => {
     expect(distFromObstacle).toBeCloseTo(obstacle.radius + PLAYER_RADIUS, 2);
 
     // Verify victim (near caster's teleport landing position) took damage and is blinded
-    expect(victim.hp).toBeLessThan(100);
+    expect(victim.hp).toBe(65);
     const blindStatus = victim.statuses.find(s => s.kind === 'blind');
     expect(blindStatus).toBeDefined();
     expect(blindStatus?.expiresAt).toBe(ctx.now() + 1500);
@@ -296,5 +296,46 @@ describe('Ninja Class Abilities Integration', () => {
     expect(caster.shield).toBe(35);
     expect(caster.hp).toBe(100);
     expect(caster.statuses.find(s => s.kind === 'shield')?.magnitude).toBe(35);
+  });
+
+  it('E (Shadow Dash) recast (second dash) applies a displacement with distance 6 and grants a 25 HP shield for 3.5s', () => {
+    const ctx = makeMockContext();
+    const combat = setupCombatSystem(ctx);
+
+    const caster = new Player();
+    caster.sessionId = 'caster';
+    caster.characterClass = 'ninja';
+    caster.alive = true;
+    caster.x = 0;
+    caster.z = 0;
+    caster.maxHp = 100;
+    caster.hp = 100;
+    ctx.state.players.set('caster', caster);
+
+    // Simulate the recast configuration constructed by the server
+    const recastConfig = {
+      ...ABILITIES.ninja_e,
+      effects: [
+        { type: 'dash', distance: 6, speed: 32 },
+        { type: 'shield', amount: 25, durationMs: 3500 },
+      ] as any[],
+    };
+
+    combat.resolveCast(caster, recastConfig, 0, 1);
+
+    // Verify second dash displacement
+    const disp = ctx.displacements.get('caster');
+    expect(disp).toBeDefined();
+    const speed = Math.hypot(disp!.vx, disp!.vz);
+    expect(speed).toBeCloseTo(32, 2);
+    const durationMs = disp!.until - ctx.now();
+    expect(durationMs).toBeCloseTo(187.5, 1); // 6 / 32 * 1000 = 187.5ms
+
+    // Verify 25 HP shield is applied
+    expect(caster.shield).toBe(25);
+    const shieldStatus = caster.statuses.find(s => s.kind === 'shield');
+    expect(shieldStatus).toBeDefined();
+    expect(shieldStatus?.magnitude).toBe(25);
+    expect(shieldStatus?.expiresAt).toBe(ctx.now() + 3500);
   });
 });

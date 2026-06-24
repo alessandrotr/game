@@ -234,8 +234,8 @@ export class CombatSystem {
           {
             type: 'aoe',
             at: 'caster',
-            radius: 4,
-            arc: 120,
+            radius: 4.5,
+            arc: 180,
             onHit: [{ type: 'damage', amount: 10 }],
           },
         ];

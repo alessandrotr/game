@@ -1061,7 +1061,10 @@ export class ArenaRoom extends AvatarRoom {
       if (ability === 'ninja_e' && inRecastWindow && state) {
         activeConfig = {
           ...config,
-          effects: [{ type: 'dash', distance: 4, speed: 32 }],
+          effects: [
+            { type: 'dash', distance: 6, speed: 32 },
+            { type: 'shield', amount: 25, durationMs: 3500 },
+          ],
         };
       }
       const aoeSizeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
@@ -1386,7 +1389,7 @@ export class ArenaRoom extends AvatarRoom {
       if (this.simTime > state.windowEnd) {
         const cd = this.cooldowns.get(sessionId);
         if (cd) {
-          cd['ninja_e'] = this.simTime + 4000 * (state.perkMods?.cooldownMult ?? 1);
+          cd['ninja_e'] = this.simTime + 3000 * (state.perkMods?.cooldownMult ?? 1);
         }
         this.ninjaEStates.delete(sessionId);
       }

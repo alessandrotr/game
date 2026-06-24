@@ -113,7 +113,7 @@ describe('abilityCooldowns store', () => {
     expect(cooldownRemaining('ninja_e')).toBe(0);
     expect(getAbilityManaCost('ninja_e')).toBe(30); // mana cost is +10
 
-    // Second cast of ninja_e at t = 1700
+    // Second cast of ninja_e at t = 1700 (still inside recast window 1514 to 2514)
     nowSpy.mockReturnValue(1700);
     triggerCooldown('ninja_e', 4000);
     // E goes on 6s cooldown
@@ -130,9 +130,9 @@ describe('abilityCooldowns store', () => {
     triggerCooldown('ninja_e', 3000);
     expect(cooldownRemaining('ninja_e')).toBeCloseTo(514, 0);
 
-    // Let time expire past the recast window (3000 + 1700 = 4700)
-    nowSpy.mockReturnValue(4800);
-    // This should trigger the standard 3s cooldown from t = 4800
+    // Let time expire past the recast window (3000 + 1514 = 4514)
+    nowSpy.mockReturnValue(4600);
+    // This should trigger the standard 3s cooldown from t = 4600
     expect(cooldownRemaining('ninja_e')).toBeCloseTo(3000, 0);
 
     nowSpy.mockRestore();

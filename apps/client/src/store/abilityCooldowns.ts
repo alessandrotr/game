@@ -18,7 +18,7 @@ let ninjaEStage = 0; // 0 = ready, 1 = first cast done, waiting for window, 2 = 
 export function isNinjaERecastActive(): boolean {
   if (ninjaEStage !== 1 || ninjaEFirstCast === null) return false;
   const now = performance.now();
-  return now >= ninjaEFirstCast + 514 && now <= ninjaEFirstCast + 1700;
+  return now >= ninjaEFirstCast + 514 && now <= ninjaEFirstCast + 1514;
 }
 
 export function getAbilityManaCost(ability: AbilityKind): number {
@@ -55,7 +55,7 @@ export function cooldownRemaining(ability: AbilityKind): number {
       const now = performance.now();
       if (ninjaEStage === 1 && ninjaEFirstCast !== null) {
         const windowStart = ninjaEFirstCast + 514;
-        const windowEnd = ninjaEFirstCast + 1700;
+        const windowEnd = ninjaEFirstCast + 1514;
         if (now < windowStart) {
           return windowStart - now;
         } else if (now <= windowEnd) {

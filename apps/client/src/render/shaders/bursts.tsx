@@ -688,7 +688,7 @@ export const NinjaSlash1Effect = (p: BurstShaderProps) => (
   <GroundBurst {...p} size={8} frag={ninjaSlash1Frag} />
 );
 
-// --- Ninja Slash 2 (120°): a sharp dark-purple front slash fitting exactly its radius of 4.0
+// --- Ninja Slash 2 (180°): a sharp dark-purple front slash fitting exactly its radius of 4.5
 
 const ninjaSlash2Frag = /* glsl */ `
   precision highp float;
@@ -702,13 +702,13 @@ const ninjaSlash2Frag = /* glsl */ `
     // Signed angle from "forward", in turns: -0.5 .. 0.5
     float front = atan(p.x, -p.y) / TAU;
     
-    // Define angular limits for 120° (half is 60° / 360° = 0.16667)
-    float halfAngle = 0.16667;
+    // Define angular limits for 180° (half is 90° / 360° = 0.25)
+    float halfAngle = 0.25;
     
     // Very sharp but anti-aliased angular mask
     float angMask = smoothstep(halfAngle + 0.003, halfAngle - 0.003, abs(front));
     
-    // Very sharp but anti-aliased radial mask matching EXACTLY the attack radius of 4.0 (r = 1.0)
+    // Very sharp but anti-aliased radial mask matching EXACTLY the attack radius of 4.5 (r = 1.0)
     float radMask = smoothstep(1.0, 0.98, r) * smoothstep(0.48, 0.5, r);
     
     // Total geometric mask
@@ -748,7 +748,7 @@ const ninjaSlash2Frag = /* glsl */ `
 `;
 
 export const NinjaSlash2Effect = (p: BurstShaderProps) => (
-  <GroundBurst {...p} size={8} frag={ninjaSlash2Frag} />
+  <GroundBurst {...p} size={9} frag={ninjaSlash2Frag} />
 );
 
 

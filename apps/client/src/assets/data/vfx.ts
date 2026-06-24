@@ -759,8 +759,8 @@ const ninjaSlash2: VfxDescriptor = {
       {
         name: 'arc.outer',
         shape: 'torus',
-        args: [4.0, 0.14, 10, 40, (90 * Math.PI) / 180],
-        rotation: [Math.PI / 2, 0, Math.PI / 4],
+        args: [4.5, 0.14, 10, 40, Math.PI],
+        rotation: [Math.PI / 2, 0, 0],
         color: '#151518',
         emissive: '#4a0e7a',
         emissiveIntensity: 3.0,
@@ -768,8 +768,8 @@ const ninjaSlash2: VfxDescriptor = {
       {
         name: 'arc.inner',
         shape: 'torus',
-        args: [3.5, 0.06, 10, 40, (90 * Math.PI) / 180],
-        rotation: [Math.PI / 2, 0, Math.PI / 4],
+        args: [4.0, 0.06, 10, 40, Math.PI],
+        rotation: [Math.PI / 2, 0, 0],
         color: '#101012',
         emissive: '#9400d3',
         emissiveIntensity: 4.0,

@@ -454,7 +454,7 @@ export const ABILITY_REGISTRY = {
     manaCost: 60,
     castTimeMs: 0,
     range: 10,
-    damage: 25,
+    damage: 35,
     aoeRadius: 3,
     effects: [
       {
@@ -462,7 +462,7 @@ export const ABILITY_REGISTRY = {
         at: 'caster',
         radius: 3,
         onHit: [
-          { type: 'damage', amount: 25 },
+          { type: 'damage', amount: 35 },
           { type: 'status', status: { kind: 'blind', durationMs: 1500 } },
         ],
       },
