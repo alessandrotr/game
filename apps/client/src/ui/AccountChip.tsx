@@ -1,4 +1,4 @@
-import { Ghost, LogOut, Skull, Trophy, UserPlus } from 'lucide-react';
+import { Ghost, LogOut, Skull, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
@@ -62,8 +62,7 @@ export function AccountChip() {
           {guest ? 'Guest' : username}
         </span>
         {guest ? (
-          <span className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-amber-300/90">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_2px_rgba(251,191,36,0.6)]" />
+          <span className="mt-0.5 flex items-center gap-1.5 text-[8px] uppercase tracking-[0.18em] text-amber-300/90">
             Progress not saved
           </span>
         ) : hasRecord ? (
@@ -94,7 +93,6 @@ export function AccountChip() {
             onClick={() => openUpgrade(true)}
             className="gap-1.5 whitespace-nowrap"
           >
-            <UserPlus size={14} aria-hidden="true" />
             Save progress
           </Button>
         )}
