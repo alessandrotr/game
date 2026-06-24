@@ -1036,9 +1036,8 @@ export class ArenaRoom extends AvatarRoom {
         cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
         this.ninjaEStates.delete(sessionId);
       } else {
-        const dashEnd = this.simTime + 214;
-        const windowStart = dashEnd + 300;
-        const windowEnd = dashEnd + 1300;
+        const windowStart = this.simTime + 314;
+        const windowEnd = this.simTime + 1700;
         cd[ability] = windowStart;
         this.ninjaEStates.set(sessionId, {
           stage: 1,

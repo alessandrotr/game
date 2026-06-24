@@ -17,7 +17,7 @@ const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {
     state,
     tuning: {
       classStats: {
-        ninja: { health: 300, mana: 150 },
+        ninja: { health: 300, mana: 100 },
       },
       abilityFor: (cls: string, ab: string) => ABILITIES[ab as AbilityKind],
     } as any,

@@ -54,7 +54,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     role: 'Ranged Burst',
     description:
       'Glass-cannon caster: fireballs, a frost burst, arcane bolts, and a targeted blast.',
-    stats: { health: 280, mana: 220, moveSpeed: 9, attackDamage: 55, difficulty: 3 },
+    stats: { health: 280, mana: 260, moveSpeed: 9, attackDamage: 55, difficulty: 3 },
     abilities: ['fireball', 'frost_nova', 'arcane_bolt', 'arcane_blast'],
     color: '#3a57d6',
   },
@@ -81,7 +81,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     name: 'Ninja',
     role: 'Melee Assassin',
     description: 'A swift, elusive shadow who strikes with a katana and smoke bombs.',
-    stats: { health: 300, mana: 150, moveSpeed: 9, attackDamage: 30, difficulty: 3 },
+    stats: { health: 300, mana: 100, moveSpeed: 9, attackDamage: 30, difficulty: 3 },
     abilities: ['ninja_q', 'ninja_w', 'ninja_e', 'ninja_r'],
     color: '#1e1e24',
   },
