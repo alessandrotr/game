@@ -49,6 +49,9 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 // a clean process.
 process.on('unhandledRejection', (reason) => {
   console.error('⚠️  Unhandled promise rejection:', reason);
+  // Colyseus swallows async handler rejections into this event, so capture here
+  // or they never reach Sentry.
+  Sentry.captureException(reason);
 });
 process.on('uncaughtException', (err) => {
   console.error('💥  Uncaught exception — exiting for a clean restart:', err);

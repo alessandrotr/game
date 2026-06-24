@@ -571,6 +571,33 @@ export class ArenaRoom extends AvatarRoom {
       },
     );
 
+    // Charging a hold-to-aim ability (held, not yet released) — replicated so
+    // other clients can play the wind-up. `ability: ''` clears it.
+    this.onMessage(
+      ClientMessage.SetCharge,
+      (client, message: ClientMessagePayloads[ClientMessage.SetCharge]) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive) return;
+        const ability = typeof message?.ability === 'string' ? message.ability : '';
+        if (ability && isAbilityKind(ability) && !this.gunMode) {
+          player.chargeAbility = ability;
+          const dx = Number(message?.dirX) || 0;
+          const dz = Number(message?.dirZ) || 0;
+          if (Math.hypot(dx, dz) > 1e-3) {
+            player.chargeDirX = dx;
+            player.chargeDirZ = dz;
+          }
+        } else {
+          player.chargeAbility = '';
+        }
+      },
+    );
+
+    // Catch-all: silently ignore unknown message types so a client that's newer
+    // than the server (a deploy in progress) can't get DISCONNECTED for sending a
+    // message this build doesn't handle yet. Specific handlers above take priority.
+    this.onMessage('*', () => {});
+
     // Gun Mode Zombie weapon input (fire / switch / reload / aim). Registered
     // only in gun mode; the handlers are a no-op for dead players / CC'd casters.
     if (this.gunMode) this.registerGunHandlers();
@@ -839,33 +866,6 @@ export class ArenaRoom extends AvatarRoom {
         if (isGunView(message?.view)) this.gunViews.set(client.sessionId, message.view);
       },
     );
-
-    // Charging a hold-to-aim ability (held, not yet released) — replicated so
-    // other clients can play the wind-up. `ability: ''` clears it.
-    this.onMessage(
-      ClientMessage.SetCharge,
-      (client, message: ClientMessagePayloads[ClientMessage.SetCharge]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive) return;
-        const ability = typeof message?.ability === 'string' ? message.ability : '';
-        if (ability && isAbilityKind(ability) && !this.gunMode) {
-          player.chargeAbility = ability;
-          const dx = Number(message?.dirX) || 0;
-          const dz = Number(message?.dirZ) || 0;
-          if (Math.hypot(dx, dz) > 1e-3) {
-            player.chargeDirX = dx;
-            player.chargeDirZ = dz;
-          }
-        } else {
-          player.chargeAbility = '';
-        }
-      },
-    );
-
-    // Catch-all: silently ignore unknown message types so a client that's newer
-    // than the server (a deploy in progress) can't get DISCONNECTED for sending a
-    // message this build doesn't handle yet. Specific handlers above take priority.
-    this.onMessage('*', () => {});
   }
 
   /** Resolve a normalized aim vector, falling back to the player's facing. */
