@@ -90,6 +90,10 @@ export enum ClientMessage {
   /** Update the aim direction of an in-progress channel (e.g. the priest beam),
    *  sent continuously while channelling so the ray tracks the cursor. */
   AimChannel = 'aim_channel',
+  /** Mark a hold-to-aim ability as being CHARGED (held but not yet fired), with
+   *  the live aim direction — replicated so others see the wind-up. `ability: ''`
+   *  clears it (on release / cancel). */
+  SetCharge = 'set_charge',
   /** Update the player's equipped appearance live (skin / dye / title) so
    *  everyone in the room sees it immediately. Persistence is over HTTP. */
   EquipLoadout = 'equip_loadout',
@@ -235,6 +239,7 @@ export interface ClientMessagePayloads {
   [ClientMessage.Emote]: { emote: string };
   /** New aim direction for the active channel (normalized server-side). */
   [ClientMessage.AimChannel]: { dirX: number; dirZ: number };
+  [ClientMessage.SetCharge]: { ability: string; dirX: number; dirZ: number };
   /** The appearance-affecting subset of the loadout (cosmetic ids; '' = none).
    *  `paintRev` is a short revision of the player's custom paint for this class —
    *  when it changes, peers refetch the paint PNG over HTTP (the PNG itself is too

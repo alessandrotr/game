@@ -293,7 +293,7 @@ const arrowVolley: VfxDescriptor = {
   id: 'vfx.arrow_volley',
   displayName: 'Arrow Volley',
   behavior: 'burst',
-  durationMs: 1350,
+  durationMs: 1450,
   render: {
     kind: 'placeholder',
     parts: [{ name: 'core', shape: 'sphere', args: [0.05, 6, 6], color: '#dfe7f0' }],

@@ -3,7 +3,7 @@ import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot } from '@
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
-import { sendCast } from '../network/colyseus';
+import { sendCast, sendSetCharge } from '../network/colyseus';
 import { clearDestination } from '../store/destinationState';
 import { setLocalDash } from '../store/dashState';
 import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
@@ -33,9 +33,36 @@ const SLOT_BY_CODE: Record<string, AbilitySlot> = {
 export function useAbilityHotkeys(enabled: boolean): void {
   // The keyboard code currently held to aim an ability (so its keyup fires it).
   const aimingCode = useRef<string | null>(null);
+  // Interval streaming the charge (wind-up) aim to the server while a key is held.
+  const chargeTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
+
+    /** Normalized direction from the player to the cursor (falls back to facing). */
+    const cursorDir = (): { dx: number; dz: number } => {
+      const t = getLocalRenderTransform();
+      const cur = getCursorGround();
+      let dx = cur.x - t.x;
+      let dz = cur.z - t.z;
+      const len = Math.hypot(dx, dz);
+      if (len > 1e-3) {
+        dx /= len;
+        dz /= len;
+      } else {
+        dx = Math.sin(t.rotation);
+        dz = Math.cos(t.rotation);
+      }
+      return { dx, dz };
+    };
+    /** Stop replicating the wind-up (on release / cancel). */
+    const stopCharge = (): void => {
+      if (chargeTimer.current !== null) {
+        clearInterval(chargeTimer.current);
+        chargeTimer.current = null;
+      }
+      sendSetCharge('', 0, 0);
+    };
 
     const isTyping = () => {
       const el = document.activeElement;
@@ -205,6 +232,14 @@ export function useAbilityHotkeys(enabled: boolean): void {
         // Hold to aim; the matching keyup fires toward the cursor.
         useAbilityTargeting.getState().begin(ability);
         aimingCode.current = e.code;
+        // Replicate the wind-up to other players, streaming the live aim.
+        const d0 = cursorDir();
+        sendSetCharge(ability, d0.dx, d0.dz);
+        if (chargeTimer.current !== null) clearInterval(chargeTimer.current);
+        chargeTimer.current = window.setInterval(() => {
+          const d = cursorDir();
+          sendSetCharge(ability, d.dx, d.dz);
+        }, 100);
       } else if (config.aim === 'unit') {
         // Instant cast on the player under the cursor.
         castUnit(ability, me.sessionId);
@@ -217,6 +252,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code !== aimingCode.current) return;
       aimingCode.current = null;
+      stopCharge(); // released — end the wind-up (the cast, if any, follows)
       const pending = useAbilityTargeting.getState().pending;
       useAbilityTargeting.getState().cancel();
       const me = localPlayer();
@@ -228,6 +264,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
 
     const onBlur = () => {
       aimingCode.current = null;
+      stopCharge();
       useAbilityTargeting.getState().cancel();
     };
 
@@ -238,6 +275,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
+      if (chargeTimer.current !== null) clearInterval(chargeTimer.current);
     };
   }, [enabled]);
 }

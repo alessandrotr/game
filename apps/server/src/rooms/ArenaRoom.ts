@@ -839,6 +839,28 @@ export class ArenaRoom extends AvatarRoom {
         if (isGunView(message?.view)) this.gunViews.set(client.sessionId, message.view);
       },
     );
+
+    // Charging a hold-to-aim ability (held, not yet released) — replicated so
+    // other clients can play the wind-up. `ability: ''` clears it.
+    this.onMessage(
+      ClientMessage.SetCharge,
+      (client, message: ClientMessagePayloads[ClientMessage.SetCharge]) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive) return;
+        const ability = typeof message?.ability === 'string' ? message.ability : '';
+        if (ability && isAbilityKind(ability) && !this.gunMode) {
+          player.chargeAbility = ability;
+          const dx = Number(message?.dirX) || 0;
+          const dz = Number(message?.dirZ) || 0;
+          if (Math.hypot(dx, dz) > 1e-3) {
+            player.chargeDirX = dx;
+            player.chargeDirZ = dz;
+          }
+        } else {
+          player.chargeAbility = '';
+        }
+      },
+    );
   }
 
   /** Resolve a normalized aim vector, falling back to the player's facing. */
@@ -864,6 +886,8 @@ export class ArenaRoom extends AvatarRoom {
   ): void {
     const player = this.state.players.get(sessionId);
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
+    // A cast means the charge was released — end the wind-up.
+    player.chargeAbility = '';
 
     // Gun Mode Zombie disables the entire ability kit — the player fights with
     // guns only. Reject every cast server-side too, so a crafted client can't

@@ -134,66 +134,66 @@ export function EnergyArrowEffect({
   );
 }
 
-// --- Energy Arrow PROJECTILE: a real arrow (glowing head + shaft) flying point-
-// first, trailing a streaming enchant-colored energy ribbon. Oriented along the
-// flight direction by the projectile entity, so it isn't a flat billboard. ------
+// --- Energy Arrow PROJECTILE: a sleek glowing arrow flying point-first (oriented
+// by the projectile entity), wrapped in a soft WIND swirl (sized to the collision
+// radius) instead of a ring. ----------------------------------------------------
 
-const arrowTrailFrag = /* glsl */ `
+const windFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime;
   uniform vec3 uColor;
   ${GLSL_NOISE}
   void main(){
-    float along = 1.0 - vUv.y;                    // 1 at the arrow → 0 at the tail
-    float across = abs(vUv.x - 0.5) * 2.0;
-    float body = smoothstep(0.0, 1.0, along) * smoothstep(1.0, 0.1, across);
-    float flow = noise(vec2(vUv.x * 5.0, vUv.y * 9.0 + uTime * 8.0));
-    float v = body * (0.35 + flow * 1.0);
-    vec3 col = mix(uColor, vec3(1.0), v * 0.55);  // enchant color, white-hot core
-    gl_FragColor = vec4(col * v * 2.4, v);
+    vec2 p = (vUv - 0.5) * 2.0;           // [-1,1] across the collision radius
+    // Stretched, wavering streaks scrolling sideways — reads as rushing wind.
+    float streaks = noise(vec2(vUv.x * 4.0 - uTime * 5.0, vUv.y * 14.0 + sin(vUv.x * 6.0 + uTime * 3.0)));
+    streaks = pow(streaks, 2.5);
+    float falloff = smoothstep(1.0, 0.15, length(p)); // soft round puff ≈ radius
+    float a = streaks * falloff * 0.45;
+    vec3 col = mix(uColor, vec3(1.0), streaks * 0.4);
+    gl_FragColor = vec4(col * (0.5 + streaks * 1.2), a);
   }
 `;
 
-export function EnergyArrowProjectile({
-  radius = 0.6,
-  tint,
-  heavy = false,
-}: ProjectileShaderProps & { heavy?: boolean }) {
+export function EnergyArrowProjectile({ radius = 0.6, tint }: ProjectileShaderProps) {
   const color = tint ?? '#dfe7f0';
-  const matRef = useRef<ShaderMaterial>(null);
+  const auraRef = useRef<ShaderMaterial>(null);
   const seed = useMemo(() => Math.random() * 10, []);
   const uniforms = useMemo(
     () => ({ uTime: { value: seed }, uColor: { value: new Color(color) } }),
     [seed, color],
   );
-  useUTime(matRef);
-  const s = (heavy ? 1.35 : 1.0) * (radius / 0.6);
-  const trailLen = heavy ? 1.9 : 1.4;
+  useUTime(auraRef);
+  const s = radius / 0.6; // sleek arrow, sized proportionally to the radius
   return (
-    <group scale={s}>
-      {/* glowing arrowhead + shaft, pointing down the flight line (+Z) */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.2]}>
-        <coneGeometry args={[0.07, 0.32, 6]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.5} toneMapped={false} />
-      </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -0.12]}>
-        <cylinderGeometry args={[0.025, 0.025, 0.5, 6]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
-      </mesh>
-      {/* streaming enchant-colored energy trail (flat, additive) behind it */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -trailLen / 2]}>
-        <planeGeometry args={[0.34, trailLen]} />
-        <shaderMaterial
-          ref={matRef}
-          vertexShader={UV_VERTEX}
-          fragmentShader={arrowTrailFrag}
-          uniforms={uniforms}
-          transparent
-          depthWrite={false}
-          blending={AdditiveBlending}
-        />
-      </mesh>
+    <group>
+      {/* wind swirl around the arrow, sized to the collision radius */}
+      <Billboard>
+        <mesh>
+          <planeGeometry args={[radius * 2, radius * 2]} />
+          <shaderMaterial
+            ref={auraRef}
+            vertexShader={UV_VERTEX}
+            fragmentShader={windFrag}
+            uniforms={uniforms}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+          />
+        </mesh>
+      </Billboard>
+      {/* sleek glowing arrow, oriented down the flight line by the entity */}
+      <group scale={s}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.2]}>
+          <coneGeometry args={[0.08, 0.34, 7]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.5} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -0.18]}>
+          <cylinderGeometry args={[0.03, 0.03, 0.6, 6]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -206,9 +206,9 @@ export const PowerShotEffect = ({ radius, tint }: ProjectileShaderProps) => (
 export const CripplingShotEffect = ({ radius, tint }: ProjectileShaderProps) => (
   <EnergyArrowEffect color="#5fc8ff" radius={radius} tint={tint} />
 );
-/** Archer Pinning Arrow — a heavy enchant-colored energy arrow (telegraphs the root). */
+/** Archer Pinning Arrow — an enchant-colored energy arrow (telegraphs the root). */
 export const PinningArrowEffect = ({ radius, tint }: ProjectileShaderProps) => (
-  <EnergyArrowProjectile radius={radius} tint={tint} heavy />
+  <EnergyArrowProjectile radius={radius} tint={tint} />
 );
 
 // --- Holy Bolt: a radiant golden orb with a slowly turning cross flare. ------

@@ -113,6 +113,13 @@ export class Player extends Schema {
   /** Equipped weapon-enchant id ('' = no enchant) — drives the held-weapon shader.
    *  Class-bound. Kept last so existing replicated field offsets are unchanged. */
   @type('string') enchantId = '';
+  /** Ability id being CHARGED (a hold-to-aim ability held but not yet released),
+   *  '' if none, plus its live aim direction — so other clients can play the
+   *  wind-up animation (the player visibly about to cast). Cleared on release.
+   *  Kept last so existing replicated field offsets are unchanged. */
+  @type('string') chargeAbility = '';
+  @type('number') chargeDirX = 0;
+  @type('number') chargeDirZ = 1;
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */

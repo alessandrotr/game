@@ -207,6 +207,9 @@ function snapshotState(state: RawState): {
       perk1: player.perk1 ?? '',
       perk2: player.perk2 ?? '',
       perk3: player.perk3 ?? '',
+      chargeAbility: player.chargeAbility ?? '',
+      chargeDirX: player.chargeDirX ?? 0,
+      chargeDirZ: player.chargeDirZ ?? 1,
     });
   });
 
@@ -1329,6 +1332,12 @@ export function sendReloadWeapon(): void {
  *  remote clients track the cursor between shots. */
 export function sendAimWeapon(dirX: number, dirZ: number): void {
   room?.send(ClientMessage.AimWeapon, { dirX, dirZ });
+}
+
+/** Mark a hold-to-aim ability as being charged (held), or clear it (ability '').
+ *  Replicated so other players see the wind-up before the cast. */
+export function sendSetCharge(ability: string, dirX: number, dirZ: number): void {
+  room?.send(ClientMessage.SetCharge, { ability, dirX, dirZ });
 }
 
 /** Tell the server the active Gun Mode camera view so it applies the matching

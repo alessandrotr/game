@@ -25,9 +25,8 @@ import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
 import { useWeaponCastAnimator, type ChannelState } from './animation/useWeaponCastAnimator';
 import { useWeaponSwingAnimator } from './animation/useWeaponSwingAnimator';
-import { useBowAnimator, type BowAim } from './animation/useBowAnimator';
-import { getLocalAim } from './animation/localAim';
-import { useAbilityTargeting } from '../store/abilityTargeting';
+import { useBowAnimator } from './animation/useBowAnimator';
+import { getAim } from './animation/localAim';
 import { getCastAim } from '../store/castAim';
 import { weaponGlowPart, type WeaponGlow } from '../assets/weaponGlow';
 import { useGameStore } from '../store/useGameStore';
@@ -196,20 +195,10 @@ function BowWeaponMount({
   const arrow2 = useRef<Group>(null);
   const arrows = useMemo(() => [arrow0, arrow1, arrow2], []);
   const getCastAimForOwner = useRef(() => (ownerId ? getCastAim(ownerId) : null)).current;
-  // The nocked-arrow preview while AIMING is local-player only (we don't know a
-  // remote's held-key state; they animate from the fire event instead).
-  const getAim = useRef((): BowAim | null => {
-    if (!ownerId || ownerId !== useGameStore.getState().sessionId) return null;
-    const pending = useAbilityTargeting.getState().pending;
-    if (!pending) return null;
-    const tr = getLocalRenderTransform();
-    const cur = getCursorGround();
-    const dx = cur.x - tr.x;
-    const dz = cur.z - tr.z;
-    const len = Math.hypot(dx, dz);
-    return { ability: pending, yaw: len > 1e-3 ? Math.atan2(dx, dz) : tr.rotation };
-  }).current;
-  useBowAnimator(aim, draw, arrows, getCastAimForOwner, getAim);
+  // Nocked-arrow draw preview: local from the held key, remote from the replicated
+  // charge state — so everyone sees the wind-up.
+  const getAimForOwner = useRef(() => getAim(ownerId)).current;
+  useBowAnimator(aim, draw, arrows, getCastAimForOwner, getAimForOwner);
   const gripRot = (weapon.grip?.rotation ?? [0, 0, 0]) as [number, number, number];
   // Pivot OFFSET: the bow models its belly at +Z (the riser, which sits in the
   // hand), but it should rotate around the CHORD (the string / nock, `bulge`
@@ -319,8 +308,8 @@ function CasterWeaponMount({
     }
     return { yaw: Math.atan2(dx, dz) };
   }).current;
-  const getAim = useRef(() => getLocalAim(ownerId)).current;
-  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId, getAim);
+  const getAimForOwner = useRef(() => getAim(ownerId)).current;
+  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId, getAimForOwner);
 
   const gripRotation = weapon.grip?.rotation ?? [0, 0, 0];
 

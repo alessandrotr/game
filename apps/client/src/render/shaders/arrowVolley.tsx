@@ -15,8 +15,8 @@ import { WoodArrow } from '../WoodArrow';
 const ARROWS = 6;
 const RADIUS = 3.2; // spread (crippling AoE ~4); EffectAnchor scales for aoe bonuses
 const FALL_FROM = 5; // start height (low enough to stay on-screen the whole fall)
-const FALL_MS = 460; // per-arrow fall time
-const STICK_MS = 420; // linger after landing before fading
+const FALL_MS = 100; // per-arrow fall time (fast drop)
+const STICK_MS = 700; // linger planted in the ground before fading
 
 export function ArrowVolleyEffect({ durationMs, onComplete, tint }: BurstShaderProps) {
   const color = tint ?? '#dfe7f0';
@@ -83,7 +83,14 @@ export function ArrowVolleyEffect({ durationMs, onComplete, tint }: BurstShaderP
       {/* Target-area ring on the ground. */}
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
         <ringGeometry args={[RADIUS * 0.92, RADIUS, 40]} />
-        <meshBasicMaterial color={color} transparent opacity={0} side={DoubleSide} blending={AdditiveBlending} depthWrite={false} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+          depthWrite={false}
+        />
       </mesh>
       {arrows.map((a, i) => (
         <group

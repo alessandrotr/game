@@ -96,6 +96,11 @@ export interface PlayerView {
   perk2: string;
   /** Zombie perk slot 3 (a `PerkId` or '' if empty). */
   perk3: string;
+  /** Ability id being CHARGED (held, not yet released; '' if none) + its aim
+   *  direction — drives the wind-up animation other players see before a cast. */
+  chargeAbility: string;
+  chargeDirX: number;
+  chargeDirZ: number;
 }
 
 /** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded
