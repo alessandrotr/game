@@ -138,6 +138,35 @@ function effectGlsl(effect: EnchantEffect): string {
         float bolt = arc * buzz + fork * 0.7;
         enchE = mix(c1, c2, arc) * (0.24 + bolt * 2.6) + fres * mix(c2, vec3(0.85, 0.92, 1.0), 0.5) * 1.9;
       `;
+    case 'astral':
+      // A near-BLACK orb of deep space. No glow, no rim — the ONLY bright thing is
+      // a field of twinkling stars. Structurally the opposite of arcane's bright
+      // continuous swirl, so the two can never be confused.
+      return /* glsl */ `
+        // Two star layers on fine grids: sparse, bright, blinking at different rates.
+        vec3 g1 = floor(vEnchWPos * 62.0); float a1 = enchHash(g1);
+        float s1 = step(0.90, a1) * pow(0.5 + 0.5 * sin(t * 6.0 + a1 * 60.0), 4.0);
+        vec3 g2 = floor(vEnchWPos * 34.0); float a2 = enchHash(g2 + 19.0);
+        float s2 = step(0.92, a2) * pow(0.5 + 0.5 * sin(t * 3.0 + a2 * 40.0), 3.0);
+        // A whisper of dim nebula so the black isn't dead flat (very low).
+        float haze = enchFbm(vEnchWPos * 5.0 + vec3(0.0, t * 0.12, 0.0));
+        vec3 neb = mix(c1, c2, haze) * haze * 0.22;
+        // Stars are near-white with a faint warm tint; no fresnel rim at all.
+        enchE = neb + (s1 * 3.0 + s2 * 5.5) * mix(vec3(1.0), c1, 0.25);
+        // Crush the lit base to near-black so it reads as the void of space.
+        diffuseColor.rgb *= 0.08;
+      `;
+    case 'verdant':
+      // Living emerald: branching ridged veins of energy crawling over the
+      // showpiece, shimmering between emerald and lime-gold — a distinct vein
+      // structure, nothing like a swirl, flame, or radiance.
+      return /* glsl */ `
+        float n = enchFbm(vEnchWPos * 7.0 + vec3(0.0, -t * 0.7, t * 0.3));
+        float veins = pow(1.0 - abs(n - 0.5) * 2.0, 3.0);   // bright along ridge lines
+        float pulse = 0.7 + 0.3 * sin(t * 3.5 + n * 6.2831);
+        vec3 col = mix(c1, c2, veins);
+        enchE = col * (0.30 + veins * 2.0) * pulse + fres * mix(c1, vec3(0.85, 1.0, 0.85), 0.5) * 1.9;
+      `;
     case 'void':
     default:
       // Dark singularity: a churning core that drinks the light, ringed by an

@@ -51,6 +51,20 @@ export function weaponGlowPart(weapon: WeaponDescriptor): WeaponGlow | null {
   return best;
 }
 
+/** Minimum showpiece brightness for a weapon to color its abilities — the
+ *  white/gray caster orbs pass; a dull nub (a plain bow's dark nock) doesn't, so
+ *  those classes keep their authored ability colors. */
+const TINT_LUMINANCE_FLOOR = 0.22;
+
+/** The color a weapon imparts to its ability VFX (its showpiece color), or null
+ *  if it has no bright enough showpiece. For the default (un-enchanted) weapons
+ *  this is the neutral white/gray, so default abilities read white/gray too. */
+export function weaponTintColor(weapon: WeaponDescriptor): string | null {
+  const glow = weaponGlowPart(weapon);
+  if (!glow || luminance(glow.color) < TINT_LUMINANCE_FLOOR) return null;
+  return glow.color;
+}
+
 const _v = new Vector3();
 const _eu = new Euler();
 

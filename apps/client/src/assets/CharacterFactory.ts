@@ -12,7 +12,7 @@ import {
 import type { EnchantParams } from '../render/enchantMaterial';
 import { assets } from './registry';
 import { zombieBody } from './data/zombies';
-import { weaponMuzzleOffset } from './weaponGlow';
+import { weaponMuzzleOffset, weaponTintColor } from './weaponGlow';
 
 /**
  * A skin layers cosmetic overrides on top of a base character. Recolors are
@@ -150,10 +150,20 @@ export function resolveCharacter(
  * then reads its glowing showpiece. Cheap, and called on cast / projectile spawn
  * — not per frame.
  */
-export function abilityTintColor(enchantId?: string): string | null {
-  // Weapons are colorless by default, so abilities keep their authored colors.
-  // An equipped enchant recolors the weapon AND its abilities to the enchant hue.
-  return resolveEnchant(enchantId)?.color ?? null;
+export function abilityTintColor(
+  characterClass: CharacterClass,
+  weaponId?: string,
+  enchantId?: string,
+): string | null {
+  // Enchanted → the enchant color. Otherwise the weapon's own showpiece color —
+  // which for the default weapons is the neutral white/gray, so default abilities
+  // match the colorless default weapon. Null for weapons with no bright showpiece
+  // (warrior/archer), which keep their authored ability colors.
+  const enchant = resolveEnchant(enchantId);
+  if (enchant) return enchant.color;
+  const desc = resolveCharacter(characterClass, undefined, undefined, weaponId);
+  const weapon = desc.weaponId ? assets.getWeapon(desc.weaponId) : undefined;
+  return weapon ? weaponTintColor(weapon) : null;
 }
 
 /**

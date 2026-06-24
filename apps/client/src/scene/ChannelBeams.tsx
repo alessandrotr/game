@@ -8,7 +8,7 @@ import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { sendAimChannel } from '../network/colyseus';
-import { abilityMuzzleOffset, resolveEnchant } from '../assets/CharacterFactory';
+import { abilityMuzzleOffset, abilityTintColor } from '../assets/CharacterFactory';
 import { getWeaponTip } from '../store/weaponTip';
 import { GLSL_NOISE, UV_VERTEX, useUTime } from '../render/shaders/common';
 
@@ -138,10 +138,9 @@ function BeamFor({ sessionId }: { sessionId: string }) {
     g.visible = true;
     if (mz) mz.visible = true;
 
-    // Tint the beam + muzzle to an equipped enchant (recolors the scepter), else
-    // keep the authored gold.
-    const enchant = resolveEnchant(p.enchantId);
-    const color = enchant ? enchant.color : '#ffc752';
+    // Tint the beam + muzzle to the weapon: the enchant color when equipped, else
+    // the neutral white/gray default showpiece color (matches the colorless weapon).
+    const color = abilityTintColor(p.characterClass, p.weaponId, p.enchantId) ?? '#e8eef6';
     matRef.current?.uniforms.uColor?.value.set(color);
     muzzleMat.current?.uniforms.uColor?.value.set(color);
 

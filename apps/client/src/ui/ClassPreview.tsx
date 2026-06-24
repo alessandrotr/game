@@ -178,7 +178,7 @@ function ClassPreviewImpl({
         target={frame.target}
         enablePan={false}
         enableDamping
-        autoRotate
+        autoRotate={spin}
         autoRotateSpeed={0.9}
         minDistance={2.2}
         maxDistance={8}

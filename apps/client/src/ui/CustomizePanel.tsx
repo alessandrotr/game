@@ -47,6 +47,8 @@ import { PaintStudio } from './PaintStudio';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
 import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
+import { registerWeaponThumb, setWeaponThumbHover, type WeaponThumbHandle } from '../render/weaponThumbnails';
+import { resolveCharacter } from '../assets/CharacterFactory';
 import {
   EmoteThumbStage,
   registerEmoteThumb,
@@ -290,6 +292,72 @@ function PedestalThumb({ c, hovered }: { c: Cosmetic & { type: 'pedestal' }; hov
   return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} hovered={hovered} />;
 }
 
+/** A `<canvas>` DOM child driven by the shared offscreen weapon renderer — shows a
+ *  live 3D weapon (optionally enchanted), the same way pedestals do. */
+function WeaponCanvas({
+  weaponId,
+  enchant,
+  hovered = false,
+}: {
+  weaponId: string;
+  enchant?: WeaponThumbHandle['enchant'];
+  hovered?: boolean;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const handle = useRef<WeaponThumbHandle | null>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const fit = () => {
+      const r = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(r.width * dpr));
+      canvas.height = Math.max(1, Math.round(r.height * dpr));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(canvas);
+    const h: WeaponThumbHandle = { canvas, weaponId, enchant };
+    handle.current = h;
+    const stop = registerWeaponThumb(h);
+    return () => {
+      ro.disconnect();
+      stop();
+      handle.current = null;
+    };
+  }, [weaponId, enchant?.effect, enchant?.color, enchant?.color2]);
+  useEffect(() => {
+    if (handle.current) setWeaponThumbHover(handle.current, hovered);
+  }, [hovered]);
+  return <canvas ref={ref} className="block h-full w-full" />;
+}
+
+/** Real 3D weapon thumbnail (the default white/gray weapon). */
+function WeaponThumb({ c, hovered }: { c: Cosmetic & { type: 'weapon' }; hovered?: boolean }) {
+  return <WeaponCanvas weaponId={c.weaponId} hovered={hovered} />;
+}
+
+/** Real 3D enchant thumbnail — the class's weapon wearing the enchant. */
+function EnchantThumb({
+  c,
+  characterClass,
+  hovered,
+}: {
+  c: Cosmetic & { type: 'enchant' };
+  characterClass: CharacterClass;
+  hovered?: boolean;
+}) {
+  const weaponId = resolveCharacter(characterClass).weaponId;
+  if (!weaponId) return <Swatch c={c} size={52} />;
+  return (
+    <WeaponCanvas
+      weaponId={weaponId}
+      enchant={{ effect: c.effect, color: c.color, color2: c.color2 }}
+      hovered={hovered}
+    />
+  );
+}
+
 /** Emote thumbnail — the class character performing the emote while hovered (idle
  *  otherwise), mirroring the pedestals' hover-to-play. Just a 2D canvas the shared
  *  {@link EmoteThumbStage} blits into, so any number of emotes cost one WebGL
@@ -435,6 +503,10 @@ function StoreCard({
         <div className={`h-full w-full ${locked ? 'opacity-40 grayscale' : ''}`}>
           {c.type === 'pedestal' ? (
             <PedestalThumb c={c} hovered={hovered && !locked} />
+          ) : c.type === 'weapon' ? (
+            <WeaponThumb c={c} hovered={hovered && !locked} />
+          ) : c.type === 'enchant' ? (
+            <EnchantThumb c={c} characterClass={characterClass} hovered={hovered && !locked} />
           ) : c.type === 'title' ? (
             <div className="grid h-full place-items-center">
               <TitleThumb c={c} />
@@ -643,6 +715,10 @@ function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: Charac
       <div className="relative grid h-16 place-items-center bg-black/20">
         {c.type === 'pedestal' ? (
           <PedestalThumb c={c} hovered={hovered} />
+        ) : c.type === 'weapon' ? (
+          <WeaponThumb c={c} hovered={hovered} />
+        ) : c.type === 'enchant' ? (
+          <EnchantThumb c={c} characterClass={characterClass} hovered={hovered} />
         ) : c.type === 'title' ? (
           <TitleThumb c={c} />
         ) : c.type === 'emote' ? (
@@ -695,30 +771,41 @@ function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: 
   );
 }
 
-/** A generic "none" tile (clears a single-select slot). Used by the enchant slot
- *  so a player can remove the effect and show a plain weapon. */
-function NoneTile({ active, onSelect, label = 'None' }: { active: boolean; onSelect: () => void; label?: string }) {
+/** The default (no-enchant) tile for the enchant slot — shows the class's plain
+ *  weapon in a live canvas (like the pedestal's default tile). Selecting it
+ *  clears the equipped enchant. */
+function DefaultEnchantTile({
+  active,
+  onSelect,
+  characterClass,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  characterClass: CharacterClass;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const weaponId = resolveCharacter(characterClass).weaponId;
   return (
     <button
       type="button"
       onClick={onSelect}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       aria-pressed={active}
-      title={label}
+      title="No enchant"
       className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
         active ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
       }`}
     >
       <div className="relative grid h-16 place-items-center bg-black/20">
-        <span className="grid h-10 w-10 place-items-center rounded-xl border border-dashed border-white/20 text-white/40">
-          <X size={18} />
-        </span>
+        {weaponId && <WeaponCanvas weaponId={weaponId} hovered={hovered} />}
         {active && (
           <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
             <Check size={11} />
           </span>
         )}
       </div>
-      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">{label}</span>
+      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">Default</span>
     </button>
   );
 }
@@ -803,7 +890,13 @@ function SingleSlot({
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {lead === 'pedestal' && <DefaultPedestalTile active={!equippedId} onSelect={onClear} />}
-          {lead === 'none' && <NoneTile active={!equippedId} onSelect={onClear} />}
+          {lead === 'none' && (
+            <DefaultEnchantTile
+              active={!equippedId}
+              onSelect={onClear}
+              characterClass={characterClass}
+            />
+          )}
           {items.map((c) => (
             <OptionTile key={c.id} c={c} characterClass={characterClass} />
           ))}
@@ -857,6 +950,7 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
         weaponId={weaponId}
         enchantId={enchantId}
         animation={animation}
+        spin={false}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
         {preview && (

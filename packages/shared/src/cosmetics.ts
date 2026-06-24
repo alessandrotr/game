@@ -132,7 +132,9 @@ export type EnchantEffect =
   | 'venom' // dripping toxic pulse
   | 'holy' // steady radiant rim + soft pulse
   | 'storm' // fast crackling arcs
-  | 'void'; // dark core, violet edge
+  | 'void' // dark core, violet edge
+  | 'astral' // dark deep-space orb + twinkling stars (legendary)
+  | 'verdant'; // branching emerald energy veins (legendary)
 
 /** A purely-visual enchant applied to the equipped weapon's showpiece parts
  *  (blade / orb / head). Class-bound so the effect always fits the class. */
@@ -257,7 +259,7 @@ const WEAPONS: WeaponCosmetic[] = [
   // Mage — staff line.
   { id: 'weapon.staff', weaponId: 'weapon.staff', type: 'weapon', characterClass: 'mage', name: 'Apprentice Staff', description: 'A simple focus topped with a gem.', rarity: 'common', default: true },
   { id: 'weapon.mage.archonstaff', weaponId: 'weapon.mage.archonstaff', type: 'weapon', characterClass: 'mage', name: 'Archon Staff', description: 'A clawed staff cradling a faceted core.', rarity: 'rare', requiredLevel: 12 },
-  { id: 'weapon.mage.voidscepter', weaponId: 'weapon.mage.voidscepter', type: 'weapon', characterClass: 'mage', name: 'Void Scepter', description: 'A halo-ringed scepter around a dark star.', rarity: 'epic', requiredLevel: 20 },
+  { id: 'weapon.mage.voidscepter', weaponId: 'weapon.mage.voidscepter', type: 'weapon', characterClass: 'mage', name: 'Void Staff', description: 'A halo-ringed staff around a dark star.', rarity: 'epic', requiredLevel: 20 },
   // Archer — bow line.
   { id: 'weapon.bow', weaponId: 'weapon.bow', type: 'weapon', characterClass: 'archer', name: 'Hunting Bow', description: 'A reliable recurve of seasoned wood.', rarity: 'common', default: true },
   { id: 'weapon.archer.recurve', weaponId: 'weapon.archer.recurve', type: 'weapon', characterClass: 'archer', name: 'War Recurve', description: 'A reinforced limb with bladed tips.', rarity: 'rare', requiredLevel: 12 },
@@ -280,7 +282,7 @@ const ENCHANTS: EnchantCosmetic[] = [
   { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#c43cff', color2: '#4a7bff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
   { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#00c8ff', color2: '#eafcff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
   { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#ff2a48', color2: '#1a0006', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
-  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'holy', color: '#6a8aff', color2: '#ffffff', name: 'Astral', description: 'The cold light of distant stars.', rarity: 'legendary', requiredLevel: 34 },
+  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'astral', color: '#ffc24a', color2: '#ffe9a8', name: 'Astral', description: 'A black void of deep space, alive with stars.', rarity: 'legendary', requiredLevel: 34 },
   // Archer — four distinct effects, four distinct colors.
   { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#9bff1a', color2: '#2a6a00', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },
   { id: 'enchant.archer.gale', type: 'enchant', characterClass: 'archer', effect: 'storm', color: '#5fffd8', color2: '#ffffff', name: 'Galeforce', description: 'A sharp wind sings off the string.', rarity: 'rare', requiredLevel: 13 },
@@ -290,7 +292,7 @@ const ENCHANTS: EnchantCosmetic[] = [
   { id: 'enchant.priest.blessed', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#ffd633', color2: '#fff2c0', name: 'Blessed', description: 'A warm, steady radiance.', rarity: 'common', requiredLevel: 4 },
   { id: 'enchant.priest.sanctified', type: 'enchant', characterClass: 'priest', effect: 'ember', color: '#ff7a3a', color2: '#ffd24a', name: 'Sanctified', description: 'Sacred flame wreathes the head.', rarity: 'rare', requiredLevel: 14 },
   { id: 'enchant.priest.divinity', type: 'enchant', characterClass: 'priest', effect: 'arcane', color: '#9b6aff', color2: '#ffd86b', name: 'Divinity', description: 'Glowing sigils orbit the mace.', rarity: 'epic', requiredLevel: 22 },
-  { id: 'enchant.priest.celestial', type: 'enchant', characterClass: 'priest', effect: 'frost', color: '#acd0ff', color2: '#ffffff', name: 'Celestial', description: 'The light of a fallen star.', rarity: 'legendary', requiredLevel: 36 },
+  { id: 'enchant.priest.celestial', type: 'enchant', characterClass: 'priest', effect: 'verdant', color: '#1fff7a', color2: '#c8ff4a', name: 'Verdant', description: 'Surging emerald life-force veins the head.', rarity: 'legendary', requiredLevel: 36 },
 ];
 
 /** The full cosmetics catalog, in display order within each type. */
