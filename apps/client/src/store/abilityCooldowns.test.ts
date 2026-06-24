@@ -95,25 +95,25 @@ describe('abilityCooldowns store', () => {
 
     // First cast of ninja_e
     triggerCooldown('ninja_e', 3000);
-    // Cooldown remaining should be 514ms (until recast window opens at 1514ms)
+    // Cooldown remaining should be 314ms (until recast window opens at 1314ms)
     expect(isOnCooldown('ninja_e')).toBe(true);
-    expect(cooldownRemaining('ninja_e')).toBeCloseTo(514, 0);
+    expect(cooldownRemaining('ninja_e')).toBeCloseTo(314, 0);
 
     // Advance time to t = 1200 (before recast window opens)
     nowSpy.mockReturnValue(1200);
     expect(isOnCooldown('ninja_e')).toBe(true);
     expect(isNinjaERecastActive()).toBe(false);
-    expect(cooldownRemaining('ninja_e')).toBeCloseTo(314, 0);
+    expect(cooldownRemaining('ninja_e')).toBeCloseTo(114, 0);
     expect(getAbilityManaCost('ninja_e')).toBe(20);
 
-    // Advance time to t = 1600 (inside recast window: 1514 to 2514)
+    // Advance time to t = 1600 (inside recast window: 1314 to 2700)
     nowSpy.mockReturnValue(1600);
     expect(isOnCooldown('ninja_e')).toBe(false); // E is ready to recast!
     expect(isNinjaERecastActive()).toBe(true);
     expect(cooldownRemaining('ninja_e')).toBe(0);
     expect(getAbilityManaCost('ninja_e')).toBe(30); // mana cost is +10
 
-    // Second cast of ninja_e at t = 1700 (still inside recast window 1514 to 2514)
+    // Second cast of ninja_e at t = 1700 (still inside recast window 1314 to 2700)
     nowSpy.mockReturnValue(1700);
     triggerCooldown('ninja_e', 4000);
     // E goes on 6s cooldown
@@ -128,11 +128,11 @@ describe('abilityCooldowns store', () => {
 
     // First cast of ninja_e again at t = 3000
     triggerCooldown('ninja_e', 3000);
-    expect(cooldownRemaining('ninja_e')).toBeCloseTo(514, 0);
+    expect(cooldownRemaining('ninja_e')).toBeCloseTo(314, 0);
 
-    // Let time expire past the recast window (3000 + 1514 = 4514)
-    nowSpy.mockReturnValue(4600);
-    // This should trigger the standard 3s cooldown from t = 4600
+    // Let time expire past the recast window (3000 + 1700 = 4700)
+    nowSpy.mockReturnValue(4800);
+    // This should trigger the standard 3s cooldown from t = 4800
     expect(cooldownRemaining('ninja_e')).toBeCloseTo(3000, 0);
 
     nowSpy.mockRestore();
