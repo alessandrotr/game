@@ -15,6 +15,7 @@ import {
   ServerMessage,
   damageTakenMultiplier,
   levelForXp,
+  xpForLevel,
   type AbilityDef,
   type AbilityKind,
   type LeafEffect,
@@ -464,6 +465,13 @@ export class CombatSystem {
         });
       }
     }
+  }
+
+  /** DEV: bump a player up `n` levels by granting exactly the XP needed, so the
+   *  normal level-up broadcast + VFX fire. */
+  devAddLevels(player: Player, n: number): void {
+    const target = player.level + Math.max(1, Math.floor(n));
+    this.grantXp(player, Math.max(0, xpForLevel(target) - player.xp));
   }
 
   /** Grant `amount` XP to a player, recompute their level, and broadcast a

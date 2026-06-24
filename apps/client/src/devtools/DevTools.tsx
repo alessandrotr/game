@@ -20,7 +20,7 @@ import {
   type CameraConfig,
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
-import { sendBotControl, sendDevGrantPerk } from '../network/colyseus';
+import { sendBotControl, sendDevGrantPerk, sendDevAddLevel } from '../network/colyseus';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
@@ -93,6 +93,13 @@ export default function DevTools() {
       sendDevGrantPerk({ action: 'grant', perkId: get('Perks (debug).perk') as PerkId }),
     ),
     'Clear all': button(() => sendDevGrantPerk({ action: 'clear' })),
+  }));
+
+  // Level (DEV): jump your character up some levels to test level-gated content
+  // (perk offers, cosmetics). The server ignores this in production.
+  useControls('Level (debug)', () => ({
+    levels: { value: 1, min: 1, max: 50, step: 1, label: 'Levels' },
+    'Add levels': button((get) => sendDevAddLevel(get('Level (debug).levels') as number)),
   }));
 
   const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];

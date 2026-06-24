@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Euler, Quaternion, type Group, type Mesh, type MeshBasicMaterial } from 'three';
+import { Euler, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMaterial } from 'three';
 import type { CastAim } from '../../store/castAim';
+import { setWeaponTip } from '../../store/weaponTip';
 
 // Scratch objects reused across frames (no per-frame allocation).
 const _q = new Quaternion();
 const _e = new Euler(0, 0, 0, 'YXZ');
+const _tip = new Vector3();
 
 /** Wrap to [-π, π] so the weapon swings the short way around. */
 function wrap(a: number): number {
@@ -68,6 +70,7 @@ export function useWeaponCastAnimator(
   flare: React.RefObject<Mesh | null>,
   getCastAim: () => CastAim | null,
   getChannel: () => ChannelState | null,
+  ownerId?: string,
 ): void {
   // Baselined on the first frame so a cast that already happened before mount
   // (e.g. a remount mid-game) doesn't replay; every later bump fires a swing.
@@ -149,6 +152,9 @@ export function useWeaponCastAnimator(
       if (on) {
         f.scale.setScalar(0.7 + p * 0.8);
         (f.material as MeshBasicMaterial).opacity = p * FLARE_OPACITY;
+        // Publish the orb's live world position so effects (the priest beam) can
+        // originate exactly from it — including this swing/pitch.
+        if (ownerId) setWeaponTip(ownerId, f.getWorldPosition(_tip), performance.now());
       }
     }
 

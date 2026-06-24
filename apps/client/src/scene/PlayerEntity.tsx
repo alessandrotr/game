@@ -46,6 +46,7 @@ import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
 import { clearAnimationEvents, consumeAnimationEvent } from '../render/animation/animationEvents';
 import { clearCastAim } from '../store/castAim';
+import { clearWeaponTip } from '../store/weaponTip';
 import { PickableVisual } from './PickableVisual';
 
 /** Smoothing for the local player's vertical (jump) toward the server's. */
@@ -220,6 +221,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     return () => {
       clearAnimationEvents(sessionId);
       clearCastAim(sessionId);
+      clearWeaponTip(sessionId);
       if (isLocal) clearLocalRenderTransform();
     };
   }, [isLocal, sessionId]);

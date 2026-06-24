@@ -1388,6 +1388,11 @@ export function sendDevGrantPerk(values: ClientMessagePayloads[ClientMessage.Dev
   room?.send(ClientMessage.DevGrantPerk, values);
 }
 
+/** Dev-only: add `amount` character levels to the local player. */
+export function sendDevAddLevel(amount: number): void {
+  room?.send(ClientMessage.DevAddLevel, { amount });
+}
+
 /** Toggle the auto-attack feature flag for the current room. */
 export function sendSetAutoAttack(enabled: boolean): void {
   room?.send(ClientMessage.SetAutoAttack, { enabled });

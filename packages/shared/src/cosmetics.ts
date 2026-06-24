@@ -279,7 +279,7 @@ const ENCHANTS: EnchantCosmetic[] = [
   // Mage — four distinct effects, four distinct colors.
   { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#c43cff', color2: '#4a7bff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
   { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#00c8ff', color2: '#eafcff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
-  { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#ff2f9e', color2: '#1a0014', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
+  { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#ff2a48', color2: '#1a0006', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
   { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'holy', color: '#6a8aff', color2: '#ffffff', name: 'Astral', description: 'The cold light of distant stars.', rarity: 'legendary', requiredLevel: 34 },
   // Archer — four distinct effects, four distinct colors.
   { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#9bff1a', color2: '#2a6a00', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },

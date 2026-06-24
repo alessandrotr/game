@@ -213,7 +213,7 @@ function CasterWeaponMount({
     }
     return { yaw: Math.atan2(dx, dz) };
   }).current;
-  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel);
+  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId);
 
   const gripRotation = weapon.grip?.rotation ?? [0, 0, 0];
 

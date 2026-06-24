@@ -66,6 +66,8 @@ export enum ClientMessage {
   /** Dev-only: grant a specific zombie perk to the caller, or clear all of them
    *  (so each perk can be tested without surviving to the wave that offers it). */
   DevGrantPerk = 'dev_grant_perk',
+  /** Dev-only: bump the caller's character level by N (grants the XP needed). */
+  DevAddLevel = 'dev_add_level',
   /** Feature flag: enable/disable auto-attacks for the room (off by default). */
   SetAutoAttack = 'set_auto_attack',
   /** Gun Mode Zombie: fire the equipped gun toward an aim direction (right-click).
@@ -275,6 +277,8 @@ export interface ClientMessagePayloads {
   [ClientMessage.DevGrantPerk]:
     | { action: 'grant'; perkId: PerkId }
     | { action: 'clear' };
+  /** Dev-only: add `amount` levels to the caller. */
+  [ClientMessage.DevAddLevel]: { amount: number };
   /** Toggle the auto-attack feature flag for the room. */
   [ClientMessage.SetAutoAttack]: { enabled: boolean };
   /** Fire the equipped gun along a normalized aim direction (the cursor). */

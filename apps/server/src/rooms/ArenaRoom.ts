@@ -543,6 +543,15 @@ export class ArenaRoom extends AvatarRoom {
           this.perkSystem.devGrant(client.sessionId, message.perkId);
       },
     );
+    // Dev-only: jump the caller up N levels (no-op in production).
+    this.onMessage(
+      ClientMessage.DevAddLevel,
+      (client, message: ClientMessagePayloads[ClientMessage.DevAddLevel]) => {
+        if (process.env.NODE_ENV === 'production') return;
+        const player = this.state.players.get(client.sessionId);
+        if (player) this.combat.devAddLevels(player, message?.amount ?? 1);
+      },
+    );
     this.onMessage(
       ClientMessage.SetAutoAttack,
       (_client, message: ClientMessagePayloads[ClientMessage.SetAutoAttack]) =>
