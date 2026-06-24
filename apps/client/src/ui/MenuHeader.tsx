@@ -1,10 +1,11 @@
 import { AudioControl } from './AudioControl';
+import { AccountChip } from './AccountChip';
 
 /**
  * The shared top bar for the pre-game menus (auth + character select): the ARENA
- * wordmark on the left, audio controls on the right. Identical on both screens
- * so the transition between them is seamless. Account controls live elsewhere
- * (centered above the class picker once signed in), not in this bar.
+ * wordmark on the left; on the right the compact audio control and then the
+ * account chip. Identical on both screens so the transition is seamless — the
+ * account chip renders nothing until there's a session (so it's absent on login).
  */
 export function MenuHeader() {
   return (
@@ -14,8 +15,9 @@ export function MenuHeader() {
           ARENA
         </h1>
       </div>
-      <div className="pointer-events-auto">
-        <AudioControl />
+      <div className="pointer-events-auto flex items-center gap-3">
+        <AudioControl compact />
+        <AccountChip />
       </div>
     </div>
   );

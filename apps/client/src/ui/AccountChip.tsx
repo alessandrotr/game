@@ -2,7 +2,7 @@ import { Ghost, LogOut, Skull, Trophy, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUpgradeStore } from '../store/useUpgradeStore';
-import { Button, LevelBadge } from './primitives';
+import { Button } from './primitives';
 
 /**
  * The player's account card for the character-select screen — a glassy chip with
@@ -12,8 +12,8 @@ import { Button, LevelBadge } from './primitives';
  * warning that nudges toward the gold **Save progress** CTA (guest → account
  * upgrade). A signed-in account instead shows the player's actual career — total
  * kills and wins across all classes — which is the only account info worth a glance
- * on a fighter select. Their top level rides the medallion as the same gold gem
- * used across the roster, tying the visual language together.
+ * on a fighter select. Lives in the shared menu header (right side); renders
+ * nothing until there's a session.
  */
 export function AccountChip() {
   const username = useAuthStore((s) => s.username);
@@ -22,11 +22,14 @@ export function AccountChip() {
   const progress = useAuthStore((s) => s.progress);
   const openUpgrade = useUpgradeStore((s) => s.setOpen);
 
-  const topLevel = progress.reduce((m, p) => Math.max(m, p.level), 0);
   const kills = progress.reduce((n, p) => n + p.kills, 0);
   const wins = progress.reduce((n, p) => n + p.wins, 0);
   const hasRecord = kills > 0 || wins > 0;
   const initial = (username ?? 'G').charAt(0).toUpperCase();
+
+  // Nothing to show before a session exists (e.g. the login screen, which shares
+  // this header) — only render once signed in or playing as a guest.
+  if (!username && !guest) return null;
 
   return (
     <div
@@ -35,9 +38,8 @@ export function AccountChip() {
       )}
     >
       {/* Avatar medallion — a faceted gem-lit disc; amber ghost for guests, the
-          account initial in gold for members, with the top-class level gem
-          riding its corner. */}
-      <div className="relative shrink-0">
+          account initial in gold for members. */}
+      <div className="shrink-0">
         <div
           className={cn(
             'grid h-11 w-11 place-items-center rounded-full border font-display text-base font-semibold',
@@ -51,17 +53,12 @@ export function AccountChip() {
         >
           {guest ? <Ghost size={20} aria-hidden="true" /> : initial}
         </div>
-        {topLevel > 0 && (
-          <span className="absolute -bottom-1.5 -right-1.5">
-            <LevelBadge level={topLevel} size="xxs" />
-          </span>
-        )}
       </div>
 
       {/* Name + a line that actually means something: guests get the unsaved
           warning; members get their lifetime kills / wins (or a "new" tag). */}
       <div className="flex min-w-0 flex-col">
-        <span className="truncate font-display text-sm leading-tight tracking-wide text-text">
+        <span className="truncate max-w-20 text-sm font-semibold leading-tight tracking-wide text-text">
           {guest ? 'Guest' : username}
         </span>
         {guest ? (
@@ -81,7 +78,7 @@ export function AccountChip() {
             </span>
           </span>
         ) : (
-          <span className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <span className="mt-0.5 text-[8px] uppercase tracking-[0.18em] text-muted">
             New challenger
           </span>
         )}

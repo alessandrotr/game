@@ -6,7 +6,6 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { CharacterSelect } from './CharacterSelect';
 import { MenuHeader } from './MenuHeader';
-import { AccountChip } from './AccountChip';
 import { Button } from './primitives';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 
@@ -41,12 +40,8 @@ export function JoinScreen() {
 
       {/* The fighter-select stage — a wide cinematic panel (the featured fighter
           on the left, the roster grid on the right). Centered for the marquee
-          feel; the account controls sit above it. */}
-      <section className="relative flex h-dvh w-full flex-col items-center justify-center gap-3 px-3 py-6 sm:px-8">
-        <div className="flex w-full max-w-4xl items-center justify-end">
-          <AccountChip />
-        </div>
-
+          feel; account + audio controls live in the header. */}
+      <section className="relative flex h-dvh w-full flex-col items-center 2xl:justify-center justify-end gap-3 px-3 py-6 sm:px-8">
         <div className="flex max-h-[calc(100dvh-7rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-5">
             <div className="w-full">

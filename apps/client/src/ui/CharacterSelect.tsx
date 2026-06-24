@@ -39,6 +39,7 @@ import {
 import { AssetLoadingBar } from './AssetLoadingBar';
 import { AvatarFrame } from './AvatarFrame';
 import { Card, LevelBadge } from './primitives';
+import { rimColorOf } from './rim';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { STAT_COLORS } from './theme';
@@ -123,15 +124,32 @@ function AbilityBadge({ ability }: { ability: AbilityKind }) {
 }
 
 /** L-shaped bracket corners that frame the selected roster cell — the "cursor"
- *  sitting on your pick, the way a fighting-game select grid reads. */
-function SelectBrackets() {
-  const base = 'pointer-events-none absolute h-3 w-3 border-gold';
+ *  sitting on your pick, the way a fighting-game select grid reads. Tinted to the
+ *  equipped rim color. */
+function SelectBrackets({ color }: { color: string }) {
+  const base = 'pointer-events-none absolute h-3 w-3';
   return (
     <>
-      <span aria-hidden className={`${base} left-0.5 top-0.5 border-l-2 border-t-2`} />
-      <span aria-hidden className={`${base} right-0.5 top-0.5 border-r-2 border-t-2`} />
-      <span aria-hidden className={`${base} bottom-0.5 left-0.5 border-b-2 border-l-2`} />
-      <span aria-hidden className={`${base} bottom-0.5 right-0.5 border-b-2 border-r-2`} />
+      <span
+        aria-hidden
+        className={`${base} left-0.5 top-0.5 border-l-2 border-t-2`}
+        style={{ borderColor: color }}
+      />
+      <span
+        aria-hidden
+        className={`${base} right-0.5 top-0.5 border-r-2 border-t-2`}
+        style={{ borderColor: color }}
+      />
+      <span
+        aria-hidden
+        className={`${base} bottom-0.5 left-0.5 border-b-2 border-l-2`}
+        style={{ borderColor: color }}
+      />
+      <span
+        aria-hidden
+        className={`${base} bottom-0.5 right-0.5 border-b-2 border-r-2`}
+        style={{ borderColor: color }}
+      />
     </>
   );
 }
@@ -156,11 +174,14 @@ function FighterTile({
   def,
   level,
   selected,
+  accent,
   onSelect,
 }: {
   def: ClassDefinition;
   level: number;
   selected: boolean;
+  /** The class's equipped rim color — the accent when this tile is the pick. */
+  accent: string;
   onSelect: () => void;
 }) {
   const Icon = CLASS_ICON[def.id];
@@ -171,38 +192,45 @@ function FighterTile({
       aria-current={selected}
       onClick={onSelect}
       className={`group relative aspect-square overflow-hidden rounded-md border transition-all duration-150 ${
-        selected
-          ? '-translate-y-0.5 border-gold shadow-[0_0_20px_rgba(200,162,74,0.35)]'
-          : 'border-white/10 hover:border-white/30'
+        selected ? '-translate-y-0.5' : 'border-white/10 hover:border-white/30'
       }`}
+      style={selected ? { borderColor: accent, boxShadow: `0 0 20px ${accent}59` } : undefined}
     >
       {/* Live 3D headshot, blitted in from the shared offscreen stage. */}
       <CharacterThumb characterClass={def.id} />
-      {/* The picked fighter shows in full color; the rest are dimmed back so the
-          selection reads at a glance (lifting a little on hover). */}
+      {/* The picked fighter shows in full color (washed with its rim color); the
+          rest are dimmed back so the selection reads at a glance. */}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 bg-linear-to-t transition-colors duration-150 ${
+        className={`pointer-events-none absolute inset-0 transition-colors duration-150 ${
           selected
-            ? 'from-gold/25 via-transparent to-black/25'
-            : 'from-black/90 via-black/55 to-black/70 group-hover:from-black/80 group-hover:via-black/35 group-hover:to-black/55'
+            ? ''
+            : 'bg-linear-to-t from-black/90 via-black/55 to-black/70 group-hover:from-black/80 group-hover:via-black/35 group-hover:to-black/55'
         }`}
+        style={
+          selected
+            ? {
+                backgroundImage: `linear-gradient(to top, ${accent}40, transparent 55%, rgba(0,0,0,0.25))`,
+              }
+            : undefined
+        }
       />
 
-      {/* The player's level on this class — the gold gem, riding the corner. */}
-      <span className="absolute left-1.5 top-1.5">
-        <LevelBadge level={level} size="xxs" />
+      {/* The player's level on this class — the gem, tinted to the rim when picked. */}
+      <span className="absolute left-2.5 top-2.5">
+        <LevelBadge level={level} size="xxs" color={accent} />
       </span>
-      {/* Full-width name plate across the foot of the tile; gold when picked. */}
+      {/* Full-width name plate across the foot of the tile; rim-colored when picked. */}
       <span
         className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 py-1 font-display text-[10px] uppercase tracking-[0.16em] ${
-          selected ? 'bg-gold text-black' : 'bg-black/65 text-white/85 group-hover:text-white'
+          selected ? 'text-black' : 'bg-black/65 text-white/85 group-hover:text-white'
         }`}
+        style={selected ? { backgroundColor: accent } : undefined}
       >
         <Icon size={11} aria-hidden="true" className="shrink-0" />
         <span className="truncate">{def.name}</span>
       </span>
-      {selected && <SelectBrackets />}
+      {selected && <SelectBrackets color={accent} />}
     </button>
   );
 }
@@ -272,6 +300,7 @@ export function CharacterSelect() {
                 def={c}
                 level={levelByClass.get(c.id) ?? 1}
                 selected={i === idx}
+                accent={rimColorOf(classCosmeticsOf(byClass, c.id).loadout.rimId)}
                 onSelect={() => setSelected(c.id)}
               />
             ))}
@@ -294,6 +323,8 @@ export function CharacterSelect() {
                 skinId={loadout.skinId}
                 dyeId={loadout.dyeId}
                 pedestalId={loadout.pedestalId}
+                weaponId={loadout.weaponId}
+                enchantId={loadout.enchantId}
                 align="top"
                 transparent
                 spin={false}
@@ -303,7 +334,7 @@ export function CharacterSelect() {
             {/* Nameplate burnt over the bottom of the art — the level gem +
                 class name, the way the picked fighter is announced. */}
             <div className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-end gap-4 bg-linear-to-t from-black/85 via-black/40 to-transparent px-3 pb-2.5 pt-10">
-              <LevelBadge level={level} size="sm" />
+              <LevelBadge level={level} size="sm" color={rimColorOf(loadout.rimId)} />
               <span
                 className="font-display text-2xl uppercase leading-none tracking-[0.12em] text-text sm:text-3xl"
                 style={{ textShadow: '0 0 18px rgba(200,162,74,0.45)' }}

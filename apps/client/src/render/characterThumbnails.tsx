@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
-import { CLASS_LIST, type CharacterClass } from '@arena/shared';
-import { resolveCharacter } from '../assets/CharacterFactory';
+import { CLASS_LIST, classCosmeticsOf, type CharacterClass } from '@arena/shared';
+import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
+import { useCosmeticsStore } from '../store/useCosmeticsStore';
+import { usePaintStore } from '../store/usePaintStore';
+import { paintTexturesFor } from '../paint/paintSurface';
 import { CharacterModel } from './CharacterModel';
+import { EnchantClock } from './enchantMaterial';
 
 /**
  * Renders a headshot of every playable class from a **single** offscreen WebGL
@@ -74,23 +78,47 @@ function blitContain(src: HTMLCanvasElement, dst: HTMLCanvasElement): boolean {
   return true;
 }
 
-/** One class's model, parked at the origin and hidden until a tile asks for it. */
-function ClassModel({ cls }: { cls: CharacterClass }) {
+/** One class's model in its equipped look, parked at the origin and hidden until
+ *  a tile asks for it. */
+function ClassModel({
+  cls,
+  skinId,
+  dyeId,
+  weaponId,
+  enchantId,
+}: {
+  cls: CharacterClass;
+  skinId?: string;
+  dyeId?: string;
+  weaponId?: string;
+  enchantId?: string;
+}) {
   const ref = useRef<Group>(null);
-  const descriptor = useMemo(() => resolveCharacter(cls), [cls]);
+  const descriptor = useMemo(
+    () => resolveCharacter(cls, skinId, dyeId, weaponId),
+    [cls, skinId, dyeId, weaponId],
+  );
+  const enchant = useMemo(() => resolveEnchant(enchantId), [enchantId]);
+  // The player's custom paint for this class, when they've painted it.
+  const painted = usePaintStore((s) => !!s.customizedByClass[cls]);
+  const paint = useMemo(() => (painted ? paintTexturesFor(cls) : undefined), [cls, painted]);
   useEffect(() => {
     const g = ref.current;
     if (!g) return;
     g.visible = false;
     groups.set(cls, g);
-    markClassDirty(cls); // model is in the scene now → (re)settle its tiles
     return () => {
       groups.delete(cls);
     };
   }, [cls]);
+  // (Re)settle this class's tiles whenever its model is (re)built — on mount and
+  // on any equipped-cosmetic, enchant, or paint change.
+  useEffect(() => {
+    markClassDirty(cls);
+  }, [cls, descriptor, enchant, paint]);
   return (
     <group ref={ref}>
-      <CharacterModel descriptor={descriptor} />
+      <CharacterModel descriptor={descriptor} paint={paint} enchant={enchant} />
     </group>
   );
 }
@@ -121,6 +149,7 @@ function StageDriver() {
  * {@link registerCharacterThumb}.
  */
 export function CharacterThumbStage() {
+  const byClass = useCosmeticsStore((s) => s.byClass);
   return (
     <div
       aria-hidden
@@ -141,12 +170,23 @@ export function CharacterThumbStage() {
         onCreated={({ camera }) => camera.lookAt(0, 1.5, 0)}
         gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
       >
+        <EnchantClock />
         <ambientLight intensity={0.95} />
         <directionalLight position={[2, 4, 3]} intensity={1.3} color="#fff1d4" />
         <directionalLight position={[-3, 2, -2]} intensity={0.5} color="#8ea8ff" />
-        {CLASS_LIST.map((c) => (
-          <ClassModel key={c.id} cls={c.id} />
-        ))}
+        {CLASS_LIST.map((c) => {
+          const { loadout } = classCosmeticsOf(byClass, c.id);
+          return (
+            <ClassModel
+              key={c.id}
+              cls={c.id}
+              skinId={loadout.skinId}
+              dyeId={loadout.dyeId}
+              weaponId={loadout.weaponId}
+              enchantId={loadout.enchantId}
+            />
+          );
+        })}
         <StageDriver />
       </Canvas>
     </div>
