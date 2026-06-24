@@ -66,6 +66,7 @@ import {
   isRooted,
   isSilenced,
   isStunned,
+  isBlinded,
   attackSpeedMultiplier,
   moveSpeedMultiplier,
   CHARACTER_CLASSES,
@@ -143,7 +144,7 @@ const AURA_RADIUS = 3.5;
 /** Cooldown leniency (ms) on casts: a client whose optimistic cooldown just
  *  expired shouldn't have its cast rejected by round-trip / tick jitter (which
  *  wastes the press and desyncs the cooldown display). Absorbs typical latency. */
-const CAST_COOLDOWN_GRACE_MS = 130;
+const CAST_COOLDOWN_GRACE_MS = 400;
 
 /** A cast in its wind-up: the effect resolves at `resolveAt` (sim time, ms). */
 interface PendingCast {
@@ -215,6 +216,17 @@ export class ArenaRoom extends AvatarRoom {
   private readonly attackReadyAt = new Map<string, number>();
   /** Sim time (ms) each player's next kick is ready. */
   private readonly kickReadyAt = new Map<string, number>();
+  /** Ninja E double-dash recast state: session ID -> state metadata */
+  private readonly ninjaEStates = new Map<
+    string,
+    {
+      stage: number;
+      windowStart: number;
+      windowEnd: number;
+      perkMods: any;
+      firstCastTime: number;
+    }
+  >();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
   private readonly displacements = new Map<string, Displacement>();
   /** In-progress channels (e.g. the priest beam): the ability, when it ends, the
@@ -422,7 +434,7 @@ export class ArenaRoom extends AvatarRoom {
       if (!this.autoAttackEnabled) return; // feature flag off — abilities-only combat
       if (this.zombieMode) return; // players fight zombies with abilities only
       const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive) return;
+      if (!player || !player.alive || isStunned(player) || isBlinded(player)) return;
       const targetId = String(message?.targetId ?? '');
       if (targetId === client.sessionId) return;
       // A valid target is a living enemy player, a live burning barrel, or a
@@ -800,6 +812,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
+    this.ninjaEStates.delete(client.sessionId);
     this.guns.remove(client.sessionId);
     this.gunViews.delete(client.sessionId);
     this.stopChannel(client.sessionId);
@@ -827,7 +840,7 @@ export class ArenaRoom extends AvatarRoom {
       ClientMessage.FireWeapon,
       (client, message: ClientMessagePayloads[ClientMessage.FireWeapon]) => {
         const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive || isStunned(player)) return;
+        if (!player || !player.alive || isStunned(player) || isBlinded(player)) return;
         const { dirX, dirZ } = this.normalizeAim(player, message?.dirX, message?.dirZ);
         this.guns.fire(player, dirX, dirZ);
       },
@@ -894,13 +907,17 @@ export class ArenaRoom extends AvatarRoom {
     // A cast means the charge was released — end the wind-up.
     player.chargeAbility = '';
 
+
     // Gun Mode Zombie disables the entire ability kit — the player fights with
     // guns only. Reject every cast server-side too, so a crafted client can't
     // fire a locked ability.
     if (this.gunMode) return;
 
     // Crowd control: a stun blocks everything; a silence blocks casting.
-    if (isStunned(player) || isSilenced(player)) return;
+    if (isStunned(player) || isSilenced(player)) {
+      this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability: message.ability });
+      return;
+    }
 
     const ability = message.ability;
     const config = this.tuning.abilityFor(player.characterClass, ability);
@@ -910,15 +927,43 @@ export class ArenaRoom extends AvatarRoom {
     // While a channel (the priest beam) is active, re-pressing its key interrupts
     // it and every OTHER ability is locked out for the duration.
     if (this.channels.has(sessionId)) {
-      if (player.channelAbility === ability) this.stopChannel(sessionId);
+      if (player.channelAbility === ability) {
+        this.stopChannel(sessionId);
+      } else {
+        this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
+      }
       return;
     }
 
     // Cooldown + mana gates, plus: can't start a cast while already casting.
     // A small grace absorbs latency so a just-ready client cast isn't dropped.
-    if ((cd[ability] ?? 0) > this.simTime + CAST_COOLDOWN_GRACE_MS) return;
-    if (player.mana < config.manaCost) return;
-    if (this.pendingCasts.has(sessionId)) return;
+    const state = this.ninjaEStates.get(sessionId);
+    const inRecastWindow = state && this.simTime >= state.windowStart && this.simTime <= state.windowEnd;
+
+    if (!inRecastWindow && (cd[ability] ?? 0) > this.simTime + CAST_COOLDOWN_GRACE_MS) {
+
+      this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
+      return;
+    }
+
+    let manaCost = config.manaCost;
+    if (ability === 'ninja_e' && inRecastWindow) {
+      manaCost += 10;
+    }
+    if (player.mana < manaCost) {
+
+      this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
+      return;
+    }
+    if (this.pendingCasts.has(sessionId)) {
+      if (ability === 'ninja_r') {
+        this.pendingCasts.delete(sessionId);
+      } else {
+
+        this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
+        return;
+      }
+    }
 
     // Unit-targeted abilities lock onto a player by id (must be alive and in
     // range); fall back to self if the target is gone/out of range.
@@ -984,8 +1029,30 @@ export class ArenaRoom extends AvatarRoom {
 
     // Commit cost + cooldown at cast start, then face the cast direction.
     const perkMods = this.perkSystem?.getModifiers(sessionId);
-    spendMana(player, config.manaCost * (perkMods?.manaCostMult ?? 1));
-    cd[ability] = this.simTime + config.cooldownMs * (perkMods?.cooldownMult ?? 1);
+    spendMana(player, manaCost * (perkMods?.manaCostMult ?? 1));
+    if (ability === 'ninja_e') {
+      if (inRecastWindow && state) {
+        const baseCd = 6000 * (perkMods?.cooldownMult ?? 1);
+        cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
+        this.ninjaEStates.delete(sessionId);
+      } else {
+        const dashEnd = this.simTime + 214;
+        const windowStart = dashEnd + 300;
+        const windowEnd = dashEnd + 1300;
+        cd[ability] = windowStart;
+        this.ninjaEStates.set(sessionId, {
+          stage: 1,
+          windowStart,
+          windowEnd,
+          perkMods: perkMods || { manaCostMult: 1, cooldownMult: 1 },
+          firstCastTime: this.simTime,
+        });
+      }
+    } else {
+      const baseCd = config.cooldownMs * (perkMods?.cooldownMult ?? 1);
+      cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
+
+    }
     player.rotation = Math.atan2(dirX, dirZ);
 
     // Broadcast at cast START so clients play the cast animation / wind-up VFX
@@ -1028,8 +1095,18 @@ export class ArenaRoom extends AvatarRoom {
         resolveAt: this.simTime + config.castTimeMs,
       });
     } else {
+      let activeConfig = config;
+      if (ability === 'ninja_e' && inRecastWindow && state) {
+        activeConfig = {
+          ...config,
+          effects: [
+            { type: 'dash', distance: 6, speed: 32 },
+            { type: 'shield', amount: 25, durationMs: 3500 },
+          ],
+        };
+      }
       const aoeSizeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
-      this.combat.resolveCast(player, config, dirX, dirZ, targetX, targetZ, unitTargetId, aoeSizeBonus);
+      this.combat.resolveCast(player, activeConfig, dirX, dirZ, targetX, targetZ, unitTargetId, aoeSizeBonus);
     }
   }
 
@@ -1285,6 +1362,7 @@ export class ArenaRoom extends AvatarRoom {
     // In range and armed: strike when the timer is ready. Zombies swing on a
     // slow, randomized interval; everyone else uses the class attack-speed timer.
     if (this.simTime < (this.attackReadyAt.get(sessionId) ?? 0)) return;
+    if (isStunned(attacker) || isBlinded(attacker)) return;
     // Zombies swing at a random moment in [MIN, MAX]; a variant's attack bonus
     // (the Fat) shaves that down, floored so it can't reach zero.
     const interval = isZombie
@@ -1343,6 +1421,18 @@ export class ArenaRoom extends AvatarRoom {
     // under the results overlay until they leave (or the room auto-disposes).
     if (this.match.matchOver) return;
     const dt = deltaMs / 1000;
+
+    // Prune expired Ninja E recast states and apply standard cooldown
+    this.ninjaEStates.forEach((state, sessionId) => {
+      if (this.simTime > state.windowEnd) {
+        const cd = this.cooldowns.get(sessionId);
+        if (cd) {
+          cd['ninja_e'] = this.simTime + 3000 * (state.perkMods?.cooldownMult ?? 1);
+        }
+        this.ninjaEStates.delete(sessionId);
+      }
+    });
+
     const limit = this.arenaLimit - PLAYER_RADIUS;
 
     // Zombie waves: spawn/advance hordes before the bot AI runs, so freshly
@@ -1530,8 +1620,8 @@ export class ArenaRoom extends AvatarRoom {
           // (drums are rate-limited, tires scatter once) — a pure physical bump.
           this.barrels.triggerInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
           this.destructibles.pushInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
-        } else if (this.zombieMode) {
-          // In zombie mode, even non-damaging dashes knock barrels/drums over!
+        } else if (this.zombieMode || player.characterClass === 'ninja') {
+          // In zombie mode, or if the player is a Ninja (Shadow Dash), even non-damaging dashes knock barrels/drums over!
           const fromId = disp.fromId ?? sessionId;
           this.barrels.triggerInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
           this.destructibles.pushInRadius(player.x, player.z, DASH_IMPACT_RADIUS, fromId);
@@ -2121,6 +2211,7 @@ export class ArenaRoom extends AvatarRoom {
   }
 
   private updateMiniBossAI(bot: Player, id: string): void {
+    if (isStunned(bot) || isBlinded(bot)) return;
     if (this.simTime < (this.bossNextActionAt.get(id) ?? 0)) return;
     
     // Mini-boss target

@@ -76,6 +76,15 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     abilities: ['smite', 'heal', 'renew', 'condemn'],
     color: '#e8c45a',
   },
+  ninja: {
+    id: 'ninja',
+    name: 'Ninja',
+    role: 'Melee Assassin',
+    description: 'A swift, elusive shadow who strikes with a katana and smoke bombs.',
+    stats: { health: 300, mana: 150, moveSpeed: 9, attackDamage: 30, difficulty: 3 },
+    abilities: ['ninja_q', 'ninja_w', 'ninja_e', 'ninja_r'],
+    color: '#1e1e24',
+  },
 };
 
 export function getClassDefinition(characterClass: CharacterClass): ClassDefinition {

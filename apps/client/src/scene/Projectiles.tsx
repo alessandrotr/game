@@ -21,6 +21,8 @@ const ABILITY_VFX: Record<string, VfxAssetId> = {
   auto_bolt: 'vfx.fireball',
   auto_arrow: 'vfx.arrow',
   bullet: 'vfx.bullet',
+  ninja_w: 'vfx.shuriken',
+  shuriken: 'vfx.shuriken',
 };
 
 /** Interpolation stiffness for projectile motion (1/second). */
@@ -93,7 +95,11 @@ function ProjectileEntity({ id }: { id: string }) {
     } else {
       node.position.y = latest.y;
     }
-    if (thrownKind) node.rotation.x = node.rotation.y += delta * 6; // tumble
+    if (thrownKind) {
+      node.rotation.x = node.rotation.y += delta * 6; // tumble
+    } else if (latest.ability === 'ninja_w' || latest.ability === 'shuriken') {
+      node.rotation.z += delta * 25; // spin shuriken!
+    }
   });
 
   if (thrownKind) {
@@ -107,13 +113,20 @@ function ProjectileEntity({ id }: { id: string }) {
   // Size the VFX to the projectile's collision radius, so the animation reads as
   // the actual hit area (never larger than where it can connect).
   const tag = projectile?.ability;
-  const radius = tag && isAbilityKind(tag) ? ABILITIES[tag].projectileRadius : undefined;
+  const abilityKind = tag === 'shuriken' ? 'ninja_w' : tag;
+  const radius = abilityKind && isAbilityKind(abilityKind) ? ABILITIES[abilityKind].projectileRadius : undefined;
   // Use a custom GLSL projectile shader when one is registered for this VFX;
   // otherwise fall back to the descriptor's placeholder primitives.
   const Shader = vfxId ? PROJECTILE_SHADERS[vfxId] : undefined;
   return (
     <group ref={group}>
-      {Shader ? <Shader radius={radius} tint={tint} /> : <AssetMesh source={descriptor.render} />}
+      {Shader ? (
+        <Shader radius={radius} tint={tint} />
+      ) : (
+        <group scale={radius ? radius / 0.8 : 1}>
+          <AssetMesh source={descriptor.render} />
+        </group>
+      )}
     </group>
   );
 }

@@ -38,6 +38,9 @@ export function Vfx({
     switch (descriptor.behavior) {
       case 'projectile':
         node.position.addScaledVector(velocity.current, delta);
+        if (descriptor.id === 'vfx.shuriken') {
+          node.rotation.z += delta * 25; // fast spin animation
+        }
         break;
       case 'burst': {
         const t = descriptor.durationMs ? elapsed.current / descriptor.durationMs : 0;
@@ -58,8 +61,10 @@ export function Vfx({
     }
   });
 
+  const rotationY = Math.atan2(direction[0], direction[2]);
+
   return (
-    <group ref={group} position={origin}>
+    <group ref={group} position={origin} rotation={[0, rotationY, 0]}>
       <AssetMesh source={descriptor.render} />
     </group>
   );

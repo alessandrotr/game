@@ -38,32 +38,37 @@ const XP_POP_MS = 1300;
 /** Imperatively paint one slot's cooldown sweep / cast fill / mana-gate from live state. */
 function paintSlot(els: SlotEls | undefined, ability: AbilityKind, mana: number): void {
   if (!els) return;
-  const config = ABILITIES[ability];
-  const cdMs = config.cooldownMs * getLocalCooldownMult();
-  const remaining = cooldownRemaining(ability);
-  const onCooldown = remaining > 0;
-  const elapsed = cdMs - remaining;
-  const casting = config.castTimeMs > 0 && onCooldown && elapsed < config.castTimeMs;
-  const noMana = mana < config.manaCost * getLocalManaCostMult();
+  try {
+    const config = ABILITIES?.[ability];
+    if (!config) return;
+    const cdMs = config.cooldownMs * getLocalCooldownMult();
+    const remaining = cooldownRemaining(ability);
+    const onCooldown = remaining > 0;
+    const elapsed = cdMs - remaining;
+    const casting = config.castTimeMs > 0 && onCooldown && elapsed < config.castTimeMs;
+    const noMana = mana < config.manaCost * getLocalManaCostMult();
 
-  if (els.sweep) {
-    els.sweep.style.display = onCooldown ? 'block' : 'none';
-    if (onCooldown) els.sweep.style.height = `${(remaining / cdMs) * 100}%`;
+    if (els.sweep) {
+      els.sweep.style.display = onCooldown ? 'block' : 'none';
+      if (onCooldown) els.sweep.style.height = `${(remaining / cdMs) * 100}%`;
+    }
+    if (els.cast) {
+      els.cast.style.display = casting ? 'block' : 'none';
+      if (casting) els.cast.style.height = `${(elapsed / config.castTimeMs) * 100}%`;
+    }
+    if (els.secs) {
+      const show = onCooldown && !casting;
+      els.secs.style.display = show ? 'flex' : 'none';
+      if (show) els.secs.textContent = (remaining / 1000).toFixed(remaining >= 1000 ? 0 : 1);
+    }
+    const dim = noMana && !onCooldown;
+    els.icon?.classList.toggle('opacity-40', dim);
+    els.icon?.classList.toggle('grayscale', dim);
+    els.root?.classList.toggle('border-red-500/40', noMana);
+    els.root?.classList.toggle('border-accent/30', !noMana);
+  } catch (err) {
+    console.error('Error painting slot:', err);
   }
-  if (els.cast) {
-    els.cast.style.display = casting ? 'block' : 'none';
-    if (casting) els.cast.style.height = `${(elapsed / config.castTimeMs) * 100}%`;
-  }
-  if (els.secs) {
-    const show = onCooldown && !casting;
-    els.secs.style.display = show ? 'flex' : 'none';
-    if (show) els.secs.textContent = (remaining / 1000).toFixed(remaining >= 1000 ? 0 : 1);
-  }
-  const dim = noMana && !onCooldown;
-  els.icon?.classList.toggle('opacity-40', dim);
-  els.icon?.classList.toggle('grayscale', dim);
-  els.root?.classList.toggle('border-red-500/40', noMana);
-  els.root?.classList.toggle('border-accent/30', !noMana);
 }
 
 /**
@@ -96,6 +101,7 @@ export function CombatHud() {
   const portrait = useRef<HTMLDivElement>(null);
   const levelText = useRef<HTMLSpanElement>(null);
   const hpFill = useRef<HTMLDivElement>(null);
+  const shieldFill = useRef<HTMLDivElement>(null);
   const hpText = useRef<HTMLSpanElement>(null);
   const manaFill = useRef<HTMLDivElement>(null);
   const manaText = useRef<HTMLSpanElement>(null);
@@ -140,8 +146,18 @@ export function CombatHud() {
 
       if (me) {
         // Resource bars: width + centered "cur / max" value text.
-        if (hpFill.current) hpFill.current.style.width = `${clamp01(me.hp / me.maxHp) * 100}%`;
-        if (hpText.current) hpText.current.textContent = `${Math.max(0, Math.round(me.hp))} / ${Math.round(me.maxHp)}`;
+        const hpRatio = clamp01(me.hp / me.maxHp);
+        const shieldRatio = clamp01(me.shield / me.maxHp);
+        if (hpFill.current) hpFill.current.style.width = `${hpRatio * 100}%`;
+        if (shieldFill.current) {
+          shieldFill.current.style.left = `${hpRatio * 100}%`;
+          shieldFill.current.style.width = `${Math.min(shieldRatio, 1 - hpRatio) * 100}%`;
+          shieldFill.current.style.display = me.shield > 0 ? 'block' : 'none';
+        }
+        if (hpText.current) {
+          const shieldText = me.shield > 0 ? ` (+${Math.round(me.shield)})` : '';
+          hpText.current.textContent = `${Math.max(0, Math.round(me.hp))} / ${Math.round(me.maxHp)}${shieldText}`;
+        }
         const manaRatio = me.maxMana > 0 ? clamp01(me.mana / me.maxMana) : 0;
         if (manaFill.current) manaFill.current.style.width = `${manaRatio * 100}%`;
         if (manaText.current) manaText.current.textContent = `${Math.max(0, Math.round(me.mana))} / ${Math.round(me.maxMana)}`;
@@ -266,7 +282,7 @@ export function CombatHud() {
         </div>
 
         {/* HP bar (green) with centered value. */}
-        <ResourceBar fillRef={hpFill} textRef={hpText} fillClass="bg-positive" />
+        <ResourceBar fillRef={hpFill} shieldFillRef={shieldFill} textRef={hpText} fillClass="bg-positive" />
         {/* Mana bar (blue) with centered value. */}
         <ResourceBar fillRef={manaFill} textRef={manaText} fillClass="bg-mana" />
         {/* XP progress to next level (gold) — thinner, reads as progression. */}
@@ -297,10 +313,12 @@ export function CombatHud() {
 /** A LoL-style resource bar: a track with an imperatively-painted fill + centered value text. */
 function ResourceBar({
   fillRef,
+  shieldFillRef,
   textRef,
   fillClass,
 }: {
   fillRef: React.RefObject<HTMLDivElement>;
+  shieldFillRef?: React.RefObject<HTMLDivElement>;
   textRef: React.RefObject<HTMLSpanElement>;
   fillClass: string;
 }) {
@@ -311,6 +329,13 @@ function ResourceBar({
         className={`absolute inset-y-0 left-0 ${fillClass} transition-[width] duration-100`}
         style={{ width: '0%' }}
       />
+      {shieldFillRef && (
+        <div
+          ref={shieldFillRef}
+          className="absolute inset-y-0 left-0 bg-[#7a8cff] transition-[width,left] duration-100 opacity-80"
+          style={{ width: '0%', left: '0%' }}
+        />
+      )}
       <span
         ref={textRef}
         className="absolute inset-0 flex items-center justify-center text-[11px] font-bold tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]"

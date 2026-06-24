@@ -5,6 +5,7 @@ import {
   isRooted,
   isSilenced,
   isStunned,
+  isBlinded,
   moveSpeedMultiplier,
   type StatusLike,
 } from '@arena/shared';
@@ -32,9 +33,17 @@ describe('status gating helpers', () => {
     expect(isRooted(c)).toBe(false);
   });
 
+  it('a blind blocks casting and attacking (not movement)', () => {
+    const c = carrier({ kind: 'blind', magnitude: 0 });
+    expect(isSilenced(c)).toBe(true);
+    expect(isBlinded(c)).toBe(true);
+    expect(isRooted(c)).toBe(false);
+    expect(isStunned(c)).toBe(false);
+  });
+
   it('no statuses means free to act', () => {
     const c = carrier();
-    expect(isStunned(c) || isRooted(c) || isSilenced(c)).toBe(false);
+    expect(isStunned(c) || isRooted(c) || isSilenced(c) || isBlinded(c)).toBe(false);
   });
 });
 

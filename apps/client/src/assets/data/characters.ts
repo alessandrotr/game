@@ -67,6 +67,7 @@ const PAL = {
   priest: { primary: BASE, secondary: '#cfc6a8', metal: '#ffd86b' } satisfies HumanoidPalette,
   guard: { primary: BASE, secondary: '#3c465c', metal: '#9aa3b2' } satisfies HumanoidPalette,
   merchant: { primary: BASE, secondary: '#5a3b22', metal: '#caa472' } satisfies HumanoidPalette,
+  ninja: { primary: BASE, secondary: '#1a1a1c', metal: '#800000' } satisfies HumanoidPalette,
 } as const;
 
 const warrior: CharacterDescriptor = {
@@ -144,4 +145,26 @@ const merchant: CharacterDescriptor = {
   },
 };
 
-export const CHARACTERS: CharacterDescriptor[] = [warrior, mage, archer, priest, guard, merchant];
+const bandana = (color: string): PlaceholderPart[] => [
+  { name: 'bandana', shape: 'cylinder', args: [0.28, 0.28, 0.08, 16], position: [0, 1.52, 0], color, roughness: 0.6 },
+  { name: 'bandana.knot', shape: 'sphere', args: [0.05, 8, 8], position: [0, 1.52, -0.28], color, roughness: 0.6 },
+  { name: 'bandana.tail1', shape: 'box', args: [0.04, 0.02, 0.25], position: [0.05, 1.46, -0.38], rotation: [0.5, 0.2, 0], color, roughness: 0.6 },
+  { name: 'bandana.tail2', shape: 'box', args: [0.04, 0.02, 0.22], position: [-0.05, 1.42, -0.36], rotation: [0.7, -0.1, 0], color, roughness: 0.6 },
+];
+
+const ninja: CharacterDescriptor = {
+  id: 'char.ninja',
+  displayName: 'Ninja',
+  class: 'ninja',
+  weaponId: 'weapon.katana',
+  animations: { idle: 'anim.idle', walk: 'anim.walk', cast: 'anim.attack' },
+  render: {
+    kind: 'placeholder',
+    parts: humanoid({
+      palette: PAL.ninja,
+      headgear: bandana('#111111'),
+    }),
+  },
+};
+
+export const CHARACTERS: CharacterDescriptor[] = [warrior, mage, archer, priest, guard, merchant, ninja];

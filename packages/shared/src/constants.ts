@@ -943,6 +943,7 @@ export const AUTO_ATTACKS: Record<CharacterClass, AutoAttackConfig> = {
     projectileRadius: 0.4,
     projectileVfx: 'auto_arrow',
   },
+  ninja: { kind: 'melee', range: 2.6, damage: 10, cooldownMs: 700 },
 };
 
 // ---------------------------------------------------------------------------

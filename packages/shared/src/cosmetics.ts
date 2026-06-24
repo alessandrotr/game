@@ -269,6 +269,8 @@ const WEAPONS: WeaponCosmetic[] = [
   { id: 'weapon.mace', weaponId: 'weapon.mace', type: 'weapon', characterClass: 'priest', name: 'Acolyte Mace', description: 'A blessed cudgel of plain gold.', rarity: 'common', default: true },
   { id: 'weapon.priest.flanged', weaponId: 'weapon.priest.flanged', type: 'weapon', characterClass: 'priest', name: 'Flanged Mace', description: 'A heavy head of radiant flanges.', rarity: 'rare', requiredLevel: 12 },
   { id: 'weapon.priest.censer', weaponId: 'weapon.priest.censer', type: 'weapon', characterClass: 'priest', name: 'Sun Censer', description: 'A haloed orb-head crowned in gold.', rarity: 'epic', requiredLevel: 20 },
+  // Ninja — katana line.
+  { id: 'weapon.katana', weaponId: 'weapon.katana', type: 'weapon', characterClass: 'ninja', name: 'Katana', description: 'A razor-sharp folded steel blade.', rarity: 'common', default: true },
 ];
 
 // Enchants — animated shader FX on the equipped weapon. Class-bound and themed,

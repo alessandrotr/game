@@ -259,6 +259,23 @@ const sunCenser: WeaponDescriptor = {
   },
 };
 
+const katana: WeaponDescriptor = {
+  id: 'weapon.katana',
+  displayName: 'Katana',
+  grip: SWORD_GRIP,
+  render: {
+    kind: 'placeholder',
+    parts: [
+      { name: 'pommel', shape: 'cylinder', args: [0.026, 0.026, 0.04, 8], position: [0, -0.01, 0], color: '#2a2d33', ...DARKSTEEL },
+      { name: 'grip', shape: 'cylinder', args: [0.026, 0.026, 0.22, 8], position: [0, 0.1, 0], color: '#1a1a1c' },
+      { name: 'tsuba', shape: 'cylinder', args: [0.08, 0.08, 0.02, 16], position: [0, 0.22, 0], color: '#b9892e', ...GOLD },
+      { name: 'blade', shape: 'box', args: [0.05, 0.72, 0.016], position: [0.01, 0.58, 0], rotation: [0, 0, 0.02], color: '#e8edf5', ...STEEL, enchantable: true },
+      { name: 'habaki', shape: 'box', args: [0.054, 0.05, 0.022], position: [0, 0.245, 0], color: '#b9892e', ...GOLD },
+      { name: 'tip', shape: 'cone', args: [0.025, 0.1, 4], position: [0.017, 0.98, 0], rotation: [0, 0, 0.1], color: '#e8edf5', ...STEEL, enchantable: true },
+    ],
+  },
+};
+
 export const WEAPONS: WeaponDescriptor[] = [
   // Warrior
   sword,
@@ -276,4 +293,6 @@ export const WEAPONS: WeaponDescriptor[] = [
   mace,
   flangedMace,
   sunCenser,
+  // Ninja
+  katana,
 ];

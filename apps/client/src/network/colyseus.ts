@@ -339,7 +339,6 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   // fades toward the front, leaving the streak behind), oriented to travel.
   charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true, follow: true },
   shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05, follow: true },
-  // Archer
   tumble: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true, follow: true },
   // Concussive volley: arrows rain down on the targeted point.
   crippling_shot: { id: 'vfx.arrow_volley', at: 'point', y: 0 },
@@ -348,6 +347,8 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   renew: { id: 'vfx.heal', at: 'unit', y: 0.1, follow: true }, // sticks to the healed target
   // Judgment (condemn) is a channelled beam — its visual is the sustained ray
   // (scene/ChannelBeams), not a one-shot cast burst.
+  // Ninja
+  ninja_e: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true, follow: true },
 };
 
 /** Impact burst spawned when a projectile is blocked by cover, keyed by the
@@ -361,9 +362,21 @@ const IMPACT_VFX: Record<string, VfxAssetId> = {
 /** Height of a projectile impact burst (matches the projectile flight height). */
 const IMPACT_Y = 1;
 
+const lastNinjaQCast = new Map<string, number>();
+
 function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): void {
   const spawn = useEffectsStore.getState().spawn;
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
+
+  if (msg.ability === 'ninja_r') {
+    // Spawn black smoke cloud at origin where the ninja was
+    spawn('vfx.smoke_teleport', [msg.x, 0.05, msg.z], [0, 0, 1]);
+    // Spawn black smoke cloud at destination where the ninja will teleport
+    if (msg.tx !== undefined && msg.tz !== undefined) {
+      spawn('vfx.smoke_teleport', [msg.tx, 0.05, msg.tz], [0, 0, 1]);
+    }
+    return;
+  }
 
   const caster = useGameStore.getState().players.get(msg.casterId);
   // Aim the caster's weapon down the ability line (remote players only; the local
@@ -381,7 +394,25 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     : undefined;
 
   const def = ABILITIES[msg.ability];
-  const baseRadius = def?.aoeRadius ?? 0;
+  let baseRadius = def?.aoeRadius ?? 0;
+
+  if (msg.ability === 'ninja_q') {
+    const now = performance.now();
+    const lastCast = lastNinjaQCast.get(msg.casterId) ?? 0;
+    const isSecondSwing = now - lastCast < 450;
+    if (isSecondSwing) {
+      lastNinjaQCast.delete(msg.casterId);
+      baseRadius = 4.5;
+    } else {
+      lastNinjaQCast.set(msg.casterId, now);
+      baseRadius = 4.0;
+    }
+    const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
+    const vfxId = isSecondSwing ? 'vfx.ninja_slash_2' : 'vfx.ninja_slash_1';
+    spawn(vfxId, [msg.x, 0.9, msg.z], dir, msg.casterId, undefined, scale);
+    return;
+  }
+
   const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
 
   const burst = ABILITY_CAST_VFX[msg.ability];

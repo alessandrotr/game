@@ -1,4 +1,4 @@
-import { computePerkModifiers, isPerkId, type AbilityKind } from '@arena/shared';
+import { computePerkModifiers, isPerkId, ABILITIES, type AbilityKind } from '@arena/shared';
 import { useGameStore } from './useGameStore';
 
 /**
@@ -12,13 +12,63 @@ import { useGameStore } from './useGameStore';
  */
 const readyAt = new Map<AbilityKind, number>();
 
+let ninjaEFirstCast: number | null = null;
+let ninjaEStage = 0; // 0 = ready, 1 = first cast done, waiting for window, 2 = second cast done / cooldown
+
+export function isNinjaERecastActive(): boolean {
+  if (ninjaEStage !== 1 || ninjaEFirstCast === null) return false;
+  const now = performance.now();
+  return now >= ninjaEFirstCast + 514 && now <= ninjaEFirstCast + 1514;
+}
+
+export function getAbilityManaCost(ability: AbilityKind): number {
+  const config = ABILITIES[ability];
+  if (!config) return 0;
+  if (ability === 'ninja_e' && isNinjaERecastActive()) {
+    return config.manaCost + 10;
+  }
+  return config.manaCost;
+}
+
 /** Begin a cooldown of `cooldownMs` for an ability, starting now. */
 export function triggerCooldown(ability: AbilityKind, cooldownMs: number): void {
+  if (ability === 'ninja_e') {
+    const now = performance.now();
+    if (ninjaEStage === 0) {
+      ninjaEStage = 1;
+      ninjaEFirstCast = now;
+      readyAt.set('ninja_e', now + 514);
+      return;
+    } else if (ninjaEStage === 1) {
+      ninjaEStage = 0;
+      ninjaEFirstCast = null;
+      readyAt.set('ninja_e', now + 6000 * getLocalCooldownMult());
+      return;
+    }
+  }
   readyAt.set(ability, performance.now() + cooldownMs);
 }
 
 /** Milliseconds remaining on an ability's cooldown (0 if ready). */
 export function cooldownRemaining(ability: AbilityKind): number {
+    if (ability === 'ninja_e') {
+      const now = performance.now();
+      if (ninjaEStage === 1 && ninjaEFirstCast !== null) {
+        const windowStart = ninjaEFirstCast + 514;
+        const windowEnd = ninjaEFirstCast + 1514;
+        if (now < windowStart) {
+          return windowStart - now;
+        } else if (now <= windowEnd) {
+          return 0;
+        } else {
+          ninjaEStage = 0;
+          ninjaEFirstCast = null;
+          readyAt.set('ninja_e', now + 3000 * getLocalCooldownMult());
+          return 3000 * getLocalCooldownMult();
+        }
+      }
+    }
+
   const end = readyAt.get(ability);
   if (end === undefined) return 0;
   return Math.max(0, end - performance.now());
@@ -28,12 +78,17 @@ export function isOnCooldown(ability: AbilityKind): boolean {
   return cooldownRemaining(ability) > 0;
 }
 
-/** Clear all cooldowns, or a specific ability's cooldown if provided. */
 export function resetCooldowns(ability?: AbilityKind): void {
   if (ability) {
     readyAt.delete(ability);
+    if (ability === 'ninja_e') {
+      ninjaEStage = 0;
+      ninjaEFirstCast = null;
+    }
   } else {
     readyAt.clear();
+    ninjaEStage = 0;
+    ninjaEFirstCast = null;
   }
 }
 

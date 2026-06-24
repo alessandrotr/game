@@ -41,7 +41,7 @@ export function assetCategory(id: AssetId): AssetCategory {
 // Playable classes
 // ---------------------------------------------------------------------------
 
-export const CHARACTER_CLASSES = ['warrior', 'mage', 'archer', 'priest'] as const;
+export const CHARACTER_CLASSES = ['warrior', 'mage', 'archer', 'priest', 'ninja'] as const;
 export type CharacterClass = (typeof CHARACTER_CLASSES)[number];
 
 export function isCharacterClass(value: unknown): value is CharacterClass {
@@ -54,6 +54,7 @@ export const CLASS_TO_ASSET = {
   mage: 'char.mage',
   archer: 'char.archer',
   priest: 'char.priest',
+  ninja: 'char.ninja',
 } as const satisfies Record<CharacterClass, CharacterAssetId>;
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot } from '@arena/shared';
+import { ABILITIES, CLASS_LOADOUTS, type AbilityKind, type AbilitySlot, isStunned, isSilenced } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getCursorGround } from '../store/cursorState';
 import { sendCast, sendSetCharge } from '../network/colyseus';
 import { clearDestination } from '../store/destinationState';
-import { setLocalDash } from '../store/dashState';
-import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
+import { setLocalDash, clearLocalDash } from '../store/dashState';
+import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult, isNinjaERecastActive } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
 import { setCastAim } from '../store/castAim';
 import { useAbilityTargeting } from '../store/abilityTargeting';
@@ -155,12 +155,19 @@ export function useAbilityHotkeys(enabled: boolean): void {
       }
       // Predict a dash locally (charge / tumble) so it slides smoothly in the
       // aim direction — even mid-run — instead of fighting the move prediction.
-      for (const e of config.effects) {
+      let activeEffects = config.effects;
+      if (ability === 'ninja_e' && isNinjaERecastActive()) {
+        activeEffects = [{ type: 'dash', distance: 6, speed: 32 }];
+      }
+      for (const e of activeEffects) {
         if (e.type === 'dash') {
           setLocalDash(dx, dz, e.distance, e.speed);
           clearDestination();
           break;
         }
+      }
+      if (ability === 'ninja_r') {
+        clearLocalDash();
       }
       triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
       setCastAim(fromId, Math.atan2(dx, dz), config.channelMs ?? 0, ability);
@@ -184,6 +191,8 @@ export function useAbilityHotkeys(enabled: boolean): void {
       if (!slot) return;
       const me = localPlayer();
       if (!me) return;
+
+      if (isStunned(me) || isSilenced(me)) return;
 
       const ability = CLASS_LOADOUTS[me.characterClass][slot];
       if (!ability) return; // empty slot
