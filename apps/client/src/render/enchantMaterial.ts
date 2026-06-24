@@ -167,6 +167,20 @@ function effectGlsl(effect: EnchantEffect): string {
         vec3 col = mix(c1, c2, veins);
         enchE = col * (0.30 + veins * 2.0) * pulse + fres * mix(c1, vec3(0.85, 1.0, 0.85), 0.5) * 1.9;
       `;
+    case 'spectral':
+      // Wraithfire: rising ghostly flame wisps with a hollow, flickering core and
+      // a bright spectral fresnel rim — eerie energy clinging to the blade.
+      return /* glsl */ `
+        float wisp  = enchFbm(vEnchWPos * 7.0 + vec3(0.0, -t * 2.0, t * 0.5));
+        float wisp2 = enchFbm(vEnchWPos * 13.0 - vec3(0.0, t * 3.5, 0.0));
+        float flame = wisp * 0.6 + wisp2 * 0.4;
+        float flick = 0.7 + 0.3 * sin(t * 18.0 + flame * 10.0);
+        float ghost = fres * fres;
+        vec3 col = mix(c1, c2, flame);
+        enchE = col * (0.25 + flame * 1.35 * flick) + ghost * mix(c1, vec3(0.85, 1.0, 0.9), 0.5) * 2.4;
+        // Hollow, translucent core for the wraith read.
+        diffuseColor.rgb *= mix(0.35, 1.0, fres);
+      `;
     case 'void':
     default:
       // Dark singularity: a churning core that drinks the light, ringed by an

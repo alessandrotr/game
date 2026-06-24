@@ -134,7 +134,8 @@ export type EnchantEffect =
   | 'storm' // fast crackling arcs
   | 'void' // dark core, violet edge
   | 'astral' // dark deep-space orb + twinkling stars (legendary)
-  | 'verdant'; // branching emerald energy veins (legendary)
+  | 'verdant' // branching emerald energy veins (legendary)
+  | 'spectral'; // ghostly green wraithfire — rising wisps + spectral rim (legendary)
 
 /** A purely-visual enchant applied to the equipped weapon's showpiece parts
  *  (blade / orb / head). Class-bound so the effect always fits the class. */
@@ -255,7 +256,7 @@ const WEAPONS: WeaponCosmetic[] = [
   // Warrior — sword line.
   { id: 'weapon.sword', weaponId: 'weapon.sword', type: 'weapon', characterClass: 'warrior', name: 'Arming Sword', description: 'The blade every recruit is issued.', rarity: 'common', default: true },
   { id: 'weapon.warrior.greatblade', weaponId: 'weapon.warrior.greatblade', type: 'weapon', characterClass: 'warrior', name: 'Greatblade', description: 'A broad, fullered two-hander.', rarity: 'rare', requiredLevel: 12 },
-  { id: 'weapon.warrior.runeblade', weaponId: 'weapon.warrior.runeblade', type: 'weapon', characterClass: 'warrior', name: 'Runeblade', description: 'A dark blade veined with rune channels.', rarity: 'epic', requiredLevel: 20 },
+  { id: 'weapon.warrior.runeblade', weaponId: 'weapon.warrior.runeblade', type: 'weapon', characterClass: 'warrior', name: 'Riftblade', description: 'A brutal cleaver greatsword with a hooked, spiked edge.', rarity: 'epic', requiredLevel: 20 },
   // Mage — staff line.
   { id: 'weapon.staff', weaponId: 'weapon.staff', type: 'weapon', characterClass: 'mage', name: 'Apprentice Staff', description: 'A simple focus topped with a gem.', rarity: 'common', default: true },
   { id: 'weapon.mage.archonstaff', weaponId: 'weapon.mage.archonstaff', type: 'weapon', characterClass: 'mage', name: 'Archon Staff', description: 'A clawed staff cradling a faceted core.', rarity: 'rare', requiredLevel: 12 },
@@ -277,7 +278,7 @@ const ENCHANTS: EnchantCosmetic[] = [
   { id: 'enchant.warrior.ember', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ff4d1a', color2: '#ffb020', name: 'Embered', description: 'Heat licks up the steel.', rarity: 'common', requiredLevel: 3 },
   { id: 'enchant.warrior.tempest', type: 'enchant', characterClass: 'warrior', effect: 'storm', color: '#2f6bff', color2: '#cfe3ff', name: 'Tempest', description: 'Lightning crackles along the edge.', rarity: 'rare', requiredLevel: 12 },
   { id: 'enchant.warrior.dread', type: 'enchant', characterClass: 'warrior', effect: 'void', color: '#8a1aff', color2: '#1a0030', name: 'Dreadbound', description: 'A hungry dark clings to the blade.', rarity: 'epic', requiredLevel: 20 },
-  { id: 'enchant.warrior.sunforge', type: 'enchant', characterClass: 'warrior', effect: 'holy', color: '#ffab00', color2: '#fff0c0', name: 'Sunforged', description: 'Forged in molten gold, never cooling.', rarity: 'legendary', requiredLevel: 32 },
+  { id: 'enchant.warrior.sunforge', type: 'enchant', characterClass: 'warrior', effect: 'spectral', color: '#1affa0', color2: '#c6ff5a', name: 'Wraithfire', description: 'Spectral green fire wreathes the steel.', rarity: 'legendary', requiredLevel: 32 },
   // Mage — four distinct effects, four distinct colors.
   { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#c43cff', color2: '#4a7bff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
   { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#00c8ff', color2: '#eafcff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },

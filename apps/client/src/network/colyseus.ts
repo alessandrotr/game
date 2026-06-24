@@ -331,7 +331,7 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   // Warrior
   cleave: { id: 'vfx.cleave', at: 'caster', y: 0.9, oriented: true, follow: true },
   smash: { id: 'vfx.smash', at: 'caster', y: 0, oriented: true, follow: true, forward: 1.6 },
-  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06, follow: true },
+  ground_slam: { id: 'vfx.ground_slam', at: 'caster', y: 0.06, oriented: true, follow: true },
   // Dash streak: follows the dasher so the swoosh trails their back (the shader
   // fades toward the front, leaving the streak behind), oriented to travel.
   charge: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true, follow: true },
@@ -365,7 +365,7 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   // player set its own aim with zero latency at cast time). The server-driven
   // `animState: 'cast'` triggers the weapon swing; this supplies its direction.
   if (caster && msg.casterId !== useGameStore.getState().sessionId) {
-    setCastAim(msg.casterId, Math.atan2(msg.dirX, msg.dirZ), ABILITIES[msg.ability]?.channelMs ?? 0);
+    setCastAim(msg.casterId, Math.atan2(msg.dirX, msg.dirZ), ABILITIES[msg.ability]?.channelMs ?? 0, msg.ability);
   }
   const aoeSizeBonus = caster
     ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus

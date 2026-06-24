@@ -16,10 +16,8 @@ const STAFF_GRIP: WeaponDescriptor['grip'] = { position: [0.45, 0.7, 0.1], rotat
 const BOW_GRIP: WeaponDescriptor['grip'] = { position: [0.42, 0.9, 0.12], rotation: [0, Math.PI / 2, 0] };
 const MACE_GRIP: WeaponDescriptor['grip'] = { position: [0.45, 0.7, 0.1], rotation: [0, 0, -0.3] };
 
-// Shared material palettes (kept terse; the enchant carries the "wow").
+// Shared material palette (kept terse; the enchant carries the "wow").
 const STEEL = { metalness: 0.85, roughness: 0.26 };
-const DARKSTEEL = { metalness: 0.9, roughness: 0.32 };
-const GOLD = { metalness: 0.72, roughness: 0.3 };
 
 // ---------------------------------------------------------------------------
 // Warrior — sword line (blade + tip are enchantable)
@@ -32,16 +30,18 @@ const sword: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'pommel', shape: 'sphere', args: [0.045, 10, 10], position: [0, -0.01, 0], color: '#6a7079', ...STEEL, roughness: 0.4 },
-      { name: 'grip', shape: 'cylinder', args: [0.034, 0.034, 0.2, 8], position: [0, 0.1, 0], color: '#4a3522' },
-      { name: 'guard', shape: 'box', args: [0.32, 0.05, 0.08], position: [0, 0.225, 0], color: '#8a929c', ...GOLD },
-      { name: 'blade', shape: 'box', args: [0.1, 0.6, 0.028], position: [0, 0.55, 0], color: '#cdd3dd', ...STEEL, enchantable: true },
-      { name: 'fuller', shape: 'box', args: [0.018, 0.5, 0.032], position: [0, 0.55, 0], color: '#9aa3ad', metalness: 0.6, roughness: 0.4 },
-      { name: 'tip', shape: 'cone', args: [0.05, 0.16, 4], position: [0, 0.93, 0], color: '#cdd3dd', ...STEEL, enchantable: true },
+      { name: 'pommel', shape: 'sphere', args: [0.045, 10, 10], position: [0, -0.01, 0], color: '#9aa2ae', ...STEEL, roughness: 0.4 },
+      { name: 'grip', shape: 'cylinder', args: [0.034, 0.034, 0.2, 8], position: [0, 0.1, 0], color: '#5a5f68' },
+      { name: 'guard', shape: 'box', args: [0.32, 0.05, 0.08], position: [0, 0.225, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'blade', shape: 'box', args: [0.1, 0.6, 0.028], position: [0, 0.55, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'fuller', shape: 'box', args: [0.018, 0.5, 0.032], position: [0, 0.55, 0], color: '#aab2bc', metalness: 0.6, roughness: 0.4 },
+      { name: 'tip', shape: 'cone', args: [0.05, 0.16, 4], position: [0, 0.93, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
     ],
   },
 };
 
+// Greatblade — a broad two-hander: long grip, ball-tipped crossguard, parrying
+// lugs and a wide fullered blade. Clearly heftier than the arming sword.
 const greatblade: WeaponDescriptor = {
   id: 'weapon.warrior.greatblade',
   displayName: 'Greatblade',
@@ -49,29 +49,38 @@ const greatblade: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'pommel', shape: 'sphere', args: [0.052, 10, 10], position: [0, -0.02, 0], color: '#5a6069', ...STEEL, roughness: 0.42 },
-      { name: 'grip', shape: 'cylinder', args: [0.038, 0.038, 0.28, 8], position: [0, 0.13, 0], color: '#3a2a1a' },
-      { name: 'guard', shape: 'box', args: [0.42, 0.06, 0.09], position: [0, 0.29, 0], color: '#b0b8c2', ...GOLD },
-      { name: 'blade', shape: 'box', args: [0.16, 0.78, 0.034], position: [0, 0.7, 0], color: '#d6dce6', ...STEEL, roughness: 0.24, enchantable: true },
-      { name: 'fuller', shape: 'box', args: [0.03, 0.66, 0.038], position: [0, 0.7, 0], color: '#aab2bc', metalness: 0.6, roughness: 0.4 },
-      { name: 'tip', shape: 'cone', args: [0.082, 0.22, 4], position: [0, 1.2, 0], color: '#d6dce6', ...STEEL, roughness: 0.24, enchantable: true },
+      { name: 'pommel', shape: 'sphere', args: [0.06, 12, 12], position: [0, -0.04, 0], color: '#9aa2ae', ...STEEL, roughness: 0.42 },
+      { name: 'grip', shape: 'cylinder', args: [0.04, 0.04, 0.36, 8], position: [0, 0.16, 0], color: '#5a5f68' },
+      { name: 'guard', shape: 'box', args: [0.52, 0.07, 0.1], position: [0, 0.37, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'quillon.l', shape: 'sphere', args: [0.055, 10, 10], position: [0.26, 0.37, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'quillon.r', shape: 'sphere', args: [0.055, 10, 10], position: [-0.26, 0.37, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'lug.l', shape: 'cone', args: [0.03, 0.15, 4], position: [0.1, 0.52, 0], rotation: [0, 0, -1.05], color: '#c4ccd6', ...STEEL },
+      { name: 'lug.r', shape: 'cone', args: [0.03, 0.15, 4], position: [-0.1, 0.52, 0], rotation: [0, 0, 1.05], color: '#c4ccd6', ...STEEL },
+      { name: 'blade', shape: 'box', args: [0.2, 0.98, 0.042], position: [0, 0.89, 0], color: '#e0e6ee', ...STEEL, roughness: 0.22, enchantable: true },
+      { name: 'fuller', shape: 'box', args: [0.045, 0.84, 0.05], position: [0, 0.89, 0], color: '#aab2bc', metalness: 0.6, roughness: 0.4 },
+      { name: 'tip', shape: 'cone', args: [0.1, 0.28, 4], position: [0, 1.52, 0], color: '#e0e6ee', ...STEEL, roughness: 0.22, enchantable: true },
     ],
   },
 };
 
+// Riftblade — the biggest blade: a brutal cleaver greatsword with an angled
+// spiked crossguard, an asymmetric back-edge and a hooked tip. Distinct, mean.
 const runeblade: WeaponDescriptor = {
   id: 'weapon.warrior.runeblade',
-  displayName: 'Runeblade',
+  displayName: 'Riftblade',
   grip: SWORD_GRIP,
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'pommel', shape: 'sphere', args: [0.05, 10, 10], position: [0, -0.02, 0], color: '#2a2d33', ...DARKSTEEL },
-      { name: 'grip', shape: 'cylinder', args: [0.036, 0.036, 0.24, 8], position: [0, 0.12, 0], color: '#1f1f24' },
-      { name: 'guard', shape: 'box', args: [0.38, 0.06, 0.085], position: [0, 0.27, 0], color: '#2a2d33', ...DARKSTEEL },
-      { name: 'blade', shape: 'box', args: [0.13, 0.8, 0.03], position: [0, 0.72, 0], color: '#23262c', ...DARKSTEEL, enchantable: true },
-      { name: 'rune', shape: 'box', args: [0.026, 0.66, 0.034], position: [0, 0.72, 0], color: '#15171b', metalness: 0.5, roughness: 0.6 },
-      { name: 'tip', shape: 'cone', args: [0.066, 0.2, 4], position: [0, 1.18, 0], color: '#23262c', ...DARKSTEEL, enchantable: true },
+      { name: 'pommel', shape: 'sphere', args: [0.065, 12, 12], position: [0, -0.05, 0], color: '#9aa2ae', ...STEEL },
+      { name: 'grip', shape: 'cylinder', args: [0.042, 0.042, 0.34, 8], position: [0, 0.15, 0], color: '#4a4e55' },
+      { name: 'hub', shape: 'box', args: [0.16, 0.09, 0.1], position: [0, 0.35, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'spike.l', shape: 'cone', args: [0.045, 0.36, 4], position: [0.15, 0.44, 0], rotation: [0, 0, -0.8], color: '#c4ccd6', ...STEEL },
+      { name: 'spike.r', shape: 'cone', args: [0.045, 0.36, 4], position: [-0.15, 0.44, 0], rotation: [0, 0, 0.8], color: '#c4ccd6', ...STEEL },
+      { name: 'blade', shape: 'box', args: [0.26, 1.2, 0.05], position: [0, 0.98, 0], color: '#e0e6ee', ...STEEL, roughness: 0.2, enchantable: true },
+      { name: 'edge', shape: 'box', args: [0.05, 1.04, 0.062], position: [0.08, 0.98, 0], color: '#aab2bc', metalness: 0.6, roughness: 0.34 },
+      { name: 'hook', shape: 'cone', args: [0.075, 0.22, 3], position: [-0.16, 1.49, 0], rotation: [0, 0, 1.45], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'tip', shape: 'cone', args: [0.13, 0.34, 4], position: [0, 1.75, 0], color: '#e0e6ee', ...STEEL, roughness: 0.2, enchantable: true },
     ],
   },
 };
@@ -138,11 +147,11 @@ const bow: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.45, 0.04, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#7a4f2a', enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.05, 0.05, 0.2, 8], position: [0, 0, 0], color: '#4a3522' },
+      { name: 'limb', shape: 'torus', args: [0.45, 0.04, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'riser', shape: 'cylinder', args: [0.05, 0.05, 0.2, 8], position: [0, 0, 0], color: '#5a5f68' },
       { name: 'string', shape: 'cylinder', args: [0.006, 0.006, 0.9, 4], position: [0, 0, 0], color: '#d8d2c4' },
-      { name: 'nock.t', shape: 'sphere', args: [0.022, 8, 8], position: [0, 0.45, 0], color: '#3a2d1a' },
-      { name: 'nock.b', shape: 'sphere', args: [0.022, 8, 8], position: [0, -0.45, 0], color: '#3a2d1a' },
+      { name: 'nock.t', shape: 'sphere', args: [0.022, 8, 8], position: [0, 0.45, 0], color: '#9aa2ae' },
+      { name: 'nock.b', shape: 'sphere', args: [0.022, 8, 8], position: [0, -0.45, 0], color: '#9aa2ae' },
     ],
   },
 };
@@ -154,11 +163,11 @@ const warRecurve: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.5, 0.045, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#5a3a22', enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.05, 0.055, 0.26, 8], position: [0, 0, 0], color: '#2a2a2e', metalness: 0.5, roughness: 0.5 },
+      { name: 'limb', shape: 'torus', args: [0.5, 0.045, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'riser', shape: 'cylinder', args: [0.05, 0.055, 0.26, 8], position: [0, 0, 0], color: '#5a5f68', metalness: 0.5, roughness: 0.5 },
       { name: 'string', shape: 'cylinder', args: [0.006, 0.006, 1.0, 4], position: [0, 0, 0], color: '#cfc9ba' },
-      { name: 'tip.t', shape: 'cone', args: [0.03, 0.16, 4], position: [0, 0.52, 0], color: '#c9d2dd', ...STEEL, enchantable: true },
-      { name: 'tip.b', shape: 'cone', args: [0.03, 0.16, 4], position: [0, -0.52, 0], rotation: [Math.PI, 0, 0], color: '#c9d2dd', ...STEEL, enchantable: true },
+      { name: 'tip.t', shape: 'cone', args: [0.03, 0.16, 4], position: [0, 0.52, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'tip.b', shape: 'cone', args: [0.03, 0.16, 4], position: [0, -0.52, 0], rotation: [Math.PI, 0, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
     ],
   },
 };
@@ -170,11 +179,11 @@ const dawnbow: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.6, 0.04, 12, 28, Math.PI * 0.8], position: [0, 0, 0], rotation: [0, 0, -Math.PI * 0.9], color: '#b9892e', ...GOLD, enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.045, 0.05, 0.24, 8], position: [0, 0, 0], color: '#6b4a2a' },
+      { name: 'limb', shape: 'torus', args: [0.6, 0.04, 12, 28, Math.PI * 0.8], position: [0, 0, 0], rotation: [0, 0, -Math.PI * 0.9], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'riser', shape: 'cylinder', args: [0.045, 0.05, 0.24, 8], position: [0, 0, 0], color: '#5a5f68' },
       { name: 'string', shape: 'cylinder', args: [0.005, 0.005, 1.0, 4], position: [0, 0, 0], color: '#efe7cc' },
-      { name: 'nock.t', shape: 'sphere', args: [0.032, 10, 10], position: [0, 0.49, 0.12], color: '#ffd86b', emissive: '#ffb43a', emissiveIntensity: 1.2, enchantable: true },
-      { name: 'nock.b', shape: 'sphere', args: [0.032, 10, 10], position: [0, -0.49, 0.12], color: '#ffd86b', emissive: '#ffb43a', emissiveIntensity: 1.2, enchantable: true },
+      { name: 'nock.t', shape: 'sphere', args: [0.032, 10, 10], position: [0, 0.49, 0.12], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
+      { name: 'nock.b', shape: 'sphere', args: [0.032, 10, 10], position: [0, -0.49, 0.12], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
     ],
   },
 };

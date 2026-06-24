@@ -21,14 +21,17 @@ export interface CastAim {
    *  instant cast (a quick thrust); a channel's duration for a sustained one
    *  (e.g. the priest's beam holds the pose for the whole channel). */
   holdMs: number;
+  /** The ability id cast — lets a weapon animator pick a gesture (e.g. a melee
+   *  sweep for the warrior's cleave). */
+  ability: string;
 }
 
 const aims = new Map<string, CastAim>();
 
-/** Record a cast (world aim yaw, optional hold duration) and bump the sequence. */
-export function setCastAim(sessionId: string, yaw: number, holdMs = 0): void {
+/** Record a cast (world aim yaw, hold duration, ability) and bump the sequence. */
+export function setCastAim(sessionId: string, yaw: number, holdMs = 0, ability = ''): void {
   const seq = (aims.get(sessionId)?.seq ?? 0) + 1;
-  aims.set(sessionId, { yaw, seq, holdMs });
+  aims.set(sessionId, { yaw, seq, holdMs, ability });
 }
 
 /** The latest cast aim for a session, or null if they've never cast. */

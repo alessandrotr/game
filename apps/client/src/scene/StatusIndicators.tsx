@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import type { StatusKind } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
+import { abilityTintColor } from '../assets/CharacterFactory';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { ShieldBubble } from '../render/shaders';
@@ -77,6 +78,11 @@ function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
   const hasShield = shieldPart === 's';
   if (kinds.length === 0 && !hasShield) return null;
 
+  // The bubble takes the wearer's enchant color (default shield blue if none).
+  const me = useGameStore.getState().players.get(sessionId);
+  const shieldColor =
+    (me && abilityTintColor(me.characterClass, me.weaponId, me.enchantId)) || STATUS_COLOR.shield;
+
   const startX = -((kinds.length - 1) * PIP_GAP) / 2;
 
   return (
@@ -91,7 +97,7 @@ function PlayerStatusBadge({ sessionId }: { sessionId: string }) {
         // The badge anchors above the head (PIP_Y); drop the bubble down so it
         // sits centred on the body (~y 1.1) and actually wraps the player.
         <group position={[0, -1.55, 0]}>
-          <ShieldBubble color={STATUS_COLOR.shield} radius={1.1} />
+          <ShieldBubble color={shieldColor} radius={1.1} />
         </group>
       )}
     </group>

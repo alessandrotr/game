@@ -23,6 +23,7 @@ import type { EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
 import { useWeaponCastAnimator, type ChannelState } from './animation/useWeaponCastAnimator';
+import { useWeaponSwingAnimator } from './animation/useWeaponSwingAnimator';
 import { getCastAim } from '../store/castAim';
 import { weaponGlowPart, type WeaponGlow } from '../assets/weaponGlow';
 import { useGameStore } from '../store/useGameStore';
@@ -157,17 +158,42 @@ function WeaponMount({
 }) {
   const glow = useMemo(() => casterGlow(weapon), [weapon]);
   if (!glow) {
-    return (
-      <group
-        position={weapon.grip?.position ?? [0, 0, 0]}
-        rotation={weapon.grip?.rotation ?? [0, 0, 0]}
-        scale={weapon.grip?.scale ?? 1}
-      >
-        <AssetMesh source={weapon.render} enchant={enchant} />
-      </group>
-    );
+    return <MeleeWeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />;
   }
   return <CasterWeaponMount weapon={weapon} enchant={enchant} glow={glow} ownerId={ownerId} />;
+}
+
+/** A melee weapon (sword / bow): plain in the grip, but swung in a 180° arc on a
+ *  sweeping ability (the warrior's cleave). */
+function MeleeWeaponMount({
+  weapon,
+  enchant,
+  ownerId,
+}: {
+  weapon: WeaponDescriptor;
+  enchant?: EnchantParams;
+  ownerId?: string;
+}) {
+  // Swing in the HAND: outer group yaws + lifts (sweep), middle pitches + scales
+  // (lay), inner holds the resting grip tilt — which the animator fades out during
+  // a gesture so the blade points cleanly (e.g. straight back on a charge).
+  const sweep = useRef<Group>(null);
+  const lay = useRef<Group>(null);
+  const grip = useRef<Group>(null);
+  const getCastAimForOwner = useRef(() => (ownerId ? getCastAim(ownerId) : null)).current;
+  const gripRot = (weapon.grip?.rotation ?? [0, 0, 0]) as [number, number, number];
+  useWeaponSwingAnimator(sweep, lay, grip, getCastAimForOwner, gripRot);
+  return (
+    <group position={weapon.grip?.position ?? [0, 0, 0]} scale={weapon.grip?.scale ?? 1}>
+      <group ref={sweep}>
+        <group ref={lay}>
+          <group ref={grip} rotation={gripRot}>
+            <AssetMesh source={weapon.render} enchant={enchant} />
+          </group>
+        </group>
+      </group>
+    </group>
+  );
 }
 
 /** A priest/mage scepter that swings toward the shot and flares its orb on cast. */

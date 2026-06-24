@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Billboard } from '@react-three/drei';
-import { AdditiveBlending, DoubleSide, NormalBlending, type Blending } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, type Blending } from 'three';
 import {
   GLSL_NOISE,
   UV_VERTEX,
@@ -152,30 +152,63 @@ export const ArcaneBlastEffect = ({ durationMs, onComplete }: BurstShaderProps) 
   );
 };
 
-// --- Ground Slam: a heavy dust shockwave with radial cracks. -----------------
+// --- Ground Slam: a steel blade-trail sweeping a FULL 360° circle (the cleave
+//     arc, but all the way around — matches the warrior's spinning slam). -------
 
 const groundSlamFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime, uProgress;
-  ${GLSL_NOISE}
   void main(){
+    const float TAU = 6.28318530718;
     vec2 p = vUv - 0.5;
-    float r = length(p) * 2.0;
-    float ang = atan(p.y, p.x);
-    float edge = uProgress * 0.95;
-    float ring = smoothstep(0.14, 0.0, abs(r - edge)) * 1.2;
-    // Jagged cracks shooting out from the impact.
-    float cracks = pow(max(0.0, cos(ang * 6.0)), 18.0) * smoothstep(edge, 0.0, r);
-    float dust = noise(p * 7.0 + uTime * 1.5) * smoothstep(edge + 0.15, 0.0, r) * 0.5;
-    float v = ring + cracks * 0.9 + dust;
-    vec3 col = mix(vec3(0.5, 0.26, 0.1), vec3(1.0, 0.62, 0.22), ring + cracks * 0.4);
-    gl_FragColor = vec4(col * v * 2.0, v * (1.0 - uProgress * 0.85));
+    float r = length(p) * 2.0;                 // 0 centre → 1 edge
+    float ang = atan(p.x, -p.y) / TAU;         // -0.5 .. 0.5 around the full circle
+    // The blade tip sweeps the WHOLE circle over the cast.
+    float tipPos = -0.5 + uProgress;           // -0.5 → 0.5
+    float delta = tipPos - ang;                // >=0 → already carved
+    float swept = step(0.0, delta);
+    // The arc band the sword carves (sized to the 5-unit damage radius).
+    float band = smoothstep(0.32, 0.0, abs(r - 0.82));
+    // Comet trail behind the tip + a hot leading glint at the tip.
+    float trail = swept * smoothstep(0.6, 0.0, delta);
+    float tip = smoothstep(0.05, 0.0, abs(delta)) * swept;
+    float ring = band * 0.12;
+    float v = band * (trail * 0.7 + tip * 2.0) + ring;
+    vec3 col = mix(vec3(1.0, 0.45, 0.12), vec3(1.0, 0.97, 0.9), clamp(tip + trail * 0.3, 0.0, 1.0));
+    float life = 1.0 - smoothstep(0.7, 1.0, uProgress);
+    gl_FragColor = vec4(col * v * 2.6, v * life);
   }
 `;
-// Sized so the shockwave ring (which expands to r=0.95 of the quad's half-width)
-// lands exactly on Ground Slam's 5-unit damage radius: 5 / 0.475 ≈ 10.5.
-export const GroundSlamEffect = (p: BurstShaderProps) => <GroundBurst {...p} size={10.5} frag={groundSlamFrag} />;
+// A cheap energy aura that surges UP from the warrior as they slam — one extra
+// billboard quad, a single noise sample, only during the cast. Authored saturated
+// so the burst-tint pipeline recolors it to the enchant (white core stays hot).
+const slamAuraFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime, uProgress;
+  ${GLSL_NOISE}
+  void main(){
+    vec2 uv = vUv;
+    float cx = abs(uv.x - 0.5) * 2.0;                 // 0 centre → 1 edge
+    float flow = noise(vec2(uv.x * 8.0, uv.y * 4.0 - uTime * 6.0 - uProgress * 5.0));
+    float column = smoothstep(1.0, 0.0, cx) * smoothstep(1.0, 0.08, uv.y); // taper up + sides
+    float surge = column * (0.35 + flow * 1.2);
+    float base = smoothstep(0.16, 0.0, distance(uv, vec2(0.5, 0.06))); // hot flash at the feet
+    float v = surge + base * 1.5;
+    float life = smoothstep(0.0, 0.07, uProgress) * (1.0 - smoothstep(0.4, 1.0, uProgress));
+    vec3 col = mix(vec3(0.25, 0.55, 1.0), vec3(1.0), clamp(v * 0.5, 0.0, 1.0));
+    gl_FragColor = vec4(col * v * 2.2, v * life);
+  }
+`;
+// Sized so the carved band (r=0.82 of the quad's half-width) lands on Ground
+// Slam's 5-unit radius: 5 / 0.41 ≈ 12. Paired with the rising aura surge.
+export const GroundSlamEffect = (p: BurstShaderProps) => (
+  <group>
+    <GroundBurst {...p} size={12} frag={groundSlamFrag} />
+    <BillboardBurst {...p} width={2.6} height={3.2} frag={slamAuraFrag} y={1.3} />
+  </group>
+);
 
 // --- Cleave: a steel blade-trail that sweeps the 180° arc in FRONT of the player.
 
@@ -330,6 +363,7 @@ const dashWindFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime, uProgress;
+  uniform vec3 uColor;
   ${GLSL_NOISE}
   void main(){
     vec2 uv = vUv;
@@ -340,7 +374,8 @@ const dashWindFrag = /* glsl */ `
     // Localized gust: taper at both horizontal ends.
     float taper = smoothstep(0.0, 0.22, uv.x) * smoothstep(1.0, 0.55, uv.x);
     float v = band * (0.25 + lines) * taper;
-    vec3 col = vec3(0.82, 0.9, 1.0);                       // airy white-blue
+    // Tinted to the weapon's enchant (uColor); white highlights on the speed-lines.
+    vec3 col = mix(uColor, vec3(1.0), lines * 0.5);
     // Snap in, ease out over the dash.
     float fade = smoothstep(0.0, 0.12, uProgress) * (1.0 - smoothstep(0.55, 1.0, uProgress));
     gl_FragColor = vec4(col * v * 1.8, v * fade);
@@ -349,9 +384,12 @@ const dashWindFrag = /* glsl */ `
 
 /** A camera-facing gust of speed-lines, positioned at body height just behind
  *  the dasher (offset opposite the travel direction). */
-function DashWind({ durationMs, onComplete, direction }: BurstShaderProps) {
+function DashWind({ durationMs, onComplete, direction, tint }: BurstShaderProps) {
   const { matRef, seed } = useBurstClock(durationMs, onComplete);
-  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: seed }, uProgress: { value: 0 }, uColor: { value: new Color(tint ?? '#d2e6ff') } }),
+    [seed, tint],
+  );
   const [dx, , dz] = direction ?? [0, 0, 1];
   const len = Math.hypot(dx, dz) || 1;
   const back = 1.1; // sit ~1.1 units behind the player, at chest height
