@@ -40,9 +40,7 @@ function ProjectileEntity({ id }: { id: string }) {
   const descriptor = vfxId ? assets.getVfx(vfxId) : undefined;
   // Recolor the bolt to the firing player's equipped weapon glow (null = default).
   const owner = projectile ? useGameStore.getState().players.get(projectile.ownerId) : undefined;
-  const tint = owner
-    ? abilityTintColor(owner.characterClass, owner.weaponId, owner.enchantId) ?? undefined
-    : undefined;
+  const tint = owner ? abilityTintColor(owner.enchantId) ?? undefined : undefined;
 
   useFrame((_, delta) => {
     const node = group.current;

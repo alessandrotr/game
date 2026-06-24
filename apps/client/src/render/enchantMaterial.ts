@@ -50,6 +50,17 @@ uniform vec3 uEnchColor;
 uniform vec3 uEnchColor2;
 varying vec3 vEnchWPos;
 float enchHash(vec3 p){ return fract(sin(dot(floor(p), vec3(12.9898,78.233,37.719)))*43758.5453); }
+// Smooth 3D value noise + fbm — gives the effects real flowing detail instead of
+// flat bands. Three octaves: enough to read as energy, cheap on tiny showpieces.
+float enchNoise(vec3 p){
+  vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  float a=enchHash(i),               b=enchHash(i+vec3(1.0,0.0,0.0));
+  float c=enchHash(i+vec3(0.0,1.0,0.0)), d=enchHash(i+vec3(1.0,1.0,0.0));
+  float e=enchHash(i+vec3(0.0,0.0,1.0)), g=enchHash(i+vec3(1.0,0.0,1.0));
+  float h=enchHash(i+vec3(0.0,1.0,1.0)), k=enchHash(i+vec3(1.0,1.0,1.0));
+  return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y), mix(mix(e,g,f.x),mix(h,k,f.x),f.y), f.z);
+}
+float enchFbm(vec3 p){ float v=0.0, a=0.5; for(int i=0;i<3;i++){ v+=a*enchNoise(p); p*=2.03; a*=0.5; } return v; }
 `;
 
 /**
@@ -63,50 +74,82 @@ float enchHash(vec3 p){ return fract(sin(dot(floor(p), vec3(12.9898,78.233,37.71
 function effectGlsl(effect: EnchantEffect): string {
   switch (effect) {
     case 'ember':
+      // Living fire: turbulent flames licking upward, a deep→white-hot ramp, and
+      // sparks popping over the surface.
       return /* glsl */ `
-        float h = enchHash(vEnchWPos * 7.0);
-        float f = sin(vEnchWPos.y * 9.0 - t * 6.0 + h * 6.28) * 0.5 + 0.5;
-        float flick = 0.65 + 0.35 * sin(t * 22.0 + h * 10.0);
-        enchE = mix(c2, c1, f) * (0.45 + f * 1.30 * flick) + fres * c1 * 1.6;
+        float flow  = enchFbm(vEnchWPos * 6.0 + vec3(0.0, -t * 1.7, 0.0));
+        float lick  = enchFbm(vEnchWPos * 11.0 + vec3(0.0, -t * 3.4, t * 0.6));
+        float heat  = flow * 0.6 + lick * 0.4;
+        float spark = step(0.92, enchHash(vEnchWPos * 30.0 + floor(t * 20.0)));
+        float flick = 0.7 + 0.3 * sin(t * 26.0 + heat * 12.0);
+        vec3 fire = mix(c2, c1, smoothstep(0.15, 0.8, heat));
+        fire = mix(fire, vec3(1.0, 0.95, 0.8), smoothstep(0.75, 1.0, heat) * 0.7); // white-hot tips
+        enchE = fire * (0.30 + heat * 1.9 * flick) + spark * c1 * 2.5 + fres * c1 * 1.7;
       `;
     case 'frost':
+      // Frozen crystal: a slow drifting shimmer with sharp crystalline glints and
+      // a cold, bright rime on the edges.
       return /* glsl */ `
-        float s = 0.5 + 0.5 * sin(vEnchWPos.y * 6.0 + t * 1.6 + enchHash(vEnchWPos * 9.0) * 6.28);
-        enchE = c1 * (0.18 + 0.22 * s) + fres * mix(c1, c2, 0.6) * 2.1;
+        float drift  = enchFbm(vEnchWPos * 7.0 + t * 0.25);
+        float facet  = pow(abs(sin(vEnchWPos.x * 20.0) * sin(vEnchWPos.y * 20.0) * sin(vEnchWPos.z * 20.0)), 0.5);
+        float glint  = step(0.85, facet) * (0.5 + 0.5 * sin(t * 9.0 + drift * 20.0));
+        float ice    = drift * 0.45 + facet * 0.35;
+        enchE = mix(c1, c2, ice) * (0.16 + ice * 0.6) + glint * vec3(0.9, 0.98, 1.0) * 1.6
+              + fres * mix(c1, c2, 0.7) * 2.2;
       `;
     case 'arcane':
+      // Iridescent runic energy: swirling glyph bands whose hue never settles,
+      // shifting between the two colors with the flow, time and viewing angle.
       return /* glsl */ `
-        float ang = atan(vEnchWPos.x, vEnchWPos.z);
-        float band = sin(ang * 4.0 + vEnchWPos.y * 6.0 - t * 3.0) * 0.5 + 0.5;
-        enchE = mix(c1, c2, band) * (0.30 + band * 1.05) + fres * c1 * 1.5;
+        float swirl = enchFbm(vEnchWPos * 7.0 + vec3(0.0, t * 0.5, 0.0));
+        float ang   = atan(vEnchWPos.x, vEnchWPos.z);
+        float rune  = sin(ang * 5.0 + vEnchWPos.y * 7.0 - t * 3.0 + swirl * 6.2831) * 0.5 + 0.5;
+        float hue   = 0.5 + 0.5 * sin(swirl * 6.2831 + t * 1.6 + fres * 3.0);
+        vec3  col   = mix(c1, c2, hue);
+        enchE = col * (0.28 + rune * 1.3) + fres * mix(c2, vec3(1.0), 0.4) * 2.1;
       `;
     case 'venom':
+      // Bubbling toxin: oily blobs welling up and dripping, with a sickly rim.
       return /* glsl */ `
-        float h = enchHash(vEnchWPos * 6.0);
-        float drip = fract(vEnchWPos.y * 3.0 - t * 0.8 + h);
-        float blob = smoothstep(0.65, 1.0, drip);
-        enchE = c1 * (0.22 + blob * 1.25) + fres * mix(c1, c2, 0.4) * 1.4;
+        float brew = enchFbm(vEnchWPos * 9.0 + vec3(0.0, -t * 0.8, 0.0));
+        float blob = smoothstep(0.5, 0.82, brew);
+        float drip = fract(vEnchWPos.y * 3.0 - t * 0.9 + brew * 1.5);
+        float bead = smoothstep(0.7, 1.0, drip) * smoothstep(0.45, 0.6, brew);
+        enchE = mix(c2, c1, blob) * (0.22 + blob * 1.5) + bead * c1 * 1.6 + fres * mix(c1, c2, 0.4) * 1.5;
       `;
     case 'holy':
+      // Radiant blessing: a soft breathing glow, slow rotating light rays, and a
+      // bright haloed rim.
       return /* glsl */ `
-        float p = 0.7 + 0.3 * sin(t * 2.2);
-        enchE = c1 * (0.45 * p) + fres * c2 * 2.3 * p;
+        float ray   = pow(max(0.0, sin(atan(vEnchWPos.x, vEnchWPos.z) * 6.0 + t * 0.7)), 5.0);
+        float motes = enchFbm(vEnchWPos * 9.0 + vec3(0.0, -t * 0.6, 0.0));
+        float pulse = 0.7 + 0.3 * sin(t * 2.3);
+        enchE = mix(c1, vec3(1.0, 0.98, 0.9), 0.3) * (0.4 + ray * 0.7 + motes * 0.3) * pulse
+              + fres * c2 * 2.6 * pulse;
       `;
     case 'storm':
+      // Crackling lightning: jagged arcs snapping across the surface with a fast
+      // electric buzz and a charged rim.
       return /* glsl */ `
-        float seg = floor(vEnchWPos.y * 22.0);
-        float arc = step(0.86, enchHash(vec3(seg, floor(t * 13.0), seg)));
-        float buzz = 0.4 + 0.6 * sin(t * 40.0 + seg);
-        enchE = mix(c1, c2, arc) * (0.28 + arc * 2.2 * buzz) + fres * c1 * 1.8;
+        float seg  = floor(vEnchWPos.y * 16.0 + vEnchWPos.x * 5.0);
+        float arc  = step(0.80, enchHash(vec3(seg, floor(t * 17.0), seg * 1.7)));
+        float fork = step(0.86, enchFbm(vEnchWPos * 16.0 + t * 6.0));
+        float buzz = 0.4 + 0.6 * sin(t * 50.0 + seg);
+        float bolt = arc * buzz + fork * 0.7;
+        enchE = mix(c1, c2, arc) * (0.24 + bolt * 2.6) + fres * mix(c2, vec3(0.85, 0.92, 1.0), 0.5) * 1.9;
       `;
     case 'void':
     default:
+      // Dark singularity: a churning core that drinks the light, ringed by an
+      // unstable, hue-shifting event horizon.
       return /* glsl */ `
-        float p = 0.6 + 0.4 * sin(t * 3.0);
-        float edge = fres * fres;
-        enchE = mix(c2, c1, edge) * edge * (1.6 + p);
+        float churn = enchFbm(vEnchWPos * 8.0 + vec3(t * 0.4, -t * 0.3, t * 0.2));
+        float edge  = fres * fres;
+        float hue   = 0.5 + 0.5 * sin(churn * 6.2831 + t * 1.3);
+        vec3  rim   = mix(c1, c2, hue);
+        enchE = rim * edge * (1.9 + churn * 1.4) + rim * pow(edge, 0.5) * 0.35;
         // Drink the light at the core for the signature dark-hole read.
-        diffuseColor.rgb *= mix(0.25, 1.0, fres);
+        diffuseColor.rgb *= mix(0.1, 1.0, edge);
       `;
   }
 }
@@ -141,7 +184,17 @@ export function enchantMaterialFor(
   if (existing) return existing;
 
   const c1 = new Color(color);
-  const c2 = new Color(color2 ?? color);
+  let c2: Color;
+  if (color2) {
+    c2 = new Color(color2);
+  } else {
+    // No secondary color given — derive an iridescent partner (hue-rotated and
+    // lifted) so the two-tone effects shimmer instead of reading as one flat hue.
+    const hsl = { h: 0, s: 0, l: 0 };
+    c2 = new Color(color);
+    c2.getHSL(hsl);
+    c2.setHSL((hsl.h + 0.08) % 1.0, Math.min(1, hsl.s + 0.06), Math.min(1, hsl.l + 0.16));
+  }
 
   // A dark, slightly metallic base; the injected emissive + fresnel rim carry the
   // actual color. Smooth-shaded (not flat) so the fresnel reads cleanly.

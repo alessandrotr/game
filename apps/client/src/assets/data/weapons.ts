@@ -87,10 +87,10 @@ const staff: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.035, 0.04, 1.35, 8], position: [0, 0.67, 0], color: '#6b4a2a' },
-      { name: 'ferrule', shape: 'cylinder', args: [0.05, 0.05, 0.06, 8], position: [0, 1.33, 0], color: '#8a929c', ...GOLD },
-      { name: 'cup', shape: 'cone', args: [0.09, 0.12, 6], position: [0, 1.4, 0], rotation: [Math.PI, 0, 0], color: '#7a5a32', ...GOLD },
-      { name: 'orb', shape: 'sphere', args: [0.12, 16, 16], position: [0, 1.5, 0], color: '#9fd0ff', emissive: '#4aa3ff', emissiveIntensity: 1.6, enchantable: true },
+      { name: 'shaft', shape: 'cylinder', args: [0.035, 0.04, 1.35, 8], position: [0, 0.67, 0], color: '#9aa0aa' },
+      { name: 'ferrule', shape: 'cylinder', args: [0.05, 0.05, 0.06, 8], position: [0, 1.33, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'cup', shape: 'cone', args: [0.09, 0.12, 6], position: [0, 1.4, 0], rotation: [Math.PI, 0, 0], color: '#aeb6c0', ...STEEL },
+      { name: 'orb', shape: 'sphere', args: [0.12, 16, 16], position: [0, 1.5, 0], color: '#e8eef6', emissive: '#aeb9c8', emissiveIntensity: 0.6, enchantable: true },
     ],
   },
 };
@@ -102,12 +102,12 @@ const archonStaff: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.036, 0.042, 1.4, 8], position: [0, 0.7, 0], color: '#4a3a5a' },
-      { name: 'band', shape: 'cylinder', args: [0.05, 0.05, 0.05, 8], position: [0, 0.92, 0], color: '#e8b24a', ...GOLD },
-      { name: 'cradle', shape: 'torus', args: [0.1, 0.022, 6, 12], position: [0, 1.48, 0], rotation: [Math.PI / 2, 0, 0], color: '#e8b24a', ...GOLD },
-      { name: 'prong.l', shape: 'cone', args: [0.022, 0.22, 5], position: [0.1, 1.56, 0], rotation: [0, 0, -0.5], color: '#e8b24a', ...GOLD },
-      { name: 'prong.r', shape: 'cone', args: [0.022, 0.22, 5], position: [-0.1, 1.56, 0], rotation: [0, 0, 0.5], color: '#e8b24a', ...GOLD },
-      { name: 'core', shape: 'sphere', args: [0.11, 6, 5], position: [0, 1.5, 0], color: '#b07aff', emissive: '#7a3aff', emissiveIntensity: 1.4, enchantable: true },
+      { name: 'shaft', shape: 'cylinder', args: [0.036, 0.042, 1.4, 8], position: [0, 0.7, 0], color: '#9aa0aa' },
+      { name: 'band', shape: 'cylinder', args: [0.05, 0.05, 0.05, 8], position: [0, 0.92, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'cradle', shape: 'torus', args: [0.1, 0.022, 6, 12], position: [0, 1.48, 0], rotation: [Math.PI / 2, 0, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'prong.l', shape: 'cone', args: [0.022, 0.22, 5], position: [0.1, 1.56, 0], rotation: [0, 0, -0.5], color: '#c4ccd6', ...STEEL },
+      { name: 'prong.r', shape: 'cone', args: [0.022, 0.22, 5], position: [-0.1, 1.56, 0], rotation: [0, 0, 0.5], color: '#c4ccd6', ...STEEL },
+      { name: 'core', shape: 'sphere', args: [0.11, 16, 16], position: [0, 1.5, 0], color: '#e8eef6', emissive: '#aeb9c8', emissiveIntensity: 0.6, enchantable: true },
     ],
   },
 };
@@ -119,10 +119,10 @@ const voidScepter: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.034, 0.04, 1.3, 8], position: [0, 0.65, 0], color: '#26222e' },
-      { name: 'collar', shape: 'cylinder', args: [0.05, 0.05, 0.06, 8], position: [0, 1.28, 0], color: '#5a4a6a', metalness: 0.6, roughness: 0.4 },
-      { name: 'halo', shape: 'torus', args: [0.15, 0.018, 8, 18], position: [0, 1.5, 0], color: '#7a5cff', emissive: '#5a3ad0', emissiveIntensity: 1.2 },
-      { name: 'core', shape: 'sphere', args: [0.1, 6, 5], position: [0, 1.5, 0], color: '#1a1622', emissive: '#3a2a5a', emissiveIntensity: 0.6, enchantable: true },
+      { name: 'shaft', shape: 'cylinder', args: [0.034, 0.04, 1.3, 8], position: [0, 0.65, 0], color: '#9aa0aa' },
+      { name: 'collar', shape: 'cylinder', args: [0.05, 0.05, 0.06, 8], position: [0, 1.28, 0], color: '#9aa2ae', metalness: 0.6, roughness: 0.4 },
+      { name: 'halo', shape: 'torus', args: [0.15, 0.018, 8, 18], position: [0, 1.5, 0], color: '#cfd8e6', emissive: '#9fb0c4', emissiveIntensity: 0.7 },
+      { name: 'core', shape: 'sphere', args: [0.1, 16, 16], position: [0, 1.5, 0], color: '#e8eef6', emissive: '#aeb9c8', emissiveIntensity: 0.6, enchantable: true },
     ],
   },
 };
@@ -190,11 +190,11 @@ const mace: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.035, 0.04, 0.78, 8], position: [0, 0.39, 0], color: '#5a3b22' },
-      { name: 'grip', shape: 'cylinder', args: [0.042, 0.042, 0.2, 8], position: [0, 0.12, 0], color: '#3a2a1a' },
-      { name: 'collar', shape: 'cylinder', args: [0.06, 0.06, 0.05, 8], position: [0, 0.78, 0], color: '#e8c45a', ...GOLD },
-      { name: 'head', shape: 'sphere', args: [0.15, 16, 16], position: [0, 0.88, 0], color: '#caa24a', metalness: 0.6, roughness: 0.4, enchantable: true },
-      { name: 'stud', shape: 'sphere', args: [0.04, 8, 8], position: [0, 1.04, 0], color: '#e8c45a', ...GOLD, enchantable: true },
+      { name: 'shaft', shape: 'cylinder', args: [0.035, 0.04, 0.78, 8], position: [0, 0.39, 0], color: '#9aa0aa' },
+      { name: 'grip', shape: 'cylinder', args: [0.042, 0.042, 0.2, 8], position: [0, 0.12, 0], color: '#7c828b' },
+      { name: 'collar', shape: 'cylinder', args: [0.06, 0.06, 0.05, 8], position: [0, 0.78, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'head', shape: 'sphere', args: [0.15, 16, 16], position: [0, 0.88, 0], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
+      { name: 'stud', shape: 'sphere', args: [0.04, 8, 8], position: [0, 1.04, 0], color: '#c4ccd6', ...STEEL, enchantable: true },
     ],
   },
 };
@@ -206,13 +206,13 @@ const flangedMace: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.038, 0.045, 0.8, 8], position: [0, 0.4, 0], color: '#4a3520' },
-      { name: 'collar', shape: 'cylinder', args: [0.065, 0.065, 0.06, 8], position: [0, 0.8, 0], color: '#e8c45a', ...GOLD },
-      { name: 'head', shape: 'sphere', args: [0.11, 12, 12], position: [0, 0.9, 0], color: '#d8b25a', metalness: 0.6, roughness: 0.4, enchantable: true },
-      { name: 'flange.x+', shape: 'box', args: [0.06, 0.18, 0.09], position: [0.12, 0.9, 0], color: '#e8c45a', ...GOLD, enchantable: true },
-      { name: 'flange.x-', shape: 'box', args: [0.06, 0.18, 0.09], position: [-0.12, 0.9, 0], color: '#e8c45a', ...GOLD, enchantable: true },
-      { name: 'flange.z+', shape: 'box', args: [0.09, 0.18, 0.06], position: [0, 0.9, 0.12], color: '#e8c45a', ...GOLD, enchantable: true },
-      { name: 'stud', shape: 'sphere', args: [0.045, 8, 8], position: [0, 1.08, 0], color: '#e8c45a', ...GOLD },
+      { name: 'shaft', shape: 'cylinder', args: [0.038, 0.045, 0.8, 8], position: [0, 0.4, 0], color: '#9aa0aa' },
+      { name: 'collar', shape: 'cylinder', args: [0.065, 0.065, 0.06, 8], position: [0, 0.8, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'head', shape: 'sphere', args: [0.11, 12, 12], position: [0, 0.9, 0], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
+      { name: 'flange.x+', shape: 'box', args: [0.06, 0.18, 0.09], position: [0.12, 0.9, 0], color: '#c4ccd6', ...STEEL, enchantable: true },
+      { name: 'flange.x-', shape: 'box', args: [0.06, 0.18, 0.09], position: [-0.12, 0.9, 0], color: '#c4ccd6', ...STEEL, enchantable: true },
+      { name: 'flange.z+', shape: 'box', args: [0.09, 0.18, 0.06], position: [0, 0.9, 0.12], color: '#c4ccd6', ...STEEL, enchantable: true },
+      { name: 'stud', shape: 'sphere', args: [0.045, 8, 8], position: [0, 1.08, 0], color: '#c4ccd6', ...STEEL },
     ],
   },
 };
@@ -224,11 +224,11 @@ const sunCenser: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'shaft', shape: 'cylinder', args: [0.036, 0.042, 0.82, 8], position: [0, 0.41, 0], color: '#c9a24a', ...GOLD },
-      { name: 'collar', shape: 'cylinder', args: [0.06, 0.06, 0.05, 8], position: [0, 0.82, 0], color: '#e8c45a', ...GOLD },
-      { name: 'halo', shape: 'torus', args: [0.2, 0.02, 8, 20], position: [0, 0.94, 0], rotation: [Math.PI / 2, 0, 0], color: '#ffd86b', emissive: '#ffb43a', emissiveIntensity: 1.0, enchantable: true },
-      { name: 'orb', shape: 'sphere', args: [0.15, 16, 16], position: [0, 0.94, 0], color: '#fff1c4', emissive: '#ffd86b', emissiveIntensity: 1.0, enchantable: true },
-      { name: 'crown', shape: 'cone', args: [0.03, 0.1, 5], position: [0, 1.14, 0], color: '#e8c45a', ...GOLD },
+      { name: 'shaft', shape: 'cylinder', args: [0.036, 0.042, 0.82, 8], position: [0, 0.41, 0], color: '#9aa0aa' },
+      { name: 'collar', shape: 'cylinder', args: [0.06, 0.06, 0.05, 8], position: [0, 0.82, 0], color: '#c4ccd6', ...STEEL },
+      { name: 'halo', shape: 'torus', args: [0.2, 0.02, 8, 20], position: [0, 0.94, 0], rotation: [Math.PI / 2, 0, 0], color: '#cfd8e6', emissive: '#9fb0c4', emissiveIntensity: 0.7, enchantable: true },
+      { name: 'orb', shape: 'sphere', args: [0.15, 16, 16], position: [0, 0.94, 0], color: '#e8eef6', emissive: '#aeb9c8', emissiveIntensity: 0.6, enchantable: true },
+      { name: 'crown', shape: 'cone', args: [0.03, 0.1, 5], position: [0, 1.14, 0], color: '#c4ccd6', ...STEEL },
     ],
   },
 };

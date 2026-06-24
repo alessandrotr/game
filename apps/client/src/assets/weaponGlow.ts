@@ -51,18 +51,6 @@ export function weaponGlowPart(weapon: WeaponDescriptor): WeaponGlow | null {
   return best;
 }
 
-/** Minimum showpiece brightness for a weapon to recolor its abilities — keeps a
- *  dull metal nub (e.g. a plain bow's dark nock) from muddying the VFX. */
-const TINT_LUMINANCE_FLOOR = 0.22;
-
-/** The color a weapon imparts to its ability VFX, or null if it has no bright
- *  enough showpiece (abilities then keep their authored default colors). */
-export function weaponTintColor(weapon: WeaponDescriptor): string | null {
-  const glow = weaponGlowPart(weapon);
-  if (!glow || luminance(glow.color) < TINT_LUMINANCE_FLOOR) return null;
-  return glow.color;
-}
-
 const _v = new Vector3();
 const _eu = new Euler();
 

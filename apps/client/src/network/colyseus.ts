@@ -371,9 +371,7 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus
     : 0;
   // Recolor the cast VFX to the caster's equipped weapon glow (null = default).
-  const tint = caster
-    ? abilityTintColor(caster.characterClass, caster.weaponId, caster.enchantId) ?? undefined
-    : undefined;
+  const tint = caster ? abilityTintColor(caster.enchantId) ?? undefined : undefined;
 
   const def = ABILITIES[msg.ability];
   const baseRadius = def?.aoeRadius ?? 0;

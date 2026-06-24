@@ -271,26 +271,26 @@ const WEAPONS: WeaponCosmetic[] = [
 // Enchants — animated shader FX on the equipped weapon. Class-bound and themed,
 // staggered across the rarity bands. The `effect` selects the GLSL injection.
 const ENCHANTS: EnchantCosmetic[] = [
-  // Warrior — fire & fury.
-  { id: 'enchant.warrior.ember', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ff7a2a', name: 'Embered', description: 'Heat licks up the steel.', rarity: 'common', requiredLevel: 3 },
-  { id: 'enchant.warrior.tempest', type: 'enchant', characterClass: 'warrior', effect: 'storm', color: '#6fd0ff', color2: '#ffffff', name: 'Tempest', description: 'Lightning crackles along the edge.', rarity: 'rare', requiredLevel: 12 },
-  { id: 'enchant.warrior.dread', type: 'enchant', characterClass: 'warrior', effect: 'void', color: '#9a6cff', color2: '#1a0030', name: 'Dreadbound', description: 'A hungry dark clings to the blade.', rarity: 'epic', requiredLevel: 20 },
-  { id: 'enchant.warrior.sunforge', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ffd24a', color2: '#ff5a1a', name: 'Sunforged', description: 'Forged in molten gold, never cooling.', rarity: 'legendary', requiredLevel: 32 },
-  // Mage — arcane & ice.
-  { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#7a5cff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
-  { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#8fe6ff', color2: '#cfffff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
-  { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#b06cff', color2: '#1a0030', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
-  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#ff5ad0', color2: '#5a8cff', name: 'Astral', description: 'Twin galaxies wind through the orb.', rarity: 'legendary', requiredLevel: 34 },
-  // Archer — venom & wind.
-  { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#7fff4a', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },
-  { id: 'enchant.archer.gale', type: 'enchant', characterClass: 'archer', effect: 'storm', color: '#aef0ff', color2: '#ffffff', name: 'Galeforce', description: 'A sharp wind sings off the string.', rarity: 'rare', requiredLevel: 13 },
-  { id: 'enchant.archer.frostbite', type: 'enchant', characterClass: 'archer', effect: 'frost', color: '#9fe8ff', color2: '#dffaff', name: 'Frostbite', description: 'A cold haze clings to every shot.', rarity: 'epic', requiredLevel: 22 },
-  { id: 'enchant.archer.plague', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#b6ff3a', color2: '#2a6a00', name: 'Plaguebearer', description: 'A roiling green corruption.', rarity: 'legendary', requiredLevel: 34 },
-  // Priest — holy & divine.
-  { id: 'enchant.priest.blessed', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#ffe6a3', name: 'Blessed', description: 'A warm, steady radiance.', rarity: 'common', requiredLevel: 4 },
-  { id: 'enchant.priest.sanctified', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#fff1c4', color2: '#ffd86b', name: 'Sanctified', description: 'Hallowed light pulses from the head.', rarity: 'rare', requiredLevel: 14 },
-  { id: 'enchant.priest.divinity', type: 'enchant', characterClass: 'priest', effect: 'arcane', color: '#ffd86b', color2: '#fff6da', name: 'Divinity', description: 'Golden sigils orbit the mace.', rarity: 'epic', requiredLevel: 22 },
-  { id: 'enchant.priest.celestial', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#fff6da', color2: '#8fb4ff', name: 'Celestial', description: 'The light of a fallen star.', rarity: 'legendary', requiredLevel: 36 },
+  // Warrior — four distinct effects, four distinct colors.
+  { id: 'enchant.warrior.ember', type: 'enchant', characterClass: 'warrior', effect: 'ember', color: '#ff4d1a', color2: '#ffb020', name: 'Embered', description: 'Heat licks up the steel.', rarity: 'common', requiredLevel: 3 },
+  { id: 'enchant.warrior.tempest', type: 'enchant', characterClass: 'warrior', effect: 'storm', color: '#2f6bff', color2: '#cfe3ff', name: 'Tempest', description: 'Lightning crackles along the edge.', rarity: 'rare', requiredLevel: 12 },
+  { id: 'enchant.warrior.dread', type: 'enchant', characterClass: 'warrior', effect: 'void', color: '#8a1aff', color2: '#1a0030', name: 'Dreadbound', description: 'A hungry dark clings to the blade.', rarity: 'epic', requiredLevel: 20 },
+  { id: 'enchant.warrior.sunforge', type: 'enchant', characterClass: 'warrior', effect: 'holy', color: '#ffab00', color2: '#fff0c0', name: 'Sunforged', description: 'Forged in molten gold, never cooling.', rarity: 'legendary', requiredLevel: 32 },
+  // Mage — four distinct effects, four distinct colors.
+  { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#c43cff', color2: '#4a7bff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
+  { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#00c8ff', color2: '#eafcff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
+  { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#ff2f9e', color2: '#1a0014', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
+  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'holy', color: '#6a8aff', color2: '#ffffff', name: 'Astral', description: 'The cold light of distant stars.', rarity: 'legendary', requiredLevel: 34 },
+  // Archer — four distinct effects, four distinct colors.
+  { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#9bff1a', color2: '#2a6a00', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },
+  { id: 'enchant.archer.gale', type: 'enchant', characterClass: 'archer', effect: 'storm', color: '#5fffd8', color2: '#ffffff', name: 'Galeforce', description: 'A sharp wind sings off the string.', rarity: 'rare', requiredLevel: 13 },
+  { id: 'enchant.archer.frostbite', type: 'enchant', characterClass: 'archer', effect: 'frost', color: '#c8d8ff', color2: '#ffffff', name: 'Frostbite', description: 'A cold haze clings to every shot.', rarity: 'epic', requiredLevel: 22 },
+  { id: 'enchant.archer.plague', type: 'enchant', characterClass: 'archer', effect: 'void', color: '#3bd610', color2: '#08220a', name: 'Plaguebearer', description: 'A roiling green corruption.', rarity: 'legendary', requiredLevel: 34 },
+  // Priest — four distinct effects, four distinct colors.
+  { id: 'enchant.priest.blessed', type: 'enchant', characterClass: 'priest', effect: 'holy', color: '#ffd633', color2: '#fff2c0', name: 'Blessed', description: 'A warm, steady radiance.', rarity: 'common', requiredLevel: 4 },
+  { id: 'enchant.priest.sanctified', type: 'enchant', characterClass: 'priest', effect: 'ember', color: '#ff7a3a', color2: '#ffd24a', name: 'Sanctified', description: 'Sacred flame wreathes the head.', rarity: 'rare', requiredLevel: 14 },
+  { id: 'enchant.priest.divinity', type: 'enchant', characterClass: 'priest', effect: 'arcane', color: '#9b6aff', color2: '#ffd86b', name: 'Divinity', description: 'Glowing sigils orbit the mace.', rarity: 'epic', requiredLevel: 22 },
+  { id: 'enchant.priest.celestial', type: 'enchant', characterClass: 'priest', effect: 'frost', color: '#acd0ff', color2: '#ffffff', name: 'Celestial', description: 'The light of a fallen star.', rarity: 'legendary', requiredLevel: 36 },
 ];
 
 /** The full cosmetics catalog, in display order within each type. */
