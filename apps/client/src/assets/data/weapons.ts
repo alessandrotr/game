@@ -23,6 +23,8 @@ const MACE_GRIP: WeaponDescriptor['grip'] = { position: [0.45, 0.7, 0.1], rotati
 
 // Shared material palette (kept terse; the enchant carries the "wow").
 const STEEL = { metalness: 0.85, roughness: 0.26 };
+const DARKSTEEL = { metalness: 0.9, roughness: 0.4 };
+const GOLD = { metalness: 0.95, roughness: 0.15 };
 
 // ---------------------------------------------------------------------------
 // Warrior — sword line (blade + tip are enchantable)
