@@ -57,14 +57,19 @@ export function AccountChip() {
 
       {/* Name + a line that actually means something: guests get the unsaved
           warning; members get their lifetime kills / wins (or a "new" tag). */}
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col gap-1.5">
         <span className="truncate max-w-20 text-sm font-semibold leading-tight tracking-wide text-text">
           {guest ? 'Guest' : username}
         </span>
         {guest ? (
-          <span className="mt-0.5 flex items-center gap-1.5 text-[8px] uppercase tracking-[0.18em] text-amber-300/90">
-            Progress not saved
-          </span>
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => openUpgrade(true)}
+            className="whitespace-nowrap"
+          >
+            Save progress
+          </Button>
         ) : hasRecord ? (
           <span className="mt-0.5 flex items-center gap-3 text-[11px] tabular-nums text-muted">
             <span className="flex items-center gap-1" title="Total kills">
@@ -83,30 +88,16 @@ export function AccountChip() {
         )}
       </div>
 
-      {/* Actions: guests get the prominent save CTA; everyone gets a quiet
-          exit/sign-out icon that warms to red on hover. */}
-      <div className="ml-1 flex items-center gap-1.5">
-        {guest && (
-          <Button
-            variant="gold"
-            size="sm"
-            onClick={() => openUpgrade(true)}
-            className="gap-1.5 whitespace-nowrap"
-          >
-            Save progress
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={signOut}
-          aria-label={guest ? 'Exit to title' : 'Sign out'}
-          title={guest ? 'Exit' : 'Sign out'}
-          className="h-8 w-8 rounded-lg hover:bg-white/8 hover:text-negative"
-        >
-          <LogOut size={16} aria-hidden="true" />
-        </Button>
-      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={signOut}
+        aria-label={guest ? 'Exit to title' : 'Sign out'}
+        title={guest ? 'Exit' : 'Sign out'}
+        className="h-8 w-8 rounded-lg hover:bg-white/8 hover:text-negative"
+      >
+        <LogOut size={16} aria-hidden="true" />
+      </Button>
     </div>
   );
 }

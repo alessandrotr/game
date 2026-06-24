@@ -36,7 +36,7 @@ export function JoinScreen() {
           blur, matching the auth screen) to keep the UI legible. */}
       <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black/70" />
 
-      <MenuHeader />
+      <MenuHeader showOnlineCount />
 
       {/* The fighter-select stage — a wide cinematic panel (the featured fighter
           on the left, the roster grid on the right). Centered for the marquee

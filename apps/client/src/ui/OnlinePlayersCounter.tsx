@@ -42,7 +42,7 @@ function useCountUp(target: number | null): number {
  * stays mounted across auth tabs, and fades in once the first count lands (so a
  * server hiccup never shows a broken "0 online").
  */
-export function OnlinePlayersCounter() {
+export function OnlinePlayersCounter({ className }: { className?: string }) {
   const [count, setCount] = useState<number | null>(null);
   const display = useCountUp(count);
 
@@ -62,9 +62,9 @@ export function OnlinePlayersCounter() {
 
   return (
     <div
-      className={`flex items-center justify-center gap-2.5 transition-opacity duration-700 ${
+      className={`flex items-center gap-2.5 transition-opacity duration-700 ${
         count === null ? 'opacity-0' : 'opacity-100'
-      }`}
+      } ${className ?? 'justify-center'}`}
       role="status"
       aria-live="polite"
     >

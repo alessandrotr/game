@@ -4,7 +4,6 @@ import { Trophy, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button, Input } from './primitives';
-import { OnlinePlayersCounter } from './OnlinePlayersCounter';
 import { MenuHeader } from './MenuHeader';
 
 type Mode = 'guest' | 'login' | 'register';
@@ -50,8 +49,9 @@ export function AuthScreen() {
       <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black/70" />
 
       {/* Same top bar as the character-select screen (wordmark + audio); the
-          account controls inside it only appear once signed in. */}
-      <MenuHeader />
+          account controls inside it only appear once signed in. The live player
+          count sits under the wordmark here. */}
+      <MenuHeader showOnlineCount />
 
       <div className="relative flex min-h-full items-center justify-center p-5 pt-20">
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-panel/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md">
@@ -181,10 +181,6 @@ export function AuthScreen() {
               )}
             </form>
           )}
-          {/* Live player count — shown for every tab. */}
-          <div className="mt-6">
-            <OnlinePlayersCounter />
-          </div>
         </div>
       </div>
     </div>
