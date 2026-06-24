@@ -12,6 +12,7 @@ import {
 import type { EnchantParams } from '../render/enchantMaterial';
 import { assets } from './registry';
 import { zombieBody } from './data/zombies';
+import { weaponTintColor, weaponMuzzleOffset } from './weaponGlow';
 
 /**
  * A skin layers cosmetic overrides on top of a base character. Recolors are
@@ -140,6 +141,47 @@ export function resolveCharacter(
   }
 
   return result;
+}
+
+/**
+ * The color a caster's equipped weapon imparts to its ability VFX (projectiles +
+ * cast bursts), or null to keep the ability's authored default. Resolves the
+ * exact weapon the character renders (honoring the equipped weapon cosmetic),
+ * then reads its glowing showpiece. Cheap, and called on cast / projectile spawn
+ * — not per frame.
+ */
+export function abilityTintColor(
+  characterClass: CharacterClass,
+  weaponId?: string,
+  enchantId?: string,
+): string | null {
+  // An equipped enchant recolors the weapon's showpiece, so the abilities take
+  // the enchant's color; otherwise fall back to the weapon's own glow color.
+  const enchant = resolveEnchant(enchantId);
+  if (enchant) return enchant.color;
+  const desc = resolveCharacter(characterClass, undefined, undefined, weaponId);
+  const weapon = desc.weaponId ? assets.getWeapon(desc.weaponId) : undefined;
+  return weapon ? weaponTintColor(weapon) : null;
+}
+
+/**
+ * Body-local position of the caster's scepter tip (orb/head), so abilities can
+ * emanate from it instead of the player's center. Null when the weapon has no
+ * showpiece. Cached per class+weapon (the geometry is constant).
+ */
+const muzzleCache = new Map<string, [number, number, number] | null>();
+export function abilityMuzzleOffset(
+  characterClass: CharacterClass,
+  weaponId?: string,
+): [number, number, number] | null {
+  const key = `${characterClass}|${weaponId ?? ''}`;
+  const cached = muzzleCache.get(key);
+  if (cached !== undefined) return cached;
+  const desc = resolveCharacter(characterClass, undefined, undefined, weaponId);
+  const weapon = desc.weaponId ? assets.getWeapon(desc.weaponId) : undefined;
+  const off = weapon ? weaponMuzzleOffset(weapon) : null;
+  muzzleCache.set(key, off);
+  return off;
 }
 
 /** Resolve an equipped enchant id into the params the renderer needs, or

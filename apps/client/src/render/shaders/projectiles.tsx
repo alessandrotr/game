@@ -1,7 +1,14 @@
 import { useMemo, useRef } from 'react';
 import { Billboard } from '@react-three/drei';
 import { AdditiveBlending, Color, type ShaderMaterial } from 'three';
-import { GLSL_NOISE, UV_VERTEX, useUTime } from './common';
+import { GLSL_NOISE, UV_VERTEX, useUTime, withTint, tintUniforms } from './common';
+
+/** Props common to every projectile shader: collision-radius size + an optional
+ *  weapon glow color that recolors the bolt to the caster's equipped weapon. */
+export interface ProjectileShaderProps {
+  radius?: number;
+  tint?: string;
+}
 
 /**
  * Looping projectile shaders: each is a single camera-facing quad with a
@@ -40,15 +47,14 @@ const electricBoltFrag = /* glsl */ `
 export function ElectricBoltEffect({
   color = '#7330ff',
   radius = 0.6,
-}: {
-  color?: string;
-  radius?: number;
-}) {
+  tint,
+}: ProjectileShaderProps & { color?: string }) {
   const matRef = useRef<ShaderMaterial>(null);
   const seed = useMemo(() => Math.random() * 10, []);
+  const fragment = useMemo(() => withTint(electricBoltFrag), []);
   const uniforms = useMemo(
-    () => ({ uTime: { value: seed }, uColor: { value: new Color(color) } }),
-    [seed, color],
+    () => ({ uTime: { value: seed }, uColor: { value: new Color(color) }, ...tintUniforms(tint) }),
+    [seed, color, tint],
   );
   useUTime(matRef);
   return (
@@ -58,7 +64,7 @@ export function ElectricBoltEffect({
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={electricBoltFrag}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}
@@ -69,9 +75,9 @@ export function ElectricBoltEffect({
   );
 }
 
-/** Mage Arcane Bolt — a violet electric orb. */
-export const ArcaneBoltEffect = ({ radius }: { radius?: number }) => (
-  <ElectricBoltEffect color="#7330ff" radius={radius} />
+/** Mage Arcane Bolt — a violet electric orb (recolored by the weapon skin). */
+export const ArcaneBoltEffect = ({ radius, tint }: ProjectileShaderProps) => (
+  <ElectricBoltEffect color="#7330ff" radius={radius} tint={tint} />
 );
 
 // --- Energy Arrow: a bright four-point star/dart with shimmering sparkle. ----
@@ -100,15 +106,14 @@ const energyArrowFrag = /* glsl */ `
 export function EnergyArrowEffect({
   color = '#9fe8ff',
   radius = 0.55,
-}: {
-  color?: string;
-  radius?: number;
-}) {
+  tint,
+}: ProjectileShaderProps & { color?: string }) {
   const matRef = useRef<ShaderMaterial>(null);
   const seed = useMemo(() => Math.random() * 10, []);
+  const fragment = useMemo(() => withTint(energyArrowFrag), []);
   const uniforms = useMemo(
-    () => ({ uTime: { value: seed }, uColor: { value: new Color(color) } }),
-    [seed, color],
+    () => ({ uTime: { value: seed }, uColor: { value: new Color(color) }, ...tintUniforms(tint) }),
+    [seed, color, tint],
   );
   useUTime(matRef);
   return (
@@ -118,7 +123,7 @@ export function EnergyArrowEffect({
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={energyArrowFrag}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}
@@ -131,16 +136,16 @@ export function EnergyArrowEffect({
 
 /** Archer Power Shot — a green electric bolt (same crackling look as the mage's
  *  arcane bolt, sized to its collision radius). */
-export const PowerShotEffect = ({ radius }: { radius?: number }) => (
-  <ElectricBoltEffect color="#3dff7a" radius={radius} />
+export const PowerShotEffect = ({ radius, tint }: ProjectileShaderProps) => (
+  <ElectricBoltEffect color="#3dff7a" radius={radius} tint={tint} />
 );
 /** Archer Crippling Shot — a frigid blue dart (telegraphs the slow). */
-export const CripplingShotEffect = ({ radius }: { radius?: number }) => (
-  <EnergyArrowEffect color="#5fc8ff" radius={radius} />
+export const CripplingShotEffect = ({ radius, tint }: ProjectileShaderProps) => (
+  <EnergyArrowEffect color="#5fc8ff" radius={radius} tint={tint} />
 );
 /** Archer Pinning Arrow — a heavy crimson-gold bolt (telegraphs the root). */
-export const PinningArrowEffect = ({ radius }: { radius?: number }) => (
-  <EnergyArrowEffect color="#ffb24a" radius={radius} />
+export const PinningArrowEffect = ({ radius, tint }: ProjectileShaderProps) => (
+  <EnergyArrowEffect color="#ffb24a" radius={radius} tint={tint} />
 );
 
 // --- Holy Bolt: a radiant golden orb with a slowly turning cross flare. ------
@@ -167,10 +172,11 @@ const holyBoltFrag = /* glsl */ `
   }
 `;
 
-export function HolyBoltEffect({ radius = 0.6 }: { radius?: number }) {
+export function HolyBoltEffect({ radius = 0.6, tint }: ProjectileShaderProps) {
   const matRef = useRef<ShaderMaterial>(null);
   const seed = useMemo(() => Math.random() * 10, []);
-  const uniforms = useMemo(() => ({ uTime: { value: seed } }), [seed]);
+  const fragment = useMemo(() => withTint(holyBoltFrag), []);
+  const uniforms = useMemo(() => ({ uTime: { value: seed }, ...tintUniforms(tint) }), [seed, tint]);
   useUTime(matRef);
   return (
     <Billboard>
@@ -179,7 +185,7 @@ export function HolyBoltEffect({ radius = 0.6 }: { radius?: number }) {
         <shaderMaterial
           ref={matRef}
           vertexShader={UV_VERTEX}
-          fragmentShader={holyBoltFrag}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}

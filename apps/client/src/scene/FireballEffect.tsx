@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import { AdditiveBlending, type Mesh, type ShaderMaterial } from 'three';
+import { withTint, tintUniforms } from '../render/shaders/common';
 
 /**
  * A cheap, punchy fireball: a single camera-facing quad with a procedural fire
@@ -60,12 +61,13 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
-export function FireballEffect({ radius = 0.8 }: { radius?: number }) {
+export function FireballEffect({ radius = 0.8, tint }: { radius?: number; tint?: string }) {
   const material = useRef<ShaderMaterial>(null);
   const mesh = useRef<Mesh>(null);
   // Random phase so multiple fireballs don't flicker/throb in lockstep.
   const seed = useMemo(() => Math.random() * 10, []);
-  const uniforms = useMemo(() => ({ uTime: { value: seed } }), [seed]);
+  const fragment = useMemo(() => withTint(fragmentShader), []);
+  const uniforms = useMemo(() => ({ uTime: { value: seed }, ...tintUniforms(tint) }), [seed, tint]);
 
   useFrame((_, delta) => {
     const u = material.current?.uniforms.uTime;
@@ -85,7 +87,7 @@ export function FireballEffect({ radius = 0.8 }: { radius?: number }) {
         <shaderMaterial
           ref={material}
           vertexShader={vertexShader}
-          fragmentShader={fragmentShader}
+          fragmentShader={fragment}
           uniforms={uniforms}
           transparent
           depthWrite={false}

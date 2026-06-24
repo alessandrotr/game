@@ -8,6 +8,7 @@ import { clearDestination } from '../store/destinationState';
 import { setLocalDash } from '../store/dashState';
 import { isOnCooldown, triggerCooldown, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
 import { pushAnimationEvent } from '../render/animation/animationEvents';
+import { setCastAim } from '../store/castAim';
 import { useAbilityTargeting } from '../store/abilityTargeting';
 
 /**
@@ -58,6 +59,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
       const dz = Math.cos(me.rotation);
       sendCast(ability, dx, dz);
       triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
+      setCastAim(fromId, Math.atan2(dx, dz), config.channelMs ?? 0);
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -101,6 +103,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
       }
       sendCast(ability, dx, dz, undefined, undefined, target?.id);
       triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
+      setCastAim(fromId, Math.atan2(dx, dz), config.channelMs ?? 0);
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -133,6 +136,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
         }
       }
       triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
+      setCastAim(fromId, Math.atan2(dx, dz), config.channelMs ?? 0);
       pushAnimationEvent(fromId, 'cast');
       // A rooted cast (wind-up) stops the player server-side; mirror that locally
       // so they hold still for the cast pose instead of sliding toward a stale
@@ -188,6 +192,7 @@ export function useAbilityHotkeys(enabled: boolean): void {
         }
         sendCast(ability, dx, dz);
         triggerCooldown(ability, config.cooldownMs * getLocalCooldownMult());
+        setCastAim(me.sessionId, Math.atan2(dx, dz), config.channelMs ?? 0);
         pushAnimationEvent(me.sessionId, 'cast');
         return;
       }

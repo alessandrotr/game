@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {
+  AdditiveBlending,
   Color,
   type AnimationClip,
   type Group,
@@ -21,6 +22,12 @@ import { AssetMesh } from './AssetMesh';
 import type { EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
+import { useWeaponCastAnimator, type ChannelState } from './animation/useWeaponCastAnimator';
+import { getCastAim } from '../store/castAim';
+import { weaponGlowPart, type WeaponGlow } from '../assets/weaponGlow';
+import { useGameStore } from '../store/useGameStore';
+import { getLocalRenderTransform } from '../store/localPlayer';
+import { getCursorGround } from '../store/cursorState';
 
 /** Sum of char codes — a stable per-character phase offset for procedural motion. */
 function seedOf(id: string): number {
@@ -32,6 +39,16 @@ function seedOf(id: string): number {
 /** Default animation source for static contexts (previews, NPCs) that don't
  *  drive a state machine. */
 const ALWAYS_IDLE = (): AnimationName => 'idle';
+
+/** Priest / mage weapon lines — the only ones that get the cast flourish. */
+const CASTER_WEAPON = /^weapon\.(staff|mage|mace|priest)/;
+
+/** The glowing showpiece to flare during a cast, or null for non-caster weapons.
+ *  Reuses the shared scoring so the flare matches the ability VFX tint. */
+function casterGlow(weapon: WeaponDescriptor): WeaponGlow | null {
+  if (!CASTER_WEAPON.test(weapon.id)) return null;
+  return weaponGlowPart(weapon);
+}
 
 /** Root-motion-stripped clips, cached per model URL. Stripping clones every clip
  *  and filters its tracks — doing that per spawned entity (e.g. each zombie)
@@ -76,6 +93,10 @@ interface CharacterModelProps {
    *  weapon's showpiece parts; undefined = no enchant. Requires an `EnchantClock`
    *  mounted in the same canvas for animation. */
   enchant?: EnchantParams;
+  /** Session id of the player this body represents, used to read their live cast
+   *  aim so a caster weapon points down the ability line. Omit for previews/NPCs
+   *  (the weapon then thrusts straight ahead on cast). */
+  ownerId?: string;
 }
 
 /**
@@ -91,6 +112,7 @@ export function CharacterModel({
   paint,
   animate = true,
   enchant,
+  ownerId,
 }: CharacterModelProps) {
   const phase = useMemo(() => seedOf(descriptor.id), [descriptor.id]);
   const weapon = descriptor.weaponId ? assets.getWeapon(descriptor.weaponId) : undefined;
@@ -110,27 +132,116 @@ export function CharacterModel({
             />
           </Suspense>
         </AssetErrorBoundary>
-        {weapon && <WeaponMount weapon={weapon} enchant={enchant} />}
+        {weapon && <WeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />}
       </group>
     );
   }
 
   return (
     <PlaceholderCharacter descriptor={descriptor} getAnimation={getAnimation} phase={phase} paint={paint} animate={animate}>
-      {weapon && <WeaponMount weapon={weapon} enchant={enchant} />}
+      {weapon && <WeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />}
     </PlaceholderCharacter>
   );
 }
 
-/** A weapon mounted in the character's grip transform. */
-function WeaponMount({ weapon, enchant }: { weapon: WeaponDescriptor; enchant?: EnchantParams }) {
+/** A weapon mounted in the character's grip transform. Caster weapons (priest /
+ *  mage) get a cast flourish; everything else renders statically as before. */
+function WeaponMount({
+  weapon,
+  enchant,
+  ownerId,
+}: {
+  weapon: WeaponDescriptor;
+  enchant?: EnchantParams;
+  ownerId?: string;
+}) {
+  const glow = useMemo(() => casterGlow(weapon), [weapon]);
+  if (!glow) {
+    return (
+      <group
+        position={weapon.grip?.position ?? [0, 0, 0]}
+        rotation={weapon.grip?.rotation ?? [0, 0, 0]}
+        scale={weapon.grip?.scale ?? 1}
+      >
+        <AssetMesh source={weapon.render} enchant={enchant} />
+      </group>
+    );
+  }
+  return <CasterWeaponMount weapon={weapon} enchant={enchant} glow={glow} ownerId={ownerId} />;
+}
+
+/** A priest/mage scepter that swings toward the shot and flares its orb on cast. */
+function CasterWeaponMount({
+  weapon,
+  enchant,
+  glow,
+  ownerId,
+}: {
+  weapon: WeaponDescriptor;
+  enchant?: EnchantParams;
+  glow: WeaponGlow;
+  ownerId?: string;
+}) {
+  const aim = useRef<Group>(null);
+  const tip = useRef<Group>(null);
+  const flare = useRef<Mesh>(null);
+  // This player's latest cast (world aim yaw + a bumped sequence); null in
+  // previews / before their first cast.
+  const getCastAimForOwner = useRef(() => (ownerId ? getCastAim(ownerId) : null)).current;
+  // Live channel state for this player (held abilities like the priest beam), so
+  // the scepter holds + re-aims with the beam. Mirrors ChannelBeams' aim source:
+  // the live cursor locally, the replicated channel direction for remotes. Only
+  // queried during an active channel gesture (see the animator).
+  const getChannel = useRef((): ChannelState | null => {
+    if (!ownerId) return null;
+    const p = useGameStore.getState().players.get(ownerId);
+    if (!p || !p.alive || p.channelAbility === '') return null;
+    let dx = p.channelDirX;
+    let dz = p.channelDirZ;
+    if (useGameStore.getState().sessionId === ownerId) {
+      const tr = getLocalRenderTransform();
+      const ox = tr.active ? tr.x : p.x;
+      const oz = tr.active ? tr.z : p.z;
+      const cur = getCursorGround();
+      const cdx = cur.x - ox;
+      const cdz = cur.z - oz;
+      const len = Math.hypot(cdx, cdz);
+      if (len > 1e-3) {
+        dx = cdx / len;
+        dz = cdz / len;
+      }
+    }
+    return { yaw: Math.atan2(dx, dz) };
+  }).current;
+  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel);
+
+  const gripRotation = weapon.grip?.rotation ?? [0, 0, 0];
+
   return (
-    <group
-      position={weapon.grip?.position ?? [0, 0, 0]}
-      rotation={weapon.grip?.rotation ?? [0, 0, 0]}
-      scale={weapon.grip?.scale ?? 1}
-    >
-      <AssetMesh source={weapon.render} enchant={enchant} />
+    // Grip placement (translation + scale) in body space, where +Z is facing.
+    <group position={weapon.grip?.position ?? [0, 0, 0]} scale={weapon.grip?.scale ?? 1}>
+      {/* Aim: yaws the weapon about the hand so +Z points down the ability line. */}
+      <group ref={aim}>
+        {/* The weapon's resting hand tilt (a Z-roll, which preserves the +Z aim). */}
+        <group rotation={gripRotation}>
+          {/* Tip: pitches the head forward + lunges along the (now-aimed) +Z. */}
+          <group ref={tip}>
+            <AssetMesh source={weapon.render} enchant={enchant} />
+            {/* Additive light flare at the orb. Hidden (no draw) until a cast fires. */}
+            <mesh ref={flare} position={glow.position} visible={false} renderOrder={2}>
+              <sphereGeometry args={[glow.radius * 1.6, 8, 8]} />
+              <meshBasicMaterial
+                color={enchant?.color ?? glow.color}
+                transparent
+                opacity={0}
+                depthWrite={false}
+                blending={AdditiveBlending}
+                toneMapped={false}
+              />
+            </mesh>
+          </group>
+        </group>
+      </group>
     </group>
   );
 }

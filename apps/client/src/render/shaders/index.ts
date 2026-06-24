@@ -7,6 +7,7 @@ import {
   HolyBoltEffect,
   PinningArrowEffect,
   PowerShotEffect,
+  type ProjectileShaderProps,
 } from './projectiles';
 import {
   ArcaneBlastEffect,
@@ -40,7 +41,7 @@ export { CarSmoke, CarFire, BarrelFire } from './coverEffects';
  * Projectile shaders loop (server drives their lifetime); burst shaders are
  * one-shot and self-unmount via {@link BurstShaderProps}.
  */
-export const PROJECTILE_SHADERS: Partial<Record<VfxAssetId, FC<{ radius?: number }>>> = {
+export const PROJECTILE_SHADERS: Partial<Record<VfxAssetId, FC<ProjectileShaderProps>>> = {
   'vfx.fireball': FireballEffect,
   'vfx.arcane_bolt': ArcaneBoltEffect,
   'vfx.power_shot': PowerShotEffect,

@@ -79,6 +79,7 @@ export function VfxLayer() {
                 durationMs={descriptor.durationMs ?? 600}
                 onComplete={onComplete}
                 direction={effect.direction}
+                tint={effect.tint}
               />
             </EffectAnchor>
           );
