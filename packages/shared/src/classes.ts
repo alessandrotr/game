@@ -81,7 +81,7 @@ export const CLASS_DEFINITIONS: Record<CharacterClass, ClassDefinition> = {
     name: 'Ninja',
     role: 'Melee Assassin',
     description: 'A swift, elusive shadow who strikes with a katana and smoke bombs.',
-    stats: { health: 300, mana: 100, moveSpeed: 9, attackDamage: 30, difficulty: 3 },
+    stats: { health: 300, mana: 120, moveSpeed: 9, attackDamage: 30, difficulty: 3 },
     abilities: ['ninja_q', 'ninja_w', 'ninja_e', 'ninja_r'],
     color: '#1e1e24',
   },
