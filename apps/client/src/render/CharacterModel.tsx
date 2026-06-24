@@ -19,11 +19,15 @@ import type {
 } from '@arena/shared';
 import { assets } from '../assets/registry';
 import { AssetMesh } from './AssetMesh';
+import { WoodArrow } from './WoodArrow';
 import type { EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
 import { useGltfAnimator, useProceduralAnimator } from './animation/useCharacterAnimator';
 import { useWeaponCastAnimator, type ChannelState } from './animation/useWeaponCastAnimator';
 import { useWeaponSwingAnimator } from './animation/useWeaponSwingAnimator';
+import { useBowAnimator, type BowAim } from './animation/useBowAnimator';
+import { getLocalAim } from './animation/localAim';
+import { useAbilityTargeting } from '../store/abilityTargeting';
 import { getCastAim } from '../store/castAim';
 import { weaponGlowPart, type WeaponGlow } from '../assets/weaponGlow';
 import { useGameStore } from '../store/useGameStore';
@@ -139,7 +143,13 @@ export function CharacterModel({
   }
 
   return (
-    <PlaceholderCharacter descriptor={descriptor} getAnimation={getAnimation} phase={phase} paint={paint} animate={animate}>
+    <PlaceholderCharacter
+      descriptor={descriptor}
+      getAnimation={getAnimation}
+      phase={phase}
+      paint={paint}
+      animate={animate}
+    >
       {weapon && <WeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />}
     </PlaceholderCharacter>
   );
@@ -157,10 +167,80 @@ function WeaponMount({
   ownerId?: string;
 }) {
   const glow = useMemo(() => casterGlow(weapon), [weapon]);
+  if (weapon.id.startsWith('weapon.bow') || weapon.id.startsWith('weapon.archer')) {
+    return <BowWeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />;
+  }
   if (!glow) {
     return <MeleeWeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />;
   }
   return <CasterWeaponMount weapon={weapon} enchant={enchant} glow={glow} ownerId={ownerId} />;
+}
+
+/** Archer bow / crossbow: aims down the shot line and draws-and-looses on a shot
+ *  (a nocked arrow shows during the draw and leaves on release); tucks back on a
+ *  tumble. */
+function BowWeaponMount({
+  weapon,
+  enchant,
+  ownerId,
+}: {
+  weapon: WeaponDescriptor;
+  enchant?: EnchantParams;
+  ownerId?: string;
+}) {
+  const aim = useRef<Group>(null);
+  const draw = useRef<Group>(null);
+  // Up to 3 nocked arrows (power_shot shows all 3; others show 1).
+  const arrow0 = useRef<Group>(null);
+  const arrow1 = useRef<Group>(null);
+  const arrow2 = useRef<Group>(null);
+  const arrows = useMemo(() => [arrow0, arrow1, arrow2], []);
+  const getCastAimForOwner = useRef(() => (ownerId ? getCastAim(ownerId) : null)).current;
+  // The nocked-arrow preview while AIMING is local-player only (we don't know a
+  // remote's held-key state; they animate from the fire event instead).
+  const getAim = useRef((): BowAim | null => {
+    if (!ownerId || ownerId !== useGameStore.getState().sessionId) return null;
+    const pending = useAbilityTargeting.getState().pending;
+    if (!pending) return null;
+    const tr = getLocalRenderTransform();
+    const cur = getCursorGround();
+    const dx = cur.x - tr.x;
+    const dz = cur.z - tr.z;
+    const len = Math.hypot(dx, dz);
+    return { ability: pending, yaw: len > 1e-3 ? Math.atan2(dx, dz) : tr.rotation };
+  }).current;
+  useBowAnimator(aim, draw, arrows, getCastAimForOwner, getAim);
+  const gripRot = (weapon.grip?.rotation ?? [0, 0, 0]) as [number, number, number];
+  // Pivot OFFSET: the bow models its belly at +Z (the riser, which sits in the
+  // hand), but it should rotate around the CHORD (the string / nock, `bulge`
+  // behind the belly). Shifting the aim group back by `bulge` makes the chord the
+  // pivot while the riser stays at the hand. Crossbow pivots at its stock (0).
+  const bulge =
+    weapon.id === 'weapon.archer.dawnbow' ? 0 : weapon.id === 'weapon.archer.recurve' ? 0.4 : 0.4;
+  // Real wood arrows nocked at the chord (local origin), pointing down the aim
+  // (+Z); a slight fan for the three power-shot arrows.
+  const arrowPos: [number, number, number][] = [
+    [0, 0, 0],
+    [0.05, 0, -0.01],
+    [-0.05, 0, -0.01],
+  ];
+  return (
+    <group position={weapon.grip?.position ?? [0, 0, 0]} scale={weapon.grip?.scale ?? 1}>
+      <group ref={aim} position={[0, 0, -bulge]}>
+        <group ref={draw}>
+          <group rotation={gripRot}>
+            <AssetMesh source={weapon.render} enchant={enchant} />
+          </group>
+          {/* Nocked wood arrows, shown while drawn; one leaves per shot. */}
+          {arrows.map((ref, i) => (
+            <group key={i} ref={ref} visible={false} position={arrowPos[i]}>
+              <WoodArrow />
+            </group>
+          ))}
+        </group>
+      </group>
+    </group>
+  );
 }
 
 /** A melee weapon (sword / bow): plain in the grip, but swung in a 180° arc on a
@@ -239,7 +319,8 @@ function CasterWeaponMount({
     }
     return { yaw: Math.atan2(dx, dz) };
   }).current;
-  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId);
+  const getAim = useRef(() => getLocalAim(ownerId)).current;
+  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId, getAim);
 
   const gripRotation = weapon.grip?.rotation ?? [0, 0, 0];
 
@@ -292,7 +373,7 @@ function PlaceholderCharacter({
   useProceduralAnimator(group, getAnimation, phase, animate);
   // The procedural animator rewrites the animated group's transform every frame
   // (including scale), so a model-wide scale rides an OUTER wrapper it never touches.
-  const scale = descriptor.render.kind === 'placeholder' ? descriptor.render.scale ?? 1 : 1;
+  const scale = descriptor.render.kind === 'placeholder' ? (descriptor.render.scale ?? 1) : 1;
   return (
     <group scale={scale}>
       <group ref={group}>
@@ -409,8 +490,7 @@ function GltfCharacter({
   // For a rigged model with no idle clip, hold a frame of its first clip as a
   // standing pose (avoids the bind/T-pose "arms out"). Skipped once idle exists.
   const rest = useMemo(
-    () =>
-      model.clips?.idle ? undefined : { clip: inPlace[0]?.name, fraction: 0.15 },
+    () => (model.clips?.idle ? undefined : { clip: inPlace[0]?.name, fraction: 0.15 }),
     [model.clips, inPlace],
   );
 

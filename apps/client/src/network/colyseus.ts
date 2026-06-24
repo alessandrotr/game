@@ -338,6 +338,8 @@ const ABILITY_CAST_VFX: Partial<Record<AbilityKind, BurstSpawn>> = {
   shield_wall: { id: 'vfx.cast', at: 'caster', y: 0.05, follow: true },
   // Archer
   tumble: { id: 'vfx.dash', at: 'caster', y: 0, oriented: true, follow: true },
+  // Concussive volley: arrows rain down on the targeted point.
+  crippling_shot: { id: 'vfx.arrow_volley', at: 'point', y: 0 },
   // Priest
   heal: { id: 'vfx.heal', at: 'caster', y: 0.1, follow: true },
   renew: { id: 'vfx.heal', at: 'unit', y: 0.1, follow: true }, // sticks to the healed target

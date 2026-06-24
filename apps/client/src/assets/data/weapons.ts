@@ -13,7 +13,12 @@ import type { WeaponDescriptor } from '@arena/shared';
 // silhouette swap keeps sitting correctly in the hand.
 const SWORD_GRIP: WeaponDescriptor['grip'] = { position: [0.5, 0.85, 0.1], rotation: [0, 0, -0.5] };
 const STAFF_GRIP: WeaponDescriptor['grip'] = { position: [0.45, 0.7, 0.1], rotation: [0, 0, -0.12] };
-const BOW_GRIP: WeaponDescriptor['grip'] = { position: [0.42, 0.9, 0.12], rotation: [0, Math.PI / 2, 0] };
+// Bows are modeled vertically with the RISER (grip) at the local origin, opening
+// toward -X (string side) with the convex back toward +X. The grip rotates that
+// back toward the aim (+Z) and the string toward the archer (-Z).
+const BOW_GRIP: WeaponDescriptor['grip'] = { position: [0.4, 0.95, 0.18], rotation: [0, -Math.PI / 2, 0] };
+// The crossbow is a horizontal stock modeled along +Z (the aim), held two-handed.
+const CROSSBOW_GRIP: WeaponDescriptor['grip'] = { position: [0.28, 0.92, 0.1], rotation: [0, 0, 0] };
 const MACE_GRIP: WeaponDescriptor['grip'] = { position: [0.45, 0.7, 0.1], rotation: [0, 0, -0.3] };
 
 // Shared material palette (kept terse; the enchant carries the "wow").
@@ -140,6 +145,9 @@ const voidScepter: WeaponDescriptor = {
 // Archer — bow line (limb + tips are enchantable)
 // ---------------------------------------------------------------------------
 
+// Hunting Bow — a clean recurve. Modeled on the CHORD: the string runs through
+// the local origin (the grip / nock point the weapon pivots around), the limb
+// belly bulges toward the target (+X → aim), recurved tips at the chord ends.
 const bow: WeaponDescriptor = {
   id: 'weapon.bow',
   displayName: 'Hunting Bow',
@@ -147,15 +155,18 @@ const bow: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.45, 0.04, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.05, 0.05, 0.2, 8], position: [0, 0, 0], color: '#5a5f68' },
-      { name: 'string', shape: 'cylinder', args: [0.006, 0.006, 0.9, 4], position: [0, 0, 0], color: '#d8d2c4' },
-      { name: 'nock.t', shape: 'sphere', args: [0.022, 8, 8], position: [0, 0.45, 0], color: '#9aa2ae' },
-      { name: 'nock.b', shape: 'sphere', args: [0.022, 8, 8], position: [0, -0.45, 0], color: '#9aa2ae' },
+      { name: 'grip', shape: 'cylinder', args: [0.03, 0.034, 0.3, 8], position: [0.46, 0, 0], color: '#4a3a2a' },
+      { name: 'limb', shape: 'torus', args: [0.5, 0.03, 10, 28, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'string', shape: 'cylinder', args: [0.005, 0.005, 1.0, 4], position: [0, 0, 0], color: '#d8d2c4' },
+      { name: 'tip.t', shape: 'cone', args: [0.028, 0.11, 5], position: [0, 0.52, 0], rotation: [0, 0, -0.5], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'tip.b', shape: 'cone', args: [0.028, 0.11, 5], position: [0, -0.52, 0], rotation: [0, 0, Math.PI + 0.5], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'rest', shape: 'box', args: [0.05, 0.02, 0.06], position: [0.42, 0, 0], color: '#4a3a2a' },
     ],
   },
 };
 
+// War Recurve — bigger, thicker double-curve limbs with a sculpted metal riser
+// and a sight window; a heavier silhouette than the hunting bow. Chord-centered.
 const warRecurve: WeaponDescriptor = {
   id: 'weapon.archer.recurve',
   displayName: 'War Recurve',
@@ -163,27 +174,33 @@ const warRecurve: WeaponDescriptor = {
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.5, 0.045, 12, 24, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.05, 0.055, 0.26, 8], position: [0, 0, 0], color: '#5a5f68', metalness: 0.5, roughness: 0.5 },
-      { name: 'string', shape: 'cylinder', args: [0.006, 0.006, 1.0, 4], position: [0, 0, 0], color: '#cfc9ba' },
-      { name: 'tip.t', shape: 'cone', args: [0.03, 0.16, 4], position: [0, 0.52, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
-      { name: 'tip.b', shape: 'cone', args: [0.03, 0.16, 4], position: [0, -0.52, 0], rotation: [Math.PI, 0, 0], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'grip', shape: 'cylinder', args: [0.034, 0.04, 0.36, 8], position: [0.54, 0, 0], color: '#3a3e45' },
+      { name: 'window', shape: 'box', args: [0.04, 0.16, 0.05], position: [0.46, 0, 0], color: '#5a5f68', metalness: 0.6, roughness: 0.4 },
+      { name: 'limb', shape: 'torus', args: [0.58, 0.045, 10, 30, Math.PI], position: [0, 0, 0], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'string', shape: 'cylinder', args: [0.006, 0.006, 1.16, 4], position: [0, 0, 0], color: '#cfc9ba' },
+      { name: 'tip.t', shape: 'cone', args: [0.034, 0.18, 5], position: [0, 0.6, 0], rotation: [0, 0, -0.7], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'tip.b', shape: 'cone', args: [0.034, 0.18, 5], position: [0, -0.6, 0], rotation: [0, 0, Math.PI + 0.7], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'rest', shape: 'box', args: [0.06, 0.02, 0.07], position: [0.5, 0, 0], color: '#3a3e45' },
     ],
   },
 };
 
+// Crossbow — a horizontal stock along the aim (+Z) with a perpendicular steel
+// prod and drawn string at the front, a flight groove on top, and a pistol grip.
 const dawnbow: WeaponDescriptor = {
   id: 'weapon.archer.dawnbow',
-  displayName: 'Dawnbow',
-  grip: BOW_GRIP,
+  displayName: 'Crossbow',
+  grip: CROSSBOW_GRIP,
   render: {
     kind: 'placeholder',
     parts: [
-      { name: 'limb', shape: 'torus', args: [0.6, 0.04, 12, 28, Math.PI * 0.8], position: [0, 0, 0], rotation: [0, 0, -Math.PI * 0.9], color: '#e0e6ee', ...STEEL, enchantable: true },
-      { name: 'riser', shape: 'cylinder', args: [0.045, 0.05, 0.24, 8], position: [0, 0, 0], color: '#5a5f68' },
-      { name: 'string', shape: 'cylinder', args: [0.005, 0.005, 1.0, 4], position: [0, 0, 0], color: '#efe7cc' },
-      { name: 'nock.t', shape: 'sphere', args: [0.032, 10, 10], position: [0, 0.49, 0.12], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
-      { name: 'nock.b', shape: 'sphere', args: [0.032, 10, 10], position: [0, -0.49, 0.12], color: '#e0e6ee', metalness: 0.6, roughness: 0.3, enchantable: true },
+      { name: 'stock', shape: 'box', args: [0.06, 0.07, 0.72], position: [0, 0, 0.26], color: '#5a3a22' },
+      { name: 'grip', shape: 'cylinder', args: [0.028, 0.03, 0.18, 8], position: [0, -0.11, 0.02], rotation: [0.35, 0, 0], color: '#3a2a1a' },
+      { name: 'rail', shape: 'box', args: [0.022, 0.03, 0.6], position: [0, 0.05, 0.3], color: '#c4ccd6', ...STEEL },
+      { name: 'prod', shape: 'box', args: [0.78, 0.035, 0.05], position: [0, 0.03, 0.52], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'prod.l', shape: 'cone', args: [0.03, 0.13, 4], position: [0.39, 0.03, 0.52], rotation: [0, 0, -Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'prod.r', shape: 'cone', args: [0.03, 0.13, 4], position: [-0.39, 0.03, 0.52], rotation: [0, 0, Math.PI / 2], color: '#e0e6ee', ...STEEL, enchantable: true },
+      { name: 'string', shape: 'cylinder', args: [0.005, 0.005, 0.76, 4], position: [0, 0.04, 0.42], rotation: [0, 0, Math.PI / 2], color: '#d8d2c4' },
     ],
   },
 };

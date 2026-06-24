@@ -264,7 +264,7 @@ const WEAPONS: WeaponCosmetic[] = [
   // Archer — bow line.
   { id: 'weapon.bow', weaponId: 'weapon.bow', type: 'weapon', characterClass: 'archer', name: 'Hunting Bow', description: 'A reliable recurve of seasoned wood.', rarity: 'common', default: true },
   { id: 'weapon.archer.recurve', weaponId: 'weapon.archer.recurve', type: 'weapon', characterClass: 'archer', name: 'War Recurve', description: 'A reinforced limb with bladed tips.', rarity: 'rare', requiredLevel: 12 },
-  { id: 'weapon.archer.dawnbow', weaponId: 'weapon.archer.dawnbow', type: 'weapon', characterClass: 'archer', name: 'Dawnbow', description: 'A sweeping longbow lit at the nocks.', rarity: 'epic', requiredLevel: 20 },
+  { id: 'weapon.archer.dawnbow', weaponId: 'weapon.archer.dawnbow', type: 'weapon', characterClass: 'archer', name: 'Crossbow', description: 'A compact steel-prod crossbow.', rarity: 'epic', requiredLevel: 20 },
   // Priest — mace line.
   { id: 'weapon.mace', weaponId: 'weapon.mace', type: 'weapon', characterClass: 'priest', name: 'Acolyte Mace', description: 'A blessed cudgel of plain gold.', rarity: 'common', default: true },
   { id: 'weapon.priest.flanged', weaponId: 'weapon.priest.flanged', type: 'weapon', characterClass: 'priest', name: 'Flanged Mace', description: 'A heavy head of radiant flanges.', rarity: 'rare', requiredLevel: 12 },

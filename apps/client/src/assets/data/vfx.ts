@@ -287,6 +287,19 @@ const cripplingShot: VfxDescriptor = {
   },
 };
 
+/** A rain of arrows falling onto the target area (archer concussive volley).
+ *  The custom burst shader owns the visual; this just supplies the lifetime. */
+const arrowVolley: VfxDescriptor = {
+  id: 'vfx.arrow_volley',
+  displayName: 'Arrow Volley',
+  behavior: 'burst',
+  durationMs: 1350,
+  render: {
+    kind: 'placeholder',
+    parts: [{ name: 'core', shape: 'sphere', args: [0.05, 6, 6], color: '#dfe7f0' }],
+  },
+};
+
 /** A heavy crimson-gold bolt (archer pinning arrow). */
 const pinningArrow: VfxDescriptor = {
   id: 'vfx.pinning_arrow',
@@ -632,6 +645,7 @@ export const VFX: VfxDescriptor[] = [
   arcaneBlast,
   powerShot,
   cripplingShot,
+  arrowVolley,
   pinningArrow,
   holyBolt,
   cleave,

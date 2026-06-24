@@ -26,6 +26,7 @@ import {
   SingularityBlastEffect,
 } from './bursts';
 import { CarExplosionEffect, BarrelExplosionEffect } from './coverEffects';
+import { ArrowVolleyEffect } from './arrowVolley';
 import type { BurstShaderProps } from './common';
 
 export type { BurstShaderProps } from './common';
@@ -67,4 +68,5 @@ export const BURST_SHADERS: Partial<Record<VfxAssetId, FC<BurstShaderProps>>> = 
   'vfx.lightning_spark': LightningSparkEffect,
   'vfx.chest_spawn': ChestSpawnEffect,
   'vfx.singularity_blast': SingularityBlastEffect,
+  'vfx.arrow_volley': ArrowVolleyEffect,
 };

@@ -55,11 +55,11 @@ function ProjectileEntity({ id }: { id: string }) {
       // trajectory — so the bolt visibly comes out of the weapon. Falls back to
       // the server spawn point for weapons with no showpiece.
       const off = owner && !thrownKind ? abilityMuzzleOffset(owner.characterClass, owner.weaponId) : null;
+      let yaw = owner?.rotation ?? 0;
       if (off && owner) {
         launched.current = true;
         let ox = owner.x;
         let oz = owner.z;
-        let yaw = owner.rotation;
         const local = getLocalRenderTransform();
         if (local.active && useGameStore.getState().sessionId === projectile?.ownerId) {
           ox = local.x;
@@ -72,9 +72,17 @@ function ProjectileEntity({ id }: { id: string }) {
       } else {
         node.position.set(latest.x, latest.y, latest.z);
       }
+      // Point oriented projectiles (arrows) down their initial heading.
+      if (!thrownKind) node.rotation.y = yaw;
       return;
     }
     const t = 1 - Math.exp(-SMOOTHING * delta);
+    // Orient along travel (arrows fly point-first); billboards ignore this.
+    if (!thrownKind) {
+      const dx = latest.x - node.position.x;
+      const dz = latest.z - node.position.z;
+      if (dx * dx + dz * dz > 1e-6) node.rotation.y = Math.atan2(dx, dz);
+    }
     node.position.x = MathUtils.lerp(node.position.x, latest.x, t);
     node.position.z = MathUtils.lerp(node.position.z, latest.z, t);
     // Ease the launch height (orb → trajectory) on muzzle-launched bolts; thrown

@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Euler, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMaterial } from 'three';
 import type { CastAim } from '../../store/castAim';
 import { setWeaponTip } from '../../store/weaponTip';
+import type { AimState } from './localAim';
 
 // Scratch objects reused across frames (no per-frame allocation).
 const _q = new Quaternion();
@@ -54,6 +55,10 @@ const THRUST_ANGLE = 0.62;
 const THRUST_LUNGE = 0.07;
 /** Peak additive opacity of the orb flare. */
 const FLARE_OPACITY = 0.95;
+/** Wind-up while a chargeable ability is HELD: pull the head back and build the
+ *  orb glow, then release into the thrust on cast. */
+const CHARGE_PITCH = 0.45; // head pulled back (rad)
+const CHARGE_PULL = 0.05; // drawn back along the shot line
 
 /** Instant thrust envelope (0 rest → 1 → 0): ease up over ATTACK, ease back over
  *  RELEASE. Returns 0 once finished. */
@@ -71,6 +76,7 @@ export function useWeaponCastAnimator(
   getCastAim: () => CastAim | null,
   getChannel: () => ChannelState | null,
   ownerId?: string,
+  getAim: () => AimState | null = () => null,
 ): void {
   // Baselined on the first frame so a cast that already happened before mount
   // (e.g. a remount mid-game) doesn't replay; every later bump fires a swing.
@@ -84,8 +90,11 @@ export function useWeaponCastAnimator(
   const gesture = useRef(false);
   // For channels: clock time the release ramp began (-1 while still holding).
   const releaseStart = useRef(-1);
+  // Wind-up amount [0..1] while a chargeable ability is held, and its aim yaw.
+  const charge = useRef(0);
+  const chargeYaw = useRef(0);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const aimNode = aim.current;
     const tipNode = tip.current;
     if (!aimNode || !tipNode) return;
@@ -103,9 +112,35 @@ export function useWeaponCastAnimator(
       holdSec.current = data.holdMs / 1000;
       gesture.current = true;
       releaseStart.current = -1;
+      charge.current = 0; // released into the cast; no residual wind-up after
     }
 
-    if (!gesture.current) return; // settled at rest — nothing to do
+    if (!gesture.current) {
+      // Wind-up while the local player HOLDS a chargeable ability: aim at the
+      // cursor, pull the head back, and build the orb glow — released on cast.
+      const held = getAim();
+      if (held && aimNode.parent) {
+        aimNode.parent.getWorldQuaternion(_q);
+        _e.setFromQuaternion(_q, 'YXZ');
+        chargeYaw.current = wrap(held.yaw - _e.y);
+      }
+      charge.current += ((held ? 1 : 0) - charge.current) * Math.min(1, delta * 9);
+      const c = charge.current;
+      aimNode.rotation.y = c * chargeYaw.current;
+      tipNode.rotation.x = -c * CHARGE_PITCH;
+      tipNode.position.z = -c * CHARGE_PULL;
+      const fc = flare.current;
+      if (fc) {
+        const on = c > 0.01;
+        fc.visible = on;
+        if (on) {
+          fc.scale.setScalar(0.6 + c * 0.5);
+          (fc.material as MeshBasicMaterial).opacity = c * 0.7;
+          if (ownerId) setWeaponTip(ownerId, fc.getWorldPosition(_tip), performance.now());
+        }
+      }
+      return;
+    }
 
     const elapsed = t - castStart.current;
     let p: number;
