@@ -861,6 +861,11 @@ export class ArenaRoom extends AvatarRoom {
         }
       },
     );
+
+    // Catch-all: silently ignore unknown message types so a client that's newer
+    // than the server (a deploy in progress) can't get DISCONNECTED for sending a
+    // message this build doesn't handle yet. Specific handlers above take priority.
+    this.onMessage('*', () => {});
   }
 
   /** Resolve a normalized aim vector, falling back to the player's facing. */
