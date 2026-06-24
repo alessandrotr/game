@@ -287,7 +287,7 @@ export const ABILITY_REGISTRY = {
     icon: 'Target',
     aim: 'direction',
     cooldownMs: 12000,
-    manaCost: 80,
+    manaCost: 60,
     castTimeMs: 0,
     range: 65,
     damage: 80,
