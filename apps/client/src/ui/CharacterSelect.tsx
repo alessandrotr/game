@@ -1,7 +1,5 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef } from 'react';
 import {
-  ChevronLeft,
-  ChevronRight,
   Heart,
   Droplet,
   Swords,
@@ -20,7 +18,7 @@ import {
   type ClassDefinition,
 } from '@arena/shared';
 
-/** Pill/selector icon per class. */
+/** Roster icon per class (also used on the featured nameplate). */
 const CLASS_ICON: Record<CharacterClass, LucideIcon> = {
   warrior: Swords,
   mage: Sparkles,
@@ -33,9 +31,14 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { preloadCharacterModels } from '../assets/preload';
 import { ClassPreview } from './ClassPreview';
+import {
+  CharacterThumbStage,
+  registerCharacterThumb,
+  type CharacterThumbHandle,
+} from '../render/characterThumbnails';
 import { AssetLoadingBar } from './AssetLoadingBar';
 import { AvatarFrame } from './AvatarFrame';
-import { Card } from './primitives';
+import { Card, LevelBadge } from './primitives';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { STAT_COLORS } from './theme';
@@ -119,44 +122,95 @@ function AbilityBadge({ ability }: { ability: AbilityKind }) {
   );
 }
 
-/** Prev / next carousel control — a frameless gold chevron with a generous hit
- *  area. At rest it's a quiet, dark-shadowed glyph; on hover it brightens to
- *  gold, scales up, slides in its travel direction, and blooms a soft radial
- *  glow behind it. Tactile press on click. Premium, not a boxy button. */
-function CarouselArrow({ dir, onClick }: { dir: 'prev' | 'next'; onClick: () => void }) {
-  const prev = dir === 'prev';
-  const Icon = prev ? ChevronLeft : ChevronRight;
+/** L-shaped bracket corners that frame the selected roster cell — the "cursor"
+ *  sitting on your pick, the way a fighting-game select grid reads. */
+function SelectBrackets() {
+  const base = 'pointer-events-none absolute h-3 w-3 border-gold';
+  return (
+    <>
+      <span aria-hidden className={`${base} left-0.5 top-0.5 border-l-2 border-t-2`} />
+      <span aria-hidden className={`${base} right-0.5 top-0.5 border-r-2 border-t-2`} />
+      <span aria-hidden className={`${base} bottom-0.5 left-0.5 border-b-2 border-l-2`} />
+      <span aria-hidden className={`${base} bottom-0.5 right-0.5 border-b-2 border-r-2`} />
+    </>
+  );
+}
+
+/** The per-tile 2D canvas the shared {@link CharacterThumbStage} blits this
+ *  class's headshot into. Costs no WebGL context of its own. */
+function CharacterThumb({ characterClass }: { characterClass: CharacterClass }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const handle: CharacterThumbHandle = { canvas: ref.current, characterClass };
+    return registerCharacterThumb(handle);
+  }, [characterClass]);
+  return <canvas ref={ref} className="absolute inset-0 h-full w-full" />;
+}
+
+/** A single fighter cell in the roster grid. The highlighted cell IS the pick;
+ *  clicking it (or arrowing onto it) swaps the featured portrait. Its background
+ *  is a live 3D headshot of the class (one shared WebGL context drives them all),
+ *  with the name + level riding over a darkening gradient. */
+function FighterTile({
+  def,
+  level,
+  selected,
+  onSelect,
+}: {
+  def: ClassDefinition;
+  level: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = CLASS_ICON[def.id];
   return (
     <button
       type="button"
-      aria-label={prev ? 'Previous class' : 'Next class'}
-      onClick={onClick}
-      className={`group absolute top-1/2 z-10 flex h-20 w-14 -translate-y-1/2 items-center justify-center ${
-        prev ? 'left-0' : 'right-0'
+      aria-label={`Select ${def.name}`}
+      aria-current={selected}
+      onClick={onSelect}
+      className={`group relative aspect-square overflow-hidden rounded-md border transition-all duration-150 ${
+        selected
+          ? '-translate-y-0.5 border-gold shadow-[0_0_20px_rgba(200,162,74,0.35)]'
+          : 'border-white/10 hover:border-white/30'
       }`}
     >
-      {/* Soft radial gold bloom behind the glyph — scales + fades in on hover. */}
+      {/* Live 3D headshot, blitted in from the shared offscreen stage. */}
+      <CharacterThumb characterClass={def.id} />
+      {/* The picked fighter shows in full color; the rest are dimmed back so the
+          selection reads at a glance (lifting a little on hover). */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute h-12 w-12 scale-50 rounded-full opacity-0 blur-md transition-all duration-300 ease-out group-hover:scale-100 group-hover:opacity-100"
-        style={{ background: 'radial-gradient(circle, rgba(200,162,74,0.6), transparent 70%)' }}
+        className={`pointer-events-none absolute inset-0 bg-linear-to-t transition-colors duration-150 ${
+          selected
+            ? 'from-gold/25 via-transparent to-black/25'
+            : 'from-black/90 via-black/55 to-black/70 group-hover:from-black/80 group-hover:via-black/35 group-hover:to-black/55'
+        }`}
       />
-      <Icon
-        size={32}
-        strokeWidth={2.5}
-        aria-hidden="true"
-        className={`relative text-gold/55 drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)] transition-all duration-200 ease-out group-hover:scale-125 group-hover:text-gold group-hover:drop-shadow-[0_0_12px_rgba(200,162,74,0.9)] group-active:scale-95 ${
-        prev ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'
-      }`}
-      />
+
+      {/* The player's level on this class — the gold gem, riding the corner. */}
+      <span className="absolute left-1.5 top-1.5">
+        <LevelBadge level={level} size="xxs" />
+      </span>
+      {/* Full-width name plate across the foot of the tile; gold when picked. */}
+      <span
+        className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 py-1 font-display text-[10px] uppercase tracking-[0.16em] ${
+          selected ? 'bg-gold text-black' : 'bg-black/65 text-white/85 group-hover:text-white'
+        }`}
+      >
+        <Icon size={11} aria-hidden="true" className="shrink-0" />
+        <span className="truncate">{def.name}</span>
+      </span>
+      {selected && <SelectBrackets />}
     </button>
   );
 }
 
-/** A swipeable carousel of the playable classes — the slide on screen IS the
- *  picked character. Navigate with the arrows, the dots, ← / → keys, or by
- *  dragging. Below sits the current class's stats/abilities. One 3D portrait
- *  (the visible class swaps inside a single canvas), showing its equipped look. */
+/** Character-select stage, fighting-game styled: a big featured fighter portrait
+ *  with a bold nameplate on the left, the roster grid you move the cursor across
+ *  on the right, and the picked class's stats/abilities below it. Navigate with
+ *  the roster cells or the ← / → keys. */
 export function CharacterSelect() {
   const selected = useCharacterStore((s) => s.selectedClass);
   const setSelected = useCharacterStore((s) => s.setSelectedClass);
@@ -175,102 +229,100 @@ export function CharacterSelect() {
     0,
     CLASS_LIST.findIndex((c) => c.id === selected),
   );
-  /** Step to another slide, wrapping around — this is what changes the pick. */
+  /** Step to another fighter, wrapping around — this is what changes the pick. */
   const go = (delta: number) => setSelected(CLASS_LIST[(idx + delta + count) % count]!.id);
 
   const levelByClass = new Map(progress.map((p) => [p.characterClass, p.level]));
   const level = levelByClass.get(selected) ?? 1;
   const loadout = classCosmeticsOf(byClass, selected).loadout;
 
-  // Drag-to-swipe: remember where a press began; on release, a horizontal throw
-  // past the threshold flips to the previous / next class.
-  const dragX = useRef<number | null>(null);
-  const onPointerDown = (e: ReactPointerEvent) => {
-    dragX.current = e.clientX;
-  };
-  const onPointerUp = (e: ReactPointerEvent) => {
-    if (dragX.current === null) return;
-    const dx = e.clientX - dragX.current;
-    dragX.current = null;
-    if (dx > 40) go(-1);
-    else if (dx < -40) go(1);
-  };
-
   return (
-    <div className="flex flex-col gap-3">
-      {/* Class selector — click a name to jump straight to that class.
-          Scrolls horizontally on mobile; wraps and centers from sm up. */}
-      <div className="-my-2 mb-2 flex items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:justify-center sm:overflow-x-visible">
-        {CLASS_LIST.map((c, i) => {
-          const Icon = CLASS_ICON[c.id];
-          return (
-            <button
-              key={c.id}
-              type="button"
-              aria-label={`Select ${c.name}`}
-              aria-current={i === idx}
-              onClick={() => setSelected(c.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-display text-xs tracking-[0.18em] transition-colors duration-200 ${
-                i === idx
-                  ? 'bg-gold text-black shadow-sm'
-                  : 'text-white/55 hover:bg-white/8 hover:text-white'
-              }`}
-            >
-              <Icon size={14} aria-hidden="true" />
-              {c.name}
-            </button>
-          );
-        })}
+    <div
+      className="flex flex-col gap-4"
+      role="group"
+      aria-label="Choose your fighter"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          go(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          go(1);
+        }
+      }}
+    >
+      {/* Eyebrow banner — flanked by hairlines, the marquee over a fighter select. */}
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-linear-to-r from-transparent to-gold/40" />
+        <span className="font-display text-xs uppercase tracking-[0.4em] text-gold/80">
+          Select Your Fighter
+        </span>
+        <span className="h-px flex-1 bg-linear-to-l from-transparent to-gold/40" />
       </div>
 
-      <div
-        className="relative select-none"
-        role="group"
-        aria-label="Choose your champion"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            go(-1);
-          } else if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            go(1);
-          }
-        }}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerLeave={() => (dragX.current = null)}
-      >
-        {/* Big branded showcase: the portrait inside the equipped round avatar rim,
-            with your level on this class as a gem riding the ring. */}
-        <AvatarFrame
-          rimId={loadout.rimId}
-          level={level}
-          size="lg"
-          className="mx-auto aspect-square w-60"
-        >
-          {/* The visible class swaps INSIDE this one canvas (no per-class context).
-              pointer-events-none so the swipe is handled by the container. */}
-          <div className="pointer-events-none absolute inset-0">
-            <ClassPreview
-              characterClass={selected}
-              skinId={loadout.skinId}
-              dyeId={loadout.dyeId}
-              pedestalId={loadout.pedestalId}
-              lite
-              spin={false}
-            />
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
+        {/* LEFT — the roster you move the cursor across, then the picked
+            fighter's vitals + abilities. */}
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-3 gap-2">
+            {CLASS_LIST.map((c, i) => (
+              <FighterTile
+                key={c.id}
+                def={c}
+                level={levelByClass.get(c.id) ?? 1}
+                selected={i === idx}
+                onSelect={() => setSelected(c.id)}
+              />
+            ))}
           </div>
-          {/* Progress over the portrait while the class GLBs download. */}
-          <AssetLoadingBar label="Loading champion…" />
-        </AvatarFrame>
 
-        {/* Prev / next — gold medallion arrows matching the ability badges. */}
-        <CarouselArrow dir="prev" onClick={() => go(-1)} />
-        <CarouselArrow dir="next" onClick={() => go(1)} />
+          <ClassInfo def={def} />
+        </div>
+
+        {/* RIGHT — the featured fighter: a big portrait panel with the nameplate
+            burnt across its lower edge. */}
+        <div className="flex flex-col gap-3">
+          <AvatarFrame rimId={loadout.rimId} shape="panel" size="lg" className="aspect-4/5 w-full">
+            {/* The full showcase canvas: drag to turn your fighter, scroll/pinch
+                to zoom (OrbitControls). `transparent` lets the dark panel stage
+                show through; `top` framing keeps the model clear of the nameplate.
+                No auto-spin — the player drives the rotation. */}
+            <div className="absolute inset-0 cursor-grab active:cursor-grabbing">
+              <ClassPreview
+                characterClass={selected}
+                skinId={loadout.skinId}
+                dyeId={loadout.dyeId}
+                pedestalId={loadout.pedestalId}
+                align="top"
+                transparent
+                spin={false}
+              />
+            </div>
+
+            {/* Nameplate burnt over the bottom of the art — the level gem +
+                class name, the way the picked fighter is announced. */}
+            <div className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-end gap-4 bg-linear-to-t from-black/85 via-black/40 to-transparent px-3 pb-2.5 pt-10">
+              <LevelBadge level={level} size="sm" />
+              <span
+                className="font-display text-2xl uppercase leading-none tracking-[0.12em] text-text sm:text-3xl"
+                style={{ textShadow: '0 0 18px rgba(200,162,74,0.45)' }}
+              >
+                {def.name}
+              </span>
+            </div>
+
+            {/* Progress over the portrait while the class GLBs download. */}
+            <AssetLoadingBar label="Loading fighter…" />
+          </AvatarFrame>
+
+          {/* The class's one-line identity, under the portrait. */}
+          <p className="px-1 text-center text-xs leading-relaxed text-muted">{def.description}</p>
+        </div>
       </div>
 
-      <ClassInfo def={def} />
+      {/* One hidden WebGL context that draws every roster headshot above. */}
+      <CharacterThumbStage />
     </div>
   );
 }

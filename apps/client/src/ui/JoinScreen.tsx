@@ -4,9 +4,9 @@ import { connectToRoom } from '../network/colyseus';
 import { useGameStore } from '../store/useGameStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { useUpgradeStore } from '../store/useUpgradeStore';
 import { CharacterSelect } from './CharacterSelect';
 import { MenuHeader } from './MenuHeader';
+import { AccountChip } from './AccountChip';
 import { Button } from './primitives';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 
@@ -16,10 +16,7 @@ export function JoinScreen() {
   const status = useGameStore((s) => s.status);
   const error = useGameStore((s) => s.error);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
-  const username = useAuthStore((s) => s.username);
   const guest = useAuthStore((s) => s.guest);
-  const signOut = useAuthStore((s) => s.signOut);
-  const openUpgrade = useUpgradeStore((s) => s.setOpen);
 
   const connecting = status === 'connecting';
 
@@ -42,31 +39,15 @@ export function JoinScreen() {
 
       <MenuHeader />
 
-      {/* A single full-width selection panel (capped at max-w-xl); each class card
-          carries its own live 3D portrait, so there's no separate big model. The
-          account controls sit centered above the picker. */}
-      <section className="relative flex h-dvh w-full flex-col items-center justify-end gap-3 px-4 py-6 sm:px-8">
-        <div className="flex w-full max-w-xl flex-wrap items-center justify-end gap-2 text-xs text-muted">
-          <span>
-            {guest ? (
-              'Playing as guest'
-            ) : (
-              <>
-                Signed in as <span className="font-semibold text-text">{username}</span>
-              </>
-            )}
-          </span>
-          {guest && (
-            <Button variant="gold" size="sm" onClick={() => openUpgrade(true)}>
-              Save progress
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={signOut}>
-            {guest ? 'Exit' : 'Sign out'}
-          </Button>
+      {/* The fighter-select stage — a wide cinematic panel (the featured fighter
+          on the left, the roster grid on the right). Centered for the marquee
+          feel; the account controls sit above it. */}
+      <section className="relative flex h-dvh w-full flex-col items-center justify-center gap-3 px-3 py-6 sm:px-8">
+        <div className="flex w-full max-w-4xl items-center justify-end">
+          <AccountChip />
         </div>
 
-        <div className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
+        <div className="flex max-h-[calc(100dvh-7rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/90 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-md">
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-5">
             <div className="w-full">
               <CharacterSelect />
@@ -75,7 +56,7 @@ export function JoinScreen() {
           <form onSubmit={onSubmit} className="flex flex-col gap-2 border-t border-white/10 p-4">
             <Button
               type="submit"
-              variant="gold"
+              variant="goldCta"
               size="lg"
               disabled={connecting}
               className="gap-2 tracking-[0.15em]"
