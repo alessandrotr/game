@@ -21,12 +21,12 @@ function FireLight({ barrelId }: { barrelId: string }) {
     const b = useGameStore.getState().barrels.get(barrelId);
     if (b) {
       light.position.set(b.x, b.y + 1.4, b.z);
-      light.intensity = 9;
+      light.intensity = 12;
     } else {
       light.intensity = 0; // gone — keep the light mounted, just unlit
     }
   });
-  return <pointLight ref={ref} color="#ff7a3a" intensity={9} distance={9} decay={2} />;
+  return <pointLight ref={ref} color="#ff9a4a" intensity={12} distance={12} decay={2} />;
 }
 
 /** `barrelIds` is the FIXED match roster (b0…bN-1), not the live set — so the

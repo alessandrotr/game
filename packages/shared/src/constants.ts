@@ -33,8 +33,30 @@ export const TICK_RATE = 20;
 /** Fixed simulation timestep in milliseconds. */
 export const TICK_MS = 1000 / TICK_RATE;
 
-/** Square arena half-extent in world units; valid X/Z range is [-ARENA_HALF_SIZE, ARENA_HALF_SIZE]. */
+/** Arena half-extent along X (width) in world units; valid X range is [-ARENA_HALF_SIZE, ARENA_HALF_SIZE]. */
 export const ARENA_HALF_SIZE = 25;
+
+/** FFA arena half-extent along Z (north/south). The FFA arena is a RECTANGLE —
+ *  longer N/S than it is wide — while zombie mode stays square (ARENA_HALF_SIZE)
+ *  and grows via the room-expansion system instead. */
+export const ARENA_HALF_Z = 38;
+
+/**
+ * The fixed central pond + island (FFA arena only — the one non-random feature).
+ * A circular stone island sits in a water moat; the moat is impassable except via
+ * two stone bridges (north +Z and south −Z, a clear lane of half-width `bridgeHalfW`
+ * along X). The loot chest spawns on the island; nothing else spawns in this area.
+ */
+export const ARENA_POND = {
+  x: 0,
+  z: 0,
+  /** Outer radius of the water moat. */
+  pondR: 6.8,
+  /** Radius of the walkable stone island at the centre. */
+  islandR: 3.0,
+  /** Half-width (along X) of the N/S bridge lane that crosses the moat. */
+  bridgeHalfW: 1.7,
+} as const;
 
 // --- Zombie Room Expansion System ------------------------------------------------
 // When the room system is active (zombie mode), the play area expands beyond the
@@ -157,6 +179,10 @@ export interface ArenaObstacle {
   z: number;
   radius: number;
   height: number;
+  /** When false, the obstacle blocks player movement but NOT projectiles — used
+   *  for the central pond moat, which players must walk around but shots fly over.
+   *  Defaults to true (a normal solid obstacle) when omitted. */
+  blockProjectiles?: boolean;
 }
 
 /** A spawn position on the arena floor. */

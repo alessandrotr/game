@@ -145,11 +145,11 @@ export function ZombieHud() {
                   )}
                 </div>
                 <div className="flex items-center gap-2.5 text-[9px] font-bold uppercase tracking-wider tabular-nums text-white/45">
-                  <span className="flex items-center gap-1" title="Zombie move speed">
+                  <span className="flex items-center gap-1" title="Undead move speed">
                     <Zap size={9} aria-hidden="true" style={{ color: `${TOX}aa` }} />
                     {speed}
                   </span>
-                  <span className="flex items-center gap-1" title="Zombie health">
+                  <span className="flex items-center gap-1" title="Undead health">
                     <Heart size={9} aria-hidden="true" style={{ color: `${THREAT}aa` }} />
                     {hp}
                   </span>
@@ -329,7 +329,7 @@ export function WaveAnnouncement() {
                     }}
                   >
                     <Skull size={13} aria-hidden="true" />
-                    Mini-Boss Spawned!
+                    Dread Knight Approaches!
                   </div>
                 )}
               </div>

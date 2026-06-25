@@ -15,13 +15,13 @@ const arena: MapDescriptor = {
   id: 'map.arena',
   displayName: 'The Arena',
   halfSize: ARENA_HALF_SIZE,
-  groundColor: '#5b4f3c',
-  ambient: { color: '#5a4a38', intensity: 0.4 },
-  // A gritty, abandoned trailer park. The big pieces (trailers, burned cars,
-  // dumpsters, scrap piles, drum clusters) are cover and line up 1:1 with the
-  // collision circles in ARENA_LAYOUTS.trailerpark (packages/shared) — keep the
-  // two in sync. Everything else (trash, debris, tyres, fences, broken crates,
-  // loose/burning drums) is decorative scatter for a lived-in, chaotic feel.
+  groundColor: '#6a6353',
+  ambient: { color: '#6a6452', intensity: 0.45 },
+  // A ruined keep courtyard. The big pieces (stone ruins, wrecked wagons,
+  // supply crates, rubble heaps, keg clusters) are cover and line up 1:1 with
+  // the collision circles in ARENA_LAYOUTS.trailerpark (packages/shared) — keep
+  // the two in sync. Everything else (rubble, debris, cartwheels, palisades,
+  // broken crates, kegs/braziers) is decorative scatter for a lived-in feel.
   props: [
     // --- Cover (matches trailerpark collision circles) ---
     { assetId: 'prop.arena.trailer', position: [10, 0, 5], rotation: [0, -0.5, 0] },

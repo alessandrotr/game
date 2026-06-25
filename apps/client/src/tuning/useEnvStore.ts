@@ -75,30 +75,31 @@ const TOWN: EnvConfig = {
 };
 
 const ARENA: EnvConfig = {
-  // Grimy, smog-hazed dusk over an abandoned trailer-park lot: dusty brown haze
-  // instead of the old cold-blue night, warm low sun, burnt-amber fills.
+  // Match the town: the arena now uses the same animated TownAtmosphere, so these
+  // mirror the TOWN preset (a Britannia village look) — only fog distances and the
+  // shadow extent are retuned for the smaller arena footprint.
   toneMapping: 'aces',
-  envIntensity: 0.7,
-  grassWind: 1, // unused in the arena (no grass), kept for a uniform config shape
+  envIntensity: 0.25,
+  grassWind: 1,
   grassDark: '#3e5a30',
   grassLight: '#84a85e',
-  background: '#312b22',
-  fogColor: '#3a3328',
-  fogNear: ARENA_HALF_SIZE * 0.7,
-  fogFar: 90,
-  ambient: 0.34,
-  hemiSky: '#9a8a6a',
-  hemiGround: '#352a1d',
-  hemiIntensity: 0, // arena uses an IBL environment instead
-  sunPosition: [12, 16, 8],
-  sunIntensity: 1.05,
-  sunColor: '#ffcf94',
-  fillPosition: [-12, 8, -10],
+  background: '#060910', // deep dark-blue night sky
+  fogColor: '#060910', // dark blue haze, pushed well back
+  fogNear: ARENA_HALF_SIZE * 2.0,
+  fogFar: 150,
+  ambient: 0.16,
+  hemiSky: '#6d72a4',
+  hemiGround: '#40382a',
+  hemiIntensity: 0.5,
+  sunPosition: [16, 15, 9],
+  sunIntensity: 1.15,
+  sunColor: '#ffc078',
+  fillPosition: [-14, 7, -6],
   fillIntensity: 0.4,
-  fillColor: '#b3895a',
-  rimPosition: [0, 10, -16],
-  rimIntensity: 0.4,
-  rimColor: '#e0b079',
+  fillColor: '#6f78b8',
+  rimPosition: [-2, 11, -18],
+  rimIntensity: 0.45,
+  rimColor: '#ffd9a8',
   shadowMapSize: 1024,
   shadowBias: -0.0002,
   shadowNormalBias: 0.04,

@@ -8,7 +8,8 @@ import { AssetInstance } from '../render/AssetInstance';
 
 /**
  * A destructible environment object rendered from replicated state — either a
- * tire (from a tire pile) or an oil drum (the arena's drum piles + loose ones).
+ * boulder (from a rock pile — the old "tire" kind) or a barrel (the arena's
+ * drum piles + loose ones).
  * The server owns the lightweight rigid-body sim and streams the transform
  * (position + orientation quaternion); here we render the right low-poly mesh
  * and smooth the 20 Hz transform toward the latest snapshot each frame (position
@@ -19,8 +20,8 @@ import { AssetInstance } from '../render/AssetInstance';
  * once a drum is damaged, and is hidden at full HP.
  */
 
-/** Dark rubber, matching the arena's weathered palette. */
-const TIRE_COLOR = '#1b1b1f';
+/** Mossy grey fieldstone — the destructible "tire" piles are boulders here. */
+const TIRE_COLOR = '#888a82';
 /** Smoothing rate for the transform lerp/slerp (higher = snappier). */
 const SMOOTH_RATE = 18;
 /** Amber "integrity", matching the cover-structure bar. */
@@ -72,12 +73,12 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
         quaternion={[initial.qx, initial.qy, initial.qz, initial.qw]}
       >
         {isTire ? (
-          // The body is a Y-aligned disc (identity = lying flat). A torus' default
-          // axis is +Z, so rotate it −90° about X to match; the body quaternion
-          // (applied to the group) then tumbles the already-flat tire.
-          <mesh rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-            <torusGeometry args={[initial.sx, initial.sy, 8, 16]} />
-            <meshStandardMaterial color={TIRE_COLOR} roughness={1} metalness={0.05} />
+          // A boulder: a faceted low-poly stone, scaled a touch irregular. The body
+          // quaternion (applied to the group) tumbles it as it's knocked around —
+          // same destructible/roll behaviour the tire had.
+          <mesh castShadow receiveShadow scale={[1.15, 0.85, 1.05]}>
+            <icosahedronGeometry args={[initial.sx, 0]} />
+            <meshStandardMaterial color={TIRE_COLOR} roughness={1} metalness={0} flatShading />
           </mesh>
         ) : (
           // Oil drum: shift the model down by its half-height so the body's center

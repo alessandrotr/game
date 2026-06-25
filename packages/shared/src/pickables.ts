@@ -55,7 +55,7 @@ export const PICKABLES: Record<PickableKind, PickableDef> = {
   // ticks 6 every 0.5s for 2s before it disappears.
   molotov: {
     id: 'molotov',
-    name: 'Molotov',
+    name: 'Fire Flask',
     throwRange: 14,
     throwSpeed: 18,
     projectileRadius: 0.5,
@@ -65,7 +65,7 @@ export const PICKABLES: Record<PickableKind, PickableDef> = {
   // A bigger one-shot burst (6 radius / 32 dmg), no lingering field.
   grenade: {
     id: 'grenade',
-    name: 'Grenade',
+    name: 'Blast Rune',
     throwRange: 14,
     throwSpeed: 20,
     projectileRadius: 0.5,
@@ -74,7 +74,7 @@ export const PICKABLES: Record<PickableKind, PickableDef> = {
   // An instant-pickup healing cross item dropped by the Mini-Boss.
   heal_pack: {
     id: 'heal_pack',
-    name: 'Heal Pack',
+    name: 'Healing Draught',
     throwRange: 0,
     throwSpeed: 0,
     projectileRadius: 0,

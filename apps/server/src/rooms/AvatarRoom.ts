@@ -42,8 +42,12 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
 
   // --- Overridable world rules ------------------------------------------
 
-  /** Half the playable area minus the player radius (the movement clamp bound). */
+  /** Half the playable area minus the player radius (the movement clamp bound, X). */
   protected abstract halfLimit: number;
+
+  /** Z movement clamp bound; defaults to `halfLimit` (square). The FFA arena
+   *  overrides this with a larger value so the arena is longer north/south. */
+  protected halfLimitZ?: number;
 
   /** The upward impulse a jump applies (a constant in town, tunable in the arena). */
   protected abstract jumpForce(): number;
@@ -67,8 +71,9 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
       const player = this.state.players.get(client.sessionId);
       if (!player || !this.canControl(player)) return;
       const limit = this.halfLimit;
+      const limitZ = this.halfLimitZ ?? limit;
       const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
-      const z = Number.isFinite(message?.z) ? clamp(message.z, -limit, limit) : player.z;
+      const z = Number.isFinite(message?.z) ? clamp(message.z, -limitZ, limitZ) : player.z;
       this.onMoveOrder(client.sessionId);
       this.destinations.set(client.sessionId, { x, z });
     });

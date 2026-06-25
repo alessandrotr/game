@@ -326,8 +326,11 @@ export class ProjectileSystem {
     }
 
     // Obstacles block projectiles (cover) — burst an impact at the wall so the
-    // block reads, instead of the projectile silently vanishing.
+    // block reads, instead of the projectile silently vanishing. Obstacles tagged
+    // `blockProjectiles: false` (the central pond moat) are skipped — shots fly
+    // over the water even though players must walk around it.
     for (const o of this.ctx.obstacles) {
+      if (o.blockProjectiles === false) continue;
       const dx = projectile.x - o.x;
       const dz = projectile.z - o.z;
       const r = o.radius + meta.radius;

@@ -25,6 +25,8 @@ export function MapZones({ mapId }: { mapId: MapAssetId }) {
         // Portals carry their own shader gateway + floating label (see Portals),
         // so skip the ground ring + flat ground text for them.
         if (zone.kind === 'portal') return null;
+        // Spawn rings are dev clutter on the arena floor — don't draw them.
+        if (zone.kind === 'spawn') return null;
         const color = ZONE_COLOR[zone.kind];
         return (
           <group key={`${zone.kind}:${i}`} position={zone.center}>
