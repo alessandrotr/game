@@ -76,16 +76,16 @@ import {
 import { applyGravity, clamp, stepMove } from './util/locomotion.js';
 import { ArenaTuning } from './arena/systems/tuning.js';
 import { ArenaMatch } from './arena/systems/match.js';
+import { ChannelSystem } from './arena/systems/channels.js';
 import { CombatSystem } from './arena/systems/combat.js';
 import { ProjectileSystem } from './arena/systems/projectiles.js';
 import { GunSystem } from './arena/systems/guns.js';
-import { BarrelSystem, BARREL_RADIUS } from './arena/systems/barrels.js';
+import { BarrelSystem } from './arena/systems/barrels.js';
 import { DestructibleSystem } from './arena/systems/destructibles.js';
 import { GroundZoneSystem } from './arena/systems/groundZones.js';
 import { PickableSystem } from './arena/systems/pickables.js';
 import { TrapSystem } from './arena/systems/traps.js';
 import { resolveGameMode, deathPolicy, type GameMode } from './arena/modes.js';
-import { inBeam } from './arena/combatMath.js';
 import { registerGunHandlers } from './arena/gunHandlers.js';
 import { registerDevHandlers } from './arena/devHandlers.js';
 import { ArenaPhysics } from './arena/systems/physics.js';
@@ -200,14 +200,6 @@ export class ArenaRoom extends AvatarRoom {
   >();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
   private readonly displacements = new Map<string, Displacement>();
-  /** In-progress channels (e.g. the priest beam): the ability, when it ends, the
-   *  next object-damage tick, and a per-enemy "next DoT" clock (an enemy gets 12
-   *  the instant it enters the beam, then every `channelTickMs`; leaving resets
-   *  it). Aim direction lives on the replicated `Player.channelDir*`. */
-  private readonly channels = new Map<
-    string,
-    { config: AbilityDef; endAt: number; objTickAt: number; engaged: Map<string, number> }
-  >();
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
   /** AI-controlled bots in this room (practice bots, or zombies in zombie mode),
@@ -274,6 +266,8 @@ export class ArenaRoom extends AvatarRoom {
   private match!: ArenaMatch;
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
+  /** Held beam channeling (e.g. the priest beam). Owns its own per-caster state. */
+  private channels!: ChannelSystem;
   /** Gun Mode Zombie weapons (magazine / fire-rate / reload / switch). Built in
    *  every arena but only driven when {@link gunMode} is on. */
   /** Gun system — built only when `mode.usesGuns` (gun-mode zombie); undefined
@@ -544,7 +538,7 @@ export class ArenaRoom extends AvatarRoom {
       ClientMessage.AimChannel,
       (client, message: ClientMessagePayloads[ClientMessage.AimChannel]) => {
         const player = this.state.players.get(client.sessionId);
-        if (!player || !this.channels.has(client.sessionId)) return;
+        if (!player || !this.channels.isActive(client.sessionId)) return;
         const dx = Number(message?.dirX) || 0;
         const dz = Number(message?.dirZ) || 0;
         const len = Math.hypot(dx, dz);
@@ -659,6 +653,7 @@ export class ArenaRoom extends AvatarRoom {
     this.physics = new ArenaPhysics(this.obstacles, this.zombieMode);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
+    this.channels = new ChannelSystem(ctx, this.combat, this.barrels, this.destructibles);
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.groundZones = new GroundZoneSystem(ctx, this.combat);
     this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
@@ -786,7 +781,7 @@ export class ArenaRoom extends AvatarRoom {
     this.ninjaEStates.delete(client.sessionId);
     this.guns?.remove(client.sessionId);
     this.gunViews.delete(client.sessionId);
-    this.stopChannel(client.sessionId);
+    this.channels.stop(client.sessionId);
     this.perkSystem?.reset(client.sessionId);
     this.match.forget(client.sessionId);
     this.unregisterSession(client);
@@ -837,9 +832,9 @@ export class ArenaRoom extends AvatarRoom {
 
     // While a channel (the priest beam) is active, re-pressing its key interrupts
     // it and every OTHER ability is locked out for the duration.
-    if (this.channels.has(sessionId)) {
+    if (this.channels.isActive(sessionId)) {
       if (player.channelAbility === ability) {
-        this.stopChannel(sessionId);
+        this.channels.stop(sessionId);
       } else {
         this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
       }
@@ -992,7 +987,7 @@ export class ArenaRoom extends AvatarRoom {
     if (config.channelMs) {
       // Sustained channel (the priest beam): start ticking; the player keeps
       // moving and can re-aim, but can't cast until it ends or is re-pressed.
-      this.startChannel(sessionId, player, config, dirX, dirZ);
+      this.channels.start(sessionId, player, config, dirX, dirZ);
     } else if (config.castTimeMs > 0) {
       // Rooted wind-up: cancel any move and resolve when the timer elapses.
       this.destinations.delete(sessionId);
@@ -1020,114 +1015,6 @@ export class ArenaRoom extends AvatarRoom {
       const aoeSizeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
       this.combat.resolveCast(player, activeConfig, dirX, dirZ, targetX, targetZ, unitTargetId, aoeSizeBonus);
     }
-  }
-
-  /** Begin a channel: record it, mark the player as channelling, and seed the
-   *  replicated aim direction (the client streams updates via `AimChannel`). */
-  private startChannel(
-    sessionId: string,
-    player: Player,
-    config: AbilityDef,
-    dirX: number,
-    dirZ: number,
-  ): void {
-    player.channelAbility = config.id;
-    player.channelDirX = dirX;
-    player.channelDirZ = dirZ;
-    this.channels.set(sessionId, {
-      config,
-      endAt: this.simTime + (config.channelMs ?? 0),
-      objTickAt: this.simTime, // first object tick lands immediately
-      engaged: new Map(),
-    });
-  }
-
-  /** End a channel (timer elapsed, interrupted, CC'd, died, or left). */
-  private stopChannel(sessionId: string): void {
-    if (!this.channels.delete(sessionId)) return;
-    const player = this.state.players.get(sessionId);
-    if (player) player.channelAbility = '';
-  }
-
-  /** True if (ox,oz) lies inside the beam capsule — a ray from the caster along
-   *  its aim, `range` long and `beamWidth` wide, padded by the object's radius. */
-  /** Per-tick channel processing: drop channels whose caster can no longer hold
-   *  them (dead / stunned / silenced / elapsed). Enemies take 12 the instant they
-   *  enter the beam, then every `channelTickMs`; objects tick on a shared clock. */
-  private processChannels(): void {
-    this.channels.forEach((ch, sessionId) => {
-      const caster = this.state.players.get(sessionId);
-      if (!caster || !caster.alive || isStunned(caster) || isSilenced(caster)) {
-        this.stopChannel(sessionId);
-        return;
-      }
-      if (this.simTime >= ch.endAt) {
-        this.stopChannel(sessionId);
-        return;
-      }
-      const config = ch.config;
-      const tickMs = config.channelTickMs ?? 500;
-
-      // Enemies: an on-hit burst on entry, then a per-target DoT. Tracked each
-      // game tick so a swept-onto target is hit "as soon as it hits".
-      this.state.players.forEach((target, tid) => {
-        if (tid === sessionId || !target.alive) return;
-        if (!inBeam(caster, target.x, target.z, PLAYER_RADIUS, config)) {
-          ch.engaged.delete(tid); // left the beam — re-entering re-triggers on-hit
-          return;
-        }
-        const next = ch.engaged.get(tid);
-        if (next === undefined) {
-          // Just entered: the immediate on-hit, then schedule its first DoT.
-          this.combat.dealDamage(target, config.damage, sessionId);
-          ch.engaged.set(tid, this.simTime + tickMs);
-        } else if (this.simTime >= next) {
-          this.combat.dealDamage(target, config.damage, sessionId);
-          ch.engaged.set(tid, next + tickMs);
-        }
-      });
-      // Prune engaged ids for players that left/died (forEach above handles those
-      // still present; drop any no-longer-in-state ids).
-      for (const id of [...ch.engaged.keys()]) {
-        if (!this.state.players.get(id)?.alive) ch.engaged.delete(id);
-      }
-
-      // Objects: a shared 0.5s clock (first tick immediate), since they're static.
-      while (this.simTime >= ch.objTickAt) {
-        this.applyBeamObjectDamage(caster, config);
-        ch.objTickAt += tickMs;
-      }
-    });
-  }
-
-  /** Damage the objects inside the beam capsule — cover structures, barrels and
-   *  destructibles (players are handled per-target in {@link processChannels}). */
-  private applyBeamObjectDamage(caster: Player, config: AbilityDef): void {
-    const dx = caster.channelDirX;
-    const dz = caster.channelDirZ;
-    // Cover structures (trailers / cars / dumpsters) in the beam take its damage.
-    this.state.structures.forEach((s) => {
-      if (!s.destroyed && inBeam(caster, s.x, s.z, s.radius, config)) {
-        this.combat.damageStructure(s.id, config.damage, dx, dz);
-      }
-    });
-    // Burning barrels caught in the beam are launched + detonated.
-    this.state.barrels.forEach((b) => {
-      if (b.alive && inBeam(caster, b.x, b.z, BARREL_RADIUS, config)) {
-        this.barrels.trigger(b, dx, dz, caster.sessionId);
-      }
-    });
-    // Oil drums / tires: shoved (and drums chipped) along the beam.
-    this.destructibles.damageInBeam(
-      caster.x,
-      caster.z,
-      dx,
-      dz,
-      config.range,
-      (config.beamWidth ?? 0.6) / 2,
-      caster.sessionId,
-      config.damage,
-    );
   }
 
   /**
@@ -1406,7 +1293,7 @@ export class ArenaRoom extends AvatarRoom {
         this.animOneShots.delete(sessionId);
         this.attackTargets.delete(sessionId);
         this.displacements.delete(sessionId);
-        this.stopChannel(sessionId);
+        this.channels.stop(sessionId);
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
         player.holding = ''; // a carried object is lost on death
@@ -1622,7 +1509,7 @@ export class ArenaRoom extends AvatarRoom {
     // off the top of a player) by separating overlapping bodies each tick.
     if (this.zombieMode) this.zombie!.resolveZombieCollisions();
 
-    this.processChannels();
+    this.channels.update();
     this.combat.processDashImpacts();
     // Projectiles/abilities apply their impulses, THEN we step the shared world
     // once, THEN the barrel/destructible systems read back the new transforms.
