@@ -9,7 +9,6 @@ import {
   generateSectionCover,
   generateRoomLayout,
   trapForSection,
-  pickWeightedPortal,
   clampToUnlockedArea,
   collideObstacles,
   type ArenaObstacle,
@@ -18,8 +17,6 @@ import {
   isTeam,
   teamSizeForMode,
   AUTO_ATTACKS,
-  ARENA_PORTAL_POINT,
-  ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
   gunMoveSpeedMult,
   type GunView,
@@ -41,15 +38,12 @@ import {
   ZOMBIE_MINIBOSS_SKIN_ID,
   ZOMBIE_FAT_SPEED_PENALTY,
   ZOMBIE_FAT_ATTACK_BONUS_MS,
-  ZOMBIE_SPEED_JITTER,
   ZOMBIE_STUCK_MOVE_EPS,
   ZOMBIE_STUCK_TICKS,
   ZOMBIE_DETOUR_MS,
   ZOMBIE_DETOUR_RAD,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
-  ZOMBIE_WANDER_REROLL_MAX_MS,
-  ZOMBIE_WANDER_REROLL_MIN_MS,
   zombieHealthForLevel,
   zombieSprinterHealthForLevel,
   zombieFatHealthForLevel,
@@ -112,6 +106,7 @@ import { ArenaPhysics } from './arena/systems/physics.js';
 import { CoverSystem } from './arena/systems/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/systems/bots.js';
 import { ZombieDirector } from './arena/systems/zombies.js';
+import { ZombieSurvival } from './arena/systems/zombieSurvival.js';
 import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/systems/perks.js';
 import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/systems/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
@@ -164,21 +159,6 @@ interface PendingCast {
 /** Per-zombie movement personality + stuck-detection state. The personality
  *  (speed/wander/attack) spreads the horde out; the stuck fields drive a
  *  perpendicular reroute when a zombie wedges on cover instead of pathfinding. */
-interface ZombieAiState {
-  speedOffset: number;
-  wander: number;
-  wanderUntil: number;
-  attackBonusMs: number;
-  /** Last chase position + consecutive near-stationary ticks while out of range. */
-  lastX: number;
-  lastZ: number;
-  stuckTicks: number;
-  /** While `simTime < detourUntil`, steer a forced ~perpendicular heading
-   *  (sign = `detourSide`) to escape the obstacle instead of re-ramming it. */
-  detourUntil: number;
-  detourSide: number;
-}
-
 /**
  * Authoritative arena simulation. Clients send point-and-click move targets,
  * jump and ability-cast requests; the room validates and integrates everything
@@ -279,10 +259,9 @@ export class ArenaRoom extends AvatarRoom {
   /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
    *  it at (a brief linger so the death pose plays before it vanishes). */
   private readonly zombieCorpseAt = new Map<string, number>();
-  /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
-   *  lateral chase-wander bias that re-rolls on its own clock — so a horde spreads
-   *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
-  private readonly zombieAi = new Map<string, ZombieAiState>();
+  /** Mode-specific zombie-survival logic (per-zombie AI + spawn portals; more to
+   *  follow). Built only in zombie mode; undefined otherwise. */
+  private zombie?: ZombieSurvival;
   /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
   private readonly bossNextActionAt = new Map<string, number>();
   /** Chest spawn timer (ms). Starts at 1.5 minutes (90000 ms), then resets to 1.5 minutes (90000 ms). */
@@ -394,6 +373,14 @@ export class ArenaRoom extends AvatarRoom {
       //     placed as indestructible walls that crumble when the matching wave is
       //     cleared. (Bounds + auto-attack are already set from the mode above.) ---
       this.roomLayout = generateRoomLayout(seed);
+      // Mode-specific zombie logic. Handed references from inside the room (by
+      // closure), so it touches none of the room's private internals directly.
+      this.zombie = new ZombieSurvival({
+        now: () => this.simTime,
+        state: this.state,
+        bots: this.bots,
+        roomLayout: () => this.roomLayout,
+      });
       this.cover.setRoomLayout(this.roomLayout);
       this.destructibles.setRoomLayout(this.roomLayout);
       this.barrels.setRoomLayout(this.roomLayout);
@@ -1185,7 +1172,7 @@ export class ArenaRoom extends AvatarRoom {
       let cdx = ndx;
       let cdz = ndz;
       if (isZombie) {
-        const ai = this.zombieAiFor(sessionId);
+        const ai = this.zombie!.aiFor(sessionId);
         const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - this.mode.walkSpeedPenalty;
         let speedOffset = ai.speedOffset;
         if (attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID && attacker.hp < attacker.maxHp * 0.5) {
@@ -1228,7 +1215,7 @@ export class ArenaRoom extends AvatarRoom {
               side = -side;
             }
             ai.wander = side * (0.55 + Math.random() * 0.45);
-            ai.wanderUntil = this.simTime + this.rollWanderInterval();
+            ai.wanderUntil = this.simTime + this.zombie!.rollWanderInterval();
           }
           const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
           const isSprinter = attacker.skinId === ZOMBIE_SPRINTER_SKIN_ID;
@@ -1285,7 +1272,7 @@ export class ArenaRoom extends AvatarRoom {
           150,
           ZOMBIE_ATTACK_MIN_MS +
             Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS) -
-            this.zombieAiFor(sessionId).attackBonusMs,
+            this.zombie!.aiFor(sessionId).attackBonusMs,
         )
       : cfg.cooldownMs / attackSpeedMultiplier(attacker);
     this.attackReadyAt.set(sessionId, this.simTime + interval);
@@ -1803,7 +1790,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackReadyAt.delete(id);
     this.displacements.delete(id);
     this.zombieCorpseAt.delete(id);
-    this.zombieAi.delete(id);
+    this.zombie?.forget(id);
     this.bots.delete(id);
   }
 
@@ -1930,37 +1917,6 @@ export class ArenaRoom extends AvatarRoom {
     return n;
   }
 
-  /** This zombie's movement personality (lazily created — covers any spawned
-   *  before this map existed, though `spawnZombie` seeds it). */
-  private zombieAiFor(id: string): ZombieAiState {
-    let ai = this.zombieAi.get(id);
-    if (!ai) {
-      ai = {
-        speedOffset: (Math.random() * 2 - 1) * ZOMBIE_SPEED_JITTER,
-        // Commit to a flank side (±) at spawn with a 0.55–1.0 arc magnitude — half
-        // the horde curls left, half right, so they encircle instead of trailing.
-        wander: (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.45),
-        wanderUntil: this.simTime + this.rollWanderInterval(),
-        attackBonusMs: 0,
-        lastX: 0,
-        lastZ: 0,
-        stuckTicks: 0,
-        detourUntil: 0,
-        detourSide: 1,
-      };
-      this.zombieAi.set(id, ai);
-    }
-    return ai;
-  }
-
-  /** A randomized gap until a zombie next re-picks its wander path. */
-  private rollWanderInterval(): number {
-    return (
-      ZOMBIE_WANDER_REROLL_MIN_MS +
-      Math.random() * (ZOMBIE_WANDER_REROLL_MAX_MS - ZOMBIE_WANDER_REROLL_MIN_MS)
-    );
-  }
-
   /** Spawn one zombie for `level`: a red-team melee bot that pours out of the
    *  arena portal with level-scaled health and a relentless-chaser AI profile.
    *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
@@ -2002,7 +1958,7 @@ export class ArenaRoom extends AvatarRoom {
     // flanking side portals.
     const limit = this.arenaLimit - PLAYER_RADIUS;
     const jitter = () => (Math.random() * 2 - 1) * 1.6;
-    const portal = this.pickZombiePortal();
+    const portal = this.zombie!.pickPortal();
     player.x = clamp(portal.x + jitter(), -limit, limit);
     player.z = clamp(portal.z + jitter(), -limit, limit);
     player.maxHp =
@@ -2018,7 +1974,7 @@ export class ArenaRoom extends AvatarRoom {
     this.grounded.set(id, true);
     this.cooldowns.set(id, {});
     this.bots.set(id, makeZombieProfile());
-    const ai = this.zombieAiFor(id); // roll this zombie's speed/wander personality
+    const ai = this.zombie!.aiFor(id); // roll this zombie's speed/wander personality
     if (variant === 'sprinter') {
       // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
       // replacing the usual ±jitter so the extra speed is exactly in range.
@@ -2043,7 +1999,7 @@ export class ArenaRoom extends AvatarRoom {
     this.resetPlayer(player);
 
     const limit = this.arenaLimit - 0.8;
-    const portal = this.pickZombiePortal();
+    const portal = this.zombie!.pickPortal();
     player.x = clamp(portal.x + (Math.random() * 2 - 1) * 1.6, -limit, limit);
     player.z = clamp(portal.z + (Math.random() * 2 - 1) * 1.6, -limit, limit);
     
@@ -2056,7 +2012,7 @@ export class ArenaRoom extends AvatarRoom {
     this.cooldowns.set(id, {});
     this.bots.set(id, makeZombieProfile());
     
-    const ai = this.zombieAiFor(id);
+    const ai = this.zombie!.aiFor(id);
     ai.speedOffset = -1.5; // Slow movement speed (made 1 unit faster)
   }
 
@@ -2190,26 +2146,4 @@ export class ArenaRoom extends AvatarRoom {
     });
   }
 
-  /** Pick a zombie spawn portal from all unlocked sections + the main room,
-   *  weighted toward portals closest to the nearest human player. */
-  private pickZombiePortal(): { x: number; z: number } {
-    if (!this.roomLayout || this.state.unlockedSections === 0) {
-      // No room system or no sections unlocked — original behaviour.
-      return (
-        ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
-        ARENA_PORTAL_POINT
-      );
-    }
-    // Gather alive human positions for distance weighting.
-    const humans: { x: number; z: number }[] = [];
-    this.state.players.forEach((p, id) => {
-      if (p.alive && !this.bots.has(id)) humans.push({ x: p.x, z: p.z });
-    });
-    return pickWeightedPortal(
-      ZOMBIE_SPAWN_PORTALS,
-      this.roomLayout,
-      this.state.unlockedSections,
-      humans,
-    );
-  }
 }
