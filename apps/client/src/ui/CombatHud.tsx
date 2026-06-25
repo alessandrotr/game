@@ -389,13 +389,26 @@ function Slot({
   const Icon = ABILITY_ICON[ability];
   // On touch devices the slot is the cast button: a tap fires the ability with
   // auto-aim (nearest enemy / facing). Desktop keeps the keyboard + hold-to-aim
-  // flow, so the click handler is wired up only when there's a coarse pointer.
+  // flow, so the handler is wired up only when there's a coarse pointer.
+  //
+  // Use `onPointerDown`, not `onClick`: while the movement joystick holds one
+  // finger down, the browser suppresses the synthetic `click` of a second
+  // finger, so click-based buttons feel dead mid-walk. Pointer events fire per
+  // finger regardless, so a second thumb on an ability casts while steering.
   const touch = isTouchDevice();
   return (
     <AbilityHover ability={ability} slot={slot} disabled={touch} className="pointer-events-auto relative">
       <div
         ref={root}
-        onClick={touch ? () => castAbilitySlotMobile(slot) : undefined}
+        onPointerDown={
+          touch
+            ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                castAbilitySlotMobile(slot);
+              }
+            : undefined
+        }
         style={touch ? { touchAction: 'manipulation' } : undefined}
         className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-accent/30 bg-panel/80 active:scale-95"
       >
