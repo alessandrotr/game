@@ -6,6 +6,7 @@ import { useFullscreen } from '../../hooks/useFullscreen';
 import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
 import { AudioControl } from '../AudioControl';
 import { cn } from '@/lib/utils';
+import { resetCameraHeightScrollOffset, resetCameraZoom } from '../../store/cameraControl';
 
 /** A labelled on/off switch row, bound to a boolean + setter. */
 function ToggleRow({
@@ -80,6 +81,39 @@ function QualityRow() {
   );
 }
 
+/** Camera control mode picker (1 = zoom on scroll, 2 = height on scroll). */
+function CameraControlRow() {
+  const mode = useHudStore((s) => s.cameraControlMode);
+  const setMode = useHudStore((s) => s.setCameraControlMode);
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors">
+      <span className="min-w-0">
+        <span className="block text-sm text-text">Camera control</span>
+        <span className="block text-[11px] text-muted">1: Scroll zooms · 2: Scroll tilts</span>
+      </span>
+      <div className="flex shrink-0 gap-1 rounded-lg bg-black/30 p-0.5">
+        {([1, 2] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => {
+              setMode(m);
+              resetCameraZoom();
+              resetCameraHeightScrollOffset();
+            }}
+            className={cn(
+              'rounded-md px-3 py-1 text-xs font-semibold transition-colors',
+              mode === m ? 'bg-gold text-black' : 'text-muted hover:text-text',
+            )}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Settings — a small modal reached from the game menu that centralizes the HUD
  * preferences (player-card density, chat visibility, hide-HUD). Bound to the
@@ -101,7 +135,9 @@ export function SettingsPanel() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm p-0" aria-describedby={undefined}>
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <DialogTitle className="font-display text-lg font-bold tracking-wide text-gold">Settings</DialogTitle>
+          <DialogTitle className="font-display text-lg font-bold tracking-wide text-gold">
+            Settings
+          </DialogTitle>
           <DialogClose asChild>
             <IconButton icon={X} aria-label="Close" />
           </DialogClose>
@@ -116,6 +152,7 @@ export function SettingsPanel() {
             <AudioControl />
           </div>
           <QualityRow />
+          <CameraControlRow />
           <ToggleRow
             label="Fullscreen"
             hint="Fill the screen with the game"

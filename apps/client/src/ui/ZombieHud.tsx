@@ -3,7 +3,6 @@ import { Heart, Skull, Zap } from 'lucide-react';
 import {
   ZOMBIE_FIRST_DELAY_MS,
   ZOMBIE_LEVEL_BREAK_MS,
-  zombieHealthForLevel,
   zombieHordeSize,
   zombieSpeedForLevel,
 } from '@arena/shared';
@@ -12,8 +11,6 @@ import { HudZone } from './hud/HudLayout';
 
 /** Toxic-green palette shared across the zombie HUD. */
 const TOX = '#a6ff7f';
-const TOX_BRIGHT = '#d8ffb0';
-const TOX_DEEP = '#3a7d1f';
 const THREAT = '#ff7a7a';
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
@@ -21,11 +18,53 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 /**
  * Zombie-survival HUD (MOBA-style): a compact command panel pinned top-center
  * with the current wave, a horde-clear progress bar (kills toward the wave
- * total), and a live "closing in" threat readout. Between waves it flips to a
- * filling countdown bar. Self-gates on `zombieMode`, so it's inert elsewhere.
- *
- * The big per-wave reveal lives in {@link WaveAnnouncement} (a centered flash),
- * rendered separately so it can sit over the whole screen.
+/** Custom Medieval Skull SVG with eyes that turn red dynamically */
+function MedievalSkull({ size = 14, eyeRedness = 0 }: { size?: number; eyeRedness: number }) {
+  // Normal eye socket color is empty (transparent, letting background show).
+  // As eyeRedness goes from 0 to 1, fill with red `#ff0000` and add glowing filter drop-shadow.
+  const eyeColor = `rgba(255, 0, 0, ${eyeRedness})`;
+  const eyeGlow =
+    eyeRedness > 0 ? `drop-shadow(0 0 ${eyeRedness * 3}px rgba(255, 0, 0, 0.9))` : 'none';
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mb-0.5 transition-all duration-300"
+      style={{ color: '#d4af37' }} // Warm medieval gold outline for the skull
+      aria-hidden="true"
+    >
+      {/* Skull Base Outline */}
+      <path d="M2 10a10 10 0 0 1 20 0v3a2 2 0 0 1-2 2h-1.5a1 1 0 0 0-1 1v1.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 6 17.5V16a1 1 0 0 0-1-1H3.5a2 2 0 0 1-2-2z" />
+
+      {/* Nose */}
+      <path d="M12 13v1.5" strokeWidth="1.5" />
+      <path d="M10.5 14.5h3" strokeWidth="1.5" />
+
+      {/* Teeth */}
+      <path d="M9 18h6" />
+      <path d="M10.5 18v2" strokeWidth="1.5" />
+      <path d="M12 18v2" strokeWidth="1.5" />
+      <path d="M13.5 18v2" strokeWidth="1.5" />
+
+      {/* Left Eye (Symmetrical, cx=9) */}
+      <circle cx="9" cy="10" r="1.5" fill={eyeColor} stroke="none" style={{ filter: eyeGlow }} />
+      {/* Right Eye (Symmetrical, cx=15) */}
+      <circle cx="15" cy="10" r="1.5" fill={eyeColor} stroke="none" style={{ filter: eyeGlow }} />
+    </svg>
+  );
+}
+
+/**
+ * Zombie-survival HUD (Medieval RPG style): a slim command bar pinned top-center
+ * with the current wave, a wave-clear progress indicator, and a live threat readout.
+ * Between waves it displays a countdown. Self-gates on `zombieMode`, so it's inert elsewhere.
  */
 export function ZombieHud() {
   const zombieMode = useGameStore((s) => s.zombieMode);
@@ -44,116 +83,55 @@ export function ZombieHud() {
   const killed = Math.max(0, total - remaining);
   const pct = total > 0 ? clamp01(killed / total) * 100 : 0;
   const displayLevel = warming ? 1 : level;
-  // Threat ramps the closing-in readout from caution → alarm as the pack grows.
-  const heavy = alive >= 14;
-  // Current difficulty stats for this wave (so the player can read the ramp).
-  const speed = zombieSpeedForLevel(displayLevel);
-  const hp = zombieHealthForLevel(displayLevel);
+
+  // Sits at 0 for waves 1 to 3, then scales from 0 to 1 from wave 3 to 16.
+  const eyeRedness = Math.max(0, Math.min(1, (displayLevel - 3) / 13));
 
   return (
     <HudZone zone="top-center">
-      <div
-        // Perf: no `backdrop-blur` (re-blurs the moving 3D scene every frame) and
-        // no animated `box-shadow` (repaints every frame). A more opaque solid
-        // background + a static glow reads the same but is essentially free.
-        className="pointer-events-none relative flex items-stretch overflow-hidden rounded-xl border border-[#3a7d1f]/50 bg-[#0a1206]/95 shadow-[inset_0_0_0_1px_rgba(120,224,74,0.5),0_6px_22px_rgba(0,0,0,0.55),0_0_22px_rgba(120,224,74,0.18)]"
-      >
-        {/* Top hairline accent. */}
-        <div
-          className="absolute inset-x-0 top-0 h-px"
-          style={{ background: `linear-gradient(90deg, transparent, ${TOX}, transparent)` }}
-        />
+      <div className="pointer-events-none relative flex h-10 items-center overflow-hidden rounded-md border-2 border-[#d4af37]/80 bg-gradient-to-b from-[#222422] to-[#0a0a0a] px-4 shadow-[0_6px_20px_rgba(0,0,0,0.85),inset_0_0_12px_rgba(212,175,55,0.25)]">
+        <div className="flex items-center gap-4 text-xs font-semibold tracking-wide">
+          {/* Wave indicator */}
+          <div className="flex items-center gap-2 font-display text-white/95">
+            <MedievalSkull size={16} eyeRedness={eyeRedness} />
+            <span
+              className="font-display font-black text-sm uppercase tracking-[0.1em] text-[#d4af37]"
+              style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+            >
+              WAVE {displayLevel}
+            </span>
+          </div>
 
-        {/* Wave badge (left). */}
-        <div
-          className="relative flex w-[78px] shrink-0 flex-col items-center justify-center px-2 py-2.5"
-          style={{ background: `linear-gradient(160deg, ${TOX_DEEP}55, transparent 80%)` }}
-        >
-          <Skull size={13} className="mb-0.5" style={{ color: `${TOX}cc` }} aria-hidden="true" />
-          <span
-            className="text-[8px] font-bold uppercase leading-none tracking-[0.28em]"
-            style={{ color: `${TOX}99` }}
-          >
-            Wave
-          </span>
-          <span
-            className="font-display text-[32px] font-black leading-none"
-            style={{ color: TOX_BRIGHT, textShadow: '0 0 14px rgba(120,224,74,0.6)' }}
-          >
-            {displayLevel}
-          </span>
-        </div>
+          {/* Divider */}
+          <div className="w-[1.5px] h-4 bg-gradient-to-b from-transparent via-[#d4af37]/45 to-transparent" />
 
-        {/* Vertical divider. */}
-        <div className="my-2 w-px" style={{ background: `${TOX_DEEP}55` }} />
-
-        {/* Info column (right). */}
-        <div className="flex min-w-[224px] flex-col justify-center gap-1.5 px-4 py-2.5">
           {active ? (
             <>
-              {/* Horde-clear progress. */}
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
-                <span style={{ color: `${TOX}d0` }}>Cleared</span>
-                <span className="tabular-nums text-white/85">
+              {/* Cleared progress text */}
+              <div
+                className="flex items-center gap-1.5 text-[#ebdcb9] font-medium"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+              >
+                <span>Cleared</span>
+                <span className="font-bold tabular-nums text-white">
                   {killed}
-                  <span className="text-white/40"> / {total}</span>
+                  <span className="text-white/40">/{total}</span>
                 </span>
               </div>
-              <div className="relative h-2 overflow-hidden rounded-full bg-black/60 ring-1 ring-inset ring-[#3a7d1f]/40">
-                <div
-                  className="absolute inset-y-0 left-0 overflow-hidden rounded-full transition-[width] duration-300 ease-out"
+
+              {/* Divider */}
+              <div className="w-[1.5px] h-4 bg-gradient-to-b from-transparent via-[#d4af37]/45 to-transparent" />
+
+              {/* Closing In active count */}
+              <div className="flex items-center">
+                <span
+                  className="font-display font-bold uppercase tracking-[0.08em] text-[#ff3a3a] tabular-nums animate-pulse"
                   style={{
-                    width: `${pct}%`,
-                    background: `linear-gradient(90deg, ${TOX_DEEP}, ${TOX}, ${TOX_BRIGHT})`,
-                    boxShadow: '0 0 8px rgba(120,224,74,0.6)',
+                    textShadow: '0 0 10px rgba(255,58,58,0.7), 0 1px 2px rgba(0,0,0,0.9)',
                   }}
                 >
-                  {/* Energized sweep traveling along the fill. */}
-                  <div
-                    className="absolute inset-y-0 w-1/3 skew-x-[-20deg]"
-                    style={{
-                      background:
-                        'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
-                      animation: 'wave-shimmer 2.2s ease-in-out infinite',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Live threat readout (left) + current difficulty stats (right). */}
-              <div className="flex items-center justify-between gap-2 pt-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2 items-center justify-center">
-                    <span
-                      className="absolute inline-flex h-2 w-2 rounded-full"
-                      style={{
-                        background: THREAT,
-                        animation: `threat-pulse ${heavy ? 0.7 : 1.1}s ease-in-out infinite`,
-                      }}
-                    />
-                  </span>
-                  <span
-                    className="text-[11px] font-bold uppercase tracking-wide tabular-nums"
-                    style={{ color: heavy ? THREAT : '#ffb4b4' }}
-                  >
-                    {alive} closing in
-                  </span>
-                  {heavy && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-negative/70">
-                      · swarm!
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2.5 text-[9px] font-bold uppercase tracking-wider tabular-nums text-white/45">
-                  <span className="flex items-center gap-1" title="Zombie move speed">
-                    <Zap size={9} aria-hidden="true" style={{ color: `${TOX}aa` }} />
-                    {speed}
-                  </span>
-                  <span className="flex items-center gap-1" title="Zombie health">
-                    <Heart size={9} aria-hidden="true" style={{ color: `${THREAT}aa` }} />
-                    {hp}
-                  </span>
-                </div>
+                  {alive} Closing In
+                </span>
               </div>
             </>
           ) : (
@@ -161,7 +139,29 @@ export function ZombieHud() {
               key={warming ? 'warm' : `break-${level}`}
               warming={warming}
               level={level}
-              durationMs={warming ? ZOMBIE_FIRST_DELAY_MS : ZOMBIE_LEVEL_BREAK_MS}
+            />
+          )}
+        </div>
+
+        {/* Bottom edge progress bar */}
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/50">
+          {active ? (
+            <div
+              className="h-full transition-[width] duration-300 ease-out"
+              style={{
+                width: `${pct}%`,
+                background: 'linear-gradient(90deg, #6b0f0f, #c91e1e, #ff3c3c)',
+                boxShadow: '0 -1px 6px rgba(255,60,60,0.6)',
+              }}
+            />
+          ) : (
+            <div
+              className="h-full origin-left"
+              style={{
+                background: 'linear-gradient(90deg, #a3802e, #d4af37)',
+                boxShadow: '0 -1px 6px rgba(212,175,55,0.6)',
+                animation: `wave-incoming ${warming ? ZOMBIE_FIRST_DELAY_MS : ZOMBIE_LEVEL_BREAK_MS}ms linear forwards`,
+              }}
             />
           )}
         </div>
@@ -170,38 +170,21 @@ export function ZombieHud() {
   );
 }
 
-/** The between-waves state: a headline + a bar that fills over the breather. */
-function CountdownState({
-  warming,
-  level,
-  durationMs,
-}: {
-  warming: boolean;
-  level: number;
-  durationMs: number;
-}) {
+/** The between-waves state: a simple text announcement aligned in the row. */
+function CountdownState({ warming, level }: { warming: boolean; level: number }) {
   return (
-    <>
-      <div
-        className="text-[10px] font-bold uppercase tracking-[0.18em]"
-        style={{ color: `${TOX}d0` }}
-      >
+    <div
+      className="flex items-center gap-2 text-[#ebdcb9] font-medium"
+      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+    >
+      <span className="font-display font-bold text-[#d4af37]">
         {warming ? 'Get Ready' : `Wave ${level} Cleared`}
-      </div>
-      <div className="text-[12px] font-semibold text-white/90">
+      </span>
+      <div className="w-px h-3 bg-[#d4af37]/30" />
+      <span className="text-white/70">
         {warming ? 'First horde incoming…' : 'Next horde incoming…'}
-      </div>
-      <div className="relative mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/60 ring-1 ring-inset ring-[#3a7d1f]/40">
-        <div
-          className="h-full origin-left rounded-full"
-          style={{
-            background: `linear-gradient(90deg, ${TOX}, ${TOX_BRIGHT})`,
-            boxShadow: '0 0 8px rgba(120,224,74,0.5)',
-            animation: `wave-incoming ${durationMs}ms linear forwards`,
-          }}
-        />
-      </div>
-    </>
+      </span>
+    </div>
   );
 }
 
@@ -267,76 +250,87 @@ export function WaveAnnouncement() {
   return (
     <>
       {/* Wave start flash */}
-      {shown && (() => {
-        const total = zombieHordeSize(shown.level);
-        const speedUp = zombieSpeedForLevel(shown.level) > zombieSpeedForLevel(shown.level - 1);
-        const bossWave = shown.level > 0 && shown.level % 6 === 0;
+      {shown &&
+        (() => {
+          const total = zombieHordeSize(shown.level);
+          const speedUp = zombieSpeedForLevel(shown.level) > zombieSpeedForLevel(shown.level - 1);
+          const bossWave = shown.level > 0 && shown.level % 6 === 0;
 
-        return (
-          <div
-            className="pointer-events-none absolute left-1/2 top-[24%] z-toast -translate-x-1/2"
-            role="status"
-            aria-live="polite"
-          >
+          return (
             <div
-              key={shown.nonce}
-              className="flex flex-col items-center gap-1.5"
-              style={{ animation: 'wave-flash 2.8s ease-out forwards' }}
+              className="pointer-events-none absolute left-1/2 top-[24%] z-toast -translate-x-1/2"
+              role="status"
+              aria-live="polite"
             >
-              <div className="flex items-center gap-4" style={{ color: TOX }}>
-                <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
-                <span
-                  className="font-display text-6xl font-black tracking-[0.15em]"
-                  style={{ textShadow: '0 0 32px rgba(120,224,74,0.7), 0 3px 10px rgba(0,0,0,0.7)' }}
-                >
-                  WAVE {shown.level}
-                </span>
-                <Skull size={32} aria-hidden="true" style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }} />
-              </div>
-              {/* Underline streak. */}
               <div
-                className="mt-1 h-px w-56"
-                style={{ background: `linear-gradient(90deg, transparent, ${TOX}, transparent)` }}
-              />
-              <div
-                className="mt-1 text-sm font-bold uppercase tracking-[0.3em]"
-                style={{ color: THREAT, textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}
+                key={shown.nonce}
+                className="flex flex-col items-center gap-1.5"
+                style={{ animation: 'wave-flash 2.8s ease-out forwards' }}
               >
-                {total} undead approaching
-              </div>
-              
-              {/* Alerts container */}
-              <div className="flex flex-col items-center gap-1.5 mt-2">
-                {speedUp && (
-                  <div
-                    className="flex items-center gap-1.5 rounded-full border border-gold/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-gold"
+                <div className="flex items-center gap-4" style={{ color: TOX }}>
+                  <Skull
+                    size={32}
+                    aria-hidden="true"
+                    style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }}
+                  />
+                  <span
+                    className="font-display text-6xl font-black tracking-[0.15em]"
                     style={{
-                      textShadow: '0 0 12px rgba(200,162,74,0.6)',
-                      animation: 'threat-pulse 0.5s ease-in-out 4',
+                      textShadow: '0 0 32px rgba(120,224,74,0.7), 0 3px 10px rgba(0,0,0,0.7)',
                     }}
                   >
-                    <Zap size={13} aria-hidden="true" />
-                    The horde is faster
-                  </div>
-                )}
-                
-                {bossWave && (
-                  <div
-                    className="flex items-center gap-1.5 rounded-full border border-red-500/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.3)]"
-                    style={{
-                      textShadow: '0 0 12px rgba(239,68,68,0.6)',
-                      animation: 'threat-pulse 0.5s ease-in-out 4',
-                    }}
-                  >
-                    <Skull size={13} aria-hidden="true" />
-                    Mini-Boss Spawned!
-                  </div>
-                )}
+                    WAVE {shown.level}
+                  </span>
+                  <Skull
+                    size={32}
+                    aria-hidden="true"
+                    style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,74,0.7))' }}
+                  />
+                </div>
+                {/* Underline streak. */}
+                <div
+                  className="mt-1 h-px w-56"
+                  style={{ background: `linear-gradient(90deg, transparent, ${TOX}, transparent)` }}
+                />
+                <div
+                  className="mt-1 text-sm font-bold uppercase tracking-[0.3em]"
+                  style={{ color: THREAT, textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}
+                >
+                  {total} undead approaching
+                </div>
+
+                {/* Alerts container */}
+                <div className="flex flex-col items-center gap-1.5 mt-2">
+                  {speedUp && (
+                    <div
+                      className="flex items-center gap-1.5 rounded-full border border-gold/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-gold"
+                      style={{
+                        textShadow: '0 0 12px rgba(200,162,74,0.6)',
+                        animation: 'threat-pulse 0.5s ease-in-out 4',
+                      }}
+                    >
+                      <Zap size={13} aria-hidden="true" />
+                      The horde is faster
+                    </div>
+                  )}
+
+                  {bossWave && (
+                    <div
+                      className="flex items-center gap-1.5 rounded-full border border-red-500/50 bg-black/50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                      style={{
+                        textShadow: '0 0 12px rgba(239,68,68,0.6)',
+                        animation: 'threat-pulse 0.5s ease-in-out 4',
+                      }}
+                    >
+                      <Skull size={13} aria-hidden="true" />
+                      Mini-Boss Spawned!
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* Door unlock announcement — separate from wave flash */}
       {doorMsg && (
@@ -391,4 +385,3 @@ export function WaveAnnouncement() {
     </>
   );
 }
-

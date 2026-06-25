@@ -5,8 +5,14 @@ import { useGameStore } from '../store/useGameStore';
 import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
 import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
-import { getCameraYaw, getCameraPitch, getCameraZoom } from '../store/cameraControl';
+import {
+  getCameraYaw,
+  getCameraPitch,
+  getCameraZoom,
+  getHeightScrollOffset,
+} from '../store/cameraControl';
 import { useFocusStore } from '../store/useFocusStore';
+import { useHudStore } from '../store/useHudStore';
 import { getCamera } from '../tuning';
 
 /** Hard bounds on the total camera pitch (rad above horizontal) so tuning +
@@ -131,7 +137,9 @@ export function CameraRig() {
           focusActive.current = true;
         }
         camera.position.lerp(_focusDesired, k);
-        _viewDir.set(cx - camera.position.x, FOCUS_LOOK_Y - camera.position.y, cz - camera.position.z).normalize();
+        _viewDir
+          .set(cx - camera.position.x, FOCUS_LOOK_Y - camera.position.y, cz - camera.position.z)
+          .normalize();
         _right.crossVectors(_viewDir, _up).normalize();
         // Aspect-aware shift: derive from the live FOV/aspect so the subject lands
         // at FOCUS_SUBJECT_X on every device (fixed world shift drifts with aspect).
@@ -172,8 +180,7 @@ export function CameraRig() {
     const coop = useCoopStore.getState();
     if (coop.phase === 'spectating' && me && !me.alive) {
       const watched = coop.spectateTargetId ? players.get(coop.spectateTargetId) : undefined;
-      const focus =
-        watched && watched.alive ? watched : livingTeammates(players, sessionId)[0];
+      const focus = watched && watched.alive ? watched : livingTeammates(players, sessionId)[0];
       if (focus) {
         target.set(focus.x, 0, focus.z);
         applyOrbit(camera, target, desired, me, delta);
@@ -262,6 +269,11 @@ function orbitDesired(
   lockOrientation = false,
 ): void {
   const cam = getCamera();
+  const mode = useHudStore.getState().cameraControlMode;
+  const baseDistance = mode === 1 ? 13.5 : cam.distance;
+  const baseHeight = mode === 1 ? 15.8 : cam.height;
+  const effectiveHeight = baseHeight + (mode === 2 ? getHeightScrollOffset() : 0);
+  const effectiveZoom = mode === 1 ? getCameraZoom() : 1;
   // Base orientation: blue looks down +Z, red is mirrored 180°. The user yaw
   // offset orbits the view on top of that — unless the orientation is locked
   // (the top-down Gun Mode camera keeps a fixed, predictable view).
@@ -269,8 +281,8 @@ function orbitDesired(
   const yaw = baseYaw + (lockOrientation ? 0 : getCameraYaw());
   // Tilt: orbit up/down at a constant radius from the player. The base pitch
   // comes from the tuned height/distance; the user offset adds a small ± tilt.
-  const radius = Math.hypot(cam.distance, cam.height) * getCameraZoom();
-  const basePitch = Math.atan2(cam.height, cam.distance);
+  const radius = Math.hypot(baseDistance, effectiveHeight) * effectiveZoom;
+  const basePitch = Math.atan2(effectiveHeight, baseDistance);
   const pitch = Math.min(
     MAX_PITCH,
     Math.max(MIN_PITCH, basePitch + (lockOrientation ? 0 : getCameraPitch())),

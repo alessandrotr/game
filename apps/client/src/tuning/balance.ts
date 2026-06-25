@@ -27,7 +27,7 @@ export interface CameraConfig {
   followSmoothing: number;
 }
 
-export const CAMERA: CameraConfig = { distance: 13.5, height: 15.8, followSmoothing: 30 };
+export const CAMERA: CameraConfig = { distance: 13.4, height: 11.0, followSmoothing: 30 };
 
 export const CAMERA_FIELD_META = {
   distance: { min: 2, max: 30, step: 0.1, label: 'Distance / Zoom' },
@@ -43,14 +43,18 @@ export interface BalanceOverrides {
   /** Global ability base patches. */
   abilityBase?: Partial<Record<AbilityKind, Partial<AbilityConfig>>>;
   /** Per-class ability deltas over the (already overridden) base. */
-  classAbilities?: Partial<Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>>;
+  classAbilities?: Partial<
+    Record<CharacterClass, Partial<Record<AbilityKind, Partial<AbilityConfig>>>>
+  >;
 }
 
-const merge = <T extends object>(base: T, patch?: Partial<T>): T => (patch ? { ...base, ...patch } : base);
+const merge = <T extends object>(base: T, patch?: Partial<T>): T =>
+  patch ? { ...base, ...patch } : base;
 
 // --- Effective value resolvers (canonical ⊕ override) ---
 
-export const effectiveMovement = (ov: BalanceOverrides): MovementConfig => merge(MOVEMENT, ov.movement);
+export const effectiveMovement = (ov: BalanceOverrides): MovementConfig =>
+  merge(MOVEMENT, ov.movement);
 
 export const effectiveCamera = (ov: BalanceOverrides): CameraConfig => merge(CAMERA, ov.camera);
 

@@ -1,8 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { addCameraYaw, addCameraPitch, addCameraZoom, resetCameraView } from '../store/cameraControl';
+import {
+  addCameraYaw,
+  addCameraPitch,
+  addCameraHeightScrollOffset,
+  addCameraZoom,
+  resetCameraView,
+} from '../store/cameraControl';
 import { useCameraPrefsStore } from '../store/useCameraPrefsStore';
 import { useGameStore } from '../store/useGameStore';
+import { useHudStore } from '../store/useHudStore';
 
 /** Rotation per pixel of middle-drag (radians) — same feel for yaw and pitch. */
 const DRAG_SENSITIVITY = 0.006;
@@ -14,6 +21,8 @@ const AD_KEY_SPEED = KEY_SPEED * 1.3;
  *  (ease-in on press) and back to 0 (ease-out on release) at this rate. Higher =
  *  snappier ramp (≈1/AD_EASE seconds to ~63% of peak). */
 const AD_EASE = 14;
+/** Height change per unit of wheel delta. */
+const HEIGHT_SCROLL_SENSITIVITY = 0.015;
 /** Zoom (radius multiplier) change per unit of wheel delta. */
 const ZOOM_SENSITIVITY = 0.001;
 /** Below this total drag (px), the middle press counts as a click → recenter. */
@@ -77,11 +86,17 @@ export function CameraControls() {
       if (moved < CLICK_SLOP) resetCameraView(); // a click recenters the view
     };
 
-    // Wheel zooms (scroll up = closer). Clamped to a gentle range in the store.
+    // Wheel adjusts camera zoom or height based on cameraControlMode.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault(); // don't scroll the page
       if (useCameraPrefsStore.getState().prefs.lockZoom) return;
-      addCameraZoom(e.deltaY * ZOOM_SENSITIVITY);
+
+      const mode = useHudStore.getState().cameraControlMode;
+      if (mode === 2) {
+        addCameraHeightScrollOffset(e.deltaY * HEIGHT_SCROLL_SENSITIVITY);
+      } else {
+        addCameraZoom(e.deltaY * ZOOM_SENSITIVITY);
+      }
     };
 
     const isTyping = () => {
@@ -94,12 +109,18 @@ export function CameraControls() {
       // moves the character, and the view stays fixed for predictable aim). Wheel
       // zoom still works (handled separately).
       if (useGameStore.getState().gunMode) return;
-      if (e.code === 'ArrowLeft') yawDir.current = -1; // orbit left
-      else if (e.code === 'ArrowRight') yawDir.current = 1; // orbit right
-      else if (e.code === 'KeyA') adDir.current = 1; // A → orbit right (inverted)
-      else if (e.code === 'KeyD') adDir.current = -1; // D → orbit left (inverted)
-      else if (e.code === 'ArrowUp') pitchDir.current = 1; // tilt toward top-down
-      else if (e.code === 'ArrowDown') pitchDir.current = -1; // tilt flatter
+      if (e.code === 'ArrowLeft')
+        yawDir.current = -1; // orbit left
+      else if (e.code === 'ArrowRight')
+        yawDir.current = 1; // orbit right
+      else if (e.code === 'KeyA')
+        adDir.current = 1; // A → orbit right (inverted)
+      else if (e.code === 'KeyD')
+        adDir.current = -1; // D → orbit left (inverted)
+      else if (e.code === 'ArrowUp')
+        pitchDir.current = 1; // tilt toward top-down
+      else if (e.code === 'ArrowDown')
+        pitchDir.current = -1; // tilt flatter
       else return;
       e.preventDefault(); // don't scroll the page
     };

@@ -15,9 +15,13 @@ const FIXED_PITCH_OFFSET = -MAX_PITCH_OFFSET;
 let yawOffset = 0;
 let pitchOffset = FIXED_PITCH_OFFSET;
 let zoom = 1;
+let heightScrollOffset = 0;
+
 /** Zoom is a radius multiplier, kept to a gentle range. */
 const MIN_ZOOM = 0.7;
 const MAX_ZOOM = 1.4;
+/** Max scroll offset for camera height to prevent floating too high. */
+const MAX_HEIGHT_SCROLL_OFFSET = 30;
 
 export function getCameraYaw(): number {
   return yawOffset;
@@ -45,11 +49,25 @@ export function addCameraZoom(delta: number): void {
   zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom + delta));
 }
 
-/** Snap back to the default (per-team) orientation and zoom; tilt stays fixed. */
+export function getHeightScrollOffset(): number {
+  return heightScrollOffset;
+}
+
+/** Adjust the height scroll offset, ensuring it never drops below 0 (the settings menu baseline). */
+export function addCameraHeightScrollOffset(delta: number): void {
+  heightScrollOffset = Math.max(0, Math.min(MAX_HEIGHT_SCROLL_OFFSET, heightScrollOffset + delta));
+}
+
+export function resetCameraHeightScrollOffset(): void {
+  heightScrollOffset = 0;
+}
+
+/** Snap back to the default (per-team) orientation, zoom and height offset; tilt stays fixed. */
 export function resetCameraView(): void {
   yawOffset = 0;
   pitchOffset = FIXED_PITCH_OFFSET;
   zoom = 1;
+  resetCameraHeightScrollOffset();
 }
 
 export function resetCameraYaw(): void {
