@@ -46,8 +46,16 @@ import { ClassPreview } from './ClassPreview';
 import { PaintStudio } from './PaintStudio';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
-import { registerPedestalThumb, setPedestalThumbHover, type PedestalThumbHandle } from '../render/pedestalThumbnails';
-import { registerWeaponThumb, setWeaponThumbHover, type WeaponThumbHandle } from '../render/weaponThumbnails';
+import {
+  registerPedestalThumb,
+  setPedestalThumbHover,
+  type PedestalThumbHandle,
+} from '../render/pedestalThumbnails';
+import {
+  registerWeaponThumb,
+  setWeaponThumbHover,
+  type WeaponThumbHandle,
+} from '../render/weaponThumbnails';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import {
   EmoteThumbStage,
@@ -102,7 +110,9 @@ function itemsFor(type: CosmeticType, characterClass: CharacterClass): Cosmetic[
 /** Every catalog item relevant to a class (shared types + this class's class-bound). */
 function classCatalog(characterClass: CharacterClass): Cosmetic[] {
   return COSMETICS.filter(
-    (c) => !CLASS_BOUND.has(c.type) || (c as { characterClass?: string }).characterClass === characterClass,
+    (c) =>
+      !CLASS_BOUND.has(c.type) ||
+      (c as { characterClass?: string }).characterClass === characterClass,
   );
 }
 
@@ -111,7 +121,8 @@ function colorOf(c: Cosmetic): string {
   // Only items that *are* a color carry one (pedestals/dyes/rims/enchants). The
   // rest stay neutral so the grid doesn't turn into a rainbow — their rarity
   // reads from the small dot/label instead.
-  if (c.type === 'dye' || c.type === 'pedestal' || c.type === 'rim' || c.type === 'enchant') return c.color;
+  if (c.type === 'dye' || c.type === 'pedestal' || c.type === 'rim' || c.type === 'enchant')
+    return c.color;
   return '#9aa3b8';
 }
 
@@ -289,7 +300,14 @@ function PedestalCanvas({
 
 /** Real 3D pedestal thumbnail for a catalog item. */
 function PedestalThumb({ c, hovered }: { c: Cosmetic & { type: 'pedestal' }; hovered?: boolean }) {
-  return <PedestalCanvas effect={c.effect ?? 'ring'} color={c.color} color2={c.color2} hovered={hovered} />;
+  return (
+    <PedestalCanvas
+      effect={c.effect ?? 'ring'}
+      color={c.color}
+      color2={c.color2}
+      hovered={hovered}
+    />
+  );
 }
 
 /** A `<canvas>` DOM child driven by the shared offscreen weapon renderer — shows a
@@ -426,11 +444,22 @@ function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
 // ---------------------------------------------------------------------------
 
 /** The CTA verb + style for an item's current state (level-gated). */
-function cardAction(c: Cosmetic, owned: boolean, equipped: boolean, loadout: Loadout, level: number) {
+function cardAction(
+  c: Cosmetic,
+  owned: boolean,
+  equipped: boolean,
+  loadout: Loadout,
+  level: number,
+) {
   if (!owned) {
     // Locked until the class reaches the required level.
     if (!isUnlocked(c, level)) {
-      return { label: `Lv ${requiredLevelFor(c)}`, variant: 'panel' as const, icon: Lock, disabled: true };
+      return {
+        label: `Lv ${requiredLevelFor(c)}`,
+        variant: 'panel' as const,
+        icon: Lock,
+        disabled: true,
+      };
     }
     return { label: 'Unlock', variant: 'goldCta' as const, icon: Sparkles, disabled: false };
   }
@@ -876,12 +905,7 @@ function SingleSlot({
   const items = itemsFor(type, characterClass).filter((c) => owned.includes(c.id));
   // Pedestal leads with the gray-ring default; enchant leads with a "None" tile
   // (remove the effect). Weapon never clears — its base is always an owned tile.
-  const lead =
-    type === 'pedestal'
-      ? 'pedestal'
-      : type === 'enchant'
-        ? 'none'
-        : 'none-needed';
+  const lead = type === 'pedestal' ? 'pedestal' : type === 'enchant' ? 'none' : 'none-needed';
   return (
     <section className="mb-5">
       <SlotHeader title={title} icon={icon} onBrowse={onBrowse} />
@@ -929,7 +953,8 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const enchantId = preview?.type === 'enchant' ? preview.id : loadout.enchantId;
   const title = titleId ? getCosmeticOfType(titleId, 'title') : undefined;
   // Previewing (clicking) an emote makes the showcase character perform it.
-  const animation: AnimationName = preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
+  const animation: AnimationName =
+    preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
 
   // Level + XP — overlaid on the canvas next to / below the name (both tabs).
   const sessionId = useGameStore.getState().sessionId;
@@ -1110,7 +1135,8 @@ function PaintGuestGate() {
       <div>
         <h3 className="font-display text-lg font-bold text-text">Painting is account-only</h3>
         <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-          Create a free account to paint your character — your paint job saves to your profile and shows to everyone in the world.
+          Create a free account to paint your character — your paint job saves to your profile and
+          shows to everyone in the world.
         </p>
       </div>
       <Button variant="gold" size="lg" onClick={() => openUpgrade(true)}>
@@ -1155,7 +1181,7 @@ export function CustomizePanel() {
         aria-describedby={undefined}
       >
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
-          <DialogTitle className="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
+          <DialogTitle className="max-lg:sr-only flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
             <Sparkles size={18} aria-hidden /> Champion
           </DialogTitle>
           <div className="ml-2 flex gap-1 rounded-xl bg-black/30 p-1">
@@ -1183,8 +1209,9 @@ export function CustomizePanel() {
             })}
           </div>
           {tab === 'store' && (
-            <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted">
-              <span className="font-semibold text-text">{ownedCount}</span> / {catalog.length} unlocked
+            <span className="max-lg:sr-only ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted">
+              <span className="font-semibold text-text">{ownedCount}</span> / {catalog.length}{' '}
+              unlocked
             </span>
           )}
           <DialogClose asChild>
