@@ -6,9 +6,7 @@ import {
   ARENA_POND,
   arenaSpawnsForTeam,
   generateArenaLayout,
-  generateSectionCover,
   generateRoomLayout,
-  trapForSection,
   clampToUnlockedArea,
   collideObstacles,
   type ArenaObstacle,
@@ -247,11 +245,10 @@ export class ArenaRoom extends AvatarRoom {
   /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
    *  it at (a brief linger so the death pose plays before it vanishes). */
   private readonly zombieCorpseAt = new Map<string, number>();
-  /** Mode-specific zombie-survival logic (per-zombie AI + spawn portals; more to
-   *  follow). Built only in zombie mode; undefined otherwise. */
+  /** Mode-specific zombie-survival logic: per-zombie AI, spawning, horde
+   *  collision resolution, mini-boss AI, and room-expansion door unlocks. Built
+   *  only in zombie mode; undefined otherwise. */
   private zombie?: ZombieSurvival;
-  /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
-  private readonly bossNextActionAt = new Map<string, number>();
   /** Chest spawn timer (ms). Starts at 1.5 minutes (90000 ms), then resets to 1.5 minutes (90000 ms). */
   private chestSpawnTimer = 90000;
 
@@ -370,10 +367,21 @@ export class ArenaRoom extends AvatarRoom {
         verticalVelocity: this.verticalVelocity,
         grounded: this.grounded,
         cooldowns: this.cooldowns,
+        attackTargets: this.attackTargets,
         arenaLimit: this.arenaLimit,
+        arenaLimitZ: this.arenaLimitZ,
+        zombieStaticObstacles: this.zombieStaticObstacles,
+        gunMode: this.gunMode,
         nextBotId: () => ++this.botSeq,
         resetPlayer: (player) => this.resetPlayer(player),
         roomLayout: () => this.roomLayout,
+        combat: this.combat,
+        projectiles: this.projectiles,
+        cover: this.cover,
+        barrels: this.barrels,
+        destructibles: this.destructibles,
+        traps: this.traps,
+        broadcast: (type, message) => this.broadcast(type, message),
       });
       this.cover.setRoomLayout(this.roomLayout);
       this.destructibles.setRoomLayout(this.roomLayout);
@@ -397,7 +405,7 @@ export class ArenaRoom extends AvatarRoom {
         humansPresent: () => this.zombie!.countHumans() > 0,
         onWaveClear: (level) => {
           // --- Room expansion: unlock the next door if this wave matches ---
-          this.tryUnlockDoor(level);
+          this.zombie!.tryUnlockDoor(level);
           if (!this.perkSystem) return false;
           return this.perkSystem.onWaveClear(level);
         },
@@ -1450,7 +1458,7 @@ export class ArenaRoom extends AvatarRoom {
 
       // Update Mini-Boss AI if this player is the mini-boss
       if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
-        this.updateMiniBossAI(player, sessionId);
+        this.zombie!.updateMiniBossAI(player, sessionId);
         // Knock dynamic objects (barrels, drums, tires) over while walking
         this.barrels.triggerInRadius(player.x, player.z, 1.6, sessionId);
         this.destructibles.pushInRadius(player.x, player.z, 1.6, sessionId, 1);
@@ -1612,7 +1620,7 @@ export class ArenaRoom extends AvatarRoom {
 
     // Zombies are solid: keep a horde from collapsing onto a single point (and
     // off the top of a player) by separating overlapping bodies each tick.
-    if (this.zombieMode) this.resolveZombieCollisions();
+    if (this.zombieMode) this.zombie!.resolveZombieCollisions();
 
     this.processChannels();
     this.combat.processDashImpacts();
@@ -1786,242 +1794,6 @@ export class ArenaRoom extends AvatarRoom {
     this.zombieCorpseAt.delete(id);
     this.zombie?.forget(id);
     this.bots.delete(id);
-  }
-
-  // --- Zombie survival ---------------------------------------------------
-
-  /**
-   * Make zombies solid: a single circle-vs-circle separation relaxation each
-   * tick so a horde fans out around its prey instead of stacking on one point.
-   * Zombie↔zombie overlaps split the push between both; a zombie overlapping a
-   * human is shoved fully clear (the human isn't moved — pushing a predicted,
-   * point-and-click player server-side would rubber-band them). Pushed zombies
-   * are re-resolved against cover so they can't be wedged into an obstacle.
-   */
-  private resolveZombieCollisions(): void {
-    const zombies: Player[] = [];
-    this.bots.forEach((_profile, id) => {
-      const z = this.state.players.get(id);
-      if (z?.alive) zombies.push(z);
-    });
-    if (zombies.length === 0) return;
-
-    const startPos = new Map<string, { x: number; z: number }>();
-    for (const z of zombies) {
-      startPos.set(z.sessionId, { x: z.x, z: z.z });
-    }
-
-    // Zombie ↔ zombie: push apart equally (a deterministic axis when exactly
-    // coincident, e.g. two spawned on the same jittered point).
-    for (let i = 0; i < zombies.length; i++) {
-      const a = zombies[i]!;
-      const aRadius = a.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-      for (let j = i + 1; j < zombies.length; j++) {
-        const b = zombies[j]!;
-        const bRadius = b.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-        const minSep = aRadius + bRadius;
-        const minSepSq = minSep * minSep;
-        let dx = b.x - a.x;
-        let dz = b.z - a.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 >= minSepSq) continue;
-        let d = Math.sqrt(d2);
-        if (d < 1e-4) {
-          dx = i % 2 === 0 ? 1 : -1;
-          dz = 0;
-          d = 1;
-        }
-        const push = (minSep - d) / 2;
-        const ox = (dx / d) * push;
-        const oz = (dz / d) * push;
-        const aLimit = this.arenaLimit - aRadius;
-        const bLimit = this.arenaLimit - bRadius;
-        const aLimitZ = this.arenaLimitZ - aRadius;
-        const bLimitZ = this.arenaLimitZ - bRadius;
-        a.x = clamp(a.x - ox, -aLimit, aLimit);
-        a.z = clamp(a.z - oz, -aLimitZ, aLimitZ);
-        b.x = clamp(b.x + ox, -bLimit, bLimit);
-        b.z = clamp(b.z + oz, -bLimitZ, bLimitZ);
-      }
-    }
-
-    // Zombie ↔ human: shove the zombie fully out (leave the human put).
-    this.state.players.forEach((human, id) => {
-      if (this.bots.has(id) || !human.alive) return;
-      const humanRadius = PLAYER_RADIUS;
-      for (const z of zombies) {
-        const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-        const minSep = humanRadius + zRadius;
-        const minSepSq = minSep * minSep;
-        const dx = z.x - human.x;
-        const dz = z.z - human.z;
-        const dist2 = dx * dx + dz * dz;
-        if (dist2 >= minSepSq || dist2 < 1e-8) continue;
-        const d = Math.sqrt(dist2);
-        const push = minSep - d;
-        const zLimit = this.arenaLimit - zRadius;
-        z.x = clamp(z.x + (dx / d) * push, -zLimit, zLimit);
-        z.z = clamp(z.z + (dz / d) * push, -zLimit, zLimit);
-      }
-    });
-
-    // Re-resolve cover and prop collisions for any zombie nudged into an obstacle.
-    // Reuses the cover+prop list built once for this tick in `update()` (props
-    // move only in the later physics step, so it's still current here).
-    const zombieStaticObstacles = this.zombieStaticObstacles;
-
-    for (const z of zombies) {
-      const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-      const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, zRadius);
-      z.x = fixed.x;
-      z.z = fixed.z;
-      // Enforce section boundaries so pushed zombies can't end up in locked areas.
-      if (this.roomLayout) {
-        const start = startPos.get(z.sessionId) ?? { x: z.x, z: z.z };
-        const clamped = clampToUnlockedArea(
-          z.x,
-          z.z,
-          this.roomLayout,
-          this.state.unlockedSections,
-          zRadius,
-          start.x,
-          start.z,
-        );
-        z.x = clamped.x;
-        z.z = clamped.z;
-      }
-    }
-  }
-
-
-  private updateMiniBossAI(bot: Player, id: string): void {
-    if (isStunned(bot) || isBlinded(bot)) return;
-    if (this.simTime < (this.bossNextActionAt.get(id) ?? 0)) return;
-    
-    // Mini-boss target
-    const targetId = this.attackTargets.get(id);
-    const target = targetId ? this.state.players.get(targetId) : undefined;
-    if (!target || !target.alive) {
-      // Re-evaluate target or try to find the closest player
-      let bestTarget: Player | undefined;
-      let minD2 = Infinity;
-      this.state.players.forEach((p) => {
-        if (!p.alive || p.team === bot.team) return;
-        const dx = p.x - bot.x;
-        const dz = p.z - bot.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 < minD2) {
-          minD2 = d2;
-          bestTarget = p;
-        }
-      });
-      if (bestTarget) {
-        this.attackTargets.set(id, bestTarget.sessionId);
-        this.bossNextActionAt.set(id, this.simTime + 500); // short wait to re-aim
-      }
-      return;
-    }
-
-    // Set next action timestamp (3.5 to 6s cooldown)
-    const interval = 3500 + Math.random() * 2500;
-    this.bossNextActionAt.set(id, this.simTime + interval);
-
-    // Roll for action: 50% chance fireball, 50% chance stomp shockwave
-    const roll = Math.random();
-    if (roll < 0.5) {
-      // 5-way Fireball burst
-      const baseAngle = Math.atan2(target.x - bot.x, target.z - bot.z);
-      for (let i = 0; i < 5; i++) {
-        const angle = baseAngle + i * ((2 * Math.PI) / 5);
-        const dirX = Math.sin(angle);
-        const dirZ = Math.cos(angle);
-        
-        // Spawn fireball projectile (3x slower velocity: 15 instead of 45)
-        this.projectiles.spawnProjectile(
-          bot,
-          'fireball',
-          dirX,
-          dirZ,
-          15,
-          30,
-          1.0,
-          [{ type: 'damage', amount: 20 }]
-        );
-      }
-    } else {
-      // Stomp shockwave: circular shockwave hitting everyone in a 7.0 unit radius, dealing 25 damage and knocking them back.
-      this.combat.forEachEnemyInRadius(bot.x, bot.z, 7.0, id, (enemy) => {
-        this.combat.dealDamage(enemy, 25, id);
-        this.combat.applyStatus(enemy, { kind: 'slow', durationMs: 2000, magnitude: 0.6 }, id);
-        const dx = enemy.x - bot.x;
-        const dz = enemy.z - bot.z;
-        const dist = Math.hypot(dx, dz) || 1;
-        this.combat.displace(enemy, dx / dist, dz / dist, 4, 18, 0, id);
-      });
-      // Play ground slam VFX on clients
-      this.broadcast(ServerMessage.AbilityCast, {
-        casterId: id,
-        ability: 'ground_slam',
-        x: bot.x,
-        y: 0.05,
-        z: bot.z,
-        dirX: 0,
-        dirZ: 1,
-      });
-    }
-  }
-
-  // --- Room expansion system -----------------------------------------------
-
-  /** If `level` matches the next door's unlock wave, open that door and load
-   *  the section behind it. No-op if all doors are already open. */
-  private tryUnlockDoor(level: number): void {
-    if (!this.roomLayout) {
-      console.log(`[doors] tryUnlockDoor(${level}): no roomLayout — skipping`);
-      return;
-    }
-    const nextIndex = this.state.unlockedSections;
-    if (nextIndex >= this.roomLayout.doors.length) return;
-    const door = this.roomLayout.doors[nextIndex]!;
-    if (level < door.unlockWave) {
-      console.log(`[doors] tryUnlockDoor(${level}): wave ${level} < required ${door.unlockWave} for door ${door.index}`);
-      return;
-    }
-
-    console.log(`[doors] UNLOCKING door ${door.index} at (${door.x}, ${door.z}) — wave ${level}, width ${door.width}`);
-
-    // Remove the door's wall from the collision set.
-    this.cover.removeDoor(`door-${door.index}`);
-
-    // Generate cover for the newly unlocked section.
-    const section = this.roomLayout.sections[nextIndex];
-    if (section) {
-      // Traps are zombie-mode only and never appear in gun mode. Compute it up
-      // front so cover generation can reserve its area (nothing spawns on a
-      // trap) — the client mirrors this exact call so both layouts agree.
-      const trap = this.gunMode ? null : trapForSection(this.state.layoutSeed, section);
-      const sectionCover = generateSectionCover(this.state.layoutSeed, section, trap);
-      this.cover.addSection(sectionCover.structures);
-      this.barrels.addBarrels(sectionCover.barrels);
-      this.destructibles.addObjects(sectionCover.drums, sectionCover.tireStacks);
-      console.log(`[doors] Section ${section.name} loaded: ${sectionCover.structures.length} structures, ${sectionCover.barrels.length} barrels`);
-
-      if (trap) {
-        this.traps.addTrap(trap);
-        console.log(`[traps] ${trap.kind} trap placed in ${section.name} at (${trap.x}, ${trap.z})`);
-      }
-    }
-
-    // Increment the replicated counter (drives client rendering + minimap).
-    this.state.unlockedSections = nextIndex + 1;
-    console.log(`[doors] unlockedSections now = ${this.state.unlockedSections}`);
-
-    // Broadcast a door-open event so clients play the crumble VFX.
-    this.broadcast(ServerMessage.StructureCrumbled, {
-      x: door.x,
-      z: door.z,
-      radius: door.width / 2,
-    });
   }
 
 }

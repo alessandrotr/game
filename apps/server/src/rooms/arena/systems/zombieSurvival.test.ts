@@ -6,6 +6,11 @@ import {
 } from '@arena/shared';
 import { ZombieSurvival, type ZombieSurvivalDeps } from './zombieSurvival';
 
+// A no-op stand-in for the gameplay systems the mini-boss / door logic drive.
+// The tests below exercise only the AI-personality + portal + counts helpers,
+// which never touch these — so an empty cast is enough to satisfy the deps type.
+const stubSystem = <T>() => ({}) as T;
+
 const make = (over: Partial<ZombieSurvivalDeps> = {}) =>
   new ZombieSurvival({
     now: () => 1000,
@@ -14,10 +19,21 @@ const make = (over: Partial<ZombieSurvivalDeps> = {}) =>
     verticalVelocity: new Map(),
     grounded: new Map(),
     cooldowns: new Map(),
+    attackTargets: new Map(),
     arenaLimit: 38,
+    arenaLimitZ: 38,
+    zombieStaticObstacles: [],
+    gunMode: false,
     nextBotId: () => 1,
     resetPlayer: () => {},
     roomLayout: () => null,
+    combat: stubSystem<ZombieSurvivalDeps['combat']>(),
+    projectiles: stubSystem<ZombieSurvivalDeps['projectiles']>(),
+    cover: stubSystem<ZombieSurvivalDeps['cover']>(),
+    barrels: stubSystem<ZombieSurvivalDeps['barrels']>(),
+    destructibles: stubSystem<ZombieSurvivalDeps['destructibles']>(),
+    traps: stubSystem<ZombieSurvivalDeps['traps']>(),
+    broadcast: () => {},
     ...over,
   });
 
