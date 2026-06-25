@@ -22,7 +22,6 @@ import {
   ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
   gunMoveSpeedMult,
-  isGunView,
   type GunView,
   MANA_REGEN,
   MATCH_RESULT_LINGER_MS,
@@ -61,7 +60,6 @@ import {
   type ClientMessagePayloads,
   ServerMessage,
   isAbilityKind,
-  isPerkId,
   isRooted,
   isSilenced,
   isStunned,
@@ -107,7 +105,9 @@ import { GroundZoneSystem } from './arena/systems/groundZones.js';
 import { PickableSystem } from './arena/systems/pickables.js';
 import { TrapSystem } from './arena/systems/traps.js';
 import { resolveGameMode, deathPolicy, type GameMode } from './arena/modes.js';
-import { normalizeAim, inBeam } from './arena/combatMath.js';
+import { inBeam } from './arena/combatMath.js';
+import { registerGunHandlers } from './arena/gunHandlers.js';
+import { registerDevHandlers } from './arena/devHandlers.js';
 import { ArenaPhysics } from './arena/systems/physics.js';
 import { CoverSystem } from './arena/systems/cover.js';
 import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/systems/bots.js';
@@ -537,44 +537,15 @@ export class ArenaRoom extends AvatarRoom {
       },
     );
 
-    this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) =>
-      this.tuning.tuneMovement(message),
-    );
-    this.onMessage(
-      ClientMessage.AbilityTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.AbilityTune]) =>
-        this.tuning.tuneAbilities(message),
-    );
-    this.onMessage(
-      ClientMessage.StatTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) =>
-        this.tuning.tuneStats(message),
-    );
-    this.onMessage(
-      ClientMessage.BotControl,
-      (_client, message: ClientMessagePayloads[ClientMessage.BotControl]) =>
-        this.setBotPopulation(message),
-    );
-    // Dev-only perk debugging. Ignored in production so a crafted client can't
-    // grant itself perks in a live match.
-    this.onMessage(
-      ClientMessage.DevGrantPerk,
-      (client, message: ClientMessagePayloads[ClientMessage.DevGrantPerk]) => {
-        if (process.env.NODE_ENV === 'production' || !this.perkSystem) return;
-        if (message?.action === 'clear') this.perkSystem.devClear(client.sessionId);
-        else if (message?.action === 'grant' && isPerkId(message.perkId))
-          this.perkSystem.devGrant(client.sessionId, message.perkId);
-      },
-    );
-    // Dev-only: jump the caller up N levels (no-op in production).
-    this.onMessage(
-      ClientMessage.DevAddLevel,
-      (client, message: ClientMessagePayloads[ClientMessage.DevAddLevel]) => {
-        if (process.env.NODE_ENV === 'production') return;
-        const player = this.state.players.get(client.sessionId);
-        if (player) this.combat.devAddLevels(player, message?.amount ?? 1);
-      },
-    );
+    // Dev-only tuning + debug handlers (live balance, bots, grant perks, add
+    // levels). Given just the systems it needs + a bot-population callback.
+    registerDevHandlers(this, {
+      tuning: this.tuning,
+      combat: this.combat,
+      perkSystem: this.perkSystem,
+      setBotPopulation: (message) => this.setBotPopulation(message),
+    });
+
     this.onMessage(
       ClientMessage.SetAutoAttack,
       (_client, message: ClientMessagePayloads[ClientMessage.SetAutoAttack]) =>
@@ -623,7 +594,7 @@ export class ArenaRoom extends AvatarRoom {
 
     // Gun Mode Zombie weapon input (fire / switch / reload / aim). Registered
     // only in gun mode; the handlers are a no-op for dead players / CC'd casters.
-    if (this.mode.usesGuns) this.registerGunHandlers();
+    if (this.mode.usesGuns && this.guns) registerGunHandlers(this, this.guns, this.gunViews);
 
     // Swallow + capture a thrown tick instead of letting it bubble to
     // `uncaughtException` (which restarts the process and disconnects everyone).
@@ -846,52 +817,6 @@ export class ArenaRoom extends AvatarRoom {
 
   /** Wire the gun-mode weapon handlers (fire / switch / reload / aim). The
    *  {@link GunSystem} owns the magazine / fire-rate / reload rules. */
-  private registerGunHandlers(): void {
-    this.onMessage(
-      ClientMessage.FireWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.FireWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive || isStunned(player) || isBlinded(player)) return;
-        const { dirX, dirZ } = normalizeAim(player, message?.dirX, message?.dirZ);
-        this.guns?.fire(player, dirX, dirZ);
-      },
-    );
-
-    this.onMessage(
-      ClientMessage.SwitchWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.SwitchWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive) return;
-        this.guns?.switchTo(player, Math.floor(Number(message?.slot)));
-      },
-    );
-
-    this.onMessage(ClientMessage.ReloadWeapon, (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive || isStunned(player)) return;
-      this.guns?.reload(player);
-    });
-
-    this.onMessage(
-      ClientMessage.AimWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.AimWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive) return;
-        const dx = Number(message?.dirX) || 0;
-        const dz = Number(message?.dirZ) || 0;
-        if (Math.hypot(dx, dz) < 1e-3) return;
-        player.rotation = Math.atan2(dx, dz);
-      },
-    );
-
-    this.onMessage(
-      ClientMessage.SetGunView,
-      (client, message: ClientMessagePayloads[ClientMessage.SetGunView]) => {
-        if (isGunView(message?.view)) this.gunViews.set(client.sessionId, message.view);
-      },
-    );
-  }
-
   /** Resolve a normalized aim vector, falling back to the player's facing. */
   // --- Ability input -----------------------------------------------------
 
