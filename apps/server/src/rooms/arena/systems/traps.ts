@@ -17,8 +17,8 @@ import {
   isZombieSkin,
   type TrapDef,
 } from '@arena/shared';
-import { Trap } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { Trap } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import type { GroundZoneSystem } from './groundZones.js';
 

@@ -323,7 +323,7 @@ export function WaveAnnouncement() {
                       }}
                     >
                       <Skull size={13} aria-hidden="true" />
-                      Mini-Boss Spawned!
+                      Dread Knight Approaches!
                     </div>
                   )}
                 </div>

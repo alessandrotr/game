@@ -144,7 +144,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
   },
   phantom: {
     id: 'phantom', name: 'Phantom', icon: 'Wind', tier: 'legendary', chain: 1,
-    description: '+3 move speed, 15% chance to dodge zombie melee attacks',
+    description: '+3 move speed, 15% chance to dodge undead melee attacks',
     upgradesFrom: 'wind_runner',
     modifiers: { moveSpeedBonus: 3, dodgeChance: 0.15 },
   },
@@ -164,7 +164,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
   },
   infinite_power: {
     id: 'infinite_power', name: 'Infinite Power', icon: 'Infinity', tier: 'legendary', chain: 2,
-    description: '+60% mana regen, abilities cost 30% less, zombie kills refund 5 mana',
+    description: '+60% mana regen, abilities cost 30% less, undead kills refund 5 mana',
     upgradesFrom: 'arcane_reservoir',
     modifiers: { manaRegenMult: 1.60, manaCostMult: 0.70, manaPerKill: 5 },
   },
@@ -184,7 +184,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
   },
   overclock: {
     id: 'overclock', name: 'Overclock', icon: 'Timer', tier: 'legendary', chain: 3,
-    description: '−45% cooldowns, killing 10 zombies within 2s resets all cooldowns',
+    description: '−45% cooldowns, killing 10 undead within 2s resets all cooldowns',
     upgradesFrom: 'rapid_fire',
     modifiers: { cooldownMult: 0.55, overclockKillThreshold: 10 },
   },
@@ -323,7 +323,7 @@ export const PERKS: Record<PerkId, PerkDef> = {
   },
   plague: {
     id: 'plague', name: 'Plague', icon: 'Biohazard', tier: 'legendary', chain: 10,
-    description: 'Ability hits poison targets for 6s (5 DPS); hits also poison all zombies in a 1.5 radius',
+    description: 'Ability hits poison targets for 6s (5 DPS); hits also poison all undead in a 1.5 radius',
     upgradesFrom: 'toxic_spores',
     modifiers: { poisonDurationMs: 6000, poisonDamagePerSecond: 5, poisonSpreadRadius: 1.5 },
   },

@@ -216,8 +216,8 @@ const PEDESTALS: PedestalCosmetic[] = [
   { id: 'pedestal.azure', type: 'pedestal', effect: 'ring', color: '#4a8bff', name: 'Azure Rune', description: 'A glacial blue circle.', rarity: 'common', requiredLevel: 4 },
   { id: 'pedestal.emerald', type: 'pedestal', effect: 'ring', color: '#3fb87a', name: 'Emerald Rune', description: 'A living green circle.', rarity: 'common', requiredLevel: 5 },
   // Animated, shader-driven showpieces — rare/epic/legendary bands.
-  { id: 'pedestal.pulse', type: 'pedestal', effect: 'pulse', color: '#22e1ff', name: 'Pulse Core', description: 'Concentric energy waves ripple outward beneath you.', rarity: 'rare', requiredLevel: 11 },
-  { id: 'pedestal.holo', type: 'pedestal', effect: 'holo', color: '#27e0c8', name: 'Hologrid', description: 'A flickering holographic deck of scanlines.', rarity: 'rare', requiredLevel: 14 },
+  { id: 'pedestal.pulse', type: 'pedestal', effect: 'pulse', color: '#22e1ff', name: 'Manaheart', description: 'Concentric waves of mana ripple outward beneath you.', rarity: 'rare', requiredLevel: 11 },
+  { id: 'pedestal.holo', type: 'pedestal', effect: 'holo', color: '#27e0c8', name: 'Glyphward', description: 'A flickering lattice of arcane glyphs.', rarity: 'rare', requiredLevel: 14 },
   { id: 'pedestal.aurora', type: 'pedestal', effect: 'aurora', color: '#3fb87a', color2: '#4a8bff', name: 'Aurora Veil', description: 'Northern lights drift in a slow ribbon.', rarity: 'epic', requiredLevel: 18 },
   { id: 'pedestal.vortex', type: 'pedestal', effect: 'vortex', color: '#9a6cff', color2: '#ff4d8d', name: 'Singularity', description: 'A spiral of light winds into the core.', rarity: 'legendary', requiredLevel: 30 },
   { id: 'pedestal.prism', type: 'pedestal', effect: 'prism', color: '#ff4d8d', name: 'Prismatica', description: 'A rotating spectrum of pure, shifting color.', rarity: 'legendary', requiredLevel: 38 },
@@ -239,7 +239,7 @@ const RIMS: RimCosmetic[] = [
   { id: 'rim.cobalt', type: 'rim', effect: 'solid', color: '#4a8bff', name: 'Cobalt', description: 'A cold electric-blue edge.', rarity: 'common', requiredLevel: 3 },
   { id: 'rim.viper', type: 'rim', effect: 'solid', color: '#3fb87a', name: 'Viper', description: 'Toxic-green trim with a sharp glow.', rarity: 'common', requiredLevel: 5 },
   // Rare band (10–15): brighter, gradient edges.
-  { id: 'rim.plasma', type: 'rim', effect: 'gradient', color: '#22e1ff', color2: '#4a8bff', name: 'Plasma', description: 'A charged cyan-to-blue gradient.', rarity: 'rare', requiredLevel: 11 },
+  { id: 'rim.plasma', type: 'rim', effect: 'gradient', color: '#22e1ff', color2: '#4a8bff', name: 'Arcane', description: 'A charged cyan-to-blue arcane gradient.', rarity: 'rare', requiredLevel: 11 },
   { id: 'rim.inferno', type: 'rim', effect: 'gradient', color: '#ffb43a', color2: '#ff3a3a', name: 'Inferno', description: 'Molten amber bleeding into red.', rarity: 'rare', requiredLevel: 14 },
   // Epic band (16–25): animated pulse + dual-tone.
   { id: 'rim.void', type: 'rim', effect: 'pulse', color: '#9a6cff', name: 'Void', description: 'A pulsing violet halo.', rarity: 'epic', requiredLevel: 18 },
@@ -285,7 +285,7 @@ const ENCHANTS: EnchantCosmetic[] = [
   { id: 'enchant.mage.arcane', type: 'enchant', characterClass: 'mage', effect: 'arcane', color: '#c43cff', color2: '#4a7bff', name: 'Arcane', description: 'Energy swirls around the focus.', rarity: 'common', requiredLevel: 3 },
   { id: 'enchant.mage.frost', type: 'enchant', characterClass: 'mage', effect: 'frost', color: '#00c8ff', color2: '#eafcff', name: 'Frostbound', description: 'A glacial shimmer rimes the gem.', rarity: 'rare', requiredLevel: 13 },
   { id: 'enchant.mage.void', type: 'enchant', characterClass: 'mage', effect: 'void', color: '#ff2a48', color2: '#1a0006', name: 'Voidtouched', description: 'The core drinks the light.', rarity: 'epic', requiredLevel: 21 },
-  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'astral', color: '#ffc24a', color2: '#ffe9a8', name: 'Astral', description: 'A black void of deep space, alive with stars.', rarity: 'legendary', requiredLevel: 34 },
+  { id: 'enchant.mage.astral', type: 'enchant', characterClass: 'mage', effect: 'astral', color: '#ffc24a', color2: '#ffe9a8', name: 'Astral', description: 'A field of starlight wheels across the blade.', rarity: 'legendary', requiredLevel: 34 },
   // Archer — four distinct effects, four distinct colors.
   { id: 'enchant.archer.venom', type: 'enchant', characterClass: 'archer', effect: 'venom', color: '#9bff1a', color2: '#2a6a00', name: 'Envenomed', description: 'Toxin beads along the limb.', rarity: 'common', requiredLevel: 4 },
   { id: 'enchant.archer.gale', type: 'enchant', characterClass: 'archer', effect: 'storm', color: '#5fffd8', color2: '#ffffff', name: 'Galeforce', description: 'A sharp wind sings off the string.', rarity: 'rare', requiredLevel: 13 },

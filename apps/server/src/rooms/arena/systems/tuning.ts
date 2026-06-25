@@ -18,7 +18,7 @@ import {
   type FieldMeta,
   type MovementConfig,
 } from '@arena/shared';
-import { clamp } from '../util/locomotion.js';
+import { clamp } from '../../util/locomotion.js';
 
 /**
  * The authoritative, live-tunable balance for a single arena room. Seeded from

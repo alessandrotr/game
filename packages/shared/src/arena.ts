@@ -13,6 +13,8 @@
 
 import {
   ARENA_HALF_SIZE,
+  ARENA_HALF_Z,
+  ARENA_POND,
   ARENA_SPAWN_POINTS,
   ZOMBIE_FLANK_PORTALS,
   type ArenaObstacle,
@@ -80,6 +82,14 @@ export function structureHp(radius: number, height: number): number {
 export const TRAILER_HALF_LENGTH = 2.4;
 export const TRAILER_HALF_WIDTH = 1.2;
 
+/** Footprint half-extents for the log cabins: `hw` = half LENGTH (local X, before
+ *  lengthScale), `hd` = half WIDTH (local Z). Long + rectangular like the old
+ *  trailers; the collider tiles width-circles down the length. */
+const BUILDING_FOOTPRINTS: Record<string, { hw: number; hd: number }> = {
+  'prop.building.shack': { hw: 2.4, hd: 1.25 },
+  'prop.building.shack.small': { hw: 2.0, hd: 1.2 },
+};
+
 /** True for trailer cover — the elongated, length-varied structures whose collider
  *  is a length-fitted capsule rather than a single circle. */
 export function isTrailerAsset(assetId: string): boolean {
@@ -119,9 +129,47 @@ export function structureFootprint(
     return circles;
   }
 
+  if (assetId === 'prop.arena.palisade') {
+    // A thin, long wall: tile small circles along its length so players take cover
+    // behind it and slip around the ends (radius = the wall's half-length).
+    const halfWidth = 0.45;
+    const halfLength = radius;
+    const dirX = Math.cos(rotation);
+    const dirZ = -Math.sin(rotation);
+    const reach = halfLength - halfWidth;
+    if (reach < 1e-3) return [{ x, z, radius: halfWidth, height }];
+    const segments = Math.max(1, Math.ceil((reach * 2) / halfWidth));
+    const circles: ArenaObstacle[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = -reach + (reach * 2 * i) / segments;
+      circles.push({ x: x + dirX * t, z: z + dirZ * t, radius: halfWidth, height });
+    }
+    return circles;
+  }
+
   if (assetId === 'prop.arena.fence.rust') {
     const halfWidth = 0.8;
     const halfLength = radius; // door.width / 2
+    const dirX = Math.cos(rotation);
+    const dirZ = -Math.sin(rotation);
+    const reach = halfLength - halfWidth;
+    if (reach < 1e-3) return [{ x, z, radius: halfWidth, height }];
+    const segments = Math.max(1, Math.ceil((reach * 2) / halfWidth));
+    const circles: ArenaObstacle[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = -reach + (reach * 2 * i) / segments;
+      circles.push({ x: x + dirX * t, z: z + dirZ * t, radius: halfWidth, height });
+    }
+    return circles;
+  }
+
+  const bf = BUILDING_FOOTPRINTS[assetId];
+  if (bf) {
+    // A long rectangular cabin (like the old trailers): tile width-radius circles
+    // down its (length-scaled) length so the collider hugs the rectangle and is
+    // never wider than the body.
+    const halfWidth = bf.hd;
+    const halfLength = bf.hw * lengthScale;
     const dirX = Math.cos(rotation);
     const dirZ = -Math.sin(rotation);
     const reach = halfLength - halfWidth;
@@ -158,7 +206,8 @@ export function structureFootprint(
 
 // --- Placement constraints (world units) ---
 const MARGIN = 3; // keep objects this far inside the walls
-const MAX_R = ARENA_HALF_SIZE - MARGIN; // outer bound for object centers
+const MAX_R = ARENA_HALF_SIZE - MARGIN; // outer bound for object centers (X)
+const MAX_R_Z_FFA = ARENA_HALF_Z - MARGIN; // outer bound along Z in the (longer) FFA arena
 const SPAWN_CLEAR = 5; // keep cover away from every spawn point
 const PORTAL = { x: 0, z: -ARENA_HALF_SIZE + 2 }; // town portal (and its mirror)
 const PORTAL_CLEAR = 4;
@@ -186,15 +235,22 @@ interface DecorKind {
 }
 
 const COVER: CoverKind[] = [
-  // Destructible HP structures: trailers are the "houses" (largest → 500 HP);
-  // cars and dumpsters scale down by size. These crumble when their HP is gone.
-  { assetId: 'prop.arena.trailer', radius: 2, height: 2.8, count: 2, destructible: true },
-  { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, count: 1, destructible: true },
-  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 2, destructible: true },
-  { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, count: 1, destructible: true },
-  // Scrap heaps: destructible cover with a fixed 125 HP (small but tougher than
-  // its size alone would scale to).
-  { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, count: 1, destructible: true, maxHp: 125 },
+  // Timber village houses — the medieval "buildings" (largest HP, as big as the
+  // old trailers). Destructible: they crumble to rubble when their HP runs out,
+  // and their windows glow warmly at dusk. Indestructible in zombie mode (loop).
+  { assetId: 'prop.building.shack', radius: 2.0, height: 2.8, count: 2, destructible: true },
+  { assetId: 'prop.building.shack.small', radius: 1.7, height: 2.6, count: 1, destructible: true },
+  // Battlefield barricades — wooden palisade walls (a tiled thin footprint, so
+  // you take cover behind them and flank around the ends).
+  { assetId: 'prop.arena.palisade', radius: 1.5, height: 1.9, count: 2, destructible: true },
+  // The wrecked wagon (the old burned-car silhouette, reskinned) — it rolls and
+  // smoulders when shot, since its id still contains 'car' (see CoverStructureEntity).
+  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1, destructible: true },
+  // Trees + boulder (static nature). The well is destructible; its `height` is set
+  // tall so its integrity bar floats above the well roof instead of inside it.
+  { assetId: 'prop.tree', radius: 1.1, height: 2.8, count: 2 },
+  { assetId: 'prop.rock', radius: 0.8, height: 0.8, count: 1 },
+  { assetId: 'prop.well', radius: 1.0, height: 2.8, count: 1, destructible: true },
 ];
 
 /** Burning barrels per side (mirrored) — interactive, destructible entities. */
@@ -219,19 +275,9 @@ const TIRE_STACK_COUNT = 2;
 /** Footprint used only for placement spacing. */
 const TIRE_STACK_FOOT = 1.2;
 
-/** The pool of random road signs that replaced the old rusted-fence decor. */
-const ROAD_SIGNS: PropAssetId[] = [
-  'prop.arena.sign.stop',
-  'prop.arena.sign.warning',
-  'prop.arena.sign.speed',
-  'prop.arena.sign.arrow',
-  'prop.arena.sign.route62',
-];
-
 const DECOR: DecorKind[] = [
-  { assetId: 'prop.arena.trash', foot: 1.2, count: 3 },
-  { assetId: 'prop.arena.crate.broken', foot: 1.2, count: 2 },
-  { assetId: 'prop.arena.debris', foot: 1.0, count: 3 },
+  { assetId: 'prop.arena.trash', foot: 1.2, count: 3 }, // woodpiles
+  { assetId: 'prop.arena.debris', foot: 1.0, count: 3 }, // scattered planks + stone
 ];
 
 /** Deterministic PRNG (mulberry32) — same sequence on server and client per seed. */
@@ -268,8 +314,11 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   /** Footprints already taken (includes mirrors) for separation checks. */
   const taken: { x: number; z: number; r: number }[] = [];
 
+  // FFA scales spawn Z out to the ends of the longer arena (matches the server's
+  // resetPlayer); zombie keeps the authored square positions.
+  const spawnZScale = zombieMode ? 1 : ARENA_HALF_Z / ARENA_HALF_SIZE;
   const farFromSpawns = (x: number, z: number, fr: number) =>
-    ARENA_SPAWN_POINTS.every((sp) => Math.hypot(x - sp.x, z - sp.z) >= SPAWN_CLEAR + fr);
+    ARENA_SPAWN_POINTS.every((sp) => Math.hypot(x - sp.x, z - sp.z * spawnZScale) >= SPAWN_CLEAR + fr);
   const farFromPortal = (x: number, z: number, fr: number) =>
     Math.hypot(x - PORTAL.x, z - PORTAL.z) >= PORTAL_CLEAR + fr &&
     Math.hypot(x + PORTAL.x, z + PORTAL.z) >= PORTAL_CLEAR + fr &&
@@ -281,12 +330,16 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     taken.every((t) => Math.hypot(x - t.x, z - t.z) >= t.r + fr + GAP);
 
   /** Find a symmetric-safe spot for footprint `fr`, or null after N tries. */
+  const maxRZ = zombieMode ? MAX_R : MAX_R_Z_FFA; // FFA arena is longer N/S
   function findSpot(fr: number): { x: number; z: number } | null {
     for (let i = 0; i < 40; i++) {
       const x = (rng() * 2 - 1) * MAX_R;
-      const z = (rng() * 2 - 1) * MAX_R;
+      const z = (rng() * 2 - 1) * maxRZ;
       // Keep clear of the center so a piece can't overlap its own mirror.
       if (Math.hypot(x, z) < fr + GAP) continue;
+      // FFA: keep everything out of the central pond/island — only the chest lives there.
+      if (!zombieMode && Math.hypot(x - ARENA_POND.x, z - ARENA_POND.z) < ARENA_POND.pondR + GAP + fr)
+        continue;
       if (!farFromSpawns(x, z, fr) || !farFromPortal(x, z, fr)) continue;
       // Both the piece and its mirror must clear everything placed so far.
       if (!farFromTaken(x, z, fr) || !farFromTaken(-x, -z, fr)) continue;
@@ -300,19 +353,19 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   // HP-bearing structure specs (the server replicates them); static kinds become
   // plain obstacle+prop pairs.
   for (const kind of COVER) {
-    const isTrailer = kind.assetId.startsWith('prop.arena.trailer');
-    // Zombie mode: trailers are indestructible cover, and the main trailer kind
-    // spawns two extra per side (+4 across the mirror) for more hard cover.
-    const indestructible = zombieMode && isTrailer;
+    const isBuilding = kind.assetId.startsWith('prop.building');
+    // Zombie mode: buildings are indestructible hard cover, and cottages spawn two
+    // extra per side (+4 across the mirror) for more cover against the horde.
+    const indestructible = zombieMode && isBuilding;
     const count =
-      zombieMode && kind.assetId === 'prop.arena.trailer' ? kind.count + 2 : kind.count;
+      zombieMode && kind.assetId === 'prop.building.shack' ? kind.count + 2 : kind.count;
     for (let n = 0; n < count; n++) {
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
-      // Trailers vary in length (not width) so the park doesn't look stamped from
-      // one mould: a random 1.0–1.5× stretch along the prop's long (X) axis.
-      const lengthScale = isTrailer ? 1 + rng() * 0.5 : 1;
+      // Cabins vary in length (like the old trailers) so they don't look stamped:
+      // a random 1.0–1.5× stretch along the prop's long (X) axis. Props stay 1×.
+      const lengthScale = isBuilding ? 1 + rng() * 0.5 : 1;
       if (kind.destructible) {
         const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
         structures.push(
@@ -380,6 +433,11 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
           }
         }
 
+        // Keep the drum pyramid out of the central pond/island.
+        if (clear && Math.hypot(x, z) < ARENA_POND.pondR + pyramidRadius + GAP) {
+          clear = false;
+        }
+
         if (clear) {
           pyramidSpot = { x, z };
           found = true;
@@ -424,19 +482,6 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     }
   }
 
-  // Road signs: exactly ONE of each kind, scattered at random positions. Pure
-  // decor (no collision), so they're not mirrored — there's just one each. Each
-  // gets a random yaw and a derelict lean (crooked, sometimes nearly toppled),
-  // pivoting about its base — a dead-city look.
-  for (const sign of ROAD_SIGNS) {
-    const spot = findSpot(1);
-    if (!spot) continue;
-    const yaw = rng() * Math.PI * 2;
-    const heavy = rng() < 0.3; // some signs are nearly knocked over
-    const lx = (rng() * 2 - 1) * (heavy ? 0.7 : 0.2);
-    const lz = (rng() * 2 - 1) * (heavy ? 0.7 : 0.2);
-    props.push({ assetId: sign, position: [spot.x, 0, spot.z], rotation: [lx, yaw, lz] });
-  }
 
   // Burning barrels: interactive entities (no collision/props), mirrored.
   for (let n = 0; n < BARREL_COUNT; n++) {
@@ -483,9 +528,40 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     tireStacks.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
 
+  // Central pond (FFA only): make the water moat impassable with a grid of
+  // overlapping collision circles, leaving the island (centre) and the N/S bridge
+  // lane (|x| < bridgeHalfW) clear. Players can only reach the island — and the
+  // chest on it — by crossing a bridge.
+  if (!zombieMode) {
+    obstacles.push(...pondObstacles());
+  }
+
   const layout: GeneratedArenaLayout = { obstacles, props, barrels, drums, tireStacks, structures };
   cache = { seed: s, zombieMode, layout };
   return layout;
+}
+
+/** Collision circles that fill the pond's water ring (everything except the
+ *  island and the N/S bridge lane), so the moat blocks movement. */
+function pondObstacles(): ArenaObstacle[] {
+  const P = ARENA_POND;
+  const cr = 1.2; // circle radius
+  const step = 1.5;
+  const out: ArenaObstacle[] = [];
+  const n = Math.ceil(P.pondR / step);
+  for (let i = -n; i <= n; i++) {
+    for (let j = -n; j <= n; j++) {
+      const x = P.x + i * step;
+      const z = P.z + j * step;
+      const d = Math.hypot(x - P.x, z - P.z);
+      if (d < P.islandR + 0.3) continue; // keep the island walkable
+      if (d > P.pondR) continue; // only within the moat
+      if (Math.abs(x - P.x) < P.bridgeHalfW + cr) continue; // keep the N/S lane open
+      // Moat blocks players (walk around) but NOT projectiles (shots fly over it).
+      out.push({ x, z, radius: cr, height: 1, blockProjectiles: false });
+    }
+  }
+  return out;
 }
 
 /** Emit one cover piece's collision circle + visible prop(s) at (x,z). */

@@ -28,9 +28,10 @@ interface ZombieStyle {
   lean: number;
 }
 
-/** Per-variant look. Sickly greens for the rank-and-file; the sprinter skews
- *  grey + bright-red-eyed (reads as "fast/dangerous"), the fat is bloated olive,
- *  and the miniboss is a darker rot with red eyes (it's also scaled up at render). */
+/** Per-variant look. Sickly grave-greens for the rank-and-file Risen; the
+ *  sprinter is a pale grey, red-eyed wight (reads as "fast/dangerous"), the fat
+ *  is a bloated olive hulk, and the miniboss is a darker rot with red eyes — the
+ *  Dread Knight (it's also scaled up at render). */
 const STYLES: Record<ZombieVariant, ZombieStyle> = {
   standard: { bulk: 1.0, body: '#6b7a52', head: '#7c8a5e', eye: '#d8e84a', lean: 0.16 },
   sprinter: { bulk: 0.8, body: '#7a7360', head: '#8a8163', eye: '#ff0d05', lean: 0.34 },

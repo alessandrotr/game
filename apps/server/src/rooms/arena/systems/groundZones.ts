@@ -1,5 +1,5 @@
-import { GroundZone } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { GroundZone } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import {
   isZombieSkin,

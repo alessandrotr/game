@@ -13,8 +13,8 @@ import {
   type PerkModifiers,
   type CharacterClass,
 } from '@arena/shared';
-import type { Player } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import type { Player } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 
 // The modifier struct, its identity, and the data-driven fold now live in
 // `@arena/shared` (perk-modifiers.ts) so the server and client compute perk

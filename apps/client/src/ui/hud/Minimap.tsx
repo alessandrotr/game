@@ -1,5 +1,5 @@
 import { useMemo, type MouseEvent } from 'react';
-import { ARENA_HALF_SIZE, ZOMBIE_ROOM_HALF_SIZE } from '@arena/shared';
+import { ARENA_HALF_SIZE, ARENA_HALF_Z, ZOMBIE_ROOM_HALF_SIZE } from '@arena/shared';
 import { useGameStore } from '../../store/useGameStore';
 import { useArenaLayout } from '../../scene/useArenaLayout';
 import { sendMoveTo } from '../../network/colyseus';
@@ -41,8 +41,14 @@ export function Minimap() {
   const unlockedSections = useGameStore((s) => s.unlockedSections);
   const { obstacles } = useArenaLayout();
 
-  // Use expanded bounds when sections are unlocked.
-  const H = zombieMode && unlockedSections > 0 ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE;
+  // Use expanded bounds when sections are unlocked. FFA is a rectangle (longer
+  // N/S) — use the larger (Z) half-extent for the square viewBox so the arena
+  // sits correctly proportioned with side margins.
+  const H = zombieMode
+    ? unlockedSections > 0
+      ? ZOMBIE_ROOM_HALF_SIZE
+      : ARENA_HALF_SIZE
+    : ARENA_HALF_Z;
 
   const blips = useMemo<Blip[]>(() => {
     // Read the non-reactive snapshot imperatively (see useGameStore); `tick` in

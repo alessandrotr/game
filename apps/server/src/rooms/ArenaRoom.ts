@@ -1,30 +1,24 @@
 import { type Client } from '@colyseus/core';
+import type { ZOMBIE_MODE } from '@arena/shared';
 import {
   ARENA_HALF_SIZE,
-  ZOMBIE_ROOM_HALF_SIZE,
+  ARENA_HALF_Z,
+  ARENA_POND,
   arenaSpawnsForTeam,
   generateArenaLayout,
-  generateSectionCover,
   generateRoomLayout,
-  trapForSection,
-  pickWeightedPortal,
   clampToUnlockedArea,
   collideObstacles,
-  structureFootprint,
   type ArenaObstacle,
   type RoomLayout,
   isLobbyMode,
   isTeam,
   teamSizeForMode,
   AUTO_ATTACKS,
-  ARENA_PORTAL_POINT,
-  ZOMBIE_SPAWN_PORTALS,
   GROUND_Y,
   gunMoveSpeedMult,
-  isGunView,
   type GunView,
   MANA_REGEN,
-  ZOMBIE_MANA_REGEN_MULT,
   MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
   PLAYER_RADIUS,
@@ -33,36 +27,19 @@ import {
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
   ZOMBIE_ATTACK_WINDUP_MS,
-  ZOMBIE_MODE,
-  ZOMBIE_SKIN_ID,
   ZOMBIE_SPRINTER_SKIN_ID,
-  ZOMBIE_SPRINTER_SPAWN_CHANCE,
-  ZOMBIE_SPRINTER_SPEED_MIN,
-  ZOMBIE_SPRINTER_SPEED_MAX,
-  ZOMBIE_FAT_SKIN_ID,
   ZOMBIE_MINIBOSS_SKIN_ID,
-  ZOMBIE_FAT_SPEED_PENALTY,
-  ZOMBIE_FAT_ATTACK_BONUS_MS,
-  ZOMBIE_SPEED_JITTER,
   ZOMBIE_STUCK_MOVE_EPS,
   ZOMBIE_STUCK_TICKS,
   ZOMBIE_DETOUR_MS,
   ZOMBIE_DETOUR_RAD,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
-  ZOMBIE_WANDER_REROLL_MAX_MS,
-  ZOMBIE_WANDER_REROLL_MIN_MS,
-  zombieHealthForLevel,
-  zombieSprinterHealthForLevel,
-  zombieFatHealthForLevel,
-  zombieFatChanceForLevel,
-  zombieMaxAlive,
   zombieSpeedForLevel,
   ClientMessage,
   type ClientMessagePayloads,
   ServerMessage,
   isAbilityKind,
-  isPerkId,
   isRooted,
   isSilenced,
   isStunned,
@@ -97,22 +74,27 @@ import {
   type JoinOptions,
 } from './util/identity.js';
 import { applyGravity, clamp, stepMove } from './util/locomotion.js';
-import { ArenaTuning } from './arena/tuning.js';
-import { ArenaMatch } from './arena/match.js';
-import { CombatSystem } from './arena/combat.js';
-import { ProjectileSystem } from './arena/projectiles.js';
-import { GunSystem } from './arena/guns.js';
-import { BarrelSystem, BARREL_RADIUS } from './arena/barrels.js';
-import { DestructibleSystem } from './arena/destructibles.js';
-import { GroundZoneSystem } from './arena/groundZones.js';
-import { PickableSystem } from './arena/pickables.js';
-import { TrapSystem } from './arena/traps.js';
-import { ArenaPhysics } from './arena/physics.js';
-import { CoverSystem } from './arena/cover.js';
-import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/bots.js';
-import { ZombieDirector } from './arena/zombies.js';
-import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/perks.js';
-import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/profiles.js';
+import { ArenaTuning } from './arena/systems/tuning.js';
+import { ArenaMatch } from './arena/systems/match.js';
+import { ChannelSystem } from './arena/systems/channels.js';
+import { CombatSystem } from './arena/systems/combat.js';
+import { ProjectileSystem } from './arena/systems/projectiles.js';
+import { GunSystem } from './arena/systems/guns.js';
+import { BarrelSystem } from './arena/systems/barrels.js';
+import { DestructibleSystem } from './arena/systems/destructibles.js';
+import { GroundZoneSystem } from './arena/systems/groundZones.js';
+import { PickableSystem } from './arena/systems/pickables.js';
+import { TrapSystem } from './arena/systems/traps.js';
+import { resolveGameMode, deathPolicy, type GameMode } from './arena/modes.js';
+import { registerGunHandlers } from './arena/gunHandlers.js';
+import { registerDevHandlers } from './arena/devHandlers.js';
+import { ArenaPhysics } from './arena/systems/physics.js';
+import { CoverSystem } from './arena/systems/cover.js';
+import { BotDirector, makeBotProfile, type BotProfile } from './arena/systems/bots.js';
+import { ZombieDirector } from './arena/systems/zombies.js';
+import { ZombieSurvival } from './arena/systems/zombieSurvival.js';
+import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/systems/perks.js';
+import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/systems/profiles.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
 import { verifyToken, type TokenClaims } from '../auth.js';
@@ -163,21 +145,6 @@ interface PendingCast {
 /** Per-zombie movement personality + stuck-detection state. The personality
  *  (speed/wander/attack) spreads the horde out; the stuck fields drive a
  *  perpendicular reroute when a zombie wedges on cover instead of pathfinding. */
-interface ZombieAiState {
-  speedOffset: number;
-  wander: number;
-  wanderUntil: number;
-  attackBonusMs: number;
-  /** Last chase position + consecutive near-stationary ticks while out of range. */
-  lastX: number;
-  lastZ: number;
-  stuckTicks: number;
-  /** While `simTime < detourUntil`, steer a forced ~perpendicular heading
-   *  (sign = `detourSide`) to escape the obstacle instead of re-ramming it. */
-  detourUntil: number;
-  detourSide: number;
-}
-
 /**
  * Authoritative arena simulation. Clients send point-and-click move targets,
  * jump and ability-cast requests; the room validates and integrates everything
@@ -194,10 +161,14 @@ export class ArenaRoom extends AvatarRoom {
   protected override readonly chat = new ChatLog();
   protected override halfLimit = ARENA_HALF_SIZE - PLAYER_RADIUS;
 
-  /** The arena's half-extent for this match — `ARENA_HALF_SIZE` for normal arenas,
-   *  `ZOMBIE_ROOM_HALF_SIZE` when the room expansion system is active. Every
-   *  bounds clamp in the file reads this instead of the constant directly. */
+  /** The arena's half-extent (X) for this match — `ARENA_HALF_SIZE` for normal
+   *  arenas, `ZOMBIE_ROOM_HALF_SIZE` when the room expansion system is active.
+   *  Every bounds clamp in the file reads this instead of the constant directly. */
   private arenaLimit = ARENA_HALF_SIZE;
+
+  /** The arena's half-extent along Z. FFA is a rectangle (longer N/S), so this is
+   *  larger than `arenaLimit`; zombie mode keeps it square (= `arenaLimit`). */
+  private arenaLimitZ = ARENA_HALF_SIZE;
 
   /** Room expansion system (zombie mode only): the generated section/door layout
    *  for this match. `null` in non-zombie arenas. */
@@ -223,20 +194,12 @@ export class ArenaRoom extends AvatarRoom {
       stage: number;
       windowStart: number;
       windowEnd: number;
-      perkMods: any;
+      perkMods: { manaCostMult: number; cooldownMult: number };
       firstCastTime: number;
     }
   >();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
   private readonly displacements = new Map<string, Displacement>();
-  /** In-progress channels (e.g. the priest beam): the ability, when it ends, the
-   *  next object-damage tick, and a per-enemy "next DoT" clock (an enemy gets 12
-   *  the instant it enters the beam, then every `channelTickMs`; leaving resets
-   *  it). Aim direction lives on the replicated `Player.channelDir*`. */
-  private readonly channels = new Map<
-    string,
-    { config: AbilityDef; endAt: number; objTickAt: number; engaged: Map<string, number> }
-  >();
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
   /** AI-controlled bots in this room (practice bots, or zombies in zombie mode),
@@ -248,32 +211,33 @@ export class ArenaRoom extends AvatarRoom {
    *  at runtime via {@link ClientMessage.SetAutoAttack}; forced on in zombie mode
    *  so zombies chase + strike (players still attack with abilities only). */
   private autoAttackEnabled = false;
-  /** Zombie survival mode: endless escalating hordes spawn from the portal and
-   *  hunt the players. Set in `onCreate` from the room's mode option. */
-  private zombieMode = false;
-  /** Gun Mode Zombie: zombie survival fought with guns (WASD + mouse aim +
-   *  right-click) instead of the ability kit. Implies `zombieMode`. */
-  private gunMode = false;
+  /** This room's game mode (FFA / ranked / zombie / gun-zombie / coop) — the
+   *  SINGLE source of truth for per-mode config + behaviour. Set in `onCreate`. */
+  private mode!: GameMode;
+  /** Endless-horde survival (zombies, room expansion, forced auto-attack). */
+  private get zombieMode(): boolean {
+    return this.mode.zombie;
+  }
+  /** Gun Mode Zombie: survival fought with guns instead of the ability kit. */
+  private get gunMode(): boolean {
+    return this.mode.gun;
+  }
+  /** Co-op squad run: death is final and the run ends when the whole squad falls. */
+  private get coopZombie(): boolean {
+    return !this.mode.respawns;
+  }
   /** Per-player active Gun Mode view ('fps' | 'topdown'), reported by the client.
    *  Drives the per-view move speed so movement matches the client predictor. */
   private readonly gunViews = new Map<string, GunView>();
-  /** Co-op matchmade zombie run (from the zombie matchmaking room): death is final
-   *  and the run ends when the whole squad falls. False for the drop-in zombie room. */
-  private coopZombie = false;
   /** Latches once the co-op run is over (all players fell) so the game-over
    *  broadcast + room teardown fire exactly once. */
   private coopOver = false;
   /** The wave director (zombie mode only) — owns the level/horde lifecycle. */
   private zombieDirector?: ZombieDirector;
-  /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
-   *  it at (a brief linger so the death pose plays before it vanishes). */
-  private readonly zombieCorpseAt = new Map<string, number>();
-  /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
-   *  lateral chase-wander bias that re-rolls on its own clock — so a horde spreads
-   *  out and takes varied paths instead of funneling into one easy-to-hit blob. */
-  private readonly zombieAi = new Map<string, ZombieAiState>();
-  /** Next allowed timestamp (sim ms) for a Mini-Boss special action. */
-  private readonly bossNextActionAt = new Map<string, number>();
+  /** Mode-specific zombie-survival logic: per-zombie AI, spawning, horde
+   *  collision resolution, mini-boss AI, and room-expansion door unlocks. Built
+   *  only in zombie mode; undefined otherwise. */
+  private zombie?: ZombieSurvival;
   /** Chest spawn timer (ms). Starts at 1.5 minutes (90000 ms), then resets to 1.5 minutes (90000 ms). */
   private chestSpawnTimer = 90000;
 
@@ -299,9 +263,13 @@ export class ArenaRoom extends AvatarRoom {
   private match!: ArenaMatch;
   private combat!: CombatSystem;
   private projectiles!: ProjectileSystem;
+  /** Held beam channeling (e.g. the priest beam). Owns its own per-caster state. */
+  private channels!: ChannelSystem;
   /** Gun Mode Zombie weapons (magazine / fire-rate / reload / switch). Built in
    *  every arena but only driven when {@link gunMode} is on. */
-  private guns!: GunSystem;
+  /** Gun system — built only when `mode.usesGuns` (gun-mode zombie); undefined
+   *  otherwise. All access is optional-chained. */
+  private guns?: GunSystem;
   private barrels!: BarrelSystem;
   private destructibles!: DestructibleSystem;
   /** HP-bearing cover structures (trailers/cars/dumpsters) that crumble. */
@@ -334,17 +302,18 @@ export class ArenaRoom extends AvatarRoom {
   }): void {
     this.setState(new ArenaState());
 
-    // Zombie survival is the arena sim under a distinct handler (the `mode`
-    // baked into that handler's `define` options arrives here). Flag it before
-    // building systems so the wave director and forced auto-attack are in place.
-    this.zombieMode = options?.mode === ZOMBIE_MODE;
-    // Co-op matchmade squad (from ZombieMatchmakingRoom): death is final (no
-    // respawn) and the run ends when everyone falls. The drop-in/portal zombie
-    // room (no `coop`) keeps the old respawn behaviour.
-    this.coopZombie = this.zombieMode && !!options?.coop;
-    // Gun Mode Zombie: the zombie sim, but players fight with guns. Implies zombie
-    // mode (registered with `{ mode: ZOMBIE_MODE, gun: true }`).
-    this.gunMode = this.zombieMode && !!options?.gun;
+    // Resolve this room's game mode (FFA / ranked / zombie / gun-zombie / co-op)
+    // from the options baked into its `define`. The mode object is the single
+    // source of truth for per-mode config + behaviour; the `zombieMode`/`gunMode`/
+    // `coopZombie` getters are thin derived views of it.
+    this.mode = resolveGameMode(options);
+
+    // Play-area bounds + forced auto-attack come straight from the mode.
+    this.arenaLimit = this.mode.bounds.halfX;
+    this.arenaLimitZ = this.mode.bounds.halfZ;
+    this.halfLimit = this.mode.bounds.halfX - PLAYER_RADIUS;
+    this.halfLimitZ = this.mode.bounds.halfZ - PLAYER_RADIUS;
+    this.autoAttackEnabled = this.mode.autoAttack;
 
     // Pick a per-match seed and build this arena's procedural cover. The seed is
     // replicated so every client rebuilds the identical layout (obstacles +
@@ -375,14 +344,36 @@ export class ArenaRoom extends AvatarRoom {
       // is ignored for humans (see the handler), so only zombies ever swing.
       this.state.zombieMode = true;
       this.state.gunMode = this.gunMode;
-      this.autoAttackEnabled = true;
 
-      // --- Room expansion system: expand the arena bounds and generate the
-      //     section/door layout. Doors are placed as indestructible walls that
-      //     crumble when the matching wave is cleared. ---
-      this.arenaLimit = ZOMBIE_ROOM_HALF_SIZE;
-      this.halfLimit = ZOMBIE_ROOM_HALF_SIZE - PLAYER_RADIUS;
+      // --- Room expansion system: generate the section/door layout. Doors are
+      //     placed as indestructible walls that crumble when the matching wave is
+      //     cleared. (Bounds + auto-attack are already set from the mode above.) ---
       this.roomLayout = generateRoomLayout(seed);
+      // Mode-specific zombie logic. Handed references from inside the room (by
+      // closure), so it touches none of the room's private internals directly.
+      this.zombie = new ZombieSurvival({
+        now: () => this.simTime,
+        state: this.state,
+        bots: this.bots,
+        verticalVelocity: this.verticalVelocity,
+        grounded: this.grounded,
+        cooldowns: this.cooldowns,
+        attackTargets: this.attackTargets,
+        arenaLimit: this.arenaLimit,
+        arenaLimitZ: this.arenaLimitZ,
+        zombieStaticObstacles: this.zombieStaticObstacles,
+        gunMode: this.gunMode,
+        nextBotId: () => ++this.botSeq,
+        resetPlayer: (player) => this.resetPlayer(player),
+        roomLayout: () => this.roomLayout,
+        combat: this.combat,
+        projectiles: this.projectiles,
+        cover: this.cover,
+        barrels: this.barrels,
+        destructibles: this.destructibles,
+        traps: this.traps,
+        broadcast: (type, message) => this.broadcast(type, message),
+      });
       this.cover.setRoomLayout(this.roomLayout);
       this.destructibles.setRoomLayout(this.roomLayout);
       this.barrels.setRoomLayout(this.roomLayout);
@@ -399,13 +390,13 @@ export class ArenaRoom extends AvatarRoom {
         this.setPrivate(true);
       }
       this.zombieDirector = new ZombieDirector(this.buildContext(), {
-        spawnZombie: (level) => this.spawnZombie(level),
-        spawnMiniBoss: (level) => this.spawnMiniBoss(level),
-        aliveZombies: () => this.countAliveZombies(),
-        humansPresent: () => this.countHumans() > 0,
+        spawnZombie: (level) => this.zombie!.spawnZombie(level),
+        spawnMiniBoss: () => this.zombie!.spawnMiniBoss(),
+        aliveZombies: () => this.zombie!.countAliveZombies(),
+        humansPresent: () => this.zombie!.countHumans() > 0,
         onWaveClear: (level) => {
           // --- Room expansion: unlock the next door if this wave matches ---
-          this.tryUnlockDoor(level);
+          this.zombie!.tryUnlockDoor(level);
           if (!this.perkSystem) return false;
           return this.perkSystem.onWaveClear(level);
         },
@@ -423,7 +414,7 @@ export class ArenaRoom extends AvatarRoom {
     // Perks exist in any ability-mode arena. Zombie waves offer them on wave
     // clear; the non-zombie FFA / team arena has no wave system, so they're
     // granted via dev tools for testing. (Gun mode has no ability kit.)
-    if (!this.gunMode) {
+    if (this.mode.usesPerks) {
       this.perkSystem = new PerkSystem(this.buildContext());
     }
 
@@ -432,7 +423,7 @@ export class ArenaRoom extends AvatarRoom {
 
     this.onMessage<{ targetId: string }>(ClientMessage.Attack, (client, message) => {
       if (!this.autoAttackEnabled) return; // feature flag off — abilities-only combat
-      if (this.zombieMode) return; // players fight zombies with abilities only
+      if (!this.mode.manualAttack) return; // survival: fight the horde with abilities, not targeting
       const player = this.state.players.get(client.sessionId);
       if (!player || !player.alive || isStunned(player) || isBlinded(player)) return;
       const targetId = String(message?.targetId ?? '');
@@ -526,44 +517,15 @@ export class ArenaRoom extends AvatarRoom {
       },
     );
 
-    this.onMessage(ClientMessage.DevTune, (_client, message: Record<string, unknown>) =>
-      this.tuning.tuneMovement(message),
-    );
-    this.onMessage(
-      ClientMessage.AbilityTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.AbilityTune]) =>
-        this.tuning.tuneAbilities(message),
-    );
-    this.onMessage(
-      ClientMessage.StatTune,
-      (_client, message: ClientMessagePayloads[ClientMessage.StatTune]) =>
-        this.tuning.tuneStats(message),
-    );
-    this.onMessage(
-      ClientMessage.BotControl,
-      (_client, message: ClientMessagePayloads[ClientMessage.BotControl]) =>
-        this.setBotPopulation(message),
-    );
-    // Dev-only perk debugging. Ignored in production so a crafted client can't
-    // grant itself perks in a live match.
-    this.onMessage(
-      ClientMessage.DevGrantPerk,
-      (client, message: ClientMessagePayloads[ClientMessage.DevGrantPerk]) => {
-        if (process.env.NODE_ENV === 'production' || !this.perkSystem) return;
-        if (message?.action === 'clear') this.perkSystem.devClear(client.sessionId);
-        else if (message?.action === 'grant' && isPerkId(message.perkId))
-          this.perkSystem.devGrant(client.sessionId, message.perkId);
-      },
-    );
-    // Dev-only: jump the caller up N levels (no-op in production).
-    this.onMessage(
-      ClientMessage.DevAddLevel,
-      (client, message: ClientMessagePayloads[ClientMessage.DevAddLevel]) => {
-        if (process.env.NODE_ENV === 'production') return;
-        const player = this.state.players.get(client.sessionId);
-        if (player) this.combat.devAddLevels(player, message?.amount ?? 1);
-      },
-    );
+    // Dev-only tuning + debug handlers (live balance, bots, grant perks, add
+    // levels). Given just the systems it needs + a bot-population callback.
+    registerDevHandlers(this, {
+      tuning: this.tuning,
+      combat: this.combat,
+      perkSystem: this.perkSystem,
+      setBotPopulation: (message) => this.setBotPopulation(message),
+    });
+
     this.onMessage(
       ClientMessage.SetAutoAttack,
       (_client, message: ClientMessagePayloads[ClientMessage.SetAutoAttack]) =>
@@ -573,7 +535,7 @@ export class ArenaRoom extends AvatarRoom {
       ClientMessage.AimChannel,
       (client, message: ClientMessagePayloads[ClientMessage.AimChannel]) => {
         const player = this.state.players.get(client.sessionId);
-        if (!player || !this.channels.has(client.sessionId)) return;
+        if (!player || !this.channels.isActive(client.sessionId)) return;
         const dx = Number(message?.dirX) || 0;
         const dz = Number(message?.dirZ) || 0;
         const len = Math.hypot(dx, dz);
@@ -612,7 +574,7 @@ export class ArenaRoom extends AvatarRoom {
 
     // Gun Mode Zombie weapon input (fire / switch / reload / aim). Registered
     // only in gun mode; the handlers are a no-op for dead players / CC'd casters.
-    if (this.gunMode) this.registerGunHandlers();
+    if (this.mode.usesGuns && this.guns) registerGunHandlers(this, this.guns, this.gunViews);
 
     // Swallow + capture a thrown tick instead of letting it bubble to
     // `uncaughtException` (which restarts the process and disconnects everyone).
@@ -684,10 +646,11 @@ export class ArenaRoom extends AvatarRoom {
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
-    this.guns = new GunSystem(ctx, this.projectiles);
+    if (this.mode.usesGuns) this.guns = new GunSystem(ctx, this.projectiles);
     this.physics = new ArenaPhysics(this.obstacles, this.zombieMode);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
+    this.channels = new ChannelSystem(ctx, this.combat, this.barrels, this.destructibles);
     this.cover = new CoverSystem(ctx, this.obstacles, this.combat, this.physics);
     this.groundZones = new GroundZoneSystem(ctx, this.combat);
     this.pickables = new PickableSystem(ctx, this.combat, this.projectiles, this.groundZones);
@@ -813,9 +776,9 @@ export class ArenaRoom extends AvatarRoom {
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
     this.ninjaEStates.delete(client.sessionId);
-    this.guns.remove(client.sessionId);
+    this.guns?.remove(client.sessionId);
     this.gunViews.delete(client.sessionId);
-    this.stopChannel(client.sessionId);
+    this.channels.stop(client.sessionId);
     this.perkSystem?.reset(client.sessionId);
     this.match.forget(client.sessionId);
     this.unregisterSession(client);
@@ -835,67 +798,7 @@ export class ArenaRoom extends AvatarRoom {
 
   /** Wire the gun-mode weapon handlers (fire / switch / reload / aim). The
    *  {@link GunSystem} owns the magazine / fire-rate / reload rules. */
-  private registerGunHandlers(): void {
-    this.onMessage(
-      ClientMessage.FireWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.FireWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive || isStunned(player) || isBlinded(player)) return;
-        const { dirX, dirZ } = this.normalizeAim(player, message?.dirX, message?.dirZ);
-        this.guns.fire(player, dirX, dirZ);
-      },
-    );
-
-    this.onMessage(
-      ClientMessage.SwitchWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.SwitchWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive) return;
-        this.guns.switchTo(player, Math.floor(Number(message?.slot)));
-      },
-    );
-
-    this.onMessage(ClientMessage.ReloadWeapon, (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive || isStunned(player)) return;
-      this.guns.reload(player);
-    });
-
-    this.onMessage(
-      ClientMessage.AimWeapon,
-      (client, message: ClientMessagePayloads[ClientMessage.AimWeapon]) => {
-        const player = this.state.players.get(client.sessionId);
-        if (!player || !player.alive) return;
-        const dx = Number(message?.dirX) || 0;
-        const dz = Number(message?.dirZ) || 0;
-        if (Math.hypot(dx, dz) < 1e-3) return;
-        player.rotation = Math.atan2(dx, dz);
-      },
-    );
-
-    this.onMessage(
-      ClientMessage.SetGunView,
-      (client, message: ClientMessagePayloads[ClientMessage.SetGunView]) => {
-        if (isGunView(message?.view)) this.gunViews.set(client.sessionId, message.view);
-      },
-    );
-  }
-
   /** Resolve a normalized aim vector, falling back to the player's facing. */
-  private normalizeAim(player: Player, rawX: unknown, rawZ: unknown): { dirX: number; dirZ: number } {
-    let dirX = Number.isFinite(rawX) ? (rawX as number) : 0;
-    let dirZ = Number.isFinite(rawZ) ? (rawZ as number) : 0;
-    const len = Math.hypot(dirX, dirZ);
-    if (len > 1e-3) {
-      dirX /= len;
-      dirZ /= len;
-    } else {
-      dirX = Math.sin(player.rotation);
-      dirZ = Math.cos(player.rotation);
-    }
-    return { dirX, dirZ };
-  }
-
   // --- Ability input -----------------------------------------------------
 
   private handleCast(
@@ -911,7 +814,7 @@ export class ArenaRoom extends AvatarRoom {
     // Gun Mode Zombie disables the entire ability kit — the player fights with
     // guns only. Reject every cast server-side too, so a crafted client can't
     // fire a locked ability.
-    if (this.gunMode) return;
+    if (this.mode.usesGuns) return;
 
     // Crowd control: a stun blocks everything; a silence blocks casting.
     if (isStunned(player) || isSilenced(player)) {
@@ -926,9 +829,9 @@ export class ArenaRoom extends AvatarRoom {
 
     // While a channel (the priest beam) is active, re-pressing its key interrupts
     // it and every OTHER ability is locked out for the duration.
-    if (this.channels.has(sessionId)) {
+    if (this.channels.isActive(sessionId)) {
       if (player.channelAbility === ability) {
-        this.stopChannel(sessionId);
+        this.channels.stop(sessionId);
       } else {
         this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
       }
@@ -999,6 +902,7 @@ export class ArenaRoom extends AvatarRoom {
     let targetZ: number | undefined;
     if (config.aim === 'point' && Number.isFinite(message.tx) && Number.isFinite(message.tz)) {
       const limit = this.arenaLimit - PLAYER_RADIUS;
+      const limitZ = this.arenaLimitZ - PLAYER_RADIUS;
       let ox = (message.tx as number) - player.x;
       let oz = (message.tz as number) - player.z;
       const d = Math.hypot(ox, oz);
@@ -1007,7 +911,7 @@ export class ArenaRoom extends AvatarRoom {
         oz = (oz / d) * config.range;
       }
       targetX = clamp(player.x + ox, -limit, limit);
-      targetZ = clamp(player.z + oz, -limit, limit);
+      targetZ = clamp(player.z + oz, -limitZ, limitZ);
       if (d > 1e-3) {
         dirX = ox / Math.hypot(ox, oz);
         dirZ = oz / Math.hypot(ox, oz);
@@ -1079,7 +983,7 @@ export class ArenaRoom extends AvatarRoom {
     if (config.channelMs) {
       // Sustained channel (the priest beam): start ticking; the player keeps
       // moving and can re-aim, but can't cast until it ends or is re-pressed.
-      this.startChannel(sessionId, player, config, dirX, dirZ);
+      this.channels.start(sessionId, player, config, dirX, dirZ);
     } else if (config.castTimeMs > 0) {
       // Rooted wind-up: cancel any move and resolve when the timer elapses.
       this.destinations.delete(sessionId);
@@ -1107,123 +1011,6 @@ export class ArenaRoom extends AvatarRoom {
       const aoeSizeBonus = this.perkSystem?.getModifiers(sessionId)?.aoeSizeBonus ?? 0;
       this.combat.resolveCast(player, activeConfig, dirX, dirZ, targetX, targetZ, unitTargetId, aoeSizeBonus);
     }
-  }
-
-  /** Begin a channel: record it, mark the player as channelling, and seed the
-   *  replicated aim direction (the client streams updates via `AimChannel`). */
-  private startChannel(
-    sessionId: string,
-    player: Player,
-    config: AbilityDef,
-    dirX: number,
-    dirZ: number,
-  ): void {
-    player.channelAbility = config.id;
-    player.channelDirX = dirX;
-    player.channelDirZ = dirZ;
-    this.channels.set(sessionId, {
-      config,
-      endAt: this.simTime + (config.channelMs ?? 0),
-      objTickAt: this.simTime, // first object tick lands immediately
-      engaged: new Map(),
-    });
-  }
-
-  /** End a channel (timer elapsed, interrupted, CC'd, died, or left). */
-  private stopChannel(sessionId: string): void {
-    if (!this.channels.delete(sessionId)) return;
-    const player = this.state.players.get(sessionId);
-    if (player) player.channelAbility = '';
-  }
-
-  /** True if (ox,oz) lies inside the beam capsule — a ray from the caster along
-   *  its aim, `range` long and `beamWidth` wide, padded by the object's radius. */
-  private inBeam(caster: Player, ox: number, oz: number, pad: number, config: AbilityDef): boolean {
-    const rx = ox - caster.x;
-    const rz = oz - caster.z;
-    const along = rx * caster.channelDirX + rz * caster.channelDirZ; // along the axis
-    if (along < 0 || along > config.range) return false;
-    const perp = Math.abs(rx * caster.channelDirZ - rz * caster.channelDirX); // |cross|, unit dir
-    return perp <= (config.beamWidth ?? 0.6) / 2 + pad;
-  }
-
-  /** Per-tick channel processing: drop channels whose caster can no longer hold
-   *  them (dead / stunned / silenced / elapsed). Enemies take 12 the instant they
-   *  enter the beam, then every `channelTickMs`; objects tick on a shared clock. */
-  private processChannels(): void {
-    this.channels.forEach((ch, sessionId) => {
-      const caster = this.state.players.get(sessionId);
-      if (!caster || !caster.alive || isStunned(caster) || isSilenced(caster)) {
-        this.stopChannel(sessionId);
-        return;
-      }
-      if (this.simTime >= ch.endAt) {
-        this.stopChannel(sessionId);
-        return;
-      }
-      const config = ch.config;
-      const tickMs = config.channelTickMs ?? 500;
-
-      // Enemies: an on-hit burst on entry, then a per-target DoT. Tracked each
-      // game tick so a swept-onto target is hit "as soon as it hits".
-      this.state.players.forEach((target, tid) => {
-        if (tid === sessionId || !target.alive) return;
-        if (!this.inBeam(caster, target.x, target.z, PLAYER_RADIUS, config)) {
-          ch.engaged.delete(tid); // left the beam — re-entering re-triggers on-hit
-          return;
-        }
-        const next = ch.engaged.get(tid);
-        if (next === undefined) {
-          // Just entered: the immediate on-hit, then schedule its first DoT.
-          this.combat.dealDamage(target, config.damage, sessionId);
-          ch.engaged.set(tid, this.simTime + tickMs);
-        } else if (this.simTime >= next) {
-          this.combat.dealDamage(target, config.damage, sessionId);
-          ch.engaged.set(tid, next + tickMs);
-        }
-      });
-      // Prune engaged ids for players that left/died (forEach above handles those
-      // still present; drop any no-longer-in-state ids).
-      for (const id of [...ch.engaged.keys()]) {
-        if (!this.state.players.get(id)?.alive) ch.engaged.delete(id);
-      }
-
-      // Objects: a shared 0.5s clock (first tick immediate), since they're static.
-      while (this.simTime >= ch.objTickAt) {
-        this.applyBeamObjectDamage(caster, config);
-        ch.objTickAt += tickMs;
-      }
-    });
-  }
-
-  /** Damage the objects inside the beam capsule — cover structures, barrels and
-   *  destructibles (players are handled per-target in {@link processChannels}). */
-  private applyBeamObjectDamage(caster: Player, config: AbilityDef): void {
-    const dx = caster.channelDirX;
-    const dz = caster.channelDirZ;
-    // Cover structures (trailers / cars / dumpsters) in the beam take its damage.
-    this.state.structures.forEach((s) => {
-      if (!s.destroyed && this.inBeam(caster, s.x, s.z, s.radius, config)) {
-        this.combat.damageStructure(s.id, config.damage, dx, dz);
-      }
-    });
-    // Burning barrels caught in the beam are launched + detonated.
-    this.state.barrels.forEach((b) => {
-      if (b.alive && this.inBeam(caster, b.x, b.z, BARREL_RADIUS, config)) {
-        this.barrels.trigger(b, dx, dz, caster.sessionId);
-      }
-    });
-    // Oil drums / tires: shoved (and drums chipped) along the beam.
-    this.destructibles.damageInBeam(
-      caster.x,
-      caster.z,
-      dx,
-      dz,
-      config.range,
-      (config.beamWidth ?? 0.6) / 2,
-      caster.sessionId,
-      config.damage,
-    );
   }
 
   /**
@@ -1265,12 +1052,13 @@ export class ArenaRoom extends AvatarRoom {
       // their own (jittered) pace and steer off the bee-line so the horde fans
       // out; everyone else heads straight at class walk speed.
       const limit = this.arenaLimit - PLAYER_RADIUS;
+      const limitZ = this.arenaLimitZ - PLAYER_RADIUS;
       let baseSpeed: number;
       let cdx = ndx;
       let cdz = ndz;
       if (isZombie) {
-        const ai = this.zombieAiFor(sessionId);
-        const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - (this.gunMode ? 0 : 1);
+        const ai = this.zombie!.aiFor(sessionId);
+        const zBase = zombieSpeedForLevel(this.zombieDirector?.currentLevel() ?? 1) - this.mode.walkSpeedPenalty;
         let speedOffset = ai.speedOffset;
         if (attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID && attacker.hp < attacker.maxHp * 0.5) {
           speedOffset = -0.5; // Berserk speed multiplier offset (made 1 unit faster)
@@ -1312,7 +1100,7 @@ export class ArenaRoom extends AvatarRoom {
               side = -side;
             }
             ai.wander = side * (0.55 + Math.random() * 0.45);
-            ai.wanderUntil = this.simTime + this.rollWanderInterval();
+            ai.wanderUntil = this.simTime + this.zombie!.rollWanderInterval();
           }
           const ramp = Math.min(1, (dist - cfg.range) / ZOMBIE_WANDER_FALLOFF);
           const isSprinter = attacker.skinId === ZOMBIE_SPRINTER_SKIN_ID;
@@ -1323,7 +1111,7 @@ export class ArenaRoom extends AvatarRoom {
         cdz = Math.cos(ang);
         attacker.rotation = ang; // face where it's actually heading
       } else {
-        baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - (this.gunMode ? 0 : 1);
+        baseSpeed = this.tuning.walkSpeedFor(attacker.characterClass) - this.mode.walkSpeedPenalty;
       }
       const perkSpeed = getPerkMoveSpeedMult(this.perkSystem, attacker);
       const speed = (baseSpeed + perkSpeed.bonus) * moveSpeedMultiplier(attacker) * perkSpeed.mult;
@@ -1335,10 +1123,10 @@ export class ArenaRoom extends AvatarRoom {
         const r = attacker.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
         const slid = collideObstacles(attacker.x + cdx * step, attacker.z + cdz * step, this.zombieStaticObstacles, r);
         attacker.x = clamp(slid.x, -limit, limit);
-        attacker.z = clamp(slid.z, -limit, limit);
+        attacker.z = clamp(slid.z, -limitZ, limitZ);
       } else {
         attacker.x = clamp(attacker.x + cdx * step, -limit, limit);
-        attacker.z = clamp(attacker.z + cdz * step, -limit, limit);
+        attacker.z = clamp(attacker.z + cdz * step, -limitZ, limitZ);
       }
       // Out of range: re-arm a zombie's first-swing wind-up so it can't bite the
       // instant it closes back in (the in-range branch sees no timer → winds up).
@@ -1369,7 +1157,7 @@ export class ArenaRoom extends AvatarRoom {
           150,
           ZOMBIE_ATTACK_MIN_MS +
             Math.random() * (ZOMBIE_ATTACK_MAX_MS - ZOMBIE_ATTACK_MIN_MS) -
-            this.zombieAiFor(sessionId).attackBonusMs,
+            this.zombie!.aiFor(sessionId).attackBonusMs,
         )
       : cfg.cooldownMs / attackSpeedMultiplier(attacker);
     this.attackReadyAt.set(sessionId, this.simTime + interval);
@@ -1433,6 +1221,7 @@ export class ArenaRoom extends AvatarRoom {
     });
 
     const limit = this.arenaLimit - PLAYER_RADIUS;
+    const limitZ = this.arenaLimitZ - PLAYER_RADIUS;
 
     // Zombie waves: spawn/advance hordes before the bot AI runs, so freshly
     // spawned zombies pick a target and start chasing this same tick.
@@ -1440,8 +1229,8 @@ export class ArenaRoom extends AvatarRoom {
     // Perk system tick: auto-pick for AFK players.
     if (this.perkSystem) this.perkSystem.update(this.simTime);
 
-    // Treasure chest spawning (Arena mode only)
-    if (!this.zombieMode) {
+    // Treasure chest spawning (modes with a chest objective — PvP arenas).
+    if (this.mode.usesChest) {
       let aliveChestsCount = 0;
       this.state.structures.forEach((s) => {
         if (s.assetId === 'prop.arena.chest' && !s.destroyed) {
@@ -1500,27 +1289,26 @@ export class ArenaRoom extends AvatarRoom {
         this.animOneShots.delete(sessionId);
         this.attackTargets.delete(sessionId);
         this.displacements.delete(sessionId);
-        this.stopChannel(sessionId);
+        this.channels.stop(sessionId);
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
         player.holding = ''; // a carried object is lost on death
-        // Zombies don't respawn and have NO death animation — a slain zombie
-        // vanishes immediately. Avoids animating dozens of dying corpses on the
-        // client and clears the level's "all dead" check the instant it dies.
-        if (this.zombieMode && this.bots.has(sessionId)) {
+        // What death means here is the mode's call: a slain zombie is REMOVED
+        // (vanishes immediately — no corpse animation, clears the "all dead" check
+        // at once); a co-op human LINGERs (death is final, stays to spectate/quit
+        // and the all-fallen check below ends the run); everyone else RESPAWNs.
+        const policy = deathPolicy(this.mode, this.bots.has(sessionId));
+        if (policy === 'remove') {
           if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
             this.pickables.spawnGround('heal_pack', player.x, player.z, 4);
           }
-          // Charge any trap whose radius contains this death (no-op in gun mode
-          // / when no traps exist). Position is still valid pre-removal.
+          // Charge any trap whose radius contains this death (no-op when no traps
+          // exist). Position is still valid pre-removal.
           this.traps.recordZombieDeath(player.x, player.z);
           this.removeBot(sessionId);
           return;
         }
-        // Co-op zombie run: death is final — no respawn. The dead player stays in
-        // the room (alive=false) to spectate or quit; the all-fallen check below
-        // ends the run.
-        if (this.coopZombie) return;
+        if (policy === 'linger') return;
         const respawn = this.respawnAt.get(sessionId);
         if (respawn !== undefined && this.simTime >= respawn) {
           this.resetPlayer(player);
@@ -1536,7 +1324,7 @@ export class ArenaRoom extends AvatarRoom {
       if (player.statuses.some((s) => s.kind === 'buff')) {
         manaRegenMult *= 1.5;
       }
-      regenMana(player, MANA_REGEN * (this.zombieMode ? ZOMBIE_MANA_REGEN_MULT : 1) * manaRegenMult, dt);
+      regenMana(player, MANA_REGEN * this.mode.manaRegenMult * manaRegenMult, dt);
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
 
@@ -1553,7 +1341,7 @@ export class ArenaRoom extends AvatarRoom {
 
       // Update Mini-Boss AI if this player is the mini-boss
       if (player.skinId === ZOMBIE_MINIBOSS_SKIN_ID) {
-        this.updateMiniBossAI(player, sessionId);
+        this.zombie!.updateMiniBossAI(player, sessionId);
         // Knock dynamic objects (barrels, drums, tires) over while walking
         this.barrels.triggerInRadius(player.x, player.z, 1.6, sessionId);
         this.destructibles.pushInRadius(player.x, player.z, 1.6, sessionId, 1);
@@ -1597,7 +1385,7 @@ export class ArenaRoom extends AvatarRoom {
       if (displacing && disp) {
         // Slide along the displacement velocity (clamped to the arena).
         player.x = clamp(player.x + disp.vx * dt, -limit, limit);
-        player.z = clamp(player.z + disp.vz * dt, -limit, limit);
+        player.z = clamp(player.z + disp.vz * dt, -limitZ, limitZ);
         // Damaging dash (e.g. Charge): hit each enemy swept through once, and
         // physically collide with the props in the dash lane — launch burning
         // barrels and shove/scatter oil drums and tires it ploughs into.
@@ -1657,7 +1445,7 @@ export class ArenaRoom extends AvatarRoom {
           {
             speed: (() => {
               const perk = getPerkMoveSpeedMult(this.perkSystem, player);
-              return ((this.tuning.walkSpeedFor(player.characterClass) - (this.gunMode ? 0 : 1)) +
+              return ((this.tuning.walkSpeedFor(player.characterClass) - this.mode.walkSpeedPenalty) +
                 perk.bonus) *
                 moveSpeedMultiplier(player) *
                 perk.mult *
@@ -1666,6 +1454,7 @@ export class ArenaRoom extends AvatarRoom {
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
             halfBounds: limit,
+            halfBoundsZ: limitZ,
             obstacles: moveObstacles,
           },
           dt,
@@ -1714,15 +1503,15 @@ export class ArenaRoom extends AvatarRoom {
 
     // Zombies are solid: keep a horde from collapsing onto a single point (and
     // off the top of a player) by separating overlapping bodies each tick.
-    if (this.zombieMode) this.resolveZombieCollisions();
+    if (this.zombieMode) this.zombie!.resolveZombieCollisions();
 
-    this.processChannels();
+    this.channels.update();
     this.combat.processDashImpacts();
     // Projectiles/abilities apply their impulses, THEN we step the shared world
     // once, THEN the barrel/destructible systems read back the new transforms.
     this.projectiles.update(dt);
     // Gun Mode Zombie: complete any reloads whose timer elapsed this tick.
-    if (this.gunMode) this.guns.update();
+    this.guns?.update();
     // Roll any shot cars forward (moves their collider) BEFORE the physics step,
     // so drums/barrels collide against the car's new position this tick.
     this.cover.update(dt);
@@ -1764,88 +1553,16 @@ export class ArenaRoom extends AvatarRoom {
   
   /** Find a safe spot and spawn a treasure chest, ensuring no overlap with cover, players, or spawn points. */
   private trySpawnChest(): void {
+    // Only ever one chest alive at a time.
     let aliveChestsCount = 0;
     this.state.structures.forEach((s) => {
-      if (s.assetId === 'prop.arena.chest' && !s.destroyed) {
-        aliveChestsCount++;
-      }
+      if (s.assetId === 'prop.arena.chest' && !s.destroyed) aliveChestsCount++;
     });
+    if (aliveChestsCount >= 1) return;
 
-    if (aliveChestsCount >= 1) {
-      return;
-    }
-
-    const MARGIN = 3;
-    const MAX_R = ARENA_HALF_SIZE - MARGIN - 1.0;
-
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const x = (Math.random() * 2 - 1) * MAX_R;
-      const z = (Math.random() * 2 - 1) * MAX_R;
-      const rotation = Math.random() * Math.PI * 2;
-
-      if (Math.hypot(x, z) < 3.5) continue;
-
-      const footprints = structureFootprint('prop.arena.chest', x, z, rotation, 0.5, 1.5);
-
-      let clear = true;
-
-      const SPAWN_CLEAR = 5;
-      for (const sp of arenaSpawnsForTeam('blue').concat(arenaSpawnsForTeam('red'))) {
-        for (const f of footprints) {
-          if (Math.hypot(f.x - sp.x, f.z - sp.z) < SPAWN_CLEAR + f.radius) {
-            clear = false;
-            break;
-          }
-        }
-        if (!clear) break;
-      }
-      if (!clear) continue;
-
-      for (const o of this.obstacles) {
-        for (const f of footprints) {
-          const dx = f.x - o.x;
-          const dz = f.z - o.z;
-          const minDist = f.radius + o.radius + 2.0;
-          if (dx * dx + dz * dz < minDist * minDist) {
-            clear = false;
-            break;
-          }
-        }
-        if (!clear) break;
-      }
-      if (!clear) continue;
-
-      this.state.barrels.forEach((b) => {
-        if (!clear || !b.alive) return;
-        for (const f of footprints) {
-          const dx = f.x - b.x;
-          const dz = f.z - b.z;
-          const minDist = f.radius + 0.45 + 1.0;
-          if (dx * dx + dz * dz < minDist * minDist) {
-            clear = false;
-            break;
-          }
-        }
-      });
-      if (!clear) continue;
-
-      this.state.players.forEach((p) => {
-        if (!clear || !p.alive) return;
-        for (const f of footprints) {
-          const dx = f.x - p.x;
-          const dz = f.z - p.z;
-          const minDist = f.radius + PLAYER_RADIUS + 2.0;
-          if (dx * dx + dz * dz < minDist * minDist) {
-            clear = false;
-            break;
-          }
-        }
-      });
-      if (!clear) continue;
-
-      this.cover.spawnChest(x, z, rotation);
-      break;
-    }
+    // The chest always spawns on the central island (the one fixed feature) —
+    // only reachable across the N/S bridges, so it's a contested objective.
+    this.cover.spawnChest(ARENA_POND.x, ARENA_POND.z, 0);
   }
 
   /** Free the shared Rapier physics world when the room is torn down. */
@@ -1856,7 +1573,7 @@ export class ArenaRoom extends AvatarRoom {
   /** Toggle the auto-attack feature flag. Disabling clears any in-progress
    *  attack orders so nothing keeps swinging after the flag flips off. */
   private setAutoAttackEnabled(enabled: boolean): void {
-    if (this.zombieMode) return; // forced on for the whole room — ignore toggles
+    if (this.mode.autoAttack) return; // forced on for the whole room — ignore toggles
     this.autoAttackEnabled = enabled;
     if (!enabled) {
       this.attackTargets.clear();
@@ -1868,13 +1585,17 @@ export class ArenaRoom extends AvatarRoom {
    *  (a small random jitter avoids stacking when several share a point). */
   private resetPlayer(player: Player): void {
     const limit = this.arenaLimit - PLAYER_RADIUS;
+    const limitZ = this.arenaLimitZ - PLAYER_RADIUS;
     // Spawn on this player's side of the arena (blue at +Z, red at −Z).
     const spawns = arenaSpawnsForTeam(player.team === 'red' ? 'red' : 'blue');
     const spawn = spawns[Math.floor(Math.random() * spawns.length)];
     const jitter = () => (Math.random() * 2 - 1) * 1.5;
+    // FFA arena is longer N/S — push the team spawns out toward the ends (the Z
+    // spawn coords are authored for the square arena). Zombie keeps them as-is.
+    const zScale = this.zombieMode ? 1 : ARENA_HALF_Z / ARENA_HALF_SIZE;
     if (spawn) {
       player.x = clamp(spawn.x + jitter(), -limit, limit);
-      player.z = clamp(spawn.z + jitter(), -limit, limit);
+      player.z = clamp(spawn.z * zScale + jitter(), -limitZ, limitZ);
     } else {
       const range = this.arenaLimit - PLAYER_RADIUS * 2;
       player.x = (Math.random() * 2 - 1) * range;
@@ -1890,7 +1611,7 @@ export class ArenaRoom extends AvatarRoom {
     reviveFull(player);
     // Gun Mode Zombie: (re)issue a fresh weapon loadout to human players on every
     // spawn. Zombies/bots are 'red' and never carry guns.
-    if (this.gunMode && player.team === 'blue') this.guns.equipLoadout(player);
+    if (player.team === 'blue') this.guns?.equipLoadout(player);
   }
 
   // --- Practice bots -----------------------------------------------------
@@ -1953,412 +1674,8 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(id);
     this.attackReadyAt.delete(id);
     this.displacements.delete(id);
-    this.zombieCorpseAt.delete(id);
-    this.zombieAi.delete(id);
+    this.zombie?.forget(id);
     this.bots.delete(id);
   }
 
-  // --- Zombie survival ---------------------------------------------------
-
-  /**
-   * Make zombies solid: a single circle-vs-circle separation relaxation each
-   * tick so a horde fans out around its prey instead of stacking on one point.
-   * Zombie↔zombie overlaps split the push between both; a zombie overlapping a
-   * human is shoved fully clear (the human isn't moved — pushing a predicted,
-   * point-and-click player server-side would rubber-band them). Pushed zombies
-   * are re-resolved against cover so they can't be wedged into an obstacle.
-   */
-  private resolveZombieCollisions(): void {
-    const zombies: Player[] = [];
-    this.bots.forEach((_profile, id) => {
-      const z = this.state.players.get(id);
-      if (z?.alive) zombies.push(z);
-    });
-    if (zombies.length === 0) return;
-
-    const startPos = new Map<string, { x: number; z: number }>();
-    for (const z of zombies) {
-      startPos.set(z.sessionId, { x: z.x, z: z.z });
-    }
-
-    // Zombie ↔ zombie: push apart equally (a deterministic axis when exactly
-    // coincident, e.g. two spawned on the same jittered point).
-    for (let i = 0; i < zombies.length; i++) {
-      const a = zombies[i]!;
-      const aRadius = a.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-      for (let j = i + 1; j < zombies.length; j++) {
-        const b = zombies[j]!;
-        const bRadius = b.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-        const minSep = aRadius + bRadius;
-        const minSepSq = minSep * minSep;
-        let dx = b.x - a.x;
-        let dz = b.z - a.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 >= minSepSq) continue;
-        let d = Math.sqrt(d2);
-        if (d < 1e-4) {
-          dx = i % 2 === 0 ? 1 : -1;
-          dz = 0;
-          d = 1;
-        }
-        const push = (minSep - d) / 2;
-        const ox = (dx / d) * push;
-        const oz = (dz / d) * push;
-        const aLimit = this.arenaLimit - aRadius;
-        const bLimit = this.arenaLimit - bRadius;
-        a.x = clamp(a.x - ox, -aLimit, aLimit);
-        a.z = clamp(a.z - oz, -aLimit, aLimit);
-        b.x = clamp(b.x + ox, -bLimit, bLimit);
-        b.z = clamp(b.z + oz, -bLimit, bLimit);
-      }
-    }
-
-    // Zombie ↔ human: shove the zombie fully out (leave the human put).
-    this.state.players.forEach((human, id) => {
-      if (this.bots.has(id) || !human.alive) return;
-      const humanRadius = PLAYER_RADIUS;
-      for (const z of zombies) {
-        const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-        const minSep = humanRadius + zRadius;
-        const minSepSq = minSep * minSep;
-        const dx = z.x - human.x;
-        const dz = z.z - human.z;
-        const dist2 = dx * dx + dz * dz;
-        if (dist2 >= minSepSq || dist2 < 1e-8) continue;
-        const d = Math.sqrt(dist2);
-        const push = minSep - d;
-        const zLimit = this.arenaLimit - zRadius;
-        z.x = clamp(z.x + (dx / d) * push, -zLimit, zLimit);
-        z.z = clamp(z.z + (dz / d) * push, -zLimit, zLimit);
-      }
-    });
-
-    // Re-resolve cover and prop collisions for any zombie nudged into an obstacle.
-    // Reuses the cover+prop list built once for this tick in `update()` (props
-    // move only in the later physics step, so it's still current here).
-    const zombieStaticObstacles = this.zombieStaticObstacles;
-
-    for (const z of zombies) {
-      const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-      const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, zRadius);
-      z.x = fixed.x;
-      z.z = fixed.z;
-      // Enforce section boundaries so pushed zombies can't end up in locked areas.
-      if (this.roomLayout) {
-        const start = startPos.get(z.sessionId) ?? { x: z.x, z: z.z };
-        const clamped = clampToUnlockedArea(
-          z.x,
-          z.z,
-          this.roomLayout,
-          this.state.unlockedSections,
-          zRadius,
-          start.x,
-          start.z,
-        );
-        z.x = clamped.x;
-        z.z = clamped.z;
-      }
-    }
-  }
-
-  /** Living human (non-bot) players in the room — waves pause when this hits 0. */
-  private countHumans(): number {
-    let n = 0;
-    this.state.players.forEach((_player, id) => {
-      if (!this.bots.has(id)) n += 1;
-    });
-    return n;
-  }
-
-  /** Zombies currently alive (corpses awaiting removal are excluded). */
-  private countAliveZombies(): number {
-    let n = 0;
-    this.bots.forEach((_profile, id) => {
-      if (this.state.players.get(id)?.alive) n += 1;
-    });
-    return n;
-  }
-
-  /** This zombie's movement personality (lazily created — covers any spawned
-   *  before this map existed, though `spawnZombie` seeds it). */
-  private zombieAiFor(id: string): ZombieAiState {
-    let ai = this.zombieAi.get(id);
-    if (!ai) {
-      ai = {
-        speedOffset: (Math.random() * 2 - 1) * ZOMBIE_SPEED_JITTER,
-        // Commit to a flank side (±) at spawn with a 0.55–1.0 arc magnitude — half
-        // the horde curls left, half right, so they encircle instead of trailing.
-        wander: (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.45),
-        wanderUntil: this.simTime + this.rollWanderInterval(),
-        attackBonusMs: 0,
-        lastX: 0,
-        lastZ: 0,
-        stuckTicks: 0,
-        detourUntil: 0,
-        detourSide: 1,
-      };
-      this.zombieAi.set(id, ai);
-    }
-    return ai;
-  }
-
-  /** A randomized gap until a zombie next re-picks its wander path. */
-  private rollWanderInterval(): number {
-    return (
-      ZOMBIE_WANDER_REROLL_MIN_MS +
-      Math.random() * (ZOMBIE_WANDER_REROLL_MAX_MS - ZOMBIE_WANDER_REROLL_MIN_MS)
-    );
-  }
-
-  /** Spawn one zombie for `level`: a red-team melee bot that pours out of the
-   *  arena portal with level-scaled health and a relentless-chaser AI profile.
-   *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
-   *  the rest; death + removal are handled in the tick loop. */
-  private spawnZombie(level: number): void {
-    // Hard backstop above the director's own (level-scaled) cap — corpses can
-    // briefly inflate the map — so a bug can never let zombies grow without bound.
-    if (this.bots.size >= zombieMaxAlive(level) + 24) return;
-    // Roll this horde slot's variant: a Sprinter (fast, fragile), a Fat (slow,
-    // tanky, quicker swings), or a normal zombie. One roll partitions the chances
-    // so each variant keeps its exact marginal probability (Sprinter 35%, Fat a
-    // level-scaling 20→35%); the remainder is a normal zombie.
-    const roll = Math.random();
-    const fatChance = zombieFatChanceForLevel(level);
-    const variant: 'sprinter' | 'fat' | 'normal' =
-      roll < ZOMBIE_SPRINTER_SPAWN_CHANCE
-        ? 'sprinter'
-        : roll < ZOMBIE_SPRINTER_SPAWN_CHANCE + fatChance
-          ? 'fat'
-          : 'normal';
-
-    const id = `zombie-${++this.botSeq}`;
-    const player = new Player();
-    player.sessionId = id;
-    player.name = variant === 'sprinter' ? 'Sprinter' : variant === 'fat' ? 'Fat' : 'Zombie';
-    player.characterClass = 'warrior'; // melee auto-attack (drives stats/attacks)
-    // The client maps the skin to the matching GLB (zombie / sprinter / fat).
-    player.skinId =
-      variant === 'sprinter'
-        ? ZOMBIE_SPRINTER_SKIN_ID
-        : variant === 'fat'
-          ? ZOMBIE_FAT_SKIN_ID
-          : ZOMBIE_SKIN_ID;
-    player.team = 'red';
-    this.resetPlayer(player);
-    // Override the team spawn with a portal mouth (+ jitter so a pulse fans out
-    // instead of stacking), then apply the variant's level-scaled health. A
-    // random portal each spawn so hordes pour in from the back gate AND the
-    // flanking side portals.
-    const limit = this.arenaLimit - PLAYER_RADIUS;
-    const jitter = () => (Math.random() * 2 - 1) * 1.6;
-    const portal = this.pickZombiePortal();
-    player.x = clamp(portal.x + jitter(), -limit, limit);
-    player.z = clamp(portal.z + jitter(), -limit, limit);
-    player.maxHp =
-      variant === 'sprinter'
-        ? zombieSprinterHealthForLevel(level)
-        : variant === 'fat'
-          ? zombieFatHealthForLevel(level)
-          : zombieHealthForLevel(level);
-    player.hp = player.maxHp;
-
-    this.state.players.set(id, player);
-    this.verticalVelocity.set(id, 0);
-    this.grounded.set(id, true);
-    this.cooldowns.set(id, {});
-    this.bots.set(id, makeZombieProfile());
-    const ai = this.zombieAiFor(id); // roll this zombie's speed/wander personality
-    if (variant === 'sprinter') {
-      // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
-      // replacing the usual ±jitter so the extra speed is exactly in range.
-      ai.speedOffset =
-        ZOMBIE_SPRINTER_SPEED_MIN +
-        Math.random() * (ZOMBIE_SPRINTER_SPEED_MAX - ZOMBIE_SPRINTER_SPEED_MIN);
-    } else if (variant === 'fat') {
-      // A Fat is slower than a same-level zombie and swings a touch sooner.
-      ai.speedOffset = -ZOMBIE_FAT_SPEED_PENALTY;
-      ai.attackBonusMs = ZOMBIE_FAT_ATTACK_BONUS_MS;
-    }
-  }
-
-  private spawnMiniBoss(_level: number): void {
-    const id = `zombie-miniboss-${++this.botSeq}`;
-    const player = new Player();
-    player.sessionId = id;
-    player.name = 'Mini Boss';
-    player.characterClass = 'warrior';
-    player.skinId = ZOMBIE_MINIBOSS_SKIN_ID;
-    player.team = 'red';
-    this.resetPlayer(player);
-
-    const limit = this.arenaLimit - 0.8;
-    const portal = this.pickZombiePortal();
-    player.x = clamp(portal.x + (Math.random() * 2 - 1) * 1.6, -limit, limit);
-    player.z = clamp(portal.z + (Math.random() * 2 - 1) * 1.6, -limit, limit);
-    
-    player.maxHp = 750;
-    player.hp = 750;
-
-    this.state.players.set(id, player);
-    this.verticalVelocity.set(id, 0);
-    this.grounded.set(id, true);
-    this.cooldowns.set(id, {});
-    this.bots.set(id, makeZombieProfile());
-    
-    const ai = this.zombieAiFor(id);
-    ai.speedOffset = -1.5; // Slow movement speed (made 1 unit faster)
-  }
-
-  private updateMiniBossAI(bot: Player, id: string): void {
-    if (isStunned(bot) || isBlinded(bot)) return;
-    if (this.simTime < (this.bossNextActionAt.get(id) ?? 0)) return;
-    
-    // Mini-boss target
-    const targetId = this.attackTargets.get(id);
-    const target = targetId ? this.state.players.get(targetId) : undefined;
-    if (!target || !target.alive) {
-      // Re-evaluate target or try to find the closest player
-      let bestTarget: Player | undefined;
-      let minD2 = Infinity;
-      this.state.players.forEach((p) => {
-        if (!p.alive || p.team === bot.team) return;
-        const dx = p.x - bot.x;
-        const dz = p.z - bot.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 < minD2) {
-          minD2 = d2;
-          bestTarget = p;
-        }
-      });
-      if (bestTarget) {
-        this.attackTargets.set(id, bestTarget.sessionId);
-        this.bossNextActionAt.set(id, this.simTime + 500); // short wait to re-aim
-      }
-      return;
-    }
-
-    // Set next action timestamp (3.5 to 6s cooldown)
-    const interval = 3500 + Math.random() * 2500;
-    this.bossNextActionAt.set(id, this.simTime + interval);
-
-    // Roll for action: 50% chance fireball, 50% chance stomp shockwave
-    const roll = Math.random();
-    if (roll < 0.5) {
-      // 5-way Fireball burst
-      const baseAngle = Math.atan2(target.x - bot.x, target.z - bot.z);
-      for (let i = 0; i < 5; i++) {
-        const angle = baseAngle + i * ((2 * Math.PI) / 5);
-        const dirX = Math.sin(angle);
-        const dirZ = Math.cos(angle);
-        
-        // Spawn fireball projectile (3x slower velocity: 15 instead of 45)
-        this.projectiles.spawnProjectile(
-          bot,
-          'fireball',
-          dirX,
-          dirZ,
-          15,
-          30,
-          1.0,
-          [{ type: 'damage', amount: 20 }]
-        );
-      }
-    } else {
-      // Stomp shockwave: circular shockwave hitting everyone in a 7.0 unit radius, dealing 25 damage and knocking them back.
-      this.combat.forEachEnemyInRadius(bot.x, bot.z, 7.0, id, (enemy) => {
-        this.combat.dealDamage(enemy, 25, id);
-        this.combat.applyStatus(enemy, { kind: 'slow', durationMs: 2000, magnitude: 0.6 }, id);
-        const dx = enemy.x - bot.x;
-        const dz = enemy.z - bot.z;
-        const dist = Math.hypot(dx, dz) || 1;
-        this.combat.displace(enemy, dx / dist, dz / dist, 4, 18, 0, id);
-      });
-      // Play ground slam VFX on clients
-      this.broadcast(ServerMessage.AbilityCast, {
-        casterId: id,
-        ability: 'ground_slam',
-        x: bot.x,
-        y: 0.05,
-        z: bot.z,
-        dirX: 0,
-        dirZ: 1,
-      });
-    }
-  }
-
-  // --- Room expansion system -----------------------------------------------
-
-  /** If `level` matches the next door's unlock wave, open that door and load
-   *  the section behind it. No-op if all doors are already open. */
-  private tryUnlockDoor(level: number): void {
-    if (!this.roomLayout) {
-      console.log(`[doors] tryUnlockDoor(${level}): no roomLayout — skipping`);
-      return;
-    }
-    const nextIndex = this.state.unlockedSections;
-    if (nextIndex >= this.roomLayout.doors.length) return;
-    const door = this.roomLayout.doors[nextIndex]!;
-    if (level < door.unlockWave) {
-      console.log(`[doors] tryUnlockDoor(${level}): wave ${level} < required ${door.unlockWave} for door ${door.index}`);
-      return;
-    }
-
-    console.log(`[doors] UNLOCKING door ${door.index} at (${door.x}, ${door.z}) — wave ${level}, width ${door.width}`);
-
-    // Remove the door's wall from the collision set.
-    this.cover.removeDoor(`door-${door.index}`);
-
-    // Generate cover for the newly unlocked section.
-    const section = this.roomLayout.sections[nextIndex];
-    if (section) {
-      // Traps are zombie-mode only and never appear in gun mode. Compute it up
-      // front so cover generation can reserve its area (nothing spawns on a
-      // trap) — the client mirrors this exact call so both layouts agree.
-      const trap = this.gunMode ? null : trapForSection(this.state.layoutSeed, section);
-      const sectionCover = generateSectionCover(this.state.layoutSeed, section, trap);
-      this.cover.addSection(sectionCover.structures);
-      this.barrels.addBarrels(sectionCover.barrels);
-      this.destructibles.addObjects(sectionCover.drums, sectionCover.tireStacks);
-      console.log(`[doors] Section ${section.name} loaded: ${sectionCover.structures.length} structures, ${sectionCover.barrels.length} barrels`);
-
-      if (trap) {
-        this.traps.addTrap(trap);
-        console.log(`[traps] ${trap.kind} trap placed in ${section.name} at (${trap.x}, ${trap.z})`);
-      }
-    }
-
-    // Increment the replicated counter (drives client rendering + minimap).
-    this.state.unlockedSections = nextIndex + 1;
-    console.log(`[doors] unlockedSections now = ${this.state.unlockedSections}`);
-
-    // Broadcast a door-open event so clients play the crumble VFX.
-    this.broadcast(ServerMessage.StructureCrumbled, {
-      x: door.x,
-      z: door.z,
-      radius: door.width / 2,
-    });
-  }
-
-  /** Pick a zombie spawn portal from all unlocked sections + the main room,
-   *  weighted toward portals closest to the nearest human player. */
-  private pickZombiePortal(): { x: number; z: number } {
-    if (!this.roomLayout || this.state.unlockedSections === 0) {
-      // No room system or no sections unlocked — original behaviour.
-      return (
-        ZOMBIE_SPAWN_PORTALS[Math.floor(Math.random() * ZOMBIE_SPAWN_PORTALS.length)] ??
-        ARENA_PORTAL_POINT
-      );
-    }
-    // Gather alive human positions for distance weighting.
-    const humans: { x: number; z: number }[] = [];
-    this.state.players.forEach((p, id) => {
-      if (p.alive && !this.bots.has(id)) humans.push({ x: p.x, z: p.z });
-    });
-    return pickWeightedPortal(
-      ZOMBIE_SPAWN_PORTALS,
-      this.roomLayout,
-      this.state.unlockedSections,
-      humans,
-    );
-  }
 }

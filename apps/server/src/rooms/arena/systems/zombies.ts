@@ -7,7 +7,7 @@ import {
   zombieHordeSize,
   zombieMaxAlive,
 } from '@arena/shared';
-import type { ArenaContext } from './context.js';
+import type { ArenaContext } from '../context.js';
 
 /** What the room exposes so the wave director can populate hordes. */
 export interface ZombieHooks {

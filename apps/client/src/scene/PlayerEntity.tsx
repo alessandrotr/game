@@ -4,6 +4,7 @@ import { Billboard, Html, Text } from '@react-three/drei';
 import { MathUtils, Vector3, type Group, type Mesh } from 'three';
 import {
   ARENA_HALF_SIZE,
+  ARENA_HALF_Z,
   ZOMBIE_ROOM_HALF_SIZE,
   AUTO_ATTACKS,
   PICKABLE_CARRY_Y,
@@ -279,6 +280,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const isArena = useGameStore.getState().room === 'arena';
       const isZombieRoom = isArena && useGameStore.getState().zombieMode;
       const halfBounds = (isArena ? (isZombieRoom ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
+      // FFA arena is a rectangle (longer N/S); zombie + town stay square. Must
+      // match the server's per-axis clamp (ArenaRoom arenaLimitZ) for lockstep.
+      const halfBoundsZ = isArena && !isZombieRoom ? ARENA_HALF_Z - PLAYER_RADIUS : halfBounds;
       const dest = getDestination();
 
       // Zombie mode (arena): the living horde is solid. Collide against the same
@@ -317,7 +321,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
       if (dashing) {
         pos.x = clamp(pos.x + dashState.vx * delta, -halfBounds, halfBounds);
-        pos.z = clamp(pos.z + dashState.vz * delta, -halfBounds, halfBounds);
+        pos.z = clamp(pos.z + dashState.vz * delta, -halfBoundsZ, halfBoundsZ);
         // Dashes only happen in the arena (abilities are arena-only), so collide
         // against the match's cover and active move blockers (zombies).
         const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
@@ -344,7 +348,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         if (dist > cfg.range) {
           const step = Math.min(mv.speed * delta, dist - cfg.range + 0.01);
           pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
-          pos.z = clamp(pos.z + (dz / dist) * step, -halfBounds, halfBounds);
+          pos.z = clamp(pos.z + (dz / dist) * step, -halfBoundsZ, halfBoundsZ);
           // Same post-move obstacle push-out the server applies to the chase path.
           const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
           pos.x = fixed.x;
@@ -363,6 +367,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,
+            halfBoundsZ,
             obstacles: isArena ? arenaMoveObstacles : TOWN_OBSTACLES,
           },
           delta,

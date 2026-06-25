@@ -6,8 +6,8 @@ import {
   type LobbyMode,
   type Team,
 } from '@arena/shared';
-import type { Player } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import type { Player } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 
 /**
  * Ranked-match outcome tracking. A matchmade game ends decisively when one team

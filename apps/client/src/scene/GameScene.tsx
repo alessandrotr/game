@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
 import {
   ACESFilmicToneMapping,
   AgXToneMapping,
@@ -123,44 +122,11 @@ export function GameScene() {
       <ContextGuard />
       <EnchantClock />
       <PauseWhileCovered />
-      {/* Environment: the arena uses its fixed dusk lighting + IBL; the town uses
-          TownAtmosphere, which animates sky/fog/sun toward each focus scene's
-          weather (bright noon / blood sunset / storm + rain). */}
-      {isArena ? (
-        <>
-          <color attach="background" args={[env.background]} />
-          <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
-          <ambientLight intensity={env.ambient} />
-          <hemisphereLight color={env.hemiSky} groundColor={env.hemiGround} intensity={env.hemiIntensity} />
-          {/* Key light (sun) — the only shadow caster. Keyed by map size so a dev-tool
-              change recreates a fresh shadow map. */}
-          <directionalLight
-            key={quality.shadowMapSize}
-            position={env.sunPosition}
-            intensity={env.sunIntensity}
-            color={env.sunColor}
-            castShadow={quality.shadows}
-            shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
-            shadow-bias={env.shadowBias}
-            shadow-normalBias={env.shadowNormalBias}
-            shadow-camera-near={1}
-            shadow-camera-far={80}
-            shadow-camera-left={-env.shadowExtent}
-            shadow-camera-right={env.shadowExtent}
-            shadow-camera-top={env.shadowExtent}
-            shadow-camera-bottom={-env.shadowExtent}
-          />
-          {quality.fillLights && (
-            <>
-              <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
-              <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
-            </>
-          )}
-          <Environment preset="warehouse" environmentIntensity={env.envIntensity} />
-        </>
-      ) : (
-        <TownAtmosphere env={env} quality={quality} />
-      )}
+      {/* Both the town and the arena use the same animated atmosphere (sky / fog /
+          sun / procedural IBL), so the arena reads like a Britannia village. Its
+          env preset mirrors the town's; with no focus panel active it just rests
+          on that base look. */}
+      <TownAtmosphere env={env} quality={quality} />
 
       {isArena ? (
         <>

@@ -1,6 +1,6 @@
-import type { Player } from '../schema.js';
-import { getProgress, recordResult, type Progress } from '../../db/players.js';
-import { captureServerError } from '../../observability.js';
+import type { Player } from '../../schema.js';
+import { getProgress, recordResult, type Progress } from '../../../db/players.js';
+import { captureServerError } from '../../../observability.js';
 
 /** A database handle (a pool or transaction), as accepted by the player queries. */
 type Db = Parameters<typeof getProgress>[0];

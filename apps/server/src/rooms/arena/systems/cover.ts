@@ -13,8 +13,8 @@ import {
   type CoverStructureSpec,
   type RoomLayout,
 } from '@arena/shared';
-import { CoverStructure } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { CoverStructure } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import type { ArenaPhysics } from './physics.js';
 

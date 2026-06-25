@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PerkSystem, getPerkMoveSpeedMult } from './perks';
-import { Player } from '../schema';
-import type { ArenaContext } from './context';
+import { Player } from '../../schema';
+import type { ArenaContext } from '../context';
 import { PERKS, type PerkId } from '@arena/shared';
 
 const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {

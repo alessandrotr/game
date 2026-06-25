@@ -33,7 +33,7 @@ type PortalStyle = {
 function portalStyle(zone: { mode?: 'zombie' | 'gunzombie' }, room: RoomType | null): PortalStyle {
   if (zone.mode === 'zombie') {
     return {
-      label: 'Zombie Mode',
+      label: 'Undead Siege',
       core: '#d8ffb0',
       edge: '#3a7d1f',
       glow: '#7fe04a',

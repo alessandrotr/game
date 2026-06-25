@@ -489,7 +489,7 @@ function onDamage(msg: ServerMessagePayloads[ServerMessage.Damage]): void {
   if (!msg.lethal && (msg.to === sessionId || isMiniboss)) {
     pushAnimationEvent(msg.to, 'hit');
   } else if (msg.lethal && isMiniboss) {
-    useGameStore.getState().triggerMinibossAlert('Mini-Boss Defeated! Heal Pack Dropped!');
+    useGameStore.getState().triggerMinibossAlert('Dread Knight Slain! Healing Draught Dropped!');
   }
 }
 

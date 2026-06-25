@@ -32,8 +32,11 @@ export interface LocomotionParams {
   rotationSpeed: number;
   /** Distance from the destination that counts as arrived (world units). */
   stoppingDistance: number;
-  /** Clamp |x|,|z| to this (typically WORLD_HALF − PLAYER_RADIUS). */
+  /** Clamp |x| to this (typically WORLD_HALF − PLAYER_RADIUS). */
   halfBounds: number;
+  /** Clamp |z| to this; defaults to `halfBounds` (square). The FFA arena passes a
+   *  larger value so the arena is longer north/south. */
+  halfBoundsZ?: number;
   /** Circular obstacles to slide around. */
   obstacles: readonly Circle[];
 }
@@ -101,8 +104,9 @@ export function stepLocomotion(
       const step = Math.min(p.speed * dt, remaining);
       // Advance, then slide around obstacles (push-out preserves tangential motion).
       const slid = resolveCircles(x + ndx * step, z + ndz * step, p.obstacles);
+      const hbZ = p.halfBoundsZ ?? p.halfBounds;
       x = clamp(slid.x, -p.halfBounds, p.halfBounds);
-      z = clamp(slid.z, -p.halfBounds, p.halfBounds);
+      z = clamp(slid.z, -hbZ, hbZ);
       rotation = lerpAngle(rotation, Math.atan2(ndx, ndz), 1 - Math.exp(-p.rotationSpeed * dt));
     } else {
       arrived = true;

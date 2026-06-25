@@ -9,8 +9,8 @@ import {
   isZombieSkin,
   type PickableKind,
 } from '@arena/shared';
-import { Pickable, type Player } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { Pickable, type Player } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import type { ProjectileSystem } from './projectiles.js';
 import type { GroundZoneSystem } from './groundZones.js';

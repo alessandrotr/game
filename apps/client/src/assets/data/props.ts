@@ -34,23 +34,22 @@ const CLOTH = '#a23b3b';
 const TEAM_BLUE = '#3f72c4';
 const TEAM_RED = '#c43f3f';
 
-// --- Trailer-park / arena junk palette (gritty, weathered, post-apocalyptic) -
-const RUST = '#7c4a2f';
-const RUST_DARK = '#522f1d';
-const SCRAP = '#6f675b';
-const SCRAP_DARK = '#474037';
-const SIDING = '#c2b9a6'; // weathered cream trailer siding
-const SIDING_TEAL = '#7e9091'; // faded teal trailer
-const SIDING_OLIVE = '#7c8163'; // faded olive trailer
-const TIN = '#857c6f'; // dull metal roof
-const CHAR = '#221f1c'; // charred black (burned vehicles)
-const CHAR_RUST = '#46342a'; // charred + rust
-const CAR_WHEEL = '#4a443f'; // rubber grey — lighter than the charred body so wheels read
-const GLASS_DK = '#33403c'; // broken / blown-out window glass
-const TRASH = '#534b3d'; // refuse mound
-const BAG = '#23211d'; // black garbage bags
-const TIRE = '#1d1b1a'; // old rubber
-const FIRE = '#ff7a3a'; // burn-barrel flame (emissive)
+// --- Medieval ruin / arena palette (weathered stone, timber, moss, iron) -----
+// NOTE: the constant NAMES are kept from the old trailer-park palette so every
+// prop builder still references them — only the COLORS changed, reskinning the
+// whole arena from junkyard to fantasy ruin in one place.
+const RUST = '#6b6157'; // mossy weathered stone (was rust)
+const RUST_DARK = '#463f37'; // dark damp stone / mortar shadow
+const SCRAP = '#807a6d'; // dressed grey stone block
+const SCRAP_DARK = '#4f4a40'; // dark stone / deep shadow
+const SIDING = '#a89f8b'; // pale sandstone wall
+const SIDING_TEAL = '#6f8073'; // moss-green weathered stone
+const SIDING_OLIVE = '#79795c'; // lichen-stained stone
+const CHAR = '#221f1c'; // charred black (burned timber / scorched ruin)
+const CAR_WHEEL = '#5c4326'; // wooden cart wheel / axle timber
+const GLASS_DK = '#33403c'; // dark recessed window / arrow-slit
+const TIRE = '#332b20'; // dark weathered cartwheel timber
+const FIRE = '#ff7a3a'; // brazier / watch-fire flame (emissive)
 
 // --- Part builders (concise primitive helpers) -----------------------------
 type P = Partial<PlaceholderPart>;
@@ -378,6 +377,89 @@ const cottage = townHouse('building.cottage', {
   chimney: [-0.9, 3, -0.6],
 });
 
+// --- Log cabin --------------------------------------------------------------
+const LOG = '#9c7445'; // warm natural log timber
+const LOG_DARK = '#7c5a33'; // shadowed / alternating log course
+const CHINK = '#c3b488'; // pale clay daub packed between the logs
+const ROOF_WOOD = '#6e5234'; // wooden plank roof
+const DOOR_WOOD = '#7a5832'; // wooden door planks
+/** A log cabin: stacked round logs with pale clay chinking and overhanging
+ *  notched corners, a flat plank roof on exposed log joists, a framed plank
+ *  door, and a stone chimney. Sized as hard cover (~radius 2, old trailer). */
+function woodShackParts(opts: { w: number; d: number }): PlaceholderPart[] {
+  const fh = 0.28; // low stone footing
+  const wallH = 2.2; // ~trailer height (0.28 + 2.2 + roof ≈ 2.8)
+  const { w: W, d: D } = opts;
+  const halfW = W / 2;
+  const halfD = D / 2;
+  const wy = fh + wallH / 2;
+  const eave = fh + wallH; // wall top
+  const beam: P = { castShadow: false };
+  const logR = 0.16;
+  const over = 0.5; // corner overhang (the notched, crossing log ends)
+  const parts: PlaceholderPart[] = [
+    // Low stone footing + pale clay chinking core (shows in the gaps between logs).
+    box([W + 0.12, fh, D + 0.12], [0, fh / 2, 0], STONE),
+    box([W - 0.04, wallH, D - 0.04], [0, wy, 0], CHINK),
+  ];
+  // --- Walls of stacked round logs. Front/back run along X, sides along Z and
+  // offset half a course so the overhanging ends cross at the corners (notch). ---
+  const courses = 6;
+  const spacing = (wallH - 2 * logR) / (courses - 1);
+  for (let c = 0; c < courses; c++) {
+    const y = fh + logR + c * spacing;
+    const colA = c % 2 === 0 ? LOG : LOG_DARK;
+    parts.push(cyl(logR, logR, W + over * 2, 8, [0, y, halfD], colA, { rotation: [0, 0, Math.PI / 2] }));
+    parts.push(cyl(logR, logR, W + over * 2, 8, [0, y, -halfD], colA, { rotation: [0, 0, Math.PI / 2] }));
+    const y2 = y + spacing / 2;
+    if (y2 < eave) {
+      const colB = c % 2 === 0 ? LOG_DARK : LOG;
+      parts.push(cyl(logR, logR, D + over * 2, 8, [halfW, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
+      parts.push(cyl(logR, logR, D + over * 2, 8, [-halfW, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
+    }
+  }
+  // --- Flat plank roof on exposed log joists (joist ends poke out front/back) ---
+  for (const x of [-halfW + 0.5, -halfW + 1.7, halfW - 1.7, halfW - 0.5]) {
+    parts.push(cyl(0.11, 0.11, D + 1.0, 7, [x, eave + 0.06, 0], LOG_DARK, { rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  }
+  parts.push(box([W + 0.7, 0.16, D + 0.7], [0, eave + 0.25, 0], ROOF_WOOD)); // solid flat roof slab
+  for (const z of [-halfD + 0.4, 0, halfD - 0.4]) {
+    parts.push(box([W + 0.7, 0.04, 0.06], [0, eave + 0.34, z], LOG_DARK, beam)); // plank seams
+  }
+  // --- Plank door, mounted PROUD of the bulging front (+Z) logs so it reads
+  // clearly, in a heavy timber frame with iron hinge straps + a handle. ---
+  const dW = 1.1;
+  const dH = 1.7;
+  const dz = halfD + 0.2; // stand the door out past the front log surface
+  parts.push(
+    // Timber frame: jambs + lintel, standing proud.
+    box([0.18, dH + 0.22, 0.26], [-dW / 2 - 0.05, fh + (dH + 0.22) / 2, dz - 0.05], LOG_DARK),
+    box([0.18, dH + 0.22, 0.26], [dW / 2 + 0.05, fh + (dH + 0.22) / 2, dz - 0.05], LOG_DARK),
+    box([dW + 0.5, 0.22, 0.28], [0, fh + dH + 0.1, dz - 0.05], LOG_DARK),
+    // Dark gap behind the door, then the plank door panel.
+    box([dW, dH, 0.08], [0, fh + dH / 2, dz - 0.12], '#15110c'),
+    box([dW, dH, 0.12], [0, fh + dH / 2, dz], DOOR_WOOD),
+    // Vertical plank grooves on the panel.
+    box([0.05, dH - 0.1, 0.04], [-0.33, fh + dH / 2, dz + 0.07], '#3a2b1a', beam),
+    box([0.05, dH - 0.1, 0.04], [0, fh + dH / 2, dz + 0.07], '#3a2b1a', beam),
+    box([0.05, dH - 0.1, 0.04], [0.33, fh + dH / 2, dz + 0.07], '#3a2b1a', beam),
+    // Iron hinge straps (top + bottom) + a handle.
+    box([dW, 0.11, 0.05], [0, fh + 0.42, dz + 0.07], '#2a2018', beam),
+    box([dW, 0.11, 0.05], [0, fh + dH - 0.42, dz + 0.07], '#2a2018', beam),
+    box([0.1, 0.16, 0.07], [0.38, fh + dH / 2, dz + 0.09], '#1f1812', beam),
+  );
+  // --- Stone chimney climbing the back wall ---
+  parts.push(
+    box([0.62, eave + 0.6, 0.62], [halfW - 0.7, (eave + 0.6) / 2, -halfD - 0.18], STONE),
+    box([0.68, 0.18, 0.68], [halfW - 0.7, eave + 0.55, -halfD - 0.18], STONE_DARK, beam),
+  );
+  return parts;
+}
+// Rectangular like the old trailers (~4.8 long × 2.5 wide); the arena layout adds
+// a per-instance 1.0–1.5× length stretch so they're not all the same length.
+const shack = prop('building.shack', 'Log Cabin', woodShackParts({ w: 4.8, d: 2.5 }));
+const shackSmall = prop('building.shack.small', 'Log Hut', woodShackParts({ w: 4.0, d: 2.4 }));
+
 /** The tavern: two storeys with a jettied upper floor and a hanging sign. Hollow
  *  gray-stone brick with see-through windows — left as an empty shell inside (no
  *  lit interior structure). */
@@ -484,12 +566,24 @@ const smithyRed = teamVariant(smithy, 'red', [ROOF_SLATE]); // smithy sits on th
 
 /** Stone well with a little roof — a natural town-square centrepiece. */
 const well = prop('well', 'Well', [
-  cyl(1.1, 1.15, 0.9, 12, [0, 0.45, 0], STONE),
-  cyl(0.85, 0.85, 0.8, 12, [0, 0.5, 0], WATER, {
+  // Stone drum (solid, top at 0.7). The water sits ABOVE this top and below the
+  // raised rim, so no two faces are coplanar (the old basin z-fought because the
+  // water top and the drum top were both at y=0.9).
+  cyl(1.0, 1.1, 0.7, 12, [0, 0.35, 0], STONE),
+  cyl(0.86, 0.86, 0.06, 16, [0, 0.73, 0], WATER, {
     castShadow: false,
     roughness: 0.3,
     metalness: 0.2,
   }),
+  // Raised stone rim ring framing the water (open centre, so the water shows).
+  {
+    shape: 'torus',
+    args: [0.96, 0.16, 8, 18],
+    position: [0, 0.78, 0],
+    rotation: [Math.PI / 2, 0, 0],
+    color: STONE,
+    castShadow: false,
+  },
   box([0.18, 1.7, 0.18], [0.9, 0.85, 0], WOOD),
   box([0.18, 1.7, 0.18], [-0.9, 0.85, 0], WOOD),
   cyl(0.1, 0.1, 2, 6, [0, 1.7, 0], WOOD, { rotation: [0, 0, Math.PI / 2], castShadow: false }),
@@ -712,82 +806,120 @@ const wall = prop('wall', 'City Wall', [
   box([0.7, 0.5, 0.95], [1.6, 2.85, 0], STONE_DARK, { castShadow: false }),
 ]);
 
-// --- Trailer-park battleground (arena) -------------------------------------
+// --- Ruined-keep battleground (arena) --------------------------------------
 //
 // Same primitive-only, flat-shaded approach as the town above, but weathered:
-// faded siding, rust streaks, charred metal, scattered junk. Big pieces
-// (trailers, burned cars, dumpsters, scrap piles, drum clusters) are COVER and
-// MUST have a matching collision circle in `ARENA_LAYOUTS.trailerpark`
+// mossed stone, slate roofs, charred timber, scattered rubble. Big pieces
+// (stone ruins, wrecked wagons, supply crates, rubble heaps, keg clusters) are
+// COVER and MUST have a matching collision circle in `ARENA_LAYOUTS.trailerpark`
 // (packages/shared/src/constants.ts) — exactly like the town keeps props in
-// sync with TOWN_OBSTACLES. Small flat litter (trash, debris, crates, tyres,
-// fences) is decorative-only and opts out of both collision and shadows.
+// sync with TOWN_OBSTACLES. Small flat litter (rubble, debris, crates,
+// cartwheels, fences) is decorative-only and opts out of collision and shadows.
 
 const ns: P = { castShadow: false };
 
-/** A single-wide mobile home up on cinderblocks: faded siding, tin roof, rust
- *  streaks, a busted door, boarded and blown-out windows. ~5u long. */
+/** A ruined stone cottage: dressed-stone walls with a broken, toothed top, a
+ *  partly collapsed slate gable roof (open over one end, exposed beams), a dark
+ *  doorway with a stone lintel, an arrow-slit window, moss, and spilled rubble.
+ *  ~5u long. `siding` selects the stone tone (sandstone / moss / lichen). */
 const trailerParts = (siding: string): PlaceholderPart[] => [
-  box([5, 0.5, 2.5], [0, 0.25, 0], SCRAP_DARK), // skirting / underpinning
-  box([4.8, 1.9, 2.4], [0, 1.4, 0], siding), // body
-  box([4.9, 0.18, 2.46], [0, 0.6, 0], RUST_DARK, ns), // rust water-line
-  box([5.1, 0.22, 2.62], [0, 2.45, 0], TIN), // low tin roof (overhang)
-  box([1.5, 0.24, 0.9], [-1.1, 2.47, 0.3], RUST, ns), // roof rust patch
-  box([0.8, 0.5, 0.8], [1.3, 2.8, -0.3], SCRAP, { metalness: 0.3, castShadow: false }), // rooftop AC unit
-  cyl(0.1, 0.1, 0.5, 6, [-1.8, 2.75, 0.5], SCRAP_DARK, ns), // vent pipe
-  box([0.85, 1.45, 0.08], [1.25, 1.02, 1.21], RUST_DARK), // door
-  box([1, 0.4, 0.6], [1.25, 0.2, 1.5], SCRAP_DARK, ns), // cinderblock step
-  box([0.85, 0.75, 0.06], [-1.35, 1.6, 1.21], GLASS_DK), // window (blown out)
-  box([0.85, 0.75, 0.06], [-0.1, 1.6, 1.21], GLASS_DK), // window (boarded below)
-  box([0.92, 0.13, 0.08], [-0.1, 1.75, 1.24], WOOD, ns), // board
-  box([0.92, 0.13, 0.08], [-0.1, 1.45, 1.24], WOOD, ns), // board
-  box([0.08, 1.4, 0.5], [2.45, 1.1, 0.2], RUST, ns), // rust streak (end)
-  box([0.06, 1.1, 0.4], [-2.43, 1, -0.4], RUST, ns), // rust streak (end)
-  cyl(0.34, 0.34, 0.28, 10, [1.6, 0.3, -1.05], CHAR, { rotation: [Math.PI / 2, 0, 0], castShadow: false }), // exposed wheel
+  box([5, 0.4, 2.5], [0, 0.2, 0], STONE_DARK), // foundation plinth
+  box([4.8, 1.7, 2.4], [0, 1.25, 0], siding), // main walls (the cover mass)
+  box([0.45, 0.18, 2.46], [0, 0.45, 0], STONE_DARK, ns), // plinth course line
+  // Tall standing gable end-wall fragment (the roof rests against it).
+  box([0.45, 1.2, 2.4], [-2.2, 2.2, 0], siding),
+  // Broken wall teeth at the collapsed (+x) end — uneven so it reads as a ruin.
+  box([0.5, 0.4, 0.5], [1.4, 2.3, 0.95], siding, ns),
+  box([0.45, 0.28, 0.5], [1.95, 2.24, -0.9], siding, ns),
+  box([0.4, 0.22, 0.5], [1.9, 2.18, 0.9], siding, ns),
+  // Slate gable roof — only over the −x half; the +x end is open to the sky.
+  box([3.2, 0.16, 1.5], [-0.55, 2.42, 0.6], ROOF_SLATE, { rotation: [-0.46, 0, 0], castShadow: false }),
+  box([3.2, 0.16, 1.5], [-0.55, 2.42, -0.6], ROOF_SLATE, { rotation: [0.46, 0, 0], castShadow: false }),
+  box([3.35, 0.16, 0.2], [-0.55, 2.74, 0], WOOD_DARK, ns), // ridge beam
+  // Exposed rafters jutting over the collapsed end.
+  cyl(0.06, 0.06, 2.4, 6, [1.35, 2.0, 0.0], WOOD_DARK, { rotation: [Math.PI / 2, 0, 0.12], castShadow: false }),
+  cyl(0.06, 0.06, 2.2, 6, [1.75, 1.8, 0.0], WOOD_DARK, { rotation: [Math.PI / 2, 0, -0.1], castShadow: false }),
+  // Doorway (dark recess) with a heavy stone lintel, front (+z) wall.
+  box([1.0, 1.3, 0.14], [1.0, 0.95, 1.16], GLASS_DK),
+  box([1.25, 0.24, 0.36], [1.0, 1.72, 1.1], STONE_DARK, ns),
+  // Narrow arrow-slit window with a stone surround.
+  box([0.26, 0.72, 0.14], [-1.5, 1.4, 1.17], GLASS_DK),
+  box([0.42, 0.16, 0.32], [-1.5, 1.86, 1.1], STONE_DARK, ns),
+  // Moss / lichen staining down the stone.
+  box([0.5, 1.2, 0.06], [-2.41, 1.2, 0.4], RUST, ns),
+  box([0.4, 0.9, 0.06], [2.41, 1.0, -0.4], RUST, ns),
+  // Rubble spilling from the collapsed end.
+  sph(0.4, [2.4, 0.35, 0.6], STONE, { scale: [1.3, 0.7, 1.1], castShadow: false }),
+  sph(0.3, [2.55, 0.26, -0.45], STONE_DARK, ns),
+  box([0.5, 0.45, 0.5], [2.2, 0.42, -0.85], siding, { rotation: [0.2, 0.4, 0.3], castShadow: false }), // fallen block
 ];
-const trailer = prop('arena.trailer', 'Trailer', trailerParts(SIDING));
-const trailerTeal = prop('arena.trailer.teal', 'Trailer', trailerParts(SIDING_TEAL));
-const trailerOlive = prop('arena.trailer.olive', 'Trailer', trailerParts(SIDING_OLIVE));
+const trailer = prop('arena.trailer', 'Stone Ruin', trailerParts(SIDING));
+const trailerTeal = prop('arena.trailer.teal', 'Stone Ruin', trailerParts(SIDING_TEAL));
+const trailerOlive = prop('arena.trailer.olive', 'Stone Ruin', trailerParts(SIDING_OLIVE));
 
-/** One upright car tyre — the tyre-stack torus, sized to the sedan and tagged
- *  `wheel` so the renderer rolls it. Default torus axle is local Z (the car's
- *  side axis), so it stands and rolls without a base rotation. */
-const wheel = (position: Vec3): PlaceholderPart => ({
-  shape: 'torus',
-  args: [0.27, 0.13, 10, 20],
-  position,
-  color: CAR_WHEEL,
-  castShadow: false,
-  name: 'wheel',
-});
+/** A spoked wooden cart wheel (ring + hub + crossed spokes), upright with its
+ *  axle along local Z. Static cover, so it isn't tagged `wheel` (no roll). */
+// Parts tagged `name: 'wheel'` are spun about their axle by CoverStructureEntity
+// as the wagon rolls (the torus + spokes turn together; the hub is symmetric so
+// it stays put). The torus axle is local Z, matching the renderer's roll axis.
+const cartWheel = (p: Vec3): PlaceholderPart[] => [
+  { shape: 'torus', args: [0.42, 0.07, 8, 18], position: p, color: CAR_WHEEL, castShadow: false, name: 'wheel' },
+  cyl(0.09, 0.09, 0.18, 8, p, WOOD_DARK, { rotation: [Math.PI / 2, 0, 0], castShadow: false }), // hub
+  box([0.06, 0.8, 0.05], p, WOOD, { name: 'wheel', castShadow: false }), // spoke (vertical)
+  box([0.8, 0.06, 0.05], p, WOOD, { name: 'wheel', castShadow: false }), // spoke (horizontal)
+];
 
-/** A burned-out sedan: charred shell, melted-flat tyres, blown windows, a faint
- *  smoulder still glowing in the engine bay. ~3.4u long. */
-const burnedCar = prop('arena.car.burned', 'Burned Car', [
-  box([3.4, 0.55, 1.6], [0, 0.5, 0], CHAR), // chassis
-  box([3.2, 0.45, 1.5], [0, 0.85, 0], CHAR_RUST), // lower body
-  box([1.8, 0.7, 1.45], [-0.15, 1.35, 0], CHAR), // cabin (greenhouse)
-  box([1.6, 0.12, 1.35], [-0.15, 1.72, 0], CHAR, ns), // sagging roof remnant
-  box([1.1, 0.18, 1.45], [1.35, 1.05, 0], CHAR_RUST, ns), // hood
-  box([1, 0.5, 0.06], [0.3, 0.9, 0.78], RUST, ns), // side rust
-  box([1, 0.5, 0.06], [0.3, 0.9, -0.78], RUST, ns),
-  box([1, 0.9, 0.06], [-0.25, 0.95, 0.78], CHAR_RUST, { rotation: [0, 0.4, 0], castShadow: false }), // door, ajar
-  // Wheels: the same torus tyre as the tyre stack, stood upright. Named so the
-  // renderer can roll them (spin about the torus's local-Z axle) when shoved.
-  // Default torus orientation is already upright with its axle along Z (the
-  // car's side axis), so no base rotation is needed.
-  wheel([1.1, 0.3, 0.7]),
-  wheel([1.1, 0.3, -0.7]),
-  wheel([-1.1, 0.3, 0.7]),
-  wheel([-1.1, 0.3, -0.7]),
-  box([0.5, 0.1, 0.6], [1.35, 0.95, 0], '#5a2a14', {
-    emissive: FIRE,
-    emissiveIntensity: 0.5,
-    castShadow: false,
-  }), // engine-bay smoulder
+const TNT_RED = '#c33529'; // bright dynamite red
+const TNT_BAND = '#1c1714'; // black binding band
+const FUSE = '#15110d'; // dark fuse cord
+/** A bundle of red dynamite sticks (7 in a hex cluster) bound by two black bands,
+ *  with a couple of lit fuses poking out the top. Sits on the wagon bed. */
+const dynamiteBundle = (cx: number, cz: number): PlaceholderPart[] => {
+  const bed = 0.91; // wagon bed top
+  const h = 0.85;
+  const r = 0.12;
+  const sticks: [number, number][] = [
+    [0, 0], [0.26, 0], [-0.26, 0], [0.13, 0.22], [-0.13, 0.22], [0.13, -0.22], [-0.13, -0.22],
+  ];
+  const parts: PlaceholderPart[] = sticks.map(([dx, dz], i) => {
+    const sh = h + (i % 3) * 0.07; // slight height variation across the bundle
+    return cyl(r, r, sh, 8, [cx + dx, bed + sh / 2, cz + dz], TNT_RED);
+  });
+  parts.push(
+    // Two black bands wrapping the bundle (horizontal rings).
+    { shape: 'torus', args: [0.42, 0.06, 6, 16], position: [cx, bed + 0.26, cz], rotation: [Math.PI / 2, 0, 0], color: TNT_BAND, castShadow: false },
+    { shape: 'torus', args: [0.42, 0.06, 6, 16], position: [cx, bed + 0.62, cz], rotation: [Math.PI / 2, 0, 0], color: TNT_BAND, castShadow: false },
+    // Lit fuses + a spark.
+    cyl(0.025, 0.025, 0.32, 5, [cx + 0.06, bed + h + 0.1, cz], FUSE, { rotation: [0.35, 0, 0.25], castShadow: false }),
+    cyl(0.025, 0.025, 0.28, 5, [cx - 0.08, bed + h + 0.08, cz + 0.06], FUSE, { rotation: [-0.3, 0, -0.2], castShadow: false }),
+    sph(0.07, [cx + 0.14, bed + h + 0.3, cz], '#ffd24a', { emissive: '#ffb020', emissiveIntensity: 1.4, castShadow: false }),
+  );
+  return parts;
+};
+/** A powder wagon: an intact open-topped plank cart on four spoked wheels, loaded
+ *  with a bundle of red dynamite. Catches fire and blows up when shot (its id
+ *  contains 'car', so it gets the smoke/fire VFX). */
+const burnedCar = prop('arena.car.burned', 'Powder Wagon', [
+  // Plank bed + full side/end rails.
+  box([3.0, 0.22, 1.6], [0, 0.8, 0], WOOD),
+  box([3.0, 0.5, 0.14], [0, 1.05, 0.73], WOOD_DARK),
+  box([3.0, 0.5, 0.14], [0, 1.05, -0.73], WOOD_DARK),
+  box([0.14, 0.5, 1.6], [-1.5, 1.05, 0], WOOD_DARK),
+  box([0.14, 0.5, 1.6], [1.5, 1.05, 0], WOOD_DARK),
+  box([3.0, 0.04, 0.07], [0, 0.92, 0.32], WOOD_DARK, ns), // bed plank seam
+  box([3.0, 0.04, 0.07], [0, 0.92, -0.32], WOOD_DARK, ns),
+  // Four spoked wheels.
+  ...cartWheel([1.05, 0.45, 0.82]),
+  ...cartWheel([1.05, 0.45, -0.82]),
+  ...cartWheel([-1.05, 0.45, 0.82]),
+  ...cartWheel([-1.05, 0.45, -0.82]),
+  // Red dynamite bundles lashed to the bed.
+  ...dynamiteBundle(-0.45, 0.05),
+  ...dynamiteBundle(0.6, -0.1),
 ]);
 
 /** A heap of twisted scrap: corrugated sheets, a bent pipe, a steel offcut. */
-const scrapPile = prop('arena.scrap', 'Scrap Pile', [
+const scrapPile = prop('arena.scrap', 'Rubble Heap', [
   box([2, 0.6, 1.6], [0, 0.3, 0], SCRAP_DARK, ns), // base mound
   box([1.8, 1.4, 0.08], [0.2, 0.95, 0.2], SCRAP, { rotation: [0.2, 0.3, 0.15] }), // leaning sheet
   box([1.5, 1.2, 0.08], [-0.3, 0.85, -0.3], RUST, { rotation: [-0.15, -0.4, -0.2] }), // leaning sheet
@@ -797,7 +929,7 @@ const scrapPile = prop('arena.scrap', 'Scrap Pile', [
 ]);
 
 /** A rusted dumpster with one lid flopped open — solid mid-size cover. */
-const dumpster = prop('arena.dumpster', 'Dumpster', [
+const dumpster = prop('arena.dumpster', 'Supply Crate', [
   box([2, 1.1, 1.2], [0, 0.65, 0], SCRAP_DARK), // body
   box([2.12, 0.12, 1.32], [0, 1.22, 0], SCRAP, ns), // top rim
   box([0.95, 0.08, 1.25], [0.5, 1.27, 0], RUST_DARK), // closed lid
@@ -809,7 +941,7 @@ const dumpster = prop('arena.dumpster', 'Dumpster', [
 ]);
 
 /** A ~2u rusted corrugated-metal fence segment (tileable; decorative). */
-const rustFence = prop('arena.fence.rust', 'Rusted Fence', [
+const rustFence = prop('arena.fence.rust', 'Broken Palisade', [
   cyl(0.07, 0.08, 1.8, 6, [-0.95, 0.9, 0], SCRAP_DARK, ns), // post
   cyl(0.07, 0.08, 1.8, 6, [0.95, 0.9, 0], SCRAP_DARK, ns), // post
   box([1.9, 1.3, 0.05], [0, 0.95, 0], RUST, ns), // corrugated panel
@@ -817,51 +949,65 @@ const rustFence = prop('arena.fence.rust', 'Rusted Fence', [
   box([2, 0.08, 0.08], [0, 1.62, 0], SCRAP_DARK, ns), // top rail
 ]);
 
-/** A rusted 55-gallon oil drum. */
-const oilDrum = prop('arena.drum', 'Oil Drum', [
-  cyl(0.4, 0.4, 1, 12, [0, 0.5, 0], RUST),
-  cyl(0.42, 0.42, 0.06, 12, [0, 1, 0], RUST_DARK, ns), // lid
-  {
-    shape: 'torus',
-    args: [0.4, 0.04, 6, 12],
-    position: [0, 0.35, 0],
-    rotation: [Math.PI / 2, 0, 0],
-    color: RUST_DARK,
-    castShadow: false,
-  },
-  {
-    shape: 'torus',
-    args: [0.4, 0.04, 6, 12],
-    position: [0, 0.7, 0],
-    rotation: [Math.PI / 2, 0, 0],
-    color: RUST_DARK,
-    castShadow: false,
-  },
+/** A medieval battlefield palisade: a row of sharpened timber stakes lashed by
+ *  cross-rails, braced from behind — ~3u long, used as destructible cover. */
+const palisadeParts = (): PlaceholderPart[] => {
+  const parts: PlaceholderPart[] = [
+    cyl(0.14, 0.14, 3.0, 8, [0, 0.2, 0], WOOD_DARK, { rotation: [0, 0, Math.PI / 2] }), // base sill
+  ];
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const x = -1.35 + (2.7 * i) / (n - 1);
+    const col = i % 2 === 0 ? WOOD : WOOD_DARK;
+    parts.push(cyl(0.17, 0.17, 1.7, 7, [x, 0.9, 0], col)); // stake
+    parts.push(cone(0.17, 0.34, 7, [x, 1.92, 0], col, { castShadow: false })); // sharpened tip
+  }
+  parts.push(
+    cyl(0.09, 0.09, 2.9, 7, [0, 1.5, 0.17], WOOD_DARK, { rotation: [0, 0, Math.PI / 2], castShadow: false }), // front rail
+    cyl(0.09, 0.09, 2.9, 7, [0, 0.72, -0.16], WOOD_DARK, { rotation: [0, 0, Math.PI / 2], castShadow: false }), // back rail
+    cyl(0.11, 0.11, 1.8, 6, [-0.85, 0.8, -0.4], WOOD, { rotation: [0.7, 0, 0], castShadow: false }), // back strut
+    cyl(0.11, 0.11, 1.8, 6, [0.85, 0.8, -0.4], WOOD, { rotation: [0.7, 0, 0], castShadow: false }), // back strut
+  );
+  return parts;
+};
+const palisade = prop('arena.palisade', 'Palisade Wall', palisadeParts());
+
+/** A bulged wooden barrel (powder keg / water cask): tapered staves that swell
+ *  at the middle, bound by three iron hoops, with a plank lid. */
+const oilDrum = prop('arena.drum', 'Powder Keg', [
+  cyl(0.42, 0.34, 0.5, 12, [0, 0.25, 0], WOOD), // lower staves (widen toward middle)
+  cyl(0.34, 0.42, 0.5, 12, [0, 0.75, 0], WOOD), // upper staves (taper to the rim)
+  cyl(0.3, 0.3, 0.05, 12, [0, 1.0, 0], WOOD_DARK, ns), // plank lid
+  { shape: 'torus', args: [0.43, 0.045, 6, 14], position: [0, 0.5, 0], rotation: [Math.PI / 2, 0, 0], color: METAL, castShadow: false }, // middle hoop
+  { shape: 'torus', args: [0.37, 0.04, 6, 14], position: [0, 0.16, 0], rotation: [Math.PI / 2, 0, 0], color: METAL, castShadow: false }, // bottom hoop
+  { shape: 'torus', args: [0.37, 0.04, 6, 14], position: [0, 0.86, 0], rotation: [Math.PI / 2, 0, 0], color: METAL, castShadow: false }, // top hoop
 ]);
 
 /** A burning barrel — the charred drum body; the flame itself is a procedural
  *  shader (scene/BarrelEntity → BarrelFire). ArenaLights drops a warm point
  *  light at each one (keep placements in sync with scene/ArenaLights.tsx). */
-const fireBarrel = prop('arena.drum.fire', 'Burning Barrel', [
-  cyl(0.4, 0.4, 1, 12, [0, 0.5, 0], CHAR),
-  {
-    shape: 'torus',
-    args: [0.4, 0.04, 6, 12],
-    position: [0, 0.4, 0],
-    rotation: [Math.PI / 2, 0, 0],
-    color: RUST,
+const IRON = '#3d3b36'; // dark wrought iron (brazier)
+const fireBarrel = prop('arena.drum.fire', 'Brazier', [
+  cyl(0.32, 0.34, 0.1, 8, [0, 0.06, 0], IRON), // splayed foot
+  cyl(0.12, 0.16, 0.62, 8, [0, 0.4, 0], IRON, ns), // pedestal stem
+  cyl(0.46, 0.26, 0.34, 12, [0, 0.85, 0], IRON), // flared fire-bowl
+  { shape: 'torus', args: [0.46, 0.05, 6, 16], position: [0, 1.0, 0], rotation: [Math.PI / 2, 0, 0], color: IRON, castShadow: false }, // bowl rim
+  // Glowing coals heaped in the bowl — a low dome sitting ABOVE the bowl rim
+  // (1.05–1.21) so it never z-fights the bowl's top face (which is at y=1.02).
+  cyl(0.3, 0.42, 0.16, 12, [0, 1.13, 0], FIRE, {
+    emissive: FIRE,
+    emissiveIntensity: 1.0,
     castShadow: false,
-  },
+  }),
 ]);
 
-/** A pile of refuse: black bin-bags, a dented can, loose junk. Decorative. */
-const trashPile = prop('arena.trash', 'Trash Pile', [
-  sph(0.7, [0, 0.3, 0], TRASH, { scale: [1.4, 0.6, 1.2], castShadow: false }),
-  sph(0.35, [0.3, 0.3, 0.2], BAG, { roughness: 0.5, castShadow: false }),
-  sph(0.3, [-0.25, 0.28, -0.15], BAG, { roughness: 0.5, castShadow: false }),
-  sph(0.28, [0.05, 0.32, -0.3], BAG, { roughness: 0.5, castShadow: false }),
-  box([0.3, 0.22, 0.4], [0.45, 0.2, -0.35], SCRAP, ns),
-  cyl(0.07, 0.07, 0.18, 8, [-0.45, 0.1, 0.35], SCRAP, { rotation: [0.5, 0, 0.3], castShadow: false }), // dented can
+/** A stacked woodpile (chopped firewood) with a couple of mossy stones. Decorative. */
+const trashPile = prop('arena.trash', 'Woodpile', [
+  cyl(0.12, 0.12, 0.95, 7, [0, 0.15, 0.12], LOG, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
+  cyl(0.12, 0.12, 0.95, 7, [0.02, 0.15, -0.14], LOG_DARK, { rotation: [Math.PI / 2, 0, 0], castShadow: false }),
+  cyl(0.12, 0.12, 0.95, 7, [0, 0.38, -0.01], LOG, { rotation: [Math.PI / 2, 0, 0.04], castShadow: false }),
+  sph(0.28, [0.6, 0.18, 0.2], STONE, { scale: [1.2, 0.7, 1.0], castShadow: false }),
+  sph(0.2, [-0.52, 0.13, -0.28], STONE_DARK, ns),
 ]);
 
 /** A smashed wooden crate with a sprung slat and a plank fallen beside it. */
@@ -872,17 +1018,17 @@ const brokenCrate = prop('arena.crate.broken', 'Broken Crate', [
   box([0.5, 0.06, 0.12], [-0.4, 0.03, -0.3], WOOD_DARK, { rotation: [0, -0.6, 0], castShadow: false }),
 ]);
 
-/** Scattered ground debris (planks, sheet metal, rubble) — flat, decorative. */
-const debris = prop('arena.debris', 'Debris', [
+/** Scattered ground scraps (fallen planks + loose stone) — flat, decorative. */
+const debris = prop('arena.debris', 'Wood Scraps', [
   box([1.2, 0.05, 0.2], [0, 0.03, 0], WOOD_DARK, { rotation: [0, 0.4, 0], castShadow: false }),
-  box([0.9, 0.05, 0.25], [0.4, 0.03, 0.4], SCRAP, { rotation: [0, -0.6, 0], castShadow: false }),
-  box([0.6, 0.04, 0.5], [-0.4, 0.02, -0.3], RUST, { rotation: [0, 0.9, 0], castShadow: false }),
+  box([0.9, 0.05, 0.25], [0.4, 0.03, 0.4], WOOD, { rotation: [0, -0.6, 0], castShadow: false }),
+  box([0.6, 0.06, 0.45], [-0.4, 0.03, -0.3], STONE, { rotation: [0, 0.9, 0], castShadow: false }),
   sph(0.18, [-0.5, 0.1, 0.4], STONE_DARK, ns),
   sph(0.13, [0.5, 0.08, -0.5], STONE, ns),
 ]);
 
-/** A stack of bald old tyres. Decorative. */
-const tireStack = prop('arena.tires', 'Tyre Stack', [
+/** A stack of old cartwheels. Decorative. */
+const tireStack = prop('arena.tires', 'Cartwheels', [
   {
     shape: 'torus',
     args: [0.4, 0.18, 8, 12],
@@ -908,47 +1054,54 @@ const tireStack = prop('arena.tires', 'Tyre Stack', [
   },
 ]);
 
-// --- Road signs (arena) ----------------------------------------------------
-// Derelict, dead-city road signs that replace the old rusted-fence decor: faded
-// sun-bleached paint, rust streaks, grime smears and bullet holes on a corroded
-// post. The layout places each at a random yaw and a crooked/toppled lean.
-const SIGN_POST = '#534637'; // corroded, dirt-caked post
-const SIGN_RED = '#7c3a30'; // oxidized, faded red
-const SIGN_WHITE = '#9d988a'; // grimy, sun-bleached off-white
-const SIGN_YELLOW = '#9d8638'; // faded mustard
-const SIGN_BLUE = '#3b5570'; // dirty faded blue
-const SIGN_BLACK = '#1b1a16';
-const SIGN_RUST = '#5a3a25'; // rust run-off streak
-const SIGN_HOLE = '#131210'; // bullet hole / punched void
-const SIGN_GRIME = '#2c281f'; // dark grime smear
-/** A corroded, dirt-streaked signpost with a rust collar. */
+// --- Standing stones & heraldry (arena) ------------------------------------
+// Fantasy waymarkers that replace the old dead-city road signs: weathered
+// timber posts, carved runestones, heraldic banners, a round shield and a
+// wooden signpost. The layout places each at a random yaw and a crooked lean.
+// (The prop ids are unchanged — only the meshes/colors were reskinned.)
+const SIGN_POST = '#4f3f2c'; // weathered timber post
+const SIGN_RED = '#8a3b34'; // faded heraldic crimson
+const SIGN_WHITE = '#cdbfa3'; // pale carved stone / bleached linen
+const SIGN_YELLOW = '#b8902f'; // tarnished gold / ochre
+const SIGN_BLUE = '#36506e'; // faded heraldic blue
+const SIGN_BLACK = '#221e18'; // dark iron / charcoal device
+const SIGN_RUST = '#4a5a36'; // moss / lichen run-off streak
+const SIGN_HOLE = '#161412'; // chipped recess / weathered pit
+const SIGN_GRIME = '#2c281f'; // dark water stain
+/** A weathered timber post with an iron/moss collar. */
 const signPost = (h = 1.8): PlaceholderPart[] => [
   cyl(0.05, 0.06, h, 6, [0, h / 2, 0], SIGN_POST, ns),
-  cyl(0.065, 0.065, 0.12, 6, [0, h * 0.45, 0], SIGN_RUST, ns), // rust collar
+  cyl(0.065, 0.065, 0.12, 6, [0, h * 0.45, 0], SIGN_RUST, ns), // moss collar
 ];
 
-// --- Weathering decals (drawn on the sign face, z just in front) ---
-/** A vertical rust run-off streak. */
+// --- Weathering decals (drawn on the face, z just in front) ---
+/** A vertical moss / lichen run-off streak. */
 const rustStreak = (x: number, y: number, h: number): PlaceholderPart =>
   box([0.05, h, 0.012], [x, y, 0.066], SIGN_RUST, ns);
-/** A punched-through bullet hole (dark recessed disc). */
+/** A chipped-out recess / weathered pit. */
 const bulletHole = (x: number, y: number): PlaceholderPart =>
   cyl(0.05, 0.05, 0.06, 7, [x, y, 0.04], SIGN_HOLE, { rotation: [Math.PI / 2, 0, 0], castShadow: false });
-/** A dark grime smear patch. */
+/** A dark water-stain patch. */
 const grimePatch = (x: number, y: number, w: number, h: number): PlaceholderPart =>
   box([w, h, 0.012], [x, y, 0.064], SIGN_GRIME, ns);
+/** A carved rune mark — a few incised strokes on a stone/wood face. */
+const runeMark = (cx: number, cy: number): PlaceholderPart[] => [
+  box([0.04, 0.32, 0.02], [cx, cy, 0.06], SIGN_BLACK, ns), // stem
+  box([0.2, 0.04, 0.02], [cx + 0.03, cy + 0.09, 0.06], SIGN_BLACK, { rotation: [0, 0, -0.6], castShadow: false }),
+  box([0.2, 0.04, 0.02], [cx + 0.03, cy - 0.07, 0.06], SIGN_BLACK, { rotation: [0, 0, 0.6], castShadow: false }),
+];
 
 // An octagon (8-seg cylinder) faces forward via PI/2 about X; the SECOND euler
 // (local Y, which becomes the facing axis after that turn) rolls it a
-// half-segment so a flat edge sits on top — a proper stop-sign octagon, in plane.
+// half-segment so a flat edge sits on top — a clean octagonal slab, in plane.
 const OCTA_FACING: Vec3 = [Math.PI / 2, Math.PI / 8, 0];
 
-/** STOP: faded red octagon, shot up and rust-streaked. */
-const signStop = prop('arena.sign.stop', 'Stop Sign', [
+/** RUNESTONE: a carved octagonal boundary stone, mossed and chipped. */
+const signStop = prop('arena.sign.stop', 'Runestone', [
   ...signPost(),
-  cyl(0.47, 0.47, 0.05, 8, [0, 1.95, -0.01], SIGN_WHITE, { rotation: OCTA_FACING, castShadow: false }),
-  cyl(0.42, 0.42, 0.07, 8, [0, 1.95, 0.01], SIGN_RED, { rotation: OCTA_FACING }),
-  box([0.46, 0.11, 0.02], [0, 1.95, 0.06], SIGN_WHITE, ns),
+  cyl(0.47, 0.47, 0.05, 8, [0, 1.95, -0.01], SCRAP_DARK, { rotation: OCTA_FACING, castShadow: false }),
+  cyl(0.42, 0.42, 0.07, 8, [0, 1.95, 0.01], SCRAP, { rotation: OCTA_FACING }),
+  ...runeMark(0, 1.95),
   rustStreak(0.18, 1.85, 0.5),
   rustStreak(-0.22, 1.92, 0.32),
   bulletHole(-0.1, 2.04),
@@ -956,8 +1109,8 @@ const signStop = prop('arena.sign.stop', 'Stop Sign', [
   grimePatch(0.02, 1.72, 0.32, 0.18),
 ]);
 
-/** WARNING: faded yellow diamond, grimed and holed. */
-const signWarning = prop('arena.sign.warning', 'Warning Sign', [
+/** BANNER: a faded heraldic lozenge with a dark charge, wind-worn. */
+const signWarning = prop('arena.sign.warning', 'Heraldic Banner', [
   ...signPost(),
   box([0.58, 0.58, 0.06], [0, 1.95, 0], SIGN_YELLOW, { rotation: [0, 0, Math.PI / 4] }),
   box([0.07, 0.26, 0.02], [0, 2.0, 0.05], SIGN_BLACK, ns),
@@ -968,21 +1121,21 @@ const signWarning = prop('arena.sign.warning', 'Warning Sign', [
   grimePatch(-0.16, 2.04, 0.18, 0.16),
 ]);
 
-/** SPEED LIMIT: grimy disc, faded ring, shot through. */
-const signSpeed = prop('arena.sign.speed', 'Speed Limit Sign', [
+/** ROUND SHIELD: a painted heraldic shield with an iron rim and a cross. */
+const signSpeed = prop('arena.sign.speed', 'Round Shield', [
   ...signPost(),
-  cyl(0.4, 0.4, 0.06, 16, [0, 1.95, 0], SIGN_WHITE, { rotation: [Math.PI / 2, 0, 0] }),
-  { shape: 'torus', args: [0.37, 0.05, 6, 16], position: [0, 1.95, 0.04], color: SIGN_RED, castShadow: false },
-  box([0.11, 0.24, 0.02], [-0.09, 1.95, 0.06], SIGN_BLACK, ns),
-  box([0.11, 0.24, 0.02], [0.1, 1.95, 0.06], SIGN_BLACK, ns),
+  cyl(0.4, 0.4, 0.06, 16, [0, 1.95, 0], SIGN_RED, { rotation: [Math.PI / 2, 0, 0] }),
+  { shape: 'torus', args: [0.37, 0.05, 6, 16], position: [0, 1.95, 0.04], color: SIGN_BLACK, castShadow: false },
+  box([0.5, 0.1, 0.02], [0, 1.95, 0.06], SIGN_WHITE, ns), // cross — bar
+  box([0.1, 0.5, 0.02], [0, 1.95, 0.06], SIGN_WHITE, ns), // cross — stem
   rustStreak(0.21, 1.84, 0.36),
   bulletHole(-0.02, 2.06),
   bulletHole(-0.19, 1.81),
   grimePatch(0.14, 1.77, 0.2, 0.16),
 ]);
 
-/** DIRECTION: dirty faded-blue panel, peeling arrow, rust-streaked. */
-const signArrow = prop('arena.sign.arrow', 'Direction Sign', [
+/** SIGNPOST: a weathered wooden wayfinding board with a carved arrow. */
+const signArrow = prop('arena.sign.arrow', 'Wooden Signpost', [
   ...signPost(1.9),
   box([0.9, 0.42, 0.06], [0, 2.05, 0], SIGN_BLUE, ns),
   box([0.42, 0.1, 0.02], [-0.06, 2.05, 0.05], SIGN_WHITE, ns),
@@ -994,33 +1147,12 @@ const signArrow = prop('arena.sign.arrow', 'Direction Sign', [
   grimePatch(0.18, 1.99, 0.24, 0.16),
 ]);
 
-// 7-segment digit, drawn from thin black bars on the sign face (z = 0.06). Lets
-// us spell numbers (e.g. "62") with primitives — no text geometry needed.
-const SEG_T = 0.035;
-const segBar = (w: number, h: number, x: number, y: number): PlaceholderPart =>
-  box([w, h, 0.02], [x, y, 0.06], SIGN_BLACK, ns);
-function digit7(ch: '6' | '2', cx: number, cy: number): PlaceholderPart[] {
-  const hw = 0.075; // half-width (left/right verticals)
-  const vh = 0.13; // vertical-segment height
-  const vy = 0.07; // vertical-segment y offset from center
-  const sh = 0.14; // horizontal-segment y offset (top/bottom)
-  const A = segBar(0.13, SEG_T, cx, cy + sh); // top
-  const G = segBar(0.13, SEG_T, cx, cy); // middle
-  const D = segBar(0.13, SEG_T, cx, cy - sh); // bottom
-  const F = segBar(SEG_T, vh, cx - hw, cy + vy); // top-left
-  const B = segBar(SEG_T, vh, cx + hw, cy + vy); // top-right
-  const E = segBar(SEG_T, vh, cx - hw, cy - vy); // bottom-left
-  const C = segBar(SEG_T, vh, cx + hw, cy - vy); // bottom-right
-  return ch === '6' ? [A, F, G, E, D, C] : [A, B, G, E, D]; // '6' vs '2'
-}
-
-/** ROUTE 62: a grimy, shot-up route marker with a faded "62". */
-const signRoute62 = prop('arena.sign.route62', 'Route 62 Sign', [
+/** WAYSTONE: a squared stone marker carved with a rune, mossed and chipped. */
+const signRoute62 = prop('arena.sign.route62', 'Waystone', [
   ...signPost(),
-  box([0.7, 0.7, 0.04], [0, 1.97, -0.01], SIGN_BLACK, ns), // border
-  box([0.62, 0.62, 0.05], [0, 1.97, 0], SIGN_WHITE, ns), // face
-  ...digit7('6', -0.15, 1.95),
-  ...digit7('2', 0.15, 1.95),
+  box([0.7, 0.7, 0.04], [0, 1.97, -0.01], SCRAP_DARK, ns), // stone border
+  box([0.62, 0.62, 0.05], [0, 1.97, 0], SCRAP, ns), // stone face
+  ...runeMark(0, 1.97),
   rustStreak(0.24, 1.92, 0.42),
   rustStreak(-0.27, 1.86, 0.3),
   bulletHole(0.26, 2.06),
@@ -1031,6 +1163,8 @@ const signRoute62 = prop('arena.sign.route62', 'Route 62 Sign', [
 export const PROPS: PropDescriptor[] = [
   house,
   cottage,
+  shack,
+  shackSmall,
   inn,
   smithy,
   tower,
@@ -1068,6 +1202,7 @@ export const PROPS: PropDescriptor[] = [
   scrapPile,
   dumpster,
   rustFence,
+  palisade,
   signStop,
   signWarning,
   signSpeed,
