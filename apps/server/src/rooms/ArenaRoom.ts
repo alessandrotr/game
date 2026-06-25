@@ -481,7 +481,7 @@ export class ArenaRoom extends AvatarRoom {
 
           const dirX = Math.sin(player.rotation);
           const dirZ = Math.cos(player.rotation);
-          const kickRangeEdge = 1.5; // Max edge-to-edge range
+          const kickRangeEdge = 2.0; // Max edge-to-edge range
           const playerRadius = 0.5;
           const coneAngleCos = 0.5; // 120-degree cone total (±60 degrees)
 

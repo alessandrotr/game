@@ -69,9 +69,14 @@ export function VfxLayer() {
         if (!descriptor) return null;
         const onComplete = () => remove(effect.key);
 
+        const isMiniBossStomp = effect.vfxId === 'vfx.ground_slam' && effect.followId && (() => {
+          const player = useGameStore.getState().players.get(effect.followId);
+          return player?.skinId === 'skin.zombie.miniboss';
+        })();
+
         // A registered burst shader owns its own animation + lifetime; otherwise
         // fall back to the descriptor-driven placeholder primitives.
-        const Burst = BURST_SHADERS[effect.vfxId];
+        const Burst = isMiniBossStomp ? undefined : BURST_SHADERS[effect.vfxId];
         if (Burst) {
           return (
             <EffectAnchor key={effect.key} effect={effect}>
@@ -80,6 +85,18 @@ export function VfxLayer() {
                 onComplete={onComplete}
                 direction={effect.direction}
                 tint={effect.tint}
+              />
+            </EffectAnchor>
+          );
+        }
+
+        if (effect.followId) {
+          return (
+            <EffectAnchor key={effect.key} effect={effect}>
+              <Vfx
+                descriptor={descriptor}
+                direction={effect.direction}
+                onComplete={onComplete}
               />
             </EffectAnchor>
           );
