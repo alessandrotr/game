@@ -49,7 +49,6 @@ const CHAR = '#221f1c'; // charred black (burned timber / scorched ruin)
 const CAR_WHEEL = '#5c4326'; // wooden cart wheel / axle timber
 const GLASS_DK = '#33403c'; // dark recessed window / arrow-slit
 const TIRE = '#332b20'; // dark weathered cartwheel timber
-const FIRE = '#ff7a3a'; // brazier / watch-fire flame (emissive)
 
 // --- Part builders (concise primitive helpers) -----------------------------
 type P = Partial<PlaceholderPart>;
@@ -396,41 +395,56 @@ function woodShackParts(opts: { w: number; d: number }): PlaceholderPart[] {
   const eave = fh + wallH; // wall top
   const beam: P = { castShadow: false };
   const logR = 0.16;
-  const over = 0.5; // corner overhang (the notched, crossing log ends)
+  const over = 0.5; // Lincoln-log crossing overhang (inside the footprint)
+
+  // Inset wall positions: walls sit `over` units inside the collider edge so
+  // the log ends extend outward from the inset position and reach exactly to
+  // the collider boundary. The crossing happens inside the footprint.
+  const wallZ = halfD - over; // front/back log Z position
+  const wallX = halfW - over; // side log X position
+
+  // Chinking and footing sized to the inset walls (not the full collider).
+  const innerW = W - over * 2;
+  const innerD = D - over * 2;
   const parts: PlaceholderPart[] = [
     // Low stone footing + pale clay chinking core (shows in the gaps between logs).
-    box([W + 0.12, fh, D + 0.12], [0, fh / 2, 0], STONE),
-    box([W - 0.04, wallH, D - 0.04], [0, wy, 0], CHINK),
+    box([innerW + 0.12, fh, innerD + 0.12], [0, fh / 2, 0], STONE),
+    box([innerW - 0.04, wallH, innerD - 0.04], [0, wy, 0], CHINK),
   ];
   // --- Walls of stacked round logs. Front/back run along X, sides along Z and
-  // offset half a course so the overhanging ends cross at the corners (notch). ---
+  // offset half a course so the overhanging ends cross at the corners (notch).
+  // Walls are inset so the crossing is inside, with log ends reaching the collider. ---
   const courses = 6;
   const spacing = (wallH - 2 * logR) / (courses - 1);
   for (let c = 0; c < courses; c++) {
     const y = fh + logR + c * spacing;
     const colA = c % 2 === 0 ? LOG : LOG_DARK;
-    parts.push(cyl(logR, logR, W + over * 2, 8, [0, y, halfD], colA, { rotation: [0, 0, Math.PI / 2] }));
-    parts.push(cyl(logR, logR, W + over * 2, 8, [0, y, -halfD], colA, { rotation: [0, 0, Math.PI / 2] }));
+    // Front/back logs: run along X, at the inset Z position; length = innerW + over*2
+    // so ends reach from -(wallX + over) = -halfW to +(wallX + over) = +halfW.
+    parts.push(cyl(logR, logR, innerW + over * 2, 8, [0, y, wallZ], colA, { rotation: [0, 0, Math.PI / 2] }));
+    parts.push(cyl(logR, logR, innerW + over * 2, 8, [0, y, -wallZ], colA, { rotation: [0, 0, Math.PI / 2] }));
     const y2 = y + spacing / 2;
     if (y2 < eave) {
       const colB = c % 2 === 0 ? LOG_DARK : LOG;
-      parts.push(cyl(logR, logR, D + over * 2, 8, [halfW, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
-      parts.push(cyl(logR, logR, D + over * 2, 8, [-halfW, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
+      // Side logs: run along Z, at the inset X position; length = innerD + over*2
+      // so ends reach from -(wallZ + over) = -halfD to +(wallZ + over) = +halfD.
+      parts.push(cyl(logR, logR, innerD + over * 2, 8, [wallX, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
+      parts.push(cyl(logR, logR, innerD + over * 2, 8, [-wallX, y2, 0], colB, { rotation: [Math.PI / 2, 0, 0] }));
     }
   }
-  // --- Flat plank roof on exposed log joists (joist ends poke out front/back) ---
-  for (const x of [-halfW + 0.5, -halfW + 1.7, halfW - 1.7, halfW - 0.5]) {
-    parts.push(cyl(0.11, 0.11, D + 1.0, 7, [x, eave + 0.06, 0], LOG_DARK, { rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  // --- Flat plank roof on exposed log joists (flush with collider) ---
+  for (const x of [-wallX + 0.5, -wallX + 1.7, wallX - 1.7, wallX - 0.5]) {
+    parts.push(cyl(0.11, 0.11, D, 7, [x, eave + 0.06, 0], LOG_DARK, { rotation: [Math.PI / 2, 0, 0], castShadow: false }));
   }
-  parts.push(box([W + 0.7, 0.16, D + 0.7], [0, eave + 0.25, 0], ROOF_WOOD)); // solid flat roof slab
-  for (const z of [-halfD + 0.4, 0, halfD - 0.4]) {
-    parts.push(box([W + 0.7, 0.04, 0.06], [0, eave + 0.34, z], LOG_DARK, beam)); // plank seams
+  parts.push(box([W, 0.16, D], [0, eave + 0.25, 0], ROOF_WOOD)); // solid flat roof slab
+  for (const z of [-wallZ + 0.1, 0, wallZ - 0.1]) {
+    parts.push(box([W, 0.04, 0.06], [0, eave + 0.34, z], LOG_DARK, beam)); // plank seams
   }
   // --- Plank door, mounted PROUD of the bulging front (+Z) logs so it reads
   // clearly, in a heavy timber frame with iron hinge straps + a handle. ---
   const dW = 1.1;
   const dH = 1.7;
-  const dz = halfD + 0.2; // stand the door out past the front log surface
+  const dz = wallZ + 0.2; // stand the door out past the inset front log surface
   parts.push(
     // Timber frame: jambs + lintel, standing proud.
     box([0.18, dH + 0.22, 0.26], [-dW / 2 - 0.05, fh + (dH + 0.22) / 2, dz - 0.05], LOG_DARK),
@@ -450,14 +464,14 @@ function woodShackParts(opts: { w: number; d: number }): PlaceholderPart[] {
   );
   // --- Stone chimney climbing the back wall ---
   parts.push(
-    box([0.62, eave + 0.6, 0.62], [halfW - 0.7, (eave + 0.6) / 2, -halfD - 0.18], STONE),
-    box([0.68, 0.18, 0.68], [halfW - 0.7, eave + 0.55, -halfD - 0.18], STONE_DARK, beam),
+    box([0.62, eave + 0.6, 0.62], [wallX - 0.2, (eave + 0.6) / 2, -wallZ - 0.18], STONE),
+    box([0.68, 0.18, 0.68], [wallX - 0.2, eave + 0.55, -wallZ - 0.18], STONE_DARK, beam),
   );
   return parts;
 }
-// Rectangular like the old trailers (~4.8 long × 2.5 wide); the arena layout adds
+// Rectangular like the old trailers (~6.5 long × 2.9 wide); the arena layout adds
 // a per-instance 1.0–1.5× length stretch so they're not all the same length.
-const shack = prop('building.shack', 'Log Cabin', woodShackParts({ w: 4.8, d: 2.5 }));
+const shack = prop('building.shack', 'Log Cabin', woodShackParts({ w: 6.5, d: 2.9 }));
 const shackSmall = prop('building.shack.small', 'Log Hut', woodShackParts({ w: 4.0, d: 2.4 }));
 
 /** The tavern: two storeys with a jettied upper floor and a hanging sign. Hollow
@@ -986,20 +1000,193 @@ const oilDrum = prop('arena.drum', 'Powder Keg', [
 /** A burning barrel — the charred drum body; the flame itself is a procedural
  *  shader (scene/BarrelEntity → BarrelFire). ArenaLights drops a warm point
  *  light at each one (keep placements in sync with scene/ArenaLights.tsx). */
-const IRON = '#3d3b36'; // dark wrought iron (brazier)
-const fireBarrel = prop('arena.drum.fire', 'Brazier', [
-  cyl(0.32, 0.34, 0.1, 8, [0, 0.06, 0], IRON), // splayed foot
-  cyl(0.12, 0.16, 0.62, 8, [0, 0.4, 0], IRON, ns), // pedestal stem
-  cyl(0.46, 0.26, 0.34, 12, [0, 0.85, 0], IRON), // flared fire-bowl
-  { shape: 'torus', args: [0.46, 0.05, 6, 16], position: [0, 1.0, 0], rotation: [Math.PI / 2, 0, 0], color: IRON, castShadow: false }, // bowl rim
-  // Glowing coals heaped in the bowl — a low dome sitting ABOVE the bowl rim
-  // (1.05–1.21) so it never z-fights the bowl's top face (which is at y=1.02).
-  cyl(0.3, 0.42, 0.16, 12, [0, 1.13, 0], FIRE, {
-    emissive: FIRE,
-    emissiveIntensity: 1.0,
-    castShadow: false,
-  }),
-]);
+const fireBarrelParts = (): PlaceholderPart[] => {
+  const parts: PlaceholderPart[] = [
+    // Lower staves (widen toward middle)
+    cyl(0.46, 0.38, 0.5, 12, [0, 0.25, 0], '#832f27'),
+    // Upper staves (taper to the rim)
+    cyl(0.38, 0.46, 0.5, 12, [0, 0.75, 0], '#832f27'),
+    // Plank lid (recessed slightly to create a rim)
+    cyl(0.34, 0.34, 0.03, 12, [0, 0.98, 0], '#5a1f19', ns),
+
+    // Rusted iron bands (top and bottom only, leaving the middle clear for the badge)
+    { shape: 'torus', args: [0.40, 0.04, 6, 14], position: [0, 0.16, 0], rotation: [Math.PI / 2, 0, 0], color: METAL, castShadow: false },
+    { shape: 'torus', args: [0.40, 0.04, 6, 14], position: [0, 0.84, 0], rotation: [Math.PI / 2, 0, 0], color: METAL, castShadow: false },
+
+    // --- Explosion Symbol Badge (on the +Z front face) ---
+    // Dark brown backing board
+    box([0.36, 0.36, 0.02], [0, 0.5, 0.47], '#3d2d1e', ns),
+    
+    // Outer yellow spiky burst
+    box([0.20, 0.20, 0.01], [0, 0.5, 0.48], '#e6b010', { rotation: [0, 0, Math.PI / 4], castShadow: false }),
+    box([0.12, 0.24, 0.01], [-0.04, 0.52, 0.48], '#e6b010', { rotation: [0, 0, 0.25], castShadow: false }),
+    box([0.12, 0.24, 0.01], [0.04, 0.52, 0.48], '#e6b010', { rotation: [0, 0, -0.25], castShadow: false }),
+    box([0.10, 0.26, 0.01], [0, 0.55, 0.48], '#e6b010', ns),
+
+    // Inner red/orange burst
+    box([0.10, 0.10, 0.01], [0, 0.46, 0.485], '#a83c18', { rotation: [0, 0, Math.PI / 4], castShadow: false }),
+    box([0.06, 0.12, 0.01], [0, 0.49, 0.485], '#a83c18', ns),
+
+    // Orange main color base with subtle orange glow
+    cyl(0.30, 0.30, 0.02, 10, [0, 0.99, 0], '#ff5500', { emissive: '#ff3300', emissiveIntensity: 1.2, castShadow: false }),
+  ];
+
+  // Deterministic seed random generator so the layout is constant
+  const seedRandom = (s: number) => {
+    return () => {
+      s = Math.sin(s) * 10000;
+      return s - Math.floor(s);
+    };
+  };
+  const rand = seedRandom(88);
+
+  // Add 6 flat splats (dark red and black) to texture the fire bed
+  for (let i = 0; i < 6; i++) {
+    const angle = rand() * Math.PI * 2;
+    const r = rand() * 0.24; // keep inset from the rim
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    const y = 1.001 + rand() * 0.003; // prevent z-fighting
+    const rad = 0.08 + rand() * 0.08;
+    const isRed = rand() < 0.5; // 50% red, 50% black
+    if (isRed) {
+      parts.push(
+        cyl(rad, rad, 0.004, 6, [x, y, z], '#6e0d05', {
+          emissive: '#4a0703',
+          emissiveIntensity: 2.2,
+          castShadow: false,
+        })
+      );
+    } else {
+      parts.push(
+        cyl(rad, rad, 0.004, 6, [x, y, z], '#111111', { castShadow: false })
+      );
+    }
+  }
+
+  // Add 24 small coals on top
+  for (let i = 0; i < 24; i++) {
+    const angle = rand() * Math.PI * 2;
+    const r = rand() * 0.28; // keep within the rim
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    // Pile up slightly in the center, sitting on top of the textured bed
+    const y = 1.006 + (1.0 - r / 0.28) * 0.025 + rand() * 0.008;
+    const size = 0.015 + rand() * 0.02;
+
+    const glowRand = rand();
+    if (glowRand < 0.45) {
+      // 45% glowing coals with temperature variation
+      const isExtraHot = glowRand < 0.15; // some super hot yellow/orange embers
+      const color = isExtraHot ? '#ff8a00' : '#a81c10';
+      const emissive = isExtraHot ? '#ff6c00' : '#ff3b00';
+      const intensity = isExtraHot ? 4.0 : 2.5;
+
+      parts.push(
+        sph(size, [x, y, z], color, {
+          emissive,
+          emissiveIntensity: intensity,
+          castShadow: false,
+        })
+      );
+    } else {
+      parts.push(
+        sph(size, [x, y, z], '#111111', ns)
+      );
+    }
+  }
+
+  return parts;
+};
+
+const fireBarrel = prop('arena.drum.fire', 'Powder Keg', fireBarrelParts());
+
+const epicBrazierParts = (): PlaceholderPart[] => {
+  const parts: PlaceholderPart[] = [
+    // Flat wide square stone base slab
+    box([0.7, 0.08, 0.7], [0, 0.04, 0], RUST_DARK),
+
+    // Tapered square stone pillar (top radius 0.22, bottom radius 0.3, height 0.5, rotated 45deg)
+    cyl(0.22, 0.3, 0.5, 4, [0, 0.33, 0], RUST, { rotation: [0, Math.PI / 4, 0] }),
+
+    // Flat square stone cap slab
+    box([0.52, 0.08, 0.52], [0, 0.62, 0], RUST_DARK),
+
+    // Circular metal neck
+    cyl(0.2, 0.2, 0.06, 8, [0, 0.69, 0], METAL),
+
+    // Metal bowl/basket tapering outwards
+    cyl(0.42, 0.2, 0.2, 8, [0, 0.82, 0], METAL),
+  ];
+
+  // Pointy metal spikes/teeth around the rim
+  const rimRadius = 0.42;
+  const topY = 0.92;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const x = Math.cos(angle) * rimRadius;
+    const z = Math.sin(angle) * rimRadius;
+    // A little metal cone spike pointing up
+    parts.push(cone(0.04, 0.16, 4, [x, topY + 0.06, z], METAL));
+  }
+
+  // Crisscrossed logs inside the bowl
+  parts.push(
+    cyl(0.05, 0.05, 0.5, 6, [0.06, 0.92, 0], CHAR, { rotation: [0.3, 0.5, 0.8] }),
+    cyl(0.05, 0.05, 0.5, 6, [-0.06, 0.92, 0], CHAR, { rotation: [-0.3, -0.5, 0.8] }),
+  );
+
+  // Orange glowing main coal bed base
+  parts.push(
+    cyl(0.28, 0.28, 0.02, 10, [0, 0.93, 0], '#ff5500', {
+      emissive: '#ff3300',
+      emissiveIntensity: 1.5,
+      castShadow: false,
+    })
+  );
+
+  // Coals seed random
+  const seedRandom = (s: number) => {
+    return () => {
+      s = Math.sin(s) * 10000;
+      return s - Math.floor(s);
+    };
+  };
+  const rand = seedRandom(99);
+
+  // Add 35 small coals (black & glowing) in the bowl
+  for (let i = 0; i < 35; i++) {
+    const angle = rand() * Math.PI * 2;
+    const r = rand() * 0.28;
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    const y = 0.935 + (1.0 - r / 0.28) * 0.02 + rand() * 0.005;
+    const size = 0.025 + rand() * 0.02;
+    const isGlowing = rand() < 0.45;
+    if (isGlowing) {
+      parts.push(
+        sph(size, [x, y, z], '#ffaa00', {
+          emissive: '#ff5500',
+          emissiveIntensity: 3.5,
+          castShadow: false,
+        })
+      );
+    } else {
+      parts.push(
+        sph(size, [x, y, z], '#222222', ns)
+      );
+    }
+  }
+
+  // Add animated fire shader part directly to the prop's definition
+  parts.push(cone(0.34, 1.2, 10, [0, 1.48, 0], '#ff5500', { material: 'fire' }));
+
+  return parts;
+};
+
+const epicBrazier = prop('arena.brazier', 'Epic Brazier', epicBrazierParts());
+
+
 
 /** A stacked woodpile (chopped firewood) with a couple of mossy stones. Decorative. */
 const trashPile = prop('arena.trash', 'Woodpile', [
@@ -1010,45 +1197,30 @@ const trashPile = prop('arena.trash', 'Woodpile', [
   sph(0.2, [-0.52, 0.13, -0.28], STONE_DARK, ns),
 ]);
 
-/** A smashed wooden crate with a sprung slat and a plank fallen beside it. */
-const brokenCrate = prop('arena.crate.broken', 'Broken Crate', [
-  box([0.7, 0.7, 0.7], [0, 0.34, 0], WOOD, { rotation: [0, 0.3, 0.08] }),
-  box([0.74, 0.1, 0.18], [0, 0.66, 0.2], WOOD_DARK, ns), // sprung top slat
-  box([0.9, 0.06, 0.14], [0.6, 0.04, 0.3], WOOD, { rotation: [0, 0.5, 0], castShadow: false }), // fallen plank
-  box([0.5, 0.06, 0.12], [-0.4, 0.03, -0.3], WOOD_DARK, { rotation: [0, -0.6, 0], castShadow: false }),
-]);
 
-/** Scattered ground scraps (fallen planks + loose stone) — flat, decorative. */
-const debris = prop('arena.debris', 'Wood Scraps', [
-  box([1.2, 0.05, 0.2], [0, 0.03, 0], WOOD_DARK, { rotation: [0, 0.4, 0], castShadow: false }),
-  box([0.9, 0.05, 0.25], [0.4, 0.03, 0.4], WOOD, { rotation: [0, -0.6, 0], castShadow: false }),
-  box([0.6, 0.06, 0.45], [-0.4, 0.03, -0.3], STONE, { rotation: [0, 0.9, 0], castShadow: false }),
-  sph(0.18, [-0.5, 0.1, 0.4], STONE_DARK, ns),
-  sph(0.13, [0.5, 0.08, -0.5], STONE, ns),
-]);
 
 /** A stack of old cartwheels. Decorative. */
 const tireStack = prop('arena.tires', 'Cartwheels', [
   {
     shape: 'torus',
-    args: [0.4, 0.18, 8, 12],
-    position: [0, 0.18, 0],
+    args: [0.7, 0.3, 8, 12],
+    position: [0, 0.3, 0],
     rotation: [Math.PI / 2, 0, 0],
     color: TIRE,
     castShadow: false,
   },
   {
     shape: 'torus',
-    args: [0.4, 0.18, 8, 12],
-    position: [0.05, 0.5, 0.04],
+    args: [0.7, 0.3, 8, 12],
+    position: [0.08, 0.84, 0.07],
     rotation: [Math.PI / 2, 0.2, 0],
     color: TIRE,
     castShadow: false,
   },
   {
     shape: 'torus',
-    args: [0.4, 0.18, 8, 12],
-    position: [-0.03, 0.82, -0.03],
+    args: [0.7, 0.3, 8, 12],
+    position: [-0.05, 1.38, -0.05],
     rotation: [Math.PI / 2, -0.15, 0],
     color: TIRE,
   },
@@ -1210,9 +1382,8 @@ export const PROPS: PropDescriptor[] = [
   signRoute62,
   oilDrum,
   fireBarrel,
+  epicBrazier,
   trashPile,
-  brokenCrate,
-  debris,
   tireStack,
 ];
 

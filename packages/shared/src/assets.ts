@@ -110,7 +110,7 @@ export interface PlaceholderPart {
    *  `'glass'` uses the cheap fresnel window glass (no transmission); `'brick'`
    *  and `'tile'` overlay a procedural masonry / roof-tile pattern on the
    *  standard lit material. */
-  material?: 'glass' | 'brick' | 'tile';
+  material?: 'glass' | 'brick' | 'tile' | 'fire';
   /** Marks this part as the weapon's "showpiece" (blade / orb / mace-head). When
    *  the holder has an enchant equipped, this part renders with the animated
    *  enchant material instead of its plain look. Ignored otherwise. */

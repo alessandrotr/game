@@ -77,8 +77,15 @@ function DirtGround({ sizeX, sizeZ }: { sizeX: number; sizeZ: number }) {
               float macro = gFbm(gp * 0.06);
               float detail = gNoise(gp * 0.7);
               float t = 0.4 + clamp(macro * 0.7 + detail * 0.3, 0.0, 1.0) * 0.35;
-              vec3 col = mix(uGrassDark, uGrassLight, t);
-              col *= 0.98 + 0.02 * gNoise(gp * 9.0); // whisper of speckle
+              vec3 grassColor = mix(uGrassDark, uGrassLight, t);
+              grassColor *= 0.98 + 0.02 * gNoise(gp * 9.0); // whisper of speckle
+
+              // Occasional organic dirt spots (non-circular, noised patches)
+              float dirtNoise = gFbm(gp * 0.05 + vec2(12.0, 37.0));
+              float dirtMask = smoothstep(0.58, 0.78, dirtNoise) * 0.65;
+              vec3 soilColor = vec3(0.32, 0.27, 0.22); // #52453a muted organic dirt color
+
+              vec3 col = mix(grassColor, soilColor, dirtMask);
 
               // Beyond the cross-shaped play area, fade to fog.
               bool inCross = (abs(gp.x) <= 25.0 && abs(gp.y) <= 75.0) || (abs(gp.x) <= 75.0 && abs(gp.y) <= 25.0);
@@ -375,10 +382,12 @@ function Pond() {
           <meshStandardMaterial color={POND_STONE_DK} roughness={1} />
         </mesh>
         <group position={[bw + 0.5, 0, sign * (pondR + 0.3)]}>
-          <AssetInstance id="prop.arena.drum.fire" />
+          <AssetInstance id="prop.arena.brazier" />
+          <pointLight position={[0, 1.2, 0]} color="#ff9a4a" intensity={4.4} distance={10} decay={2} castShadow={false} />
         </group>
         <group position={[-(bw + 0.5), 0, sign * (pondR + 0.3)]}>
-          <AssetInstance id="prop.arena.drum.fire" />
+          <AssetInstance id="prop.arena.brazier" />
+          <pointLight position={[0, 1.2, 0]} color="#ff9a4a" intensity={4.4} distance={10} decay={2} castShadow={false} />
         </group>
       </group>
     );

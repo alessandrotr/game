@@ -1,9 +1,11 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import type { CanvasTexture } from 'three';
-import type { GltfModel, PlaceholderModel, RenderSource } from '@arena/shared';
+import { DoubleSide, AdditiveBlending, ShaderMaterial, type CanvasTexture } from 'three';
+import type { GltfModel, PlaceholderModel, PlaceholderPart, RenderSource } from '@arena/shared';
+import { UV_VERTEX, useUTime } from './shaders/common';
+import { barrelFireFrag } from './shaders/coverEffects';
 import type { PaintTextures } from '../paint/paintSurface';
 import { PrimitiveGeometry } from './geometry';
 import { glassMaterialFor } from './glassMaterial';
@@ -79,6 +81,11 @@ function PlaceholderMesh({
           >
             <PrimitiveGeometry shape={part.shape} args={part.args} />
           </mesh>
+        ) : part.material === 'fire' ? (
+          <FireMeshPart
+            key={part.name ?? i}
+            part={part}
+          />
         ) : part.material === 'glass' ? (
           <mesh
             key={part.name ?? i}
@@ -154,4 +161,32 @@ function GltfMesh({ model }: { model: GltfModel }) {
   // mounted asset gets its own meshes — required once N players share a model.
   const instance = useMemo(() => cloneSkinned(scene), [scene]);
   return <primitive object={instance} scale={model.scale ?? 1} />;
+}
+
+function FireMeshPart({ part }: { part: PlaceholderPart }) {
+  const matRef = useRef<ShaderMaterial>(null);
+  const uniforms = useMemo(() => ({ uTime: { value: Math.random() * 10 } }), []);
+  useUTime(matRef);
+  return (
+    <mesh
+      position={part.position ?? [0, 0, 0]}
+      rotation={part.rotation ?? [0, 0, 0]}
+      scale={part.scale ?? 1}
+      castShadow={false}
+      receiveShadow={false}
+    >
+      <PrimitiveGeometry shape={part.shape} args={part.args} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={UV_VERTEX}
+        fragmentShader={barrelFireFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        side={DoubleSide}
+        blending={AdditiveBlending}
+        toneMapped={false}
+      />
+    </mesh>
+  );
 }

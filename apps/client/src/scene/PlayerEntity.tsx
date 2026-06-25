@@ -551,6 +551,18 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           enchant={enchant}
           ownerId={sessionId}
         />
+        {/* Yellow triangle marker pointing in the facing direction */}
+        {(inArena || isLocal) && !isZombieSkin(skinId) && (
+          <mesh
+            position={[0, 0.08, inArena ? 0.9 : 0.625]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            scale={[1, 1, 0.001]}
+            renderOrder={10}
+          >
+            <coneGeometry args={[0.11, 0.3, 3]} />
+            <meshBasicMaterial color="#ffea00" depthWrite={false} polygonOffset polygonOffsetFactor={-10} fog={false} />
+          </mesh>
+        )}
       </group>
 
       {/* Pickable object carried over the head (molotov / grenade). */}

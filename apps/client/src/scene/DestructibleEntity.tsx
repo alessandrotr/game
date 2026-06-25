@@ -36,8 +36,8 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
   const targetPos = useRef(new Vector3());
   const targetQuat = useRef(new Quaternion());
 
-  const isDrum = !!initial && initial.kind !== 'tire';
-  // Bar floats just above the drum's top (body center + half-height + clearance).
+  const hasHp = !!initial && initial.maxHp > 0;
+  // Bar floats just above the top (body center + half-height + clearance).
   const barY = initial ? initial.sy + 0.7 : 1;
   const barWidth = initial ? Math.max(0.8, initial.sx * 2.6) : 1;
 
@@ -53,7 +53,7 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
     // Integrity bar: follow the drum's (un-rotated) position; show only damaged.
     if (bar.current) {
       bar.current.position.set(group.current.position.x, group.current.position.y + barY, group.current.position.z);
-      const damaged = isDrum && d.maxHp > 0 && d.hp > 0 && d.hp < d.maxHp;
+      const damaged = hasHp && d.maxHp > 0 && d.hp > 0 && d.hp < d.maxHp;
       bar.current.visible = damaged;
       if (damaged && barFill.current) {
         const ratio = Math.min(1, Math.max(0, d.hp / d.maxHp));
@@ -88,9 +88,9 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
           </group>
         )}
       </group>
-      {isDrum && (
+      {hasHp && (
         // Floating integrity bar — billboarded, position-tracked in useFrame so it
-        // stays upright above the drum instead of tumbling with the body.
+        // stays upright above the body instead of tumbling with it.
         <group ref={bar} visible={false}>
           <Billboard>
             <mesh>

@@ -9,6 +9,7 @@ import {
   TRAILER_HALF_LENGTH,
   TRAILER_HALF_WIDTH,
   clampToUnlockedArea,
+  BUILDING_FOOTPRINTS,
   type ArenaObstacle,
   type CoverStructureSpec,
   type RoomLayout,
@@ -132,28 +133,39 @@ export class CoverSystem {
       // A matching fixed collider in the physics world so dynamic props (drums,
       // launched barrels) bounce off it too — a yaw-fitted box for trailers, a
       // cylinder for the rest.
-      this.colliders.set(
-        cs.id,
-        isTrailerAsset(s.assetId)
-          ? this.physics.addStaticBox(
-              s.x,
-              s.z,
-              TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
-              TRAILER_HALF_WIDTH,
-              s.height,
-              s.rotation,
-            )
-          : s.assetId === 'prop.arena.chest'
-          ? this.physics.addStaticBox(
-              s.x,
-              s.z,
-              1.0, // half length
-              0.5, // half width
-              s.height,
-              s.rotation,
-            )
-          : this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height),
-      );
+      let collider;
+      const bf = BUILDING_FOOTPRINTS[s.assetId];
+      if (bf) {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          bf.hw * (s.lengthScale ?? 1),
+          bf.hd,
+          s.height,
+          s.rotation,
+        );
+      } else if (isTrailerAsset(s.assetId)) {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
+          TRAILER_HALF_WIDTH,
+          s.height,
+          s.rotation,
+        );
+      } else if (s.assetId === 'prop.arena.chest') {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          1.0, // half length
+          0.5, // half width
+          s.height,
+          s.rotation,
+        );
+      } else {
+        collider = this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height);
+      }
+      this.colliders.set(cs.id, collider);
       // Cars roll when shot — give them a (zero) velocity to integrate.
       if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
       // Zombie-mode trailers are indestructible — solid cover that never crumbles.
@@ -248,27 +260,39 @@ export class CoverSystem {
       const circles = structureFootprint(s.assetId, s.x, s.z, s.rotation, s.radius, s.height, s.lengthScale ?? 1);
       this.circles.set(cs.id, circles);
       for (const c of circles) this.collision.push(c);
-      this.colliders.set(
-        cs.id,
-        isTrailerAsset(s.assetId)
-          ? this.physics.addStaticBox(
-              s.x, s.z,
-              TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
-              TRAILER_HALF_WIDTH,
-              s.height,
-              s.rotation,
-            )
-          : s.assetId === 'prop.arena.chest'
-          ? this.physics.addStaticBox(
-              s.x,
-              s.z,
-              1.0, // half length
-              0.5, // half width
-              s.height,
-              s.rotation,
-            )
-          : this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height),
-      );
+      let collider;
+      const bf = BUILDING_FOOTPRINTS[s.assetId];
+      if (bf) {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          bf.hw * (s.lengthScale ?? 1),
+          bf.hd,
+          s.height,
+          s.rotation,
+        );
+      } else if (isTrailerAsset(s.assetId)) {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          TRAILER_HALF_LENGTH * (s.lengthScale ?? 1),
+          TRAILER_HALF_WIDTH,
+          s.height,
+          s.rotation,
+        );
+      } else if (s.assetId === 'prop.arena.chest') {
+        collider = this.physics.addStaticBox(
+          s.x,
+          s.z,
+          1.0, // half length
+          0.5, // half width
+          s.height,
+          s.rotation,
+        );
+      } else {
+        collider = this.physics.addStaticCylinder(s.x, s.z, s.radius, s.height);
+      }
+      this.colliders.set(cs.id, collider);
       if (isCar(cs.assetId)) this.carVel.set(cs.id, { vx: 0, vz: 0 });
       if (s.indestructible) this.indestructible.add(cs.id);
     }

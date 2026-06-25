@@ -85,8 +85,8 @@ export const TRAILER_HALF_WIDTH = 1.2;
 /** Footprint half-extents for the log cabins: `hw` = half LENGTH (local X, before
  *  lengthScale), `hd` = half WIDTH (local Z). Long + rectangular like the old
  *  trailers; the collider tiles width-circles down the length. */
-const BUILDING_FOOTPRINTS: Record<string, { hw: number; hd: number }> = {
-  'prop.building.shack': { hw: 2.4, hd: 1.25 },
+export const BUILDING_FOOTPRINTS: Record<string, { hw: number; hd: number }> = {
+  'prop.building.shack': { hw: 3.25, hd: 1.45 },
   'prop.building.shack.small': { hw: 2.0, hd: 1.2 },
 };
 
@@ -238,18 +238,16 @@ const COVER: CoverKind[] = [
   // Timber village houses — the medieval "buildings" (largest HP, as big as the
   // old trailers). Destructible: they crumble to rubble when their HP runs out,
   // and their windows glow warmly at dusk. Indestructible in zombie mode (loop).
-  { assetId: 'prop.building.shack', radius: 2.0, height: 2.8, count: 2, destructible: true },
+  { assetId: 'prop.building.shack', radius: 2.7, height: 2.8, count: 2, destructible: true },
   { assetId: 'prop.building.shack.small', radius: 1.7, height: 2.6, count: 1, destructible: true },
   // Battlefield barricades — wooden palisade walls (a tiled thin footprint, so
   // you take cover behind them and flank around the ends).
   { assetId: 'prop.arena.palisade', radius: 1.5, height: 1.9, count: 2, destructible: true },
   // The wrecked wagon (the old burned-car silhouette, reskinned) — it rolls and
   // smoulders when shot, since its id still contains 'car' (see CoverStructureEntity).
-  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 1, destructible: true },
-  // Trees + boulder (static nature). The well is destructible; its `height` is set
+  { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, count: 2, destructible: true },
+  // Static nature. The well is destructible; its `height` is set
   // tall so its integrity bar floats above the well roof instead of inside it.
-  { assetId: 'prop.tree', radius: 1.1, height: 2.8, count: 2 },
-  { assetId: 'prop.rock', radius: 0.8, height: 0.8, count: 1 },
   { assetId: 'prop.well', radius: 1.0, height: 2.8, count: 1, destructible: true },
 ];
 
@@ -273,11 +271,10 @@ const DRUM_PILE_HUDDLE = 0.5;
  *  pile at each (the old static tire-pile decor is now fully destructible). */
 const TIRE_STACK_COUNT = 2;
 /** Footprint used only for placement spacing. */
-const TIRE_STACK_FOOT = 1.2;
+const TIRE_STACK_FOOT = 2.1;
 
 const DECOR: DecorKind[] = [
   { assetId: 'prop.arena.trash', foot: 1.2, count: 3 }, // woodpiles
-  { assetId: 'prop.arena.debris', foot: 1.0, count: 3 }, // scattered planks + stone
 ];
 
 /** Deterministic PRNG (mulberry32) — same sequence on server and client per seed. */
@@ -343,7 +340,6 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
       if (!farFromSpawns(x, z, fr) || !farFromPortal(x, z, fr)) continue;
       // Both the piece and its mirror must clear everything placed so far.
       if (!farFromTaken(x, z, fr) || !farFromTaken(-x, -z, fr)) continue;
-      taken.push({ x, z, r: fr }, { x: -x, z: -z, r: fr });
       return { x, z };
     }
     return null;
@@ -357,15 +353,109 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     // Zombie mode: buildings are indestructible hard cover, and cottages spawn two
     // extra per side (+4 across the mirror) for more cover against the horde.
     const indestructible = zombieMode && isBuilding;
-    const count =
-      zombieMode && kind.assetId === 'prop.building.shack' ? kind.count + 2 : kind.count;
+    let count = kind.count;
+    if (zombieMode) {
+      if (kind.assetId === 'prop.building.shack') {
+        count = kind.count + 2;
+      } else if (kind.assetId === 'prop.arena.car.burned') {
+        count = 1; // Keep it at 1 (2 mirrored) for the starting room in zombie mode
+      }
+    }
     for (let n = 0; n < count; n++) {
+      if (kind.assetId === 'prop.arena.palisade') {
+        // Palisades always spawn in couples to create angles.
+        // We will try up to 40 times to place the pair.
+        let placedPair = false;
+        const r = kind.radius;
+        for (let i = 0; i < 40 && !placedPair; i++) {
+          const x1 = (rng() * 2 - 1) * MAX_R;
+          const z1 = (rng() * 2 - 1) * maxRZ;
+
+          // Check first piece center
+          if (Math.hypot(x1, z1) < r + GAP) continue;
+          if (!zombieMode && Math.hypot(x1 - ARENA_POND.x, z1 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
+            continue;
+          if (!farFromSpawns(x1, z1, r) || !farFromPortal(x1, z1, r)) continue;
+          if (!farFromTaken(x1, z1, r) || !farFromTaken(-x1, -z1, r)) continue;
+
+          // Orientation for the first piece
+          const rot1 = rng() * Math.PI * 2;
+
+          // Angled bend for the second piece (195 to 225 degrees relative to straight line)
+          // A straight line is 180 degrees, so a bend of 15 to 45 degrees results in 195 to 225 degrees.
+          const deltaDeg = 15 + rng() * 30;
+          const deltaRad = (deltaDeg * Math.PI) / 180;
+          
+          // Connect at the end in direction of rot1
+          const endX = x1 + Math.cos(rot1) * r;
+          const endZ = z1 - Math.sin(rot1) * r;
+
+          // Second piece rotation: continue forward with a slight bend
+          const rot2 = rot1 + (rng() > 0.5 ? 1 : -1) * deltaRad;
+
+          // Center of the second piece
+          const x2 = endX + Math.cos(rot2) * r;
+          const z2 = endZ - Math.sin(rot2) * r;
+
+          // Check second piece center
+          if (Math.hypot(x2, z2) < r + GAP) continue;
+          if (!zombieMode && Math.hypot(x2 - ARENA_POND.x, z2 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
+            continue;
+          if (!farFromSpawns(x2, z2, r) || !farFromPortal(x2, z2, r)) continue;
+          if (!farFromTaken(x2, z2, r) || !farFromTaken(-x2, -z2, r)) continue;
+
+          // Verify both pieces footprints (and mirrors) don't overlap with already taken spots
+          const f1s = structureFootprint(kind.assetId, x1, z1, rot1, r, kind.height, 1);
+          const f2s = structureFootprint(kind.assetId, x2, z2, rot2, r, kind.height, 1);
+
+          let clear = true;
+          for (const f of f1s.concat(f2s)) {
+            if (!farFromTaken(f.x, f.z, f.radius) || !farFromTaken(-f.x, -f.z, f.radius)) {
+              clear = false;
+              break;
+            }
+          }
+          if (!clear) continue;
+
+          // Successful placement! Register all footprints in taken.
+          for (const f of f1s.concat(f2s)) {
+            taken.push({ x: f.x, z: f.z, r: f.radius }, { x: -f.x, z: -f.z, r: f.radius });
+          }
+
+          // Push both pieces to structures
+          const maxHp = kind.maxHp ?? structureHp(r, kind.height);
+          structures.push(
+            { assetId: kind.assetId, x: x1, z: z1, rotation: rot1, radius: r, height: kind.height, maxHp, indestructible, lengthScale: 1 },
+            { assetId: kind.assetId, x: -x1, z: -z1, rotation: rot1 + Math.PI, radius: r, height: kind.height, maxHp, indestructible, lengthScale: 1 },
+            { assetId: kind.assetId, x: x2, z: z2, rotation: rot2, radius: r, height: kind.height, maxHp, indestructible, lengthScale: 1 },
+            { assetId: kind.assetId, x: -x2, z: -z2, rotation: rot2 + Math.PI, radius: r, height: kind.height, maxHp, indestructible, lengthScale: 1 },
+          );
+          placedPair = true;
+        }
+        continue;
+      }
+
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
       // Cabins vary in length (like the old trailers) so they don't look stamped:
       // a random 1.0–1.5× stretch along the prop's long (X) axis. Props stay 1×.
       const lengthScale = isBuilding ? 1 + rng() * 0.5 : 1;
+
+      // Register the exact multi-circle footprint in the spacing checks array (mirrored).
+      const footprints = structureFootprint(
+        kind.assetId,
+        spot.x,
+        spot.z,
+        rot,
+        kind.radius,
+        kind.height,
+        lengthScale,
+      );
+      for (const f of footprints) {
+        taken.push({ x: f.x, z: f.z, r: f.radius }, { x: -f.x, z: -f.z, r: f.radius });
+      }
+
       if (kind.destructible) {
         const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
         structures.push(
@@ -466,8 +556,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     for (const b of baseDrums) {
       const drumX = px + b.dx;
       const drumZ = pz + b.dz;
-      taken.push({ x: drumX, z: drumZ, r: r });
-      taken.push({ x: -drumX, z: -drumZ, r: r });
+      taken.push({ x: drumX, z: drumZ, r: r }, { x: -drumX, z: -drumZ, r: r });
     }
   }
 
@@ -476,6 +565,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     for (let n = 0; n < kind.count; n++) {
       const spot = findSpot(kind.foot);
       if (!spot) continue;
+      taken.push({ x: spot.x, z: spot.z, r: kind.foot }, { x: -spot.x, z: -spot.z, r: kind.foot });
       const rot = rng() * Math.PI * 2;
       props.push({ assetId: kind.assetId, position: [spot.x, 0, spot.z], rotation: [0, rot, 0] });
       props.push({ assetId: kind.assetId, position: [-spot.x, 0, -spot.z], rotation: [0, rot + Math.PI, 0] });
@@ -487,6 +577,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   for (let n = 0; n < BARREL_COUNT; n++) {
     const spot = findSpot(BARREL_FOOT);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: BARREL_FOOT }, { x: -spot.x, z: -spot.z, r: BARREL_FOOT });
     barrels.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
 
@@ -501,12 +592,14 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   for (let n = 0; n < DRUM_PILE_COUNT; n++) {
     const spot = findSpot(DRUM_PILE_FOOT);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: DRUM_PILE_FOOT }, { x: -spot.x, z: -spot.z, r: DRUM_PILE_FOOT });
     pushPile(spot.x, spot.z);
     pushPile(-spot.x, -spot.z);
   }
   for (let n = 0; n < DRUM_LOOSE_COUNT; n++) {
     const spot = findSpot(DRUM_LOOSE_FOOT);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: DRUM_LOOSE_FOOT }, { x: -spot.x, z: -spot.z, r: DRUM_LOOSE_FOOT });
     drums.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
   // Zombie mode: ~30% more oil drums (more molotov fuel for the hordes). Scattered
@@ -517,6 +610,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
     for (let n = 0; n < extraDrums; n++) {
       const spot = findSpot(DRUM_LOOSE_FOOT);
       if (!spot) continue;
+      taken.push({ x: spot.x, z: spot.z, r: DRUM_LOOSE_FOOT }, { x: -spot.x, z: -spot.z, r: DRUM_LOOSE_FOOT });
       drums.push({ x: spot.x, z: spot.z });
     }
   }
@@ -525,6 +619,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
   for (let n = 0; n < TIRE_STACK_COUNT; n++) {
     const spot = findSpot(TIRE_STACK_FOOT);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: TIRE_STACK_FOOT }, { x: -spot.x, z: -spot.z, r: TIRE_STACK_FOOT });
     tireStacks.push({ x: spot.x, z: spot.z }, { x: -spot.x, z: -spot.z });
   }
 

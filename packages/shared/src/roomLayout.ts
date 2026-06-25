@@ -26,7 +26,7 @@ import type { PropAssetId, MapProp } from './assets.js';
 import {
   type CoverStructureSpec,
   structureHp,
-  isTrailerAsset,
+  structureFootprint,
 } from './arena.js';
 
 // ---------------------------------------------------------------------------
@@ -313,17 +313,14 @@ interface SectionCoverKind {
 }
 
 const SECTION_COVER: SectionCoverKind[] = [
-  { assetId: 'prop.arena.trailer', radius: 2, height: 2.8, baseCount: 3 },
-  { assetId: 'prop.arena.trailer.teal', radius: 2, height: 2.8, baseCount: 1 },
+  { assetId: 'prop.building.shack', radius: 2.7, height: 2.8, baseCount: 3 },
+  { assetId: 'prop.building.shack.small', radius: 1.7, height: 2.6, baseCount: 1 },
   { assetId: 'prop.arena.car.burned', radius: 1.6, height: 1.7, baseCount: 2 },
-  { assetId: 'prop.arena.dumpster', radius: 1.3, height: 1.5, baseCount: 1 },
-  { assetId: 'prop.arena.scrap', radius: 1.2, height: 1.4, baseCount: 1, maxHp: 125 },
+  { assetId: 'prop.arena.palisade', radius: 1.5, height: 1.9, baseCount: 2 },
 ];
 
 const SECTION_DECOR: { assetId: PropAssetId; foot: number; baseCount: number }[] = [
   { assetId: 'prop.arena.trash', foot: 1.2, baseCount: 2 },
-  { assetId: 'prop.arena.crate.broken', foot: 1.2, baseCount: 2 },
-  { assetId: 'prop.arena.debris', foot: 1.0, baseCount: 2 },
 ];
 
 /** Minimum breathing room between footprints (same as main arena). */
@@ -402,7 +399,6 @@ export function generateSectionCover(
 
       if (!farFromPortals(x, z, fr)) continue;
       if (!farFromTaken(x, z, fr)) continue;
-      taken.push({ x, z, r: fr });
       return { x, z };
     }
     return null;
@@ -415,8 +411,23 @@ export function generateSectionCover(
       const spot = findSpot(kind.radius);
       if (!spot) continue;
       const rot = rng() * Math.PI * 2;
-      const isTrailer = isTrailerAsset(kind.assetId);
-      const lengthScale = isTrailer ? 1 + rng() * 0.5 : 1;
+      const isBuilding = kind.assetId.startsWith('prop.building');
+      const lengthScale = isBuilding ? 1 + rng() * 0.5 : 1;
+
+      // Register the exact multi-circle footprint in the spacing checks array.
+      const footprints = structureFootprint(
+        kind.assetId,
+        spot.x,
+        spot.z,
+        rot,
+        kind.radius,
+        kind.height,
+        lengthScale,
+      );
+      for (const f of footprints) {
+        taken.push({ x: f.x, z: f.z, r: f.radius });
+      }
+
       const maxHp = kind.maxHp ?? structureHp(kind.radius, kind.height);
       structures.push({
         assetId: kind.assetId,
@@ -426,7 +437,7 @@ export function generateSectionCover(
         radius: kind.radius,
         height: kind.height,
         maxHp,
-        indestructible: isTrailer, // trailers are indestructible in zombie mode
+        indestructible: isBuilding, // cabins are indestructible in zombie mode
         lengthScale,
       });
     }
@@ -437,6 +448,7 @@ export function generateSectionCover(
   for (let n = 0; n < barrelCount; n++) {
     const spot = findSpot(0.6);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: 0.6 });
     barrels.push({ x: spot.x, z: spot.z });
   }
 
@@ -445,14 +457,16 @@ export function generateSectionCover(
   for (let n = 0; n < drumCount; n++) {
     const spot = findSpot(0.6);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: 0.6 });
     drums.push({ x: spot.x, z: spot.z });
   }
 
   // --- Tire stacks ---
   const tireCount = Math.max(1, Math.round(2 * areaScale));
   for (let n = 0; n < tireCount; n++) {
-    const spot = findSpot(1.2);
+    const spot = findSpot(2.1);
     if (!spot) continue;
+    taken.push({ x: spot.x, z: spot.z, r: 2.1 });
     tireStacks.push({ x: spot.x, z: spot.z });
   }
 
@@ -462,6 +476,7 @@ export function generateSectionCover(
     for (let n = 0; n < count; n++) {
       const spot = findSpot(kind.foot);
       if (!spot) continue;
+      taken.push({ x: spot.x, z: spot.z, r: kind.foot });
       const rot = rng() * Math.PI * 2;
       props.push({
         assetId: kind.assetId,

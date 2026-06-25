@@ -74,8 +74,8 @@ export const DESTRUCTIBLE_CONFIG: Record<DestructibleCategory, DestructibleCateg
     popImpulse: 5,
     maxImpulse: 18,
     cooldownMs: 350,
-    radius: 0.45,
-    halfHeight: 0.18,
+    radius: 0.8,
+    halfHeight: 0.32,
     targetMoveDistance: 6,
   },
   // Heavier drum: shoves/rolls ~4u and settles. High angular damping is REQUIRED
@@ -120,11 +120,11 @@ export const DAMAGE_COOLDOWN_MS = 700;
 /** Tires in a standard stack (separate bodies, physically stacked). */
 export const TIRE_STACK_COUNT = 3;
 /** Tire body radius (outer) and tube thickness — also the rendered torus dims. */
-export const TIRE_RADIUS = 0.45;
-export const TIRE_TUBE = 0.18;
+export const TIRE_RADIUS = 0.8;
+export const TIRE_TUBE = 0.32;
 /** Vertical spacing between stacked tires at spawn (≥ a full tire height so they
  *  don't interpenetrate before physics settles them into a pile). */
-export const TIRE_STACK_SPACING = 0.38;
+export const TIRE_STACK_SPACING = 0.68;
 
 // --- Oil drums ---
 
@@ -134,5 +134,9 @@ export const DRUM_RADIUS = 0.4;
 export const DRUM_HALF_HEIGHT = 0.5;
 
 /** Oil-drum hit points. A drum still rolls when struck, but spell damage chips
- *  this down and the drum is destroyed when it runs out (tires have no HP). */
+ *  this down and the drum is destroyed when it runs out. */
 export const DRUM_HP = 60;
+
+/** Tire hit points. A tire scatters on first hit, then behaves like a drum,
+ *  losing HP until destroyed at 0 HP. */
+export const TIRE_HP = 60;

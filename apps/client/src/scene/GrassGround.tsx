@@ -51,6 +51,12 @@ const ALBEDO_GLSL = /* glsl */ `
     // Whisper of fine speckle, just enough to avoid a dead-flat slab.
     grass *= 0.98 + 0.02 * gNoise(gp * 9.0);
 
+    // Occasional organic dirt spots (non-circular, noised patches)
+    float dirtNoise = gFbm(gp * 0.05 + vec2(12.0, 37.0));
+    float dirtMask = smoothstep(0.58, 0.78, dirtNoise) * 0.65;
+    vec3 soilColor = vec3(0.32, 0.27, 0.22); // #52453a muted organic dirt color
+    grass = mix(grass, soilColor, dirtMask);
+
     // Streets + central plaza painted straight into the ground (no separate decal
     // meshes → nothing to z-fight, clip the player's feet, or overdraw the
     // portal). World-space rects/circle, matching the town layout.

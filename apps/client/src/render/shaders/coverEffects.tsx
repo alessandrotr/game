@@ -111,7 +111,7 @@ export function CarFire({ height = 1.7, radius = 1.6 }: { height?: number; radiu
 
 // --- Barrel fire: a flickering flame on a real cone mesh (no billboard). -------
 
-const barrelFireFrag = /* glsl */ `
+export const barrelFireFrag = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime;
@@ -119,13 +119,39 @@ const barrelFireFrag = /* glsl */ `
   void main(){
     // On a cone, vUv.y runs 0 at the base → 1 at the tip; vUv.x wraps around.
     float h = vUv.y;
-    float n = fbm(vec2(vUv.x * 5.0, h * 3.0 - uTime * 2.2));
-    // Brightest at the base, flickering, fading out toward the tip.
-    float v = (1.0 - h) * (0.45 + 0.7 * n);
-    // Heat ramp: white-hot base → orange body → deep-red tip.
-    vec3 col = mix(vec3(1.0, 0.92, 0.5), vec3(1.0, 0.42, 0.07), h);
-    col = mix(col, vec3(0.7, 0.06, 0.0), smoothstep(0.55, 1.0, h));
-    gl_FragColor = vec4(col * (0.7 + v), clamp(v, 0.0, 1.0));
+    
+    // Map vUv.x to a seamless circle (removes vertical wrap seam completely)
+    vec2 circleUv = vec2(cos(vUv.x * 6.28318), sin(vUv.x * 6.28318));
+    
+    // Cheap upward turbulence displacement (swirls more as it rises)
+    float swirlAngle = h * 3.0 - uTime * 3.2;
+    vec2 displacement = vec2(cos(swirlAngle), sin(swirlAngle)) * 0.22 * h;
+    
+    // Single fbm lookup with distorted coordinates
+    float n = fbm(circleUv * 1.4 + displacement + vec2(0.0, h * 2.0 - uTime * 3.2));
+    
+    // Sharpen the flame boundaries using a smoothstep of noise + height fade
+    // This creates sharp, licking flame tongues instead of a soft cloud.
+    // Lower threshold at the base (h=0) makes the flame fuller over the barrel top.
+    float flameMask = (1.0 - h) * 1.25;
+    float lowThresh = mix(0.18, 0.35, h);
+    float highThresh = mix(0.55, 0.75, h);
+    float v = smoothstep(lowThresh, highThresh, n * flameMask);
+    
+    // Heat color ramp: white-hot center/base → bright orange → deep red edges
+    vec3 whiteHot = vec3(1.0, 0.95, 0.7);
+    vec3 orange = vec3(1.0, 0.45, 0.05);
+    vec3 red = vec3(0.8, 0.08, 0.0);
+    
+    // Mix colors based on both height (h) and local flame intensity (v)
+    // Hotter pockets inside the flame stay bright orange/yellow as they rise
+    vec3 col = mix(red, orange, smoothstep(0.1, 0.5, v - h * 0.3));
+    col = mix(col, whiteHot, smoothstep(0.5, 0.9, v - h * 0.5));
+    
+    // Boost color intensity at the base
+    float glow = (1.0 - h) * 0.3;
+    
+    gl_FragColor = vec4(col * (0.85 + glow), clamp(v, 0.0, 1.0));
   }
 `;
 
@@ -135,7 +161,7 @@ const barrelFireFrag = /* glsl */ `
  * camera-facing or position-follower glitches. The shader gives it a flickering
  * fire look; cheap (one additive cone, procedural, no textures/lights).
  */
-export function BarrelFire({ baseY = 0.4, height = 1.15, radius = 0.34 }: { baseY?: number; height?: number; radius?: number }) {
+export function BarrelFire({ baseY = 0.4, height = 2.1, radius = 0.37 }: { baseY?: number; height?: number; radius?: number }) {
   const matRef = useRef<ShaderMaterial>(null);
   // Random phase per barrel so they don't all flicker in lockstep.
   const uniforms = useMemo(() => ({ uTime: { value: Math.random() * 10 } }), []);
@@ -152,6 +178,7 @@ export function BarrelFire({ baseY = 0.4, height = 1.15, radius = 0.34 }: { base
         depthWrite={false}
         side={DoubleSide}
         blending={AdditiveBlending}
+        toneMapped={false}
       />
     </mesh>
   );

@@ -10,6 +10,7 @@ import {
   TIRE_STACK_COUNT,
   TIRE_STACK_SPACING,
   TIRE_TUBE,
+  TIRE_HP,
   clampToUnlockedArea,
   randomSpawnPoint,
   type DestructibleCategory,
@@ -55,8 +56,7 @@ interface Body {
   spent: boolean;
   /** Drums can be hit repeatedly; this gates re-impulses (sim ms). */
   hitReadyAt: number;
-  /** Remaining hit points. Drums start at {@link DRUM_HP} and are destroyed at 0;
-   *  tires are `Infinity` (they scatter but can't be destroyed by damage). */
+  /** Remaining hit points. Drums start at {@link DRUM_HP} and tires start at {@link TIRE_HP}, and they are destroyed at 0. */
   hp: number;
   /** Was awake last tick — lets us write one final transform when it sleeps. */
   wasAwake: boolean;
@@ -235,8 +235,8 @@ export class DestructibleSystem {
     obj.sx = cfg.radius;
     obj.sy = cfg.halfHeight;
     obj.sz = cfg.radius;
-    // Drums carry replicated HP (for the integrity bar); tires stay 0/0.
-    obj.hp = category === 'barrel' ? DRUM_HP : 0;
+    // Drums and tires carry replicated HP.
+    obj.hp = category === 'barrel' ? DRUM_HP : TIRE_HP;
     obj.maxHp = obj.hp;
     obj.active = false;
     this.ctx.state.destructibles.set(obj.id, obj);
@@ -251,7 +251,7 @@ export class DestructibleSystem {
       dmgReadyAt: new Map(),
       spent: false,
       hitReadyAt: 0,
-      hp: category === 'barrel' ? DRUM_HP : Infinity,
+      hp: category === 'barrel' ? DRUM_HP : TIRE_HP,
       wasAwake: true, // settle from spawn, then Rapier sleeps it
     });
   }
@@ -288,7 +288,6 @@ export class DestructibleSystem {
     amount = 0,
   ): boolean {
     for (const body of this.bodies.values()) {
-      if (body.category === 'tire' && body.spent) continue;
       const dx = body.obj.x - px;
       const dz = body.obj.z - pz;
       const r = body.radius + projR;
@@ -316,7 +315,6 @@ export class DestructibleSystem {
     let bestDist = Infinity;
 
     for (const body of this.bodies.values()) {
-      if (body.category === 'tire' && body.spent) continue;
       const dist = check(body.obj.x, body.obj.z, body.radius);
       if (dist !== null && dist < bestDist) {
         bestDist = dist;
@@ -338,7 +336,6 @@ export class DestructibleSystem {
    *  abilities and dash slams. `amount` (the AoE's damage) also chips drum HP. */
   pushInRadius(x: number, z: number, radius: number, fromId: string, amount = 0): void {
     for (const body of [...this.bodies.values()]) {
-      if (body.category === 'tire' && body.spent) continue;
       const dx = body.obj.x - x;
       const dz = body.obj.z - z;
       const r = radius + body.radius;
@@ -360,7 +357,6 @@ export class DestructibleSystem {
     amount: number,
   ): void {
     for (const body of [...this.bodies.values()]) {
-      if (body.category === 'tire' && body.spent) continue;
       const rx = body.obj.x - ox;
       const rz = body.obj.z - oz;
       const along = rx * dx + rz * dz;
@@ -383,7 +379,23 @@ export class DestructibleSystem {
     amount: number,
   ): void {
     if (body.category === 'tire') {
-      this.scatterStack(body, srcX, srcZ, spellDirX, spellDirZ, fromId);
+      const wasSpent = body.spent;
+      if (!wasSpent) {
+        this.scatterStack(body, srcX, srcZ, spellDirX, spellDirZ, fromId);
+      }
+      if (amount > 0) {
+        body.hp -= amount;
+        body.obj.hp = Math.max(0, body.hp);
+        if (body.hp <= 0) {
+          this.destroyTire(body);
+          return;
+        }
+      }
+      if (wasSpent && this.ctx.now() >= body.hitReadyAt) {
+        const dir = outwardDir(body.obj.x, body.obj.z, srcX, srcZ, spellDirX, spellDirZ);
+        this.applyImpulse(body, dir.x, dir.z, 1, fromId);
+        body.hitReadyAt = this.ctx.now() + body.cfg.cooldownMs;
+      }
       return;
     }
     // Drum: chip its HP (replicated for the integrity bar) and destroy it once
@@ -402,6 +414,13 @@ export class DestructibleSystem {
     body.hitReadyAt = this.ctx.now() + body.cfg.cooldownMs;
   }
 
+  /** Destroy a tire whose HP ran out: pull its physics body + replicated entity. */
+  private destroyTire(body: Body): void {
+    this.physics.removeBody(body.rb);
+    this.ctx.state.destructibles.delete(body.obj.id);
+    this.bodies.delete(body.obj.id);
+  }
+
   /** Destroy a drum whose HP ran out: pull its physics body + replicated entity.
    *  No VFX — the drum just disappears (clients drop it when it leaves state). */
   private destroyDrum(body: Body): void {
@@ -415,7 +434,7 @@ export class DestructibleSystem {
 
   /** Scatter the whole stack the struck tire belongs to (one-shot): members fan
    *  out around the incoming direction, the upper tires getting a bit more pop.
-   *  Marked spent so the pile only ever reacts to spells once. */
+   *  Marked spent so they can then be hit individually. */
   private scatterStack(
     hit: Body,
     srcX: number,
@@ -441,6 +460,7 @@ export class DestructibleSystem {
       const spread = (i - (members.length - 1) / 2) * 0.6; // fan in radians
       const a = base + spread;
       this.applyImpulse(b, Math.cos(a), Math.sin(a), 1 + i * 0.25, fromId);
+      b.hitReadyAt = this.ctx.now() + b.cfg.cooldownMs;
     });
   }
 
