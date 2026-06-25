@@ -681,6 +681,7 @@ function wireRoom(joined: Room): void {
     // lingering puddle renders separately from replicated ground-zone state).
     let vfxId: VfxAssetId = 'vfx.barrel_explosion';
     let scale: number | undefined;
+    let tint: string | undefined;
     if (msg.kind === 'grenade') {
       vfxId = 'vfx.car_explosion';
     } else if (msg.kind === 'chain_explosion') {
@@ -691,10 +692,15 @@ function wireRoom(joined: Room): void {
       // shockwave front reaches r=1 at the quad half-width = size/2 = 1).
       vfxId = 'vfx.singularity_blast';
       scale = msg.radius;
+    } else if (msg.kind === 'shield_burst') {
+      // Golden Runic Blast (arcane blast shader tinted gold) matching the exact radius
+      vfxId = 'vfx.arcane_blast';
+      scale = msg.radius / 4.275;
+      tint = '#ffe066';
     }
     useEffectsStore
       .getState()
-      .spawn(vfxId, [msg.x, 0, msg.z], [0, 0, 1], undefined, undefined, scale);
+      .spawn(vfxId, [msg.x, 0, msg.z], [0, 0, 1], undefined, undefined, scale, tint);
   });
   joined.onMessage(ServerMessage.HealTrap, (msg) => {
     // A heal trap fired (server already healed everyone) — the heal-beam VFX is

@@ -327,7 +327,12 @@ export class CombatSystem {
         shieldStatus.magnitude = target.shield;
       }
       // Keep the shield status' lifetime in sync so it expires when emptied.
-      if (target.shield <= 0) this.removeStatuses(target, 'shield');
+      if (target.shield <= 0) {
+        if (shieldStatus && shieldStatus.ability === 'renew') {
+          this.triggerShieldBurst(target, shieldStatus);
+        }
+        this.removeStatuses(target, 'shield');
+      }
     }
     if (incoming <= 0) return;
 
@@ -565,11 +570,30 @@ export class CombatSystem {
 
   /** Grant (or refresh) an absorb shield. Last shield wins — simple and enough
    *  for the current kits; a stacking model can come later. */
-  addShield(target: Player, amount: number, durationMs: number, fromId: string): void {
+  addShield(target: Player, amount: number, durationMs: number, fromId: string, ability?: string): void {
     if (amount <= 0 || !target.alive) return;
     this.removeStatuses(target, 'shield');
     target.shield = amount;
-    this.applyStatus(target, { kind: 'shield', durationMs, magnitude: amount }, fromId);
+    this.applyStatus(target, { kind: 'shield', durationMs, magnitude: amount, ability }, fromId);
+  }
+
+  private triggerShieldBurst(player: Player, shieldStatus: StatusEffect): void {
+    const damage = 15;
+    const radius = 4;
+    const fromId = shieldStatus.sourceId || player.sessionId;
+
+    // Visual effect
+    this.ctx.broadcast(ServerMessage.Detonation, {
+      kind: 'shield_burst',
+      x: player.x,
+      z: player.z,
+      radius,
+    });
+
+    // Deal damage to enemies in radius
+    this.forEachEnemyInRadius(player.x, player.z, radius, fromId, (enemy) => {
+      this.dealDamage(enemy, damage, fromId, 'renew');
+    });
   }
 
   /** Apply (or refresh) a status on a target. A new status of the same kind
@@ -662,7 +686,12 @@ export class CombatSystem {
       const s = list[i];
       if (!s) continue;
       if (now >= s.expiresAt) {
-        if (s.kind === 'shield') player.shield = 0;
+        if (s.kind === 'shield') {
+          player.shield = 0;
+          if (s.ability === 'renew') {
+            this.triggerShieldBurst(player, s);
+          }
+        }
         list.splice(i, 1);
         continue;
       }
@@ -736,7 +765,7 @@ export class CombatSystem {
   readonly effectRuntime: EffectRuntime = {
     dealDamage: (t, a, f, ab) => this.dealDamage(t, a, f, ab),
     heal: (t, a) => this.healTarget(t, a),
-    addShield: (t, a, d, f) => this.addShield(t, a, d, f),
+    addShield: (t, a, d, f, ab) => this.addShield(t, a, d, f, ab),
     applyStatus: (t, s, f) => this.applyStatus(t, s, f),
     displace: (e, dx, dz, dist, sp, dmg, from) => this.displace(e, dx, dz, dist, sp, dmg, from),
     spawnProjectile: (o, v, dx, dz, sp, r, rad, oh, count, interval, pierce) =>

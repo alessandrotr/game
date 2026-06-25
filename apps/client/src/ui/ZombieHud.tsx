@@ -19,45 +19,56 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
  * Zombie-survival HUD (MOBA-style): a compact command panel pinned top-center
  * with the current wave, a horde-clear progress bar (kills toward the wave
 /** Custom Medieval Skull SVG with eyes that turn red dynamically */
-function MedievalSkull({ size = 14, eyeRedness = 0 }: { size?: number; eyeRedness: number }) {
-  // Normal eye socket color is empty (transparent, letting background show).
-  // As eyeRedness goes from 0 to 1, fill with red `#ff0000` and add glowing filter drop-shadow.
-  const eyeColor = `rgba(255, 0, 0, ${eyeRedness})`;
+function MedievalSkull({ size = 26, eyeRedness = 0 }: { size?: number; eyeRedness: number }) {
+  // Let size represent the height, calculate width to match the aspect ratio (62x85)
+  const height = size;
+  const width = size * (62 / 85);
+
+  // Eye dot size scales with height (roughly 8% of height)
+  const eyeSize = height * 0.08;
   const eyeGlow =
-    eyeRedness > 0 ? `drop-shadow(0 0 ${eyeRedness * 3}px rgba(255, 0, 0, 0.9))` : 'none';
+    eyeRedness > 0
+      ? `0 0 ${eyeRedness * 8}px ${eyeRedness * 2.5}px rgba(255, 0, 0, 0.98), 0 0 ${eyeRedness * 20}px rgba(255, 0, 0, 0.9)`
+      : 'none';
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="mb-0.5 transition-all duration-300"
-      style={{ color: '#d4af37' }} // Warm medieval gold outline for the skull
-      aria-hidden="true"
-    >
-      {/* Skull Base Outline */}
-      <path d="M2 10a10 10 0 0 1 20 0v3a2 2 0 0 1-2 2h-1.5a1 1 0 0 0-1 1v1.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 6 17.5V16a1 1 0 0 0-1-1H3.5a2 2 0 0 1-2-2z" />
-
-      {/* Nose */}
-      <path d="M12 13v1.5" strokeWidth="1.5" />
-      <path d="M10.5 14.5h3" strokeWidth="1.5" />
-
-      {/* Teeth */}
-      <path d="M9 18h6" />
-      <path d="M10.5 18v2" strokeWidth="1.5" />
-      <path d="M12 18v2" strokeWidth="1.5" />
-      <path d="M13.5 18v2" strokeWidth="1.5" />
-
-      {/* Left Eye (Symmetrical, cx=9) */}
-      <circle cx="9" cy="10" r="1.5" fill={eyeColor} stroke="none" style={{ filter: eyeGlow }} />
-      {/* Right Eye (Symmetrical, cx=15) */}
-      <circle cx="15" cy="10" r="1.5" fill={eyeColor} stroke="none" style={{ filter: eyeGlow }} />
-    </svg>
+    <div className="relative mb-0.5 select-none" style={{ width, height }}>
+      {/* Golden Skull Image */}
+      <img
+        src="/gold_skull2.png"
+        alt="Gold Skull"
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        draggable={false}
+      />
+      {/* Left Eye Glow (centered at coordinate x=25.8%, y=52.9%) */}
+      <div
+        className="absolute rounded-full transition-all duration-300 pointer-events-none"
+        style={{
+          width: eyeSize,
+          height: eyeSize,
+          left: '25.8%',
+          top: '52.9%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'red',
+          opacity: eyeRedness,
+          boxShadow: eyeGlow,
+        }}
+      />
+      {/* Right Eye Glow (centered at coordinate x=69.4%, y=52.9%) */}
+      <div
+        className="absolute rounded-full transition-all duration-300 pointer-events-none"
+        style={{
+          width: eyeSize,
+          height: eyeSize,
+          left: '69.4%',
+          top: '52.9%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'red',
+          opacity: eyeRedness,
+          boxShadow: eyeGlow,
+        }}
+      />
+    </div>
   );
 }
 
@@ -93,7 +104,7 @@ export function ZombieHud() {
         <div className="flex items-center gap-4 text-xs font-semibold tracking-wide">
           {/* Wave indicator */}
           <div className="flex items-center gap-2 font-display text-white/95">
-            <MedievalSkull size={16} eyeRedness={eyeRedness} />
+            <MedievalSkull size={26} eyeRedness={eyeRedness} />
             <span
               className="font-display font-black text-sm uppercase tracking-[0.1em] text-[#d4af37]"
               style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}

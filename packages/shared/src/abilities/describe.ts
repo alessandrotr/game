@@ -133,6 +133,9 @@ function effectLine(effect: Effect): string {
 /** Build the full tooltip model for an ability. */
 export function describeAbility(def: AbilityDef): AbilityTooltip {
   const lines = def.effects.map(effectLine);
+  if (def.id === 'renew' && lines[0]) {
+    lines[0] = lines[0].replace('.', ' which deals 15 damage in a 4-radius area when it expires or is destroyed.');
+  }
   // Channelled abilities carry no `effects` (the server runs them as a sustained
   // beam); describe them from their channel fields instead.
   if (def.channelMs) {

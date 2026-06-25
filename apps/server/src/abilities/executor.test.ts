@@ -20,7 +20,7 @@ function recordingRuntime() {
   const rt: EffectRuntime = {
     dealDamage: (t, a, f) => calls.damage.push({ target: t.sessionId, amount: a, from: f }),
     heal: (t, a) => calls.heal.push({ target: t.sessionId, amount: a }),
-    addShield: (t, a) => calls.shield.push({ target: t.sessionId, amount: a }),
+    addShield: (t, a, d, f, ab) => calls.shield.push({ target: t.sessionId, amount: a }),
     applyStatus: (t, s) => calls.status.push({ target: t.sessionId, spec: s }),
     displace: (e, dirX, dirZ, distance) =>
       calls.displace.push({ id: e.sessionId, dirX, dirZ, distance }),

@@ -133,16 +133,20 @@ const arcaneBlastFrag = /* glsl */ `
   }
 `;
 
-export const ArcaneBlastEffect = ({ durationMs, onComplete }: BurstShaderProps) => {
+export const ArcaneBlastEffect = ({ durationMs, onComplete, tint }: BurstShaderProps) => {
   const { matRef, seed } = useBurstClock(durationMs, onComplete);
-  const uniforms = useMemo(() => ({ uTime: { value: seed }, uProgress: { value: 0 } }), [seed]);
+  const fragment = useMemo(() => withTint(arcaneBlastFrag), []);
+  const uniforms = useMemo(
+    () => ({ uTime: { value: seed }, uProgress: { value: 0 }, ...tintUniforms(tint) }),
+    [seed, tint],
+  );
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
       <planeGeometry args={[9, 9]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={UV_VERTEX}
-        fragmentShader={arcaneBlastFrag}
+        fragmentShader={fragment}
         uniforms={uniforms}
         transparent
         depthWrite={false}
