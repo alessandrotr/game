@@ -6,9 +6,9 @@ import {
   computePerkModifiers,
   type PerkModifiers,
 } from '@arena/shared';
-import { Player } from '../schema';
+import { Player } from '../../schema';
 import { CombatSystem } from './combat';
-import type { ArenaContext } from './context';
+import type { ArenaContext } from '../context';
 
 // ---------------------------------------------------------------------------
 // computePerkModifiers — the shared data-driven fold (single source of truth)

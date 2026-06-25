@@ -32,8 +32,8 @@ const CENTER_RESERVE = 6;
 function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
-import { DestructibleObject } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { DestructibleObject } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import type { ArenaPhysics } from './physics.js';
 

@@ -6,8 +6,8 @@ import {
   unlockedPlayArea,
   type RoomLayout,
 } from '@arena/shared';
-import { Barrel } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import { Barrel } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 import type { ArenaPhysics } from './physics.js';
 

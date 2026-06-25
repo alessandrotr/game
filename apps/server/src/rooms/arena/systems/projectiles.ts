@@ -9,10 +9,10 @@ import {
   type GunConfig,
   type LeafEffect,
 } from '@arena/shared';
-import { Projectile, type Player } from '../schema.js';
-import { runCast } from '../../abilities/executor.js';
+import { Projectile, type Player } from '../../schema.js';
+import { runCast } from '../../../abilities/executor.js';
 import { BARREL_RADIUS } from './barrels.js';
-import type { ArenaContext } from './context.js';
+import type { ArenaContext } from '../context.js';
 import type { CombatSystem } from './combat.js';
 
 /** Spawn height of a projectile above the ground. */

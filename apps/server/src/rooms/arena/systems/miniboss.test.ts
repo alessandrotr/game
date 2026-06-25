@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Player, type Pickable } from '../schema';
+import { Player, type Pickable } from '../../schema';
 import { ZombieDirector } from './zombies';
 import { PickableSystem } from './pickables';
 import { CombatSystem } from './combat';
-import type { ArenaContext } from './context';
+import type { ArenaContext } from '../context';
 
 const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {
   const players = new Map<string, Player>();

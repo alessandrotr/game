@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Player, StatusEffect, ArenaState } from '../schema.js';
+import { Player, StatusEffect, ArenaState } from '../../schema.js';
 import { CombatSystem } from './combat.js';
-import type { ArenaContext } from './context.js';
+import type { ArenaContext } from '../context.js';
 import { ABILITIES, PLAYER_RADIUS, IDENTITY_MODIFIERS, type AbilityKind } from '@arena/shared';
 
 const makeMockContext = (over: Partial<ArenaContext> = {}): ArenaContext => {

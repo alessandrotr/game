@@ -7,8 +7,8 @@ import {
   ServerMessage,
   type GunKind,
 } from '@arena/shared';
-import type { Player } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import type { Player } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 import type { ProjectileSystem } from './projectiles.js';
 
 /** How long the fire pose holds after a shot (ms). */

@@ -12,8 +12,8 @@ import {
   type ClientMessage,
   type ClientMessagePayloads,
 } from '@arena/shared';
-import type { Player } from '../schema.js';
-import type { ArenaContext } from './context.js';
+import type { Player } from '../../schema.js';
+import type { ArenaContext } from '../context.js';
 
 /** A bot cast reuses the exact client cast contract — it funnels through the
  *  room's `handleCast`, so it gets the same validation / broadcast / wind-up. */

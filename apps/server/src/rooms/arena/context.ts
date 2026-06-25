@@ -1,8 +1,8 @@
 import type { ArenaObstacle } from '@arena/shared';
 import type { ArenaState } from '../schema.js';
 import type { AnimOneShot } from '../../animation.js';
-import type { ArenaTuning } from './tuning.js';
-import type { PerkModifiers } from './perks.js';
+import type { ArenaTuning } from './systems/tuning.js';
+import type { PerkModifiers } from './systems/perks.js';
 
 /** Forced motion (dash / knockback) that overrides locomotion until `until` (ms). */
 export interface Displacement {
