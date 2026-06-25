@@ -29,26 +29,14 @@ import {
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
   ZOMBIE_ATTACK_WINDUP_MS,
-  ZOMBIE_SKIN_ID,
   ZOMBIE_SPRINTER_SKIN_ID,
-  ZOMBIE_SPRINTER_SPAWN_CHANCE,
-  ZOMBIE_SPRINTER_SPEED_MIN,
-  ZOMBIE_SPRINTER_SPEED_MAX,
-  ZOMBIE_FAT_SKIN_ID,
   ZOMBIE_MINIBOSS_SKIN_ID,
-  ZOMBIE_FAT_SPEED_PENALTY,
-  ZOMBIE_FAT_ATTACK_BONUS_MS,
   ZOMBIE_STUCK_MOVE_EPS,
   ZOMBIE_STUCK_TICKS,
   ZOMBIE_DETOUR_MS,
   ZOMBIE_DETOUR_RAD,
   ZOMBIE_WANDER_FALLOFF,
   ZOMBIE_WANDER_MAX_RAD,
-  zombieHealthForLevel,
-  zombieSprinterHealthForLevel,
-  zombieFatHealthForLevel,
-  zombieFatChanceForLevel,
-  zombieMaxAlive,
   zombieSpeedForLevel,
   ClientMessage,
   type ClientMessagePayloads,
@@ -104,7 +92,7 @@ import { registerGunHandlers } from './arena/gunHandlers.js';
 import { registerDevHandlers } from './arena/devHandlers.js';
 import { ArenaPhysics } from './arena/systems/physics.js';
 import { CoverSystem } from './arena/systems/cover.js';
-import { BotDirector, makeBotProfile, makeZombieProfile, type BotProfile } from './arena/systems/bots.js';
+import { BotDirector, makeBotProfile, type BotProfile } from './arena/systems/bots.js';
 import { ZombieDirector } from './arena/systems/zombies.js';
 import { ZombieSurvival } from './arena/systems/zombieSurvival.js';
 import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/systems/perks.js';
@@ -379,6 +367,12 @@ export class ArenaRoom extends AvatarRoom {
         now: () => this.simTime,
         state: this.state,
         bots: this.bots,
+        verticalVelocity: this.verticalVelocity,
+        grounded: this.grounded,
+        cooldowns: this.cooldowns,
+        arenaLimit: this.arenaLimit,
+        nextBotId: () => ++this.botSeq,
+        resetPlayer: (player) => this.resetPlayer(player),
         roomLayout: () => this.roomLayout,
       });
       this.cover.setRoomLayout(this.roomLayout);
@@ -397,10 +391,10 @@ export class ArenaRoom extends AvatarRoom {
         this.setPrivate(true);
       }
       this.zombieDirector = new ZombieDirector(this.buildContext(), {
-        spawnZombie: (level) => this.spawnZombie(level),
-        spawnMiniBoss: (level) => this.spawnMiniBoss(level),
-        aliveZombies: () => this.countAliveZombies(),
-        humansPresent: () => this.countHumans() > 0,
+        spawnZombie: (level) => this.zombie!.spawnZombie(level),
+        spawnMiniBoss: () => this.zombie!.spawnMiniBoss(),
+        aliveZombies: () => this.zombie!.countAliveZombies(),
+        humansPresent: () => this.zombie!.countHumans() > 0,
         onWaveClear: (level) => {
           // --- Room expansion: unlock the next door if this wave matches ---
           this.tryUnlockDoor(level);
@@ -1899,122 +1893,6 @@ export class ArenaRoom extends AvatarRoom {
     }
   }
 
-  /** Living human (non-bot) players in the room — waves pause when this hits 0. */
-  private countHumans(): number {
-    let n = 0;
-    this.state.players.forEach((_player, id) => {
-      if (!this.bots.has(id)) n += 1;
-    });
-    return n;
-  }
-
-  /** Zombies currently alive (corpses awaiting removal are excluded). */
-  private countAliveZombies(): number {
-    let n = 0;
-    this.bots.forEach((_profile, id) => {
-      if (this.state.players.get(id)?.alive) n += 1;
-    });
-    return n;
-  }
-
-  /** Spawn one zombie for `level`: a red-team melee bot that pours out of the
-   *  arena portal with level-scaled health and a relentless-chaser AI profile.
-   *  The existing simulation (auto-attack chase) and {@link BotDirector} drive
-   *  the rest; death + removal are handled in the tick loop. */
-  private spawnZombie(level: number): void {
-    // Hard backstop above the director's own (level-scaled) cap — corpses can
-    // briefly inflate the map — so a bug can never let zombies grow without bound.
-    if (this.bots.size >= zombieMaxAlive(level) + 24) return;
-    // Roll this horde slot's variant: a Sprinter (fast, fragile), a Fat (slow,
-    // tanky, quicker swings), or a normal zombie. One roll partitions the chances
-    // so each variant keeps its exact marginal probability (Sprinter 35%, Fat a
-    // level-scaling 20→35%); the remainder is a normal zombie.
-    const roll = Math.random();
-    const fatChance = zombieFatChanceForLevel(level);
-    const variant: 'sprinter' | 'fat' | 'normal' =
-      roll < ZOMBIE_SPRINTER_SPAWN_CHANCE
-        ? 'sprinter'
-        : roll < ZOMBIE_SPRINTER_SPAWN_CHANCE + fatChance
-          ? 'fat'
-          : 'normal';
-
-    const id = `zombie-${++this.botSeq}`;
-    const player = new Player();
-    player.sessionId = id;
-    player.name = variant === 'sprinter' ? 'Sprinter' : variant === 'fat' ? 'Fat' : 'Zombie';
-    player.characterClass = 'warrior'; // melee auto-attack (drives stats/attacks)
-    // The client maps the skin to the matching GLB (zombie / sprinter / fat).
-    player.skinId =
-      variant === 'sprinter'
-        ? ZOMBIE_SPRINTER_SKIN_ID
-        : variant === 'fat'
-          ? ZOMBIE_FAT_SKIN_ID
-          : ZOMBIE_SKIN_ID;
-    player.team = 'red';
-    this.resetPlayer(player);
-    // Override the team spawn with a portal mouth (+ jitter so a pulse fans out
-    // instead of stacking), then apply the variant's level-scaled health. A
-    // random portal each spawn so hordes pour in from the back gate AND the
-    // flanking side portals.
-    const limit = this.arenaLimit - PLAYER_RADIUS;
-    const jitter = () => (Math.random() * 2 - 1) * 1.6;
-    const portal = this.zombie!.pickPortal();
-    player.x = clamp(portal.x + jitter(), -limit, limit);
-    player.z = clamp(portal.z + jitter(), -limit, limit);
-    player.maxHp =
-      variant === 'sprinter'
-        ? zombieSprinterHealthForLevel(level)
-        : variant === 'fat'
-          ? zombieFatHealthForLevel(level)
-          : zombieHealthForLevel(level);
-    player.hp = player.maxHp;
-
-    this.state.players.set(id, player);
-    this.verticalVelocity.set(id, 0);
-    this.grounded.set(id, true);
-    this.cooldowns.set(id, {});
-    this.bots.set(id, makeZombieProfile());
-    const ai = this.zombie!.aiFor(id); // roll this zombie's speed/wander personality
-    if (variant === 'sprinter') {
-      // A Sprinter's speed offset IS its bonus over a same-level zombie (2–3 u/s),
-      // replacing the usual ±jitter so the extra speed is exactly in range.
-      ai.speedOffset =
-        ZOMBIE_SPRINTER_SPEED_MIN +
-        Math.random() * (ZOMBIE_SPRINTER_SPEED_MAX - ZOMBIE_SPRINTER_SPEED_MIN);
-    } else if (variant === 'fat') {
-      // A Fat is slower than a same-level zombie and swings a touch sooner.
-      ai.speedOffset = -ZOMBIE_FAT_SPEED_PENALTY;
-      ai.attackBonusMs = ZOMBIE_FAT_ATTACK_BONUS_MS;
-    }
-  }
-
-  private spawnMiniBoss(_level: number): void {
-    const id = `zombie-miniboss-${++this.botSeq}`;
-    const player = new Player();
-    player.sessionId = id;
-    player.name = 'Mini Boss';
-    player.characterClass = 'warrior';
-    player.skinId = ZOMBIE_MINIBOSS_SKIN_ID;
-    player.team = 'red';
-    this.resetPlayer(player);
-
-    const limit = this.arenaLimit - 0.8;
-    const portal = this.zombie!.pickPortal();
-    player.x = clamp(portal.x + (Math.random() * 2 - 1) * 1.6, -limit, limit);
-    player.z = clamp(portal.z + (Math.random() * 2 - 1) * 1.6, -limit, limit);
-    
-    player.maxHp = 750;
-    player.hp = 750;
-
-    this.state.players.set(id, player);
-    this.verticalVelocity.set(id, 0);
-    this.grounded.set(id, true);
-    this.cooldowns.set(id, {});
-    this.bots.set(id, makeZombieProfile());
-    
-    const ai = this.zombie!.aiFor(id);
-    ai.speedOffset = -1.5; // Slow movement speed (made 1 unit faster)
-  }
 
   private updateMiniBossAI(bot: Player, id: string): void {
     if (isStunned(bot) || isBlinded(bot)) return;

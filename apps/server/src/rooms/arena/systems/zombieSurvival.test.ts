@@ -11,6 +11,12 @@ const make = (over: Partial<ZombieSurvivalDeps> = {}) =>
     now: () => 1000,
     state: { players: new Map(), unlockedSections: 0 } as ZombieSurvivalDeps['state'],
     bots: new Map(),
+    verticalVelocity: new Map(),
+    grounded: new Map(),
+    cooldowns: new Map(),
+    arenaLimit: 38,
+    nextBotId: () => 1,
+    resetPlayer: () => {},
     roomLayout: () => null,
     ...over,
   });
