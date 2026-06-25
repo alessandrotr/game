@@ -309,11 +309,12 @@ export function CharacterSelect() {
           <ClassInfo def={def} />
         </div>
 
-        {/* RIGHT — the featured fighter: a big portrait panel with the nameplate
-            burnt across its lower edge. Hidden on mobile (the roster headshots
-            already show each fighter); the grid is single-column there. */}
-        <div className="hidden flex-col gap-3 sm:flex">
-          <AvatarFrame rimId={loadout.rimId} shape="panel" size="lg" className="aspect-4/5 w-full">
+        {/* RIGHT — the featured fighter: a full-height portrait panel with the
+            description floated over its top edge and the nameplate burnt across
+            its lower edge. Hidden on mobile (the roster headshots already show
+            each fighter); the grid is single-column there. */}
+        <div className="hidden sm:block">
+          <AvatarFrame rimId={loadout.rimId} shape="panel" size="lg" className="h-full w-full">
             {/* The full showcase canvas: drag to turn your fighter, scroll/pinch
                 to zoom (OrbitControls). `transparent` lets the dark panel stage
                 show through; `top` framing keeps the model clear of the nameplate.
@@ -332,6 +333,11 @@ export function CharacterSelect() {
               />
             </div>
 
+            {/* The class's one-line identity, floated over the top of the art. */}
+            <p className="pointer-events-none absolute inset-x-1.5 top-1.5 bg-linear-to-b from-black/85 via-black/45 to-transparent px-4 pb-10 pt-3 text-center text-xs leading-relaxed text-white/80">
+              {def.description}
+            </p>
+
             {/* Nameplate burnt over the bottom of the art — the level gem +
                 class name, the way the picked fighter is announced. */}
             <div className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-end gap-4 bg-linear-to-t from-black/85 via-black/40 to-transparent px-3 pb-2.5 pt-10">
@@ -347,9 +353,6 @@ export function CharacterSelect() {
             {/* Progress over the portrait while the class GLBs download. */}
             <AssetLoadingBar label="Loading fighter…" />
           </AvatarFrame>
-
-          {/* The class's one-line identity, under the portrait. */}
-          <p className="px-1 text-center text-xs leading-relaxed text-muted">{def.description}</p>
         </div>
       </div>
 
