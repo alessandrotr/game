@@ -310,8 +310,9 @@ export function CharacterSelect() {
         </div>
 
         {/* RIGHT — the featured fighter: a big portrait panel with the nameplate
-            burnt across its lower edge. */}
-        <div className="flex flex-col gap-3">
+            burnt across its lower edge. Hidden on mobile (the roster headshots
+            already show each fighter); the grid is single-column there. */}
+        <div className="hidden flex-col gap-3 sm:flex">
           <AvatarFrame rimId={loadout.rimId} shape="panel" size="lg" className="aspect-4/5 w-full">
             {/* The full showcase canvas: drag to turn your fighter, scroll/pinch
                 to zoom (OrbitControls). `transparent` lets the dark panel stage

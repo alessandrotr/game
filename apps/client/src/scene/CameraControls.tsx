@@ -10,9 +10,16 @@ import {
 import { useCameraPrefsStore } from '../store/useCameraPrefsStore';
 import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
+import { useFocusStore } from '../store/useFocusStore';
+import { isTouchDevice } from '../hooks/useIsTouch';
 
 /** Rotation per pixel of middle-drag (radians) — same feel for yaw and pitch. */
 const DRAG_SENSITIVITY = 0.006;
+/** Rotation per pixel of a one-finger look-drag on touch (right screen zone). A
+ *  touch slightly more sensitive than the mouse so a thumb swipe spins enough. */
+const TOUCH_LOOK_SENSITIVITY = 0.008;
+/** Zoom (radius multiplier) change per pixel of pinch-spread. */
+const PINCH_ZOOM_SENSITIVITY = 0.004;
 /** Rotation per second while an arrow key is held (radians/s). */
 const KEY_SPEED = 1.8;
 /** Peak A/D orbit speed — 30% faster than the arrow keys, approached via easing. */
@@ -133,12 +140,69 @@ export function CameraControls() {
       else if (e.code === 'ArrowDown' && pitchDir.current === -1) pitchDir.current = 0;
     };
 
+    // --- Touch: right-zone look-drag (yaw) + two-finger pinch (zoom) ---------
+    // Mobile camera control, twin-zone style: the move joystick owns the left
+    // half of the screen, so the camera only claims touches that start on the
+    // right half (and on the game world, not HUD chrome). One finger orbits the
+    // view; two fingers pinch to zoom — the standard best-in-class mobile feel.
+    const touchEnabled = isTouchDevice();
+    // Camera-owned touches by identifier → last client position.
+    const cam = new Map<number, { x: number; y: number }>();
+    let pinchDist = 0; // baseline distance between the two pinch fingers
+
+    const isCanvas = (el: EventTarget | null) => el instanceof HTMLCanvasElement;
+    const inLookZone = (t: Touch) => isCanvas(t.target) && t.clientX >= window.innerWidth * 0.5;
+    const pinchOf = () => {
+      const pts = Array.from(cam.values());
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (useGameStore.getState().gunMode) return; // locked shooter camera
+      if (useFocusStore.getState().target) return; // locked during a focus
+      for (const t of Array.from(e.changedTouches)) {
+        if (cam.size >= 2) break;
+        if (inLookZone(t)) cam.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      if (cam.size === 2) pinchDist = pinchOf();
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (cam.size === 0) return;
+      const prefs = useCameraPrefsStore.getState().prefs;
+      for (const t of Array.from(e.changedTouches)) {
+        const prev = cam.get(t.identifier);
+        if (!prev) continue;
+        // One finger → orbit (yaw). Pitch stays fixed (see cameraControl).
+        if (cam.size === 1 && !prefs.lockRotation) {
+          addCameraYaw(-(t.clientX - prev.x) * TOUCH_LOOK_SENSITIVITY);
+        }
+        cam.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      // Two fingers → pinch zoom (spread out = zoom in).
+      if (cam.size === 2 && !prefs.lockZoom) {
+        const d = pinchOf();
+        if (pinchDist > 0) addCameraZoom(-(d - pinchDist) * PINCH_ZOOM_SENSITIVITY);
+        pinchDist = d;
+      }
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) cam.delete(t.identifier);
+      pinchDist = cam.size === 2 ? pinchOf() : 0;
+    };
+
     canvas.addEventListener('mousedown', onDown);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    if (touchEnabled) {
+      window.addEventListener('touchstart', onTouchStart, { passive: true });
+      window.addEventListener('touchmove', onTouchMove, { passive: true });
+      window.addEventListener('touchend', onTouchEnd);
+      window.addEventListener('touchcancel', onTouchEnd);
+    }
     return () => {
       canvas.removeEventListener('mousedown', onDown);
       canvas.removeEventListener('wheel', onWheel);
@@ -146,6 +210,12 @@ export function CameraControls() {
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      if (touchEnabled) {
+        window.removeEventListener('touchstart', onTouchStart);
+        window.removeEventListener('touchmove', onTouchMove);
+        window.removeEventListener('touchend', onTouchEnd);
+        window.removeEventListener('touchcancel', onTouchEnd);
+      }
     };
   }, [gl]);
 
