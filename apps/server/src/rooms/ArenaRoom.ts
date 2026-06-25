@@ -234,9 +234,6 @@ export class ArenaRoom extends AvatarRoom {
   private coopOver = false;
   /** The wave director (zombie mode only) — owns the level/horde lifecycle. */
   private zombieDirector?: ZombieDirector;
-  /** Slain zombies awaiting corpse removal: session id → sim time (ms) to remove
-   *  it at (a brief linger so the death pose plays before it vanishes). */
-  private readonly zombieCorpseAt = new Map<string, number>();
   /** Mode-specific zombie-survival logic: per-zombie AI, spawning, horde
    *  collision resolution, mini-boss AI, and room-expansion door unlocks. Built
    *  only in zombie mode; undefined otherwise. */
@@ -1678,7 +1675,6 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(id);
     this.attackReadyAt.delete(id);
     this.displacements.delete(id);
-    this.zombieCorpseAt.delete(id);
     this.zombie?.forget(id);
     this.bots.delete(id);
   }
