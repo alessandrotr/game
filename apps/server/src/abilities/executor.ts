@@ -24,7 +24,7 @@ export interface EffectRuntime {
   /** Heal `target` by `amount` and broadcast healing feedback. */
   heal(target: EffectActor, amount: number, fromId: string): void;
   /** Grant `target` an absorb shield of `amount` for `durationMs`. */
-  addShield(target: EffectActor, amount: number, durationMs: number, fromId: string): void;
+  addShield(target: EffectActor, amount: number, durationMs: number, fromId: string, ability?: string): void;
   /** Apply (or refresh) a status on `target`. */
   applyStatus(target: EffectActor, spec: StatusSpec, fromId: string): void;
   /** Push `entity` along (dirX,dirZ) for `distance` units at `speed` u/s. With
@@ -133,7 +133,7 @@ function runLeaf(effect: LeafEffect, frame: LeafFrame, rt: EffectRuntime): void 
       rt.heal(target, effect.amount, caster.sessionId);
       break;
     case 'shield':
-      rt.addShield(target, effect.amount, effect.durationMs, caster.sessionId);
+      rt.addShield(target, effect.amount, effect.durationMs, caster.sessionId, frame.ability);
       break;
     case 'status':
       rt.applyStatus(target, effect.status, caster.sessionId);

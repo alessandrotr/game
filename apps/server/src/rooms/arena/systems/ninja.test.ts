@@ -338,4 +338,55 @@ describe('Ninja Class Abilities Integration', () => {
     expect(shieldStatus?.magnitude).toBe(25);
     expect(shieldStatus?.expiresAt).toBe(ctx.now() + 3500);
   });
+
+  it('Priest shield (renew) triggers a 15 damage burst in 4 radius on destruction and expiration', () => {
+    const ctx = makeMockContext();
+    const combat = setupCombatSystem(ctx);
+
+    const priest = new Player();
+    priest.sessionId = 'priest';
+    priest.characterClass = 'priest';
+    priest.alive = true;
+    priest.maxHp = 100;
+    priest.hp = 100;
+    priest.x = 0;
+    priest.z = 0;
+    ctx.state.players.set('priest', priest);
+
+    const enemy = new Player();
+    enemy.sessionId = 'enemy';
+    enemy.characterClass = 'warrior';
+    enemy.alive = true;
+    enemy.maxHp = 100;
+    enemy.hp = 100;
+    // Place within 4 radius (distance is 3.5)
+    enemy.x = 3.5;
+    enemy.z = 0;
+    ctx.state.players.set('enemy', enemy);
+
+    // 1. Test destruction (depleted to 0)
+    combat.addShield(priest, 40, 6000, 'priest', 'renew');
+    expect(priest.shield).toBe(40);
+    expect(enemy.hp).toBe(100);
+
+    // Deal 50 damage to priest (breaks shield, deals 10 damage to hp)
+    combat.dealDamage(priest, 50, 'attacker');
+    expect(priest.shield).toBe(0);
+    expect(priest.hp).toBe(90);
+    // Enemy should take 15 damage from the burst
+    expect(enemy.hp).toBe(85);
+
+    // 2. Test expiration
+    enemy.hp = 100; // Reset enemy HP
+    combat.addShield(priest, 40, 6000, 'priest', 'renew');
+    expect(priest.shield).toBe(40);
+
+    // Advance clock to expire status
+    ctx.now = () => 10000;
+    combat.updateStatuses(priest);
+
+    expect(priest.shield).toBe(0);
+    // Enemy should take 15 damage from the burst on expiration
+    expect(enemy.hp).toBe(85);
+  });
 });

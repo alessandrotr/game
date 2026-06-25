@@ -355,7 +355,7 @@ export const ABILITY_REGISTRY = {
     range: 0,
     damage: 0,
     effects: [
-      { type: 'shield', amount: 20, durationMs: 6000 },
+      { type: 'shield', amount: 40, durationMs: 6000 },
       { type: 'status', status: { kind: 'empower', durationMs: 6000, magnitude: 20, ability: 'smite' } },
     ],
   },
@@ -365,7 +365,7 @@ export const ABILITY_REGISTRY = {
     icon: 'Sun',
     aim: 'direction',
     cooldownMs: 12000,
-    manaCost: 100,
+    manaCost: 80,
     castTimeMs: 0,
     range: 18,
     damage: 6,

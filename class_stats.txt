@@ -1,0 +1,291 @@
+================================================================================
+                                 CLASS STATS
+================================================================================
+This document lists the base stats, basic attacks, and abilities for all classes
+in Arena.
+
+--------------------------------------------------------------------------------
+1. WARRIOR
+--------------------------------------------------------------------------------
+Name:         Warrior
+Role:         Melee Bruiser
+Description:  A durable frontliner who wades in and erupts with shockwaves.
+Base Stats:
+  - Health:        420 HP
+  - Mana:          80 MP
+  - Move Speed:    9 units/sec
+  - Attack Power:  45 (UI rating)
+  - Difficulty:    1 / 3 (Easy)
+
+Basic Attack (Auto-Attack):
+  - Kind:          Melee
+  - Range:         2.6 units
+  - Damage:        11
+  - Cooldown:      800 ms (1.25 attacks per second)
+
+Abilities:
+  - [Q] Cleave
+    Aim:           Self
+    Cooldown:      1000 ms
+    Mana Cost:     10 MP
+    Range:         4 units
+    Damage:        25
+    Radius:        4 units (AoE, 180 degree arc in front of the caster)
+    Effects:       Instant frontal sweep dealing 25 damage.
+
+  - [W] Charge
+    Aim:           Direction
+    Cooldown:      5000 ms
+    Mana Cost:     20 MP
+    Range:         12 units
+    Damage:        10
+    Effects:       A fast gap-closing dash (speed: 34) that deals 10 damage to enemies in the path.
+
+  - [E] Shield Wall
+    Aim:           Self
+    Cooldown:      12000 ms
+    Mana Cost:     40 MP
+    Effects:       Applies a 60 HP shield for 5000 ms.
+
+  - [R] Ground Slam
+    Aim:           Self
+    Cooldown:      14000 ms
+    Mana Cost:     60 MP
+    Range:         5 units
+    Damage:        60
+    Radius:        5 units (AoE)
+    Effects:       Deals 60 damage and knocks back hit targets (distance: 4, speed: 24).
+
+
+--------------------------------------------------------------------------------
+2. MAGE
+--------------------------------------------------------------------------------
+Name:         Mage
+Role:         Ranged Burst
+Description:  Glass-cannon caster: fireballs, frost burst, arcane bolts, and targeted blast.
+Base Stats:
+  - Health:        280 HP
+  - Mana:          260 MP
+  - Move Speed:    9 units/sec
+  - Attack Power:  55 (UI rating)
+  - Difficulty:    3 / 3 (Hard)
+
+Basic Attack (Auto-Attack):
+  - Kind:          Ranged
+  - Range:         7 units
+  - Damage:        9
+  - Cooldown:      1000 ms (1.00 attack per second)
+  - Projectile:    Speed 25, Radius 0.5, VFX 'auto_bolt'
+
+Abilities:
+  - [Q] Fireball
+    Aim:           Direction
+    Cooldown:      500 ms
+    Mana Cost:     20 MP
+    Range:         30 units
+    Damage:        20
+    Projectile:    Speed 45, Range 30, Radius 1.0
+    Effects:       Fires a fireball dealing 20 damage on hit.
+
+  - [W] Frost Nova
+    Aim:           Self
+    Cooldown:      5000 ms
+    Mana Cost:     60 MP
+    Range:         7 units
+    Damage:        20
+    Radius:        7 units (AoE)
+    Effects:       Deals 20 damage and freezes enemies solid (stun) for 2000 ms.
+
+  - [E] Arcane Bolt
+    Aim:           Direction
+    Cooldown:      3000 ms
+    Mana Cost:     40 MP
+    Range:         50 units
+    Damage:        30
+    Projectile:    Speed 65, Range 50, Radius 0.6 (Piercing)
+    Effects:       Fires a fast bolt that pierces all enemies in its path, dealing 30 damage.
+
+  - [R] Arcane Blast
+    Aim:           Point
+    Cooldown:      10000 ms
+    Mana Cost:     100 MP
+    Range:         16 units
+    Damage:        65
+    Radius:        4 units (AoE)
+    Effects:       Deals 65 damage to all enemies in the targeted area.
+
+
+--------------------------------------------------------------------------------
+3. ARCHER
+--------------------------------------------------------------------------------
+Name:         Archer
+Role:         Ranged Skirmisher
+Description:  Mobile damage dealer who kites from a distance.
+Base Stats:
+  - Health:        360 HP
+  - Mana:          100 MP
+  - Move Speed:    9 units/sec
+  - Attack Power:  40 (UI rating)
+  - Difficulty:    2 / 3 (Medium)
+
+Basic Attack (Auto-Attack):
+  - Kind:          Ranged
+  - Range:         8 units
+  - Damage:        12
+  - Cooldown:      750 ms (1.33 attacks per second)
+  - Projectile:    Speed 25, Radius 0.4, VFX 'auto_arrow'
+
+Abilities:
+  - [Q] Power Shot
+    Aim:           Direction
+    Cooldown:      2000 ms
+    Mana Cost:     20 MP
+    Range:         36 units
+    Damage:        12 per arrow (3 arrows total)
+    Projectile:    Speed 40, Range 36, Radius 0.6
+    Effects:       Fires 3 arrows sequentially 200 ms apart, each dealing 12 damage.
+
+  - [W] Concussive Shot
+    Aim:           Point
+    Cooldown:      7000 ms
+    Mana Cost:     40 MP
+    Range:         8 units
+    Damage:        5
+    Radius:        4 units (AoE)
+    Effects:       Deals 5 damage and stuns enemies in the area for 2000 ms.
+
+  - [E] Tumble
+    Aim:           Direction
+    Cooldown:      8000 ms
+    Mana Cost:     30 MP
+    Range:         5 units
+    Effects:       Dashes a short distance (5 units, speed: 28) and grants a self-buff
+                   that empowers the next ability or projectile that connects with +10 damage.
+
+  - [R] Sniper Shot
+    Aim:           Direction
+    Cooldown:      12000 ms
+    Mana Cost:     60 MP
+    Range:         65 units
+    Damage:        80
+    Projectile:    Speed 85, Range 65, Radius 0.6 (Piercing)
+    Effects:       Fires a massive, high-speed arrow piercing all enemies in its path for 80 damage.
+
+
+--------------------------------------------------------------------------------
+4. PRIEST
+--------------------------------------------------------------------------------
+Name:         Priest
+Role:         Support Healer
+Description:  Sustains allies with heals while contributing steady damage.
+Base Stats:
+  - Health:        340 HP
+  - Mana:          180 MP
+  - Move Speed:    9 units/sec
+  - Attack Power:  25 (UI rating)
+  - Difficulty:    2 / 3 (Medium)
+
+Basic Attack (Auto-Attack):
+  - Kind:          Melee
+  - Range:         2.6 units
+  - Damage:        7
+  - Cooldown:      900 ms (1.11 attacks per second)
+
+Abilities:
+  - [Q] Smite
+    Aim:           Point
+    Cooldown:      2000 ms
+    Mana Cost:     30 MP
+    Range:         16 units
+    Damage:        26
+    Radius:        2 units (AoE)
+    Effects:       Deals 26 damage to all enemies in the area.
+
+  - [W] Sanctuary
+    Aim:           Self
+    Cooldown:      10000 ms
+    Mana Cost:     60 MP
+    Range:         8 units
+    Damage:        6 per tick
+    Radius:        8 units (AoE)
+    Effects:       Creates a field status around the caster for 3000 ms that ticks 6
+                   damage to enemies in the radius every 500 ms.
+
+  - [E] Blessing
+    Aim:           Self
+    Cooldown:      8000 ms
+    Mana Cost:     40 MP
+    Effects:       Applies a 40 HP shield for 6000 ms. When the shield expires or is
+                   destroyed, it deals a 15 damage burst in a 4-radius area to enemies.
+                   Also empowers the next Smite cast within 6000 ms to deal +20 bonus damage.
+
+  - [R] Judgment
+    Aim:           Direction
+    Cooldown:      12000 ms
+    Mana Cost:     80 MP
+    Range:         18 units
+    Damage:        6 per tick
+    Effects:       Channels a beam (18 range, 1 width) for 3000 ms, dealing 6 damage
+                   every 200 ms to enemies inside. Caster can steer the beam.
+
+
+--------------------------------------------------------------------------------
+5. NINJA
+--------------------------------------------------------------------------------
+Name:         Ninja
+Role:         Melee Assassin
+Description:  A swift, elusive shadow who strikes with a katana and smoke bombs.
+Base Stats:
+  - Health:        300 HP
+  - Mana:          120 MP
+  - Move Speed:    9 units/sec
+  - Attack Power:  30 (UI rating)
+  - Difficulty:    3 / 3 (Hard)
+
+Basic Attack (Auto-Attack):
+  - Kind:          Melee
+  - Range:         2.6 units
+  - Damage:        10
+  - Cooldown:      700 ms (1.43 attacks per second)
+
+Abilities:
+  - [Q] Katana Slash (Double Slash)
+    Aim:           Self
+    Cooldown:      1000 ms
+    Mana Cost:     10 MP
+    Range:         4 units
+    Damage:        25 (First strike) + 10 (Second strike)
+    Radius:        4 units (First strike, 120 degree arc) / 4.5 units (Second strike, 180 degree arc)
+    Effects:       Swift frontal strike dealing 25 damage. Automatically triggers a second
+                   strike (Double Slash) 300 ms later, dealing 10 damage in a wider area.
+                   Casting Smoke Teleport (R) during the 300 ms delay resets the timer and
+                   prevents the second strike from firing.
+
+  - [W] Shuriken Showdown
+    Aim:           Direction
+    Cooldown:      8000 ms
+    Mana Cost:     40 MP
+    Range:         30 units
+    Damage:        35
+    Projectile:    Speed 55, Range 30, Radius 0.8 (Piercing)
+    Effects:       Throws a large shuriken that pierces all enemies in its path for 35 damage.
+
+  - [E] Shadow Dash (Double Dash)
+    Aim:           Direction
+    Cooldown:      3000 ms (Single dash) / 6000 ms (Double dash)
+    Mana Cost:     20 MP (First dash) + 10 MP (Second dash)
+    Range:         6 units (First dash) + 6 units (Second dash)
+    Effects:       Dashes forward 6 units (speed: 32). Initiates a recast window between
+                   314 ms and 1700 ms after the cast.
+                   Recasting E within this window performs a second dash (Double Dash),
+                   grants a 25 HP shield for 3500 ms, and triggers a 6000 ms base cooldown.
+                   If not recast, the ability triggers a 3000 ms base cooldown upon expiration.
+
+  - [R] Smoke Teleport
+    Aim:           Point
+    Cooldown:      10000 ms
+    Mana Cost:     60 MP
+    Range:         10 units
+    Damage:        35
+    Radius:        3 units (AoE)
+    Effects:       Teleports to a target area, dealing 35 damage and blinding enemies for 1500 ms.
