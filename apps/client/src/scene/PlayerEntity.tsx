@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Html, Text } from '@react-three/drei';
-import { MathUtils, Vector3, type Group, type Mesh } from 'three';
+import {
+  CanvasTexture,
+  MathUtils,
+  Vector3,
+  type Group,
+  type Mesh,
+  PlaneGeometry,
+  RingGeometry,
+  MeshBasicMaterial,
+} from 'three';
 import {
   ARENA_HALF_SIZE,
   ARENA_HALF_Z,
@@ -50,6 +59,34 @@ import { clearCastAim } from '../store/castAim';
 import { clearWeaponTip } from '../store/weaponTip';
 import { PickableVisual } from './PickableVisual';
 
+// Cache of pre-rendered canvases to draw text as textures for zombies without CPU/Troika cost
+const zombieTextTextures = new Map<string, CanvasTexture>();
+
+function getZombieTextTexture(text: string): CanvasTexture {
+  let tex = zombieTextTextures.get(text);
+  if (!tex) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, 256, 64);
+
+    ctx.font = '300 42px Arial'; // Arial Light font weight, slightly larger on canvas
+    ctx.fillStyle = '#e6e9f5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3; // Thinner stroke outline to match the light font cleanly
+    ctx.strokeText(text, 128, 32);
+    ctx.fillText(text, 128, 32);
+
+    tex = new CanvasTexture(canvas);
+    zombieTextTextures.set(text, tex);
+  }
+  return tex;
+}
+
 /** Smoothing for the local player's vertical (jump) toward the server's. */
 const REMOTE_SMOOTHING = 14;
 /** While idle, how fast the predicted position settles onto the server's. With
@@ -78,6 +115,62 @@ const HP_BAR_WIDTH = 1;
 const HP_PER_CHUNK = 100;
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+// Shared global geometries to avoid dynamic allocations per entity/frame
+const sharedHpBarBgGeom = new PlaneGeometry(HP_BAR_WIDTH, 0.12);
+const sharedHpBarFillGeom = new PlaneGeometry(HP_BAR_WIDTH, 0.1);
+const sharedZombieNameGeom = new PlaneGeometry(1.8, 0.45);
+const sharedTickGeom = new PlaneGeometry(0.02, 0.12);
+
+const sharedTeamHaloGeom = new RingGeometry(0.82, 0.98, 40);
+const sharedLocalPlayerGeom = new RingGeometry(0.55, 0.7, 32);
+const sharedTargetGeom = new RingGeometry(0.6, 0.78, 32);
+
+// Shared global materials to avoid dynamic compilation / overhead
+const sharedHpBarBgMaterial = new MeshBasicMaterial({ color: '#1a1f2e' });
+const sharedHpBarFillMaterial = new MeshBasicMaterial({ color: '#4ade80' });
+const sharedShieldFillMaterial = new MeshBasicMaterial({ color: '#aab4ff' });
+const sharedTickMaterial = new MeshBasicMaterial({ color: '#0b0e16' });
+
+const sharedTeamHaloMaterialRed = new MeshBasicMaterial({
+  color: TEAM_COLORS.red,
+  transparent: true,
+  opacity: 0.6,
+  depthWrite: false,
+});
+const sharedTeamHaloMaterialBlue = new MeshBasicMaterial({
+  color: TEAM_COLORS.blue,
+  transparent: true,
+  opacity: 0.6,
+  depthWrite: false,
+});
+
+const sharedLocalPlayerMaterial = new MeshBasicMaterial({
+  color: '#ffffff',
+  transparent: true,
+  opacity: 0.85,
+});
+
+const sharedTargetMaterial = new MeshBasicMaterial({
+  color: '#ff5a5a',
+  transparent: true,
+  opacity: 0.9,
+});
+
+// Cache of materials for zombie name text billboards
+const zombieNameMaterials = new Map<string, MeshBasicMaterial>();
+function getZombieNameMaterial(text: string): MeshBasicMaterial {
+  let mat = zombieNameMaterials.get(text);
+  if (!mat) {
+    mat = new MeshBasicMaterial({
+      map: getZombieTextTexture(text),
+      transparent: true,
+      depthWrite: false,
+    });
+    zombieNameMaterials.set(text, mat);
+  }
+  return mat;
+}
 
 interface PlayerEntityProps {
   sessionId: string;
@@ -116,7 +209,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const gunMode = useGameStore((s) => s.gunMode);
   const gunView = useGameStore((s) => s.gunView);
   const hideOwnBody = isLocal && gunMode && gunView === 'fps';
-  const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
   // Equipped title can change live (equip broadcast), so read it reactively —
   // the selector only re-renders this entity when the title id actually changes.
   const titleId = useGameStore((s) => s.players.get(sessionId)?.titleId ?? '');
@@ -217,6 +309,11 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const speedRef = useRef(0);
   const getSpeed = useRef(() => speedRef.current).current;
 
+  // Pools to avoid array/object allocation on every frame in zombie mode
+  const blockersPoolRef = useRef<ArenaObstacle[]>([]);
+  const arenaMoveObstaclesRef = useRef<ArenaObstacle[]>([]);
+  const billboardRef = useRef<Group>(null);
+
   useEffect(() => {
     // Drop any pending one-shot animation event for this session on unmount
     // (e.g. the player left), and clear the local render transform.
@@ -244,9 +341,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     const latest = useGameStore.getState().players.get(sessionId);
     if (!node || !latest) return;
 
-    // The floating health bar freezes mid-frame when a player dies (the update
-    // below early-returns), so it would read full of HP. Hide it while dead.
-    if (hpBar.current) hpBar.current.visible = latest.alive;
+    // HP bar visibility: Hide dead entities. Pre-rendered text billboards are shown all the time when alive.
+    if (billboardRef.current) {
+      billboardRef.current.visible = latest.alive;
+    }
 
     if (!latest.alive) {
       // A dead target is no longer attackable — drop the local highlight.
@@ -291,12 +389,27 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // through. `height: 0` keeps them ArenaObstacle-shaped for collideObstacles.
       let arenaMoveObstacles: readonly ArenaObstacle[] = arenaObstacles;
       if (isArena && useGameStore.getState().zombieMode) {
-        const blockers: ArenaObstacle[] = [];
+        const combined = arenaMoveObstaclesRef.current;
+        combined.length = 0;
+        for (let idx = 0; idx < arenaObstacles.length; idx++) {
+          combined.push(arenaObstacles[idx]!);
+        }
+        let poolIdx = 0;
+        const pool = blockersPoolRef.current;
         useGameStore.getState().players.forEach((p, id) => {
-          if (id !== sessionId && p.alive && isZombieSkin(p.skinId))
-            blockers.push({ x: p.x, z: p.z, radius: PLAYER_RADIUS, height: 0 });
+          if (id !== sessionId && p.alive && isZombieSkin(p.skinId)) {
+            let b = pool[poolIdx];
+            if (!b) {
+              b = { x: 0, z: 0, radius: PLAYER_RADIUS, height: 0 };
+              pool[poolIdx] = b;
+            }
+            b.x = p.x;
+            b.z = p.z;
+            combined.push(b);
+            poolIdx++;
+          }
         });
-        if (blockers.length > 0) arenaMoveObstacles = [...arenaObstacles, ...blockers];
+        arenaMoveObstacles = combined;
       }
       // Hard CC mirrors the server: stun/root halt movement; a stun also drops
       // the chase target. Read through the shared status helpers (a present
@@ -410,17 +523,44 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       if (err > TELEPORT_SNAP) {
         pos.set(latest.x, 0, latest.z);
         arrivedAt.current = 0;
-      } else if (!dest.active && !attacking && !dashing) {
-        // Just arrived: hold our deterministic stop point and let the server land
-        // on it (avoids the backward settle / bounce). Ends as soon as the server
-        // converges, or after a short safety window if it genuinely diverged.
+      } else {
+        // Settle at a gentle rate (4.0) while moving to absorb minor circle-sliding lateral drift,
+        // and a fast rate (SETTLE_RATE = 10) when idle for instant alignment.
+        const isMoving = dest.active || attacking || dashing;
+        const activeSettleRate = isMoving ? 4.0 : SETTLE_RATE;
+
         const holding =
-          arrivedAt.current > 0 && performance.now() - arrivedAt.current < ARRIVE_HOLD_MS && err > 0.05;
+          !isMoving &&
+          arrivedAt.current > 0 &&
+          performance.now() - arrivedAt.current < ARRIVE_HOLD_MS &&
+          err > 0.05;
+
         if (!holding) {
-          arrivedAt.current = 0;
-          const t = 1 - Math.exp(-SETTLE_RATE * delta);
-          pos.x = MathUtils.lerp(pos.x, latest.x, t);
-          pos.z = MathUtils.lerp(pos.z, latest.z, t);
+          if (!isMoving) arrivedAt.current = 0;
+          const t = 1 - Math.exp(-activeSettleRate * delta);
+
+          const vx = (pos.x - prevX) / (delta || 1e-6);
+          const vz = (pos.z - prevZ) / (delta || 1e-6);
+          const speed = Math.hypot(vx, vz);
+
+          if (isMoving && speed > 0.01) {
+            // Reconcile ONLY lateral (perpendicular) drift to keep client and server sliding paths
+            // in sync around obstacles, while leaving the longitudinal lead (latency lag) untouched.
+            const nvx = vx / speed;
+            const nvz = vz / speed;
+            const dx = pos.x - latest.x;
+            const dz = pos.z - latest.z;
+            const dot = dx * nvx + dz * nvz;
+            const perpX = dx - dot * nvx;
+            const perpZ = dz - dot * nvz;
+
+            pos.x -= perpX * t;
+            pos.z -= perpZ * t;
+          } else {
+            // When idle or stopped, settle the entire position onto the server.
+            pos.x = MathUtils.lerp(pos.x, latest.x, t);
+            pos.z = MathUtils.lerp(pos.z, latest.z, t);
+          }
         }
       }
 
@@ -593,70 +733,71 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           (town is teamless), and an outer ring so the "you" / target rings still
           read on top of it. */}
       {inArena && (
-        <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.82, 0.98, 40]} />
-          <meshBasicMaterial color={teamColor} transparent opacity={0.6} depthWrite={false} />
-        </mesh>
+        <mesh
+          position={[0, 0.015, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          geometry={sharedTeamHaloGeom}
+          material={player?.team === 'red' ? sharedTeamHaloMaterialRed : sharedTeamHaloMaterialBlue}
+        />
       )}
 
       {/* Local-player marker ring on the ground — white so "you" stays distinct
           from the blue team color. */}
       {isLocal && (
-        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.55, 0.7, 32]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.85} />
-        </mesh>
+        <mesh
+          position={[0, 0.02, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          geometry={sharedLocalPlayerGeom}
+          material={sharedLocalPlayerMaterial}
+        />
       )}
 
       {/* Red target ring on the enemy the local player is attacking. */}
       {!isLocal && isTargeted && (
-        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.6, 0.78, 32]} />
-          <meshBasicMaterial color="#ff5a5a" transparent opacity={0.9} />
-        </mesh>
+        <mesh
+          position={[0, 0.03, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          geometry={sharedTargetGeom}
+          material={sharedTargetMaterial}
+        />
       )}
 
       {/* Name + HP bar always face the camera (billboarded), independent of
           the character's facing. */}
-      <Billboard position={[0, billboardY, 0]}>
+      <Billboard ref={billboardRef} position={[0, billboardY, 0]}>
         <group ref={hpBar}>
-          <mesh>
-            <planeGeometry args={[HP_BAR_WIDTH, 0.12]} />
-            <meshBasicMaterial color="#1a1f2e" />
-          </mesh>
-          <mesh ref={hpFill} position={[0, 0, 0.001]}>
-            <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
-            <meshBasicMaterial color="#4ade80" />
-          </mesh>
-          <mesh ref={shieldFill} position={[0, 0, 0.0015]} visible={false}>
-            <planeGeometry args={[HP_BAR_WIDTH, 0.1]} />
-            <meshBasicMaterial color="#aab4ff" />
-          </mesh>
+          <mesh geometry={sharedHpBarBgGeom} material={sharedHpBarBgMaterial} />
+          <mesh ref={hpFill} position={[0, 0, 0.001]} geometry={sharedHpBarFillGeom} material={sharedHpBarFillMaterial} />
+          <mesh ref={shieldFill} position={[0, 0, 0.0015]} visible={false} geometry={sharedHpBarFillGeom} material={sharedShieldFillMaterial} />
           {/* LoL-style segment ticks: one divider per HP_PER_CHUNK of max health,
               drawn over the fill so the bar reads as discrete chunks. */}
-          {Array.from({ length: chunkCount - 1 }, (_, i) => (
+          {!isZombieSkin(skinId) && Array.from({ length: chunkCount - 1 }, (_, i) => (
             <mesh
               key={i}
               position={[-HP_BAR_WIDTH / 2 + (HP_BAR_WIDTH * (i + 1)) / chunkCount, 0, 0.002]}
-            >
-              <planeGeometry args={[0.02, 0.12]} />
-              <meshBasicMaterial color="#0b0e16" />
-            </mesh>
+              geometry={sharedTickGeom}
+              material={sharedTickMaterial}
+            />
           ))}
         </group>
-        <Text
-          position={[0, 0.2, 0]}
-          fontSize={0.32}
-          color="#e6e9f5"
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.02}
-          outlineColor="#000000"
-        >
-          {player?.name ?? ''}
-        </Text>
+        {isZombieSkin(skinId) ? (
+          // Pre-rendered text texture for zombies - zero performance cost
+          <mesh position={[0, 0.25, 0.002]} geometry={sharedZombieNameGeom} material={getZombieNameMaterial(player?.name ?? 'Zombie')} />
+        ) : (
+          <Text
+            position={[0, 0.2, 0]}
+            fontSize={0.32}
+            color="#e6e9f5"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.02}
+            outlineColor="#000000"
+          >
+            {player?.name ?? ''}
+          </Text>
+        )}
         {/* Equipped title, sitting just above the name (tinted by its rarity). */}
-        {title && (
+        {title && !isZombieSkin(skinId) && (
           <Text
             position={[0, 0.56, 0]}
             fontSize={0.2}

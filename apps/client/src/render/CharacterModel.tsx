@@ -148,6 +148,7 @@ export function CharacterModel({
       phase={phase}
       paint={paint}
       animate={animate}
+      lightweight={lightweight}
     >
       {weapon && <WeaponMount weapon={weapon} enchant={enchant} ownerId={ownerId} />}
     </PlaceholderCharacter>
@@ -349,6 +350,7 @@ function PlaceholderCharacter({
   phase,
   paint,
   animate = true,
+  lightweight = false,
   children,
 }: {
   descriptor: CharacterDescriptor;
@@ -356,6 +358,7 @@ function PlaceholderCharacter({
   phase: number;
   paint?: PaintTextures;
   animate?: boolean;
+  lightweight?: boolean;
   children?: React.ReactNode;
 }) {
   const group = useRef<Group>(null);
@@ -366,7 +369,7 @@ function PlaceholderCharacter({
   return (
     <group scale={scale}>
       <group ref={group}>
-        <AssetMesh source={descriptor.render} paint={paint} />
+        <AssetMesh source={descriptor.render} paint={paint} lightweight={lightweight} />
         {children}
       </group>
     </group>

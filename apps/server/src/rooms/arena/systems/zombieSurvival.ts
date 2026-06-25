@@ -110,6 +110,11 @@ export class ZombieSurvival {
   /** Next time (sim ms) each mini-boss may take a special action, keyed by id. */
   private readonly bossNextActionAt = new Map<string, number>();
 
+  // Pre-allocated cached arrays to avoid per-tick allocations during collision resolution
+  private readonly cachedZombies: Player[] = [];
+  private readonly cachedStartX: number[] = [];
+  private readonly cachedStartZ: number[] = [];
+
   constructor(private readonly deps: ZombieSurvivalDeps) {}
 
   // --- Per-zombie AI personality -------------------------------------------
@@ -290,17 +295,22 @@ export class ZombieSurvival {
    *  and obstacles — so a horde packs around a target instead of stacking into a
    *  single point, and nobody clips through cover or into a locked section. */
   resolveZombieCollisions(): void {
-    const zombies: Player[] = [];
+    const zombies = this.cachedZombies;
+    const startX = this.cachedStartX;
+    const startZ = this.cachedStartZ;
+    zombies.length = 0;
+    startX.length = 0;
+    startZ.length = 0;
+
     this.deps.bots.forEach((_profile, id) => {
       const z = this.deps.state.players.get(id);
-      if (z?.alive) zombies.push(z);
+      if (z?.alive) {
+        zombies.push(z);
+        startX.push(z.x);
+        startZ.push(z.z);
+      }
     });
     if (zombies.length === 0) return;
-
-    const startPos = new Map<string, { x: number; z: number }>();
-    for (const z of zombies) {
-      startPos.set(z.sessionId, { x: z.x, z: z.z });
-    }
 
     // Zombie ↔ zombie: push apart equally (a deterministic axis when exactly
     // coincident, e.g. two spawned on the same jittered point).
@@ -362,22 +372,24 @@ export class ZombieSurvival {
     const zombieStaticObstacles = this.deps.zombieStaticObstacles;
     const layout = this.deps.roomLayout();
 
-    for (const z of zombies) {
+    for (let i = 0; i < zombies.length; i++) {
+      const z = zombies[i]!;
       const zRadius = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
       const fixed = collideObstacles(z.x, z.z, zombieStaticObstacles, zRadius);
       z.x = fixed.x;
       z.z = fixed.z;
       // Enforce section boundaries so pushed zombies can't end up in locked areas.
       if (layout) {
-        const start = startPos.get(z.sessionId) ?? { x: z.x, z: z.z };
+        const sx = startX[i]!;
+        const sz = startZ[i]!;
         const clamped = clampToUnlockedArea(
           z.x,
           z.z,
           layout,
           this.deps.state.unlockedSections,
           zRadius,
-          start.x,
-          start.z,
+          sx,
+          sz,
         );
         z.x = clamped.x;
         z.z = clamped.z;

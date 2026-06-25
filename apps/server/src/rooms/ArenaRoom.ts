@@ -252,6 +252,7 @@ export class ArenaRoom extends AvatarRoom {
    *  `update()` and shared by every consumer that tick. */
   private readonly zombieBlockers: ArenaObstacle[] = [];
   private readonly propObstacles: ArenaObstacle[] = [];
+  private readonly humanMoveObstacles: ArenaObstacle[] = [];
   /** `obstacles` + live props — what zombies slide against while chasing and get
    *  re-resolved against post-collision. Stable across a tick (props move only in
    *  the later physics step). */
@@ -1261,24 +1262,65 @@ export class ArenaRoom extends AvatarRoom {
     zombieBlockers.length = 0;
     propObstacles.length = 0;
     this.zombieStaticObstacles.length = 0;
+    this.humanMoveObstacles.length = 0;
+
     if (this.zombieMode) {
+      let blockerIdx = 0;
       this.bots.forEach((_profile, id) => {
         const z = this.state.players.get(id);
         if (z?.alive) {
           const r = z.skinId === ZOMBIE_MINIBOSS_SKIN_ID ? 0.8 : PLAYER_RADIUS;
-          zombieBlockers.push({ x: z.x, z: z.z, radius: r, height: 0 });
+          let b = zombieBlockers[blockerIdx];
+          if (!b) {
+            b = { x: 0, z: 0, radius: 0, height: 0 };
+            zombieBlockers[blockerIdx] = b;
+          }
+          b.x = z.x;
+          b.z = z.z;
+          b.radius = r;
+          b.height = 0;
+          blockerIdx++;
         }
       });
+      zombieBlockers.length = blockerIdx;
+
+      let propIdx = 0;
       this.state.barrels.forEach((b) => {
-        if (b.alive) propObstacles.push({ x: b.x, z: b.z, radius: 0.45, height: 0 });
+        if (b.alive) {
+          let o = propObstacles[propIdx];
+          if (!o) {
+            o = { x: 0, z: 0, radius: 0.45, height: 0 };
+            propObstacles[propIdx] = o;
+          }
+          o.x = b.x;
+          o.z = b.z;
+          o.radius = 0.45;
+          o.height = 0;
+          propIdx++;
+        }
       });
       this.state.destructibles.forEach((d) => {
-        propObstacles.push({ x: d.x, z: d.z, radius: 0.45, height: 0 });
+        let o = propObstacles[propIdx];
+        if (!o) {
+          o = { x: 0, z: 0, radius: 0.45, height: 0 };
+          propObstacles[propIdx] = o;
+        }
+        o.x = d.x;
+        o.z = d.z;
+        o.radius = 0.45;
+        o.height = 0;
+        propIdx++;
       });
+      propObstacles.length = propIdx;
+
       // Static cover + props: what zombies slide against while chasing and are
       // re-resolved against post-collision. Built once; shared across the tick.
       for (const o of this.obstacles) this.zombieStaticObstacles.push(o);
       for (const p of propObstacles) this.zombieStaticObstacles.push(p);
+
+      // Pre-build human MoveObstacles once per tick (combining static obstacles and zombie blockers)
+      for (const o of this.obstacles) this.humanMoveObstacles.push(o);
+      for (const b of zombieBlockers) this.humanMoveObstacles.push(b);
     }
 
     this.state.players.forEach((player, sessionId) => {
@@ -1357,7 +1399,7 @@ export class ArenaRoom extends AvatarRoom {
       // (they separate from each other via resolveZombieCollisions).
       const moveObstacles =
         !this.bots.has(sessionId)
-          ? (zombieBlockers.length > 0 ? this.obstacles.concat(zombieBlockers) : this.obstacles)
+          ? (zombieBlockers.length > 0 ? this.humanMoveObstacles : this.obstacles)
           : (this.zombieMode ? this.zombieStaticObstacles : this.obstacles);
 
       // Forced displacement (dash / knockback) overrides locomotion while active.

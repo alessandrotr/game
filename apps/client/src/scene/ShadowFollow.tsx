@@ -48,15 +48,16 @@ export function ShadowFollow() {
     const player = players.get(sessionId);
     if (!player) return;
 
+    // Configure static camera bounds once to avoid per-frame projection matrix updates
     const cam = light.shadow.camera;
     const extent = ARENA_HALF_SIZE;
-
-    // Shift the shadow camera so it's centred on the player.
-    cam.left = player.x - extent;
-    cam.right = player.x + extent;
-    cam.top = player.z + extent;
-    cam.bottom = player.z - extent;
-    cam.updateProjectionMatrix();
+    if (cam.left !== -extent) {
+      cam.left = -extent;
+      cam.right = extent;
+      cam.top = extent;
+      cam.bottom = -extent;
+      cam.updateProjectionMatrix();
+    }
 
     // The directional light's position sets the "sun direction" relative to its
     // target. Keep the same offset but shift the base.
