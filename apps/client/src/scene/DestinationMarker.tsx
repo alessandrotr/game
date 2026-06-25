@@ -2,13 +2,29 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { type Group } from 'three';
 import { getDestination } from '../store/destinationState';
+import { isTouchDevice } from '../hooks/useIsTouch';
 
 /**
  * Ground marker at the active move destination. Reads the destination
  * imperatively each frame (no re-renders) and hides itself when there is none —
  * which the prediction clears on arrival.
+ *
+ * Not shown on touch devices: there the floating joystick drives movement by
+ * continuously projecting a destination ahead of the player, so a marker would
+ * just hover under their feet rather than mark a click target.
  */
 export function DestinationMarker() {
+  if (isTouchDevice()) return <TouchlessMarker />;
+  return <DestinationMarkerImpl />;
+}
+
+/** Empty render for touch devices — keeps the hook order stable (the real
+ *  component's `useFrame` is never mounted here). */
+function TouchlessMarker() {
+  return null;
+}
+
+function DestinationMarkerImpl() {
   const group = useRef<Group>(null);
 
   useFrame((state) => {

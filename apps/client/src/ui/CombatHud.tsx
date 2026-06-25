@@ -12,6 +12,8 @@ import { useGameStore } from '../store/useGameStore';
 import { cooldownRemaining, getLocalCooldownMult, getLocalManaCostMult } from '../store/abilityCooldowns';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
+import { castAbilitySlotMobile } from '../lib/abilityCast';
+import { isTouchDevice } from '../hooks/useIsTouch';
 import { ClassPreview } from './ClassPreview';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
@@ -385,11 +387,17 @@ function Slot({
   }
 
   const Icon = ABILITY_ICON[ability];
+  // On touch devices the slot is the cast button: a tap fires the ability with
+  // auto-aim (nearest enemy / facing). Desktop keeps the keyboard + hold-to-aim
+  // flow, so the click handler is wired up only when there's a coarse pointer.
+  const touch = isTouchDevice();
   return (
-    <AbilityHover ability={ability} slot={slot} className="pointer-events-auto relative">
+    <AbilityHover ability={ability} slot={slot} disabled={touch} className="pointer-events-auto relative">
       <div
         ref={root}
-        className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-accent/30 bg-panel/80"
+        onClick={touch ? () => castAbilitySlotMobile(slot) : undefined}
+        style={touch ? { touchAction: 'manipulation' } : undefined}
+        className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-accent/30 bg-panel/80 active:scale-95"
       >
         <Icon ref={icon} size={26} aria-hidden="true" className="text-accent" />
         <div ref={sweep} className="absolute inset-x-0 top-0 bg-black/65" style={{ display: 'none' }} />

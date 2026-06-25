@@ -17,8 +17,12 @@ const VIEWPORT_MARGIN = 8;
  * Wrap an ability's visible chip/slot to reveal a rich tooltip. On desktop it
  * shows on hover; pass `tapToShow` to also let touch devices toggle it on tap
  * (used by the character-select picker, NOT the in-game action bar where a tap
- * means "cast"). The tooltip renders through a portal with fixed positioning, so
- * it's never clipped by a parent's `overflow` and always draws on top.
+ * means "cast"). Pass `disabled` to suppress the tooltip entirely (the wrapper
+ * still renders) — used on the touch action bar, where a tap is "cast" and some
+ * touch devices wrongly report `(hover: hover)`, firing a synthetic hover that
+ * would otherwise pop the tooltip. The tooltip renders through a portal with
+ * fixed positioning, so it's never clipped by a parent's `overflow` and always
+ * draws on top.
  */
 export function AbilityHover({
   ability,
@@ -26,12 +30,14 @@ export function AbilityHover({
   children,
   className,
   tapToShow = false,
+  disabled = false,
 }: {
   ability: AbilityKind;
   slot?: AbilitySlot;
   children: React.ReactNode;
   className?: string;
   tapToShow?: boolean;
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -59,12 +65,12 @@ export function AbilityHover({
     <div
       ref={ref}
       className={className ?? 'relative'}
-      onMouseEnter={CAN_HOVER ? show : undefined}
-      onMouseLeave={CAN_HOVER ? hide : undefined}
-      onClick={!CAN_HOVER && tapToShow ? () => (rect ? hide() : show()) : undefined}
+      onMouseEnter={!disabled && CAN_HOVER ? show : undefined}
+      onMouseLeave={!disabled && CAN_HOVER ? hide : undefined}
+      onClick={!disabled && !CAN_HOVER && tapToShow ? () => (rect ? hide() : show()) : undefined}
     >
       {children}
-      {rect &&
+      {!disabled && rect &&
         createPortal(
           <AbilityTooltipCard ability={ability} slot={slot} rect={rect} />,
           document.body,

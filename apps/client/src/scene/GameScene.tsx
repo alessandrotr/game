@@ -36,6 +36,7 @@ import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
 import { MouseMove } from './MouseMove';
+import { JoystickMove } from './JoystickMove';
 import { GunControls } from './GunControls';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
@@ -164,7 +165,14 @@ export function GameScene() {
       <Portals mapId={mapId} />
 
       <PerfMeter />
-      {gunMode ? <GunControls /> : <MouseMove />}
+      {gunMode ? (
+        <GunControls />
+      ) : (
+        <>
+          <MouseMove />
+          <JoystickMove />
+        </>
+      )}
       <CameraControls />
       {isArena && !fpsView && <CursorTracker />}
       {isArena && !gunMode && <GroundTargeter />}

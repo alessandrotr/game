@@ -24,6 +24,7 @@ import { SettingsPanel } from './hud/SettingsPanel';
 import { ControlsHelp } from './hud/ControlsHelp';
 import { UpgradeAccountDialog } from './UpgradeAccountDialog';
 import { HudLayout, HudZone } from './hud/HudLayout';
+import { MobileJoystickGate } from './hud/MobileJoystick';
 import { PerkPicker } from './PerkPicker';
 import { PerkBar } from './PerkBar';
 
@@ -109,6 +110,10 @@ export function Hud() {
 
       {/* Perf stats overlay (top-right) — self-gates on the setting. */}
       <PerfOverlay />
+
+      {/* Floating movement joystick (touch devices only) — the standard mobile
+          control; inert / unmounted on desktop. */}
+      <MobileJoystickGate />
 
       {/* Transient / critical overlays — always rendered, above the hide gate. */}
       <MatchResult />

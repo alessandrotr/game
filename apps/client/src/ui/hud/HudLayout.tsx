@@ -26,7 +26,7 @@ export type ZoneName =
 
 /** Geometry per zone. Mirrors the pre-refactor positions pixel-for-pixel. */
 const ZONE_CLASS: Record<ZoneName, string> = {
-  'top-left': 'absolute left-4 top-4 flex w-64 flex-col items-stretch gap-2',
+  'top-left': 'absolute left-4 top-4 flex lg:w-64 flex-col items-stretch gap-2',
   'top-right': 'absolute right-4 top-16 flex flex-col items-end gap-2',
   'top-center': 'absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1',
   'bottom-left': 'absolute bottom-4 left-4',

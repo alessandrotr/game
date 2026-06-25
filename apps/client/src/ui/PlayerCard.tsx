@@ -53,7 +53,7 @@ export function PlayerCard() {
         }
       }}
       title={claimable > 0 ? `${claimable} to unlock in the store` : 'Customize'}
-      className="pointer-events-auto relative w-64 cursor-pointer overflow-visible"
+      className="pointer-events-auto relative w-auto cursor-pointer overflow-visible"
     >
       {claimable > 0 && (
         <span
@@ -63,7 +63,7 @@ export function PlayerCard() {
           {claimable}
         </span>
       )}
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className="flex items-center gap-2 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2.5">
         {/* Circular auto-rotating champion portrait with a level disc on its
             lower edge — the same identity token as the combat HUD ability panel. */}
         <div className="relative h-14 w-14 shrink-0">
@@ -90,7 +90,9 @@ export function PlayerCard() {
             </span>
           </div>
         </div>
-        <div className="min-w-0">
+        {/* Identity text (name / class / title) — desktop only. On mobile the
+            card collapses to just the portrait + level disc. */}
+        <div className="hidden min-w-0 sm:block">
           {title && (
             <div
               className="truncate text-[10px] font-semibold uppercase tracking-[0.18em]"
@@ -99,16 +101,17 @@ export function PlayerCard() {
               {title.text}
             </div>
           )}
-          <div className="truncate text-[15px] font-semibold tracking-wide text-white">
+          <div className="truncate text-[12px] font-semibold tracking-wide text-white sm:text-[15px]">
             {me.name}
           </div>
-          <div className="truncate text-[11px] text-muted">
+          <div className="truncate text-[10px] text-muted sm:text-[11px]">
             {def.name} · {def.role}
           </div>
         </div>
       </div>
 
-      <div className="px-3 pb-3">
+      {/* XP track — desktop only (hidden on the collapsed mobile card). */}
+      <div className="hidden px-2 pb-2 sm:block sm:px-3 sm:pb-3">
         <Meter
           layout="stacked"
           size="md"
