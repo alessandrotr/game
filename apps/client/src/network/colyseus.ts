@@ -1401,6 +1401,11 @@ export function sendDevAddLevel(amount: number): void {
   room?.send(ClientMessage.DevAddLevel, { amount });
 }
 
+/** Dev-only: spawn a trap at a location. */
+export function sendDevSpawnTrap(values: ClientMessagePayloads[ClientMessage.DevSpawnTrap]): void {
+  room?.send(ClientMessage.DevSpawnTrap, values);
+}
+
 /** Toggle the auto-attack feature flag for the current room. */
 export function sendSetAutoAttack(enabled: boolean): void {
   room?.send(ClientMessage.SetAutoAttack, { enabled });

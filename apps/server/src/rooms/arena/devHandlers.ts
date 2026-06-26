@@ -3,12 +3,14 @@ import type { ArenaRoom } from '../ArenaRoom.js';
 import type { ArenaTuning } from './systems/tuning.js';
 import type { CombatSystem } from './systems/combat.js';
 import type { PerkSystem } from './systems/perks.js';
+import type { TrapSystem } from './systems/traps.js';
 
 interface DevHandlerDeps {
   tuning: ArenaTuning;
   combat: CombatSystem;
   perkSystem: PerkSystem | undefined;
   setBotPopulation: (message: ClientMessagePayloads[ClientMessage.BotControl]) => void;
+  traps: TrapSystem;
 }
 
 /**
@@ -59,6 +61,27 @@ export function registerDevHandlers(room: ArenaRoom, deps: DevHandlerDeps): void
       if (process.env.NODE_ENV === 'production') return;
       const player = room.state.players.get(client.sessionId);
       if (player) combat.devAddLevels(player, message?.amount ?? 1);
+    },
+  );
+
+  // Dev-only: spawn a trap at the caller's position or the given coordinates.
+  room.onMessage(
+    ClientMessage.DevSpawnTrap,
+    (client, message: ClientMessagePayloads[ClientMessage.DevSpawnTrap]) => {
+      if (process.env.NODE_ENV === 'production') return;
+      const player = room.state.players.get(client.sessionId);
+      const x = message.x !== undefined ? message.x : (player?.x ?? 0);
+      const z = message.z !== undefined ? message.z : (player?.z ?? 0);
+      const radius = message.radius ?? 6;
+      deps.traps.addTrap(
+        {
+          kind: message.kind,
+          x,
+          z,
+          radius,
+        },
+        true,
+      );
     },
   );
 }

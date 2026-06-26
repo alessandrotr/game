@@ -518,6 +518,7 @@ export class ArenaRoom extends AvatarRoom {
       combat: this.combat,
       perkSystem: this.perkSystem,
       setBotPopulation: (message) => this.setBotPopulation(message),
+      traps: this.traps,
     });
 
     this.onMessage(

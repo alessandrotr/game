@@ -20,9 +20,10 @@ import {
   type CameraConfig,
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
-import { sendBotControl, sendDevGrantPerk, sendDevAddLevel } from '../network/colyseus';
+import { sendBotControl, sendDevGrantPerk, sendDevAddLevel, sendDevSpawnTrap } from '../network/colyseus';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { useDebugStore } from '../store/useDebugStore';
+import { useGameStore } from '../store/useGameStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
 import { EnvPanels } from './EnvPanel';
@@ -151,6 +152,22 @@ export default function DevTools() {
   useControls('Level (debug)', () => ({
     levels: { value: 1, min: 1, max: 50, step: 1, label: 'Levels' },
     'Add levels': button((get) => sendDevAddLevel(get('Level (debug).levels') as number)),
+  }));
+
+  // Traps (DEV): spawn any trap kind at your current location for testing.
+  useControls('Traps (debug)', () => ({
+    kind: { value: 'heal', options: ['heal', 'death', 'singularity', 'buff'], label: 'Kind' },
+    radius: { value: 6, min: 2, max: 15, step: 0.5, label: 'Radius' },
+    'Spawn Trap': button((get) => {
+      const kind = get('Traps (debug).kind') as 'heal' | 'death' | 'singularity' | 'buff';
+      const radius = get('Traps (debug).radius') as number;
+      const store = useGameStore.getState();
+      const sessionId = store.sessionId;
+      const player = sessionId ? store.players.get(sessionId) : null;
+      const x = player?.x ?? 0;
+      const z = player?.z ?? 0;
+      sendDevSpawnTrap({ kind, x, z, radius });
+    }),
   }));
 
   const classes = Object.keys(CLASS_DEFINITIONS) as CharacterClass[];

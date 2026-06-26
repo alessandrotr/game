@@ -48,6 +48,7 @@ interface TrapRuntime {
   cooldownEndsAt: number;
   /** Snapshot of `cooldownMs` at activation (for the progress arc). */
   cooldownSpan: number;
+  isDevSpawned?: boolean;
 }
 
 /**
@@ -75,7 +76,7 @@ export class TrapSystem {
   ) {}
 
   /** Place a trap from its layout definition (replicated + armed). */
-  addTrap(def: TrapDef): void {
+  addTrap(def: Omit<TrapDef, 'sectionIndex'> & { sectionIndex?: number }, isDevSpawned = false): void {
     const tuning = TUNING[def.kind];
     if (!tuning) return;
     const obj = new Trap();
@@ -94,6 +95,7 @@ export class TrapSystem {
       deaths: [],
       cooldownEndsAt: 0,
       cooldownSpan: tuning.cooldownMs,
+      isDevSpawned,
     });
   }
 
@@ -157,6 +159,11 @@ export class TrapSystem {
     const cutoff = now - TRAP_DEATH_WINDOW_MS;
     for (const t of this.traps) {
       if (t.cooldownEndsAt === 0) {
+        if (t.isDevSpawned) {
+          t.obj.chargeProgress = 1;
+          this.activate(t, now);
+          continue;
+        }
         // Armed: check for expired deaths and update chargeProgress.
         let kept = 0;
         for (const ts of t.deaths) if (ts >= cutoff) t.deaths[kept++] = ts;

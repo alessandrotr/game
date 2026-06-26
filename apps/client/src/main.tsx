@@ -53,3 +53,9 @@ if (ENTRY === 'physics') {
 } else {
   mount(<App />);
 }
+
+if (import.meta.env.DEV) {
+  import('./network/colyseus').then(({ travelTo }) => {
+    (window as any).travelTo = travelTo;
+  });
+}
