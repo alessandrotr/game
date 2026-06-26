@@ -51,6 +51,7 @@ import {
   type BotDifficulty,
   type CharacterClass,
   type LobbyMode,
+  type Team,
 } from '@arena/shared';
 import { ArenaState, Player } from './schema.js';
 import { AvatarRoom } from './AvatarRoom.js';
@@ -282,6 +283,9 @@ export class ArenaRoom extends AvatarRoom {
   override onCreate(options?: {
     mode?: LobbyMode | typeof ZOMBIE_MODE;
     coop?: boolean;
+    /** Ranked bot-fill: practice bots to spawn per team when the matchmaking
+     *  queue couldn't field enough real players in time. */
+    botFill?: { blue?: number; red?: number };
   }): void {
     this.setState(new ArenaState());
 
@@ -321,6 +325,14 @@ export class ArenaRoom extends AvatarRoom {
       this.maxClients = 2 * teamSizeForMode(options.mode);
       this.setPrivate(true);
       this.match.configureRanked(options.mode);
+      // Queue bot-fill: the matchmaking room couldn't gather enough real players
+      // in time, so spawn practice bots to round out each team. The bot director
+      // targets the opposing team, so blue-team bots fight too.
+      const fill = options?.botFill;
+      if (fill) {
+        for (let i = 0; i < Math.floor(fill.blue ?? 0); i++) this.spawnBot('medium', undefined, 'blue');
+        for (let i = 0; i < Math.floor(fill.red ?? 0); i++) this.spawnBot('medium', undefined, 'red');
+      }
     } else if (this.zombieMode) {
       // Co-op survival: players (blue) hold out against zombie hordes (red).
       // Auto-attack must be on for zombies to chase + strike; the Attack message
@@ -1594,9 +1606,11 @@ export class ArenaRoom extends AvatarRoom {
     }
   }
 
-  /** Add one AI bot: a red-team {@link Player} with synthetic ids, spawned via the
-   *  shared {@link resetPlayer}. Mirrors `onJoin` minus the client/session/DB work. */
-  private spawnBot(difficulty: BotDifficulty, characterClass?: CharacterClass): void {
+  /** Add one AI bot: a {@link Player} with synthetic ids, spawned via the shared
+   *  {@link resetPlayer}. Mirrors `onJoin` minus the client/session/DB work. The
+   *  bot director targets any player on the other team, so either team works
+   *  (practice bots default red; ranked bot-fill places them per team). */
+  private spawnBot(difficulty: BotDifficulty, characterClass?: CharacterClass, team: Team = 'red'): void {
     const id = `bot-${++this.botSeq}`;
     const player = new Player();
     player.sessionId = id;
@@ -1605,7 +1619,7 @@ export class ArenaRoom extends AvatarRoom {
       characterClass ??
       CHARACTER_CLASSES[Math.floor(Math.random() * CHARACTER_CLASSES.length)] ??
       'warrior';
-    player.team = 'red';
+    player.team = team;
     this.resetPlayer(player);
 
     this.state.players.set(id, player);

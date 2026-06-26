@@ -7,7 +7,7 @@ import {
   type ZombieLobbyView,
 } from '@arena/shared';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
-import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
+import { myQueueMode, useQueueStore } from '../store/useQueueStore';
 import {
   sendZombieCreateLobby,
   sendZombieJoinByCode,
@@ -42,10 +42,11 @@ export function ZombieMatchmakingMenu({ myLobby }: { myLobby: ZombieLobbyView | 
   // creating/joining here. `inSquad` = your own squad (opens the queue card);
   // `inPvp` = you're tied up in a duel lobby instead.
   const inSquad = !!myLobby;
-  const inPvp = !!findMyLobby(
-    useLobbyStore((s) => s.lobbies),
-    useLobbyStore((s) => s.mySessionId),
-  );
+  const inPvp =
+    myQueueMode(
+      useQueueStore((s) => s.members),
+      useQueueStore((s) => s.mySessionId),
+    ) !== null;
   const blocked = inSquad || inPvp;
 
   // Names already in use (case-insensitive) — keep the default unique.

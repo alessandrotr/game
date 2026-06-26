@@ -15,6 +15,7 @@ import { Leaderboard } from './Leaderboard';
 import { FocusTitle } from './FocusTitle';
 import { CustomizePanel } from './CustomizePanel';
 import { LevelUpToast } from './LevelUpToast';
+import { InviteToast } from './InviteToast';
 import { Paperdoll } from './Paperdoll';
 import { GameMenu } from './hud/GameMenu';
 import { Minimap } from './hud/Minimap';
@@ -117,6 +118,7 @@ export function Hud() {
       {/* Transient / critical overlays — always rendered, above the hide gate. */}
       <MatchResult />
       <LevelUpToast />
+      {!inArena && <InviteToast />}
       <WaveAnnouncement />
       <Paperdoll />
       <FocusTitle />

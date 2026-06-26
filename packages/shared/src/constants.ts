@@ -527,6 +527,10 @@ export function teamKillTargetFor(mode: LobbyMode): number {
 /** How long every participant has to accept a full lobby's ready-check (ms). */
 export const READY_CHECK_MS = 30000;
 
+/** PvP queue: if a format's queue can't fill with real players within this long,
+ *  the match starts with practice bots filling the remaining slots. */
+export const QUEUE_BOT_FILL_MS = 60000;
+
 /** Maximum accepted lobby name length. */
 export const LOBBY_NAME_MAX_LENGTH = 32;
 

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Skull } from 'lucide-react';
 import { ZOMBIE_COOP_MAX_PLAYERS } from '@arena/shared';
 import { findMyZombieLobby, useZombieLobbyStore } from '../store/useZombieLobbyStore';
-import { findMyLobby, useLobbyStore } from '../store/useLobbyStore';
+import { myQueueMode, useQueueStore } from '../store/useQueueStore';
 import { useHudStore } from '../store/useHudStore';
 import { ZombieLobbyView } from './ZombieLobbyView';
 
@@ -20,9 +20,9 @@ export function ZombieMatchQueue() {
   const showPerf = useHudStore((s) => s.showPerf);
 
   // Whether the PvP queue button is also showing, so we can stack below it.
-  const pvpLobbies = useLobbyStore((s) => s.lobbies);
-  const pvpSession = useLobbyStore((s) => s.mySessionId);
-  const pvpQueued = findMyLobby(pvpLobbies, pvpSession)?.status === 'queuing';
+  const pvpMembers = useQueueStore((s) => s.members);
+  const pvpSession = useQueueStore((s) => s.mySessionId);
+  const pvpQueued = myQueueMode(pvpMembers, pvpSession) !== null;
 
   const myLobby = findMyZombieLobby(lobbies, mySessionId);
   const queuing = myLobby?.status === 'queuing' ? myLobby : null;

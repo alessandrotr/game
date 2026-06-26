@@ -276,34 +276,21 @@ export const DEFAULT_CAMERA_PREFS: CameraPrefs = {
   lockZoom: false,
 };
 
-/** A lobby's lifecycle stage, replicated to drive the matchmaking UI. */
-export type LobbyStatus = 'queuing' | 'ready_check' | 'playing';
-
-/** One team slot in a lobby. `sessionId === ''` means the slot is open. */
-export interface LobbySlotView {
-  /** Matchmaking-room session id of the occupant, or '' if empty. */
+/** One player waiting in a PvP format queue. Mirrors `QueueMember` in the
+ *  matchmaking schema. The client counts these per `mode` for the queue badge and
+ *  finds its own entry by matchmaking session id. */
+export interface QueueMemberView {
+  /** Matchmaking-room session id of the queued player. */
   sessionId: string;
-  name: string;
-  characterClass: CharacterClass;
-  team: Team;
-  /** Position within the team column (0-based). */
-  index: number;
-  /** Whether the occupant has accepted the ready-check. */
-  accepted: boolean;
-}
-
-/** A lobby as seen by the matchmaking browser / detail / ready-check UI. */
-export interface LobbyView {
-  id: string;
-  name: string;
+  /** TOWN-room session id of the queued player — lets peers tell (from the
+   *  paperdoll, which only has the town id) that this player is already queued. */
+  townSessionId: string;
+  /** The format being queued for (a `LobbyMode`). */
   mode: LobbyMode;
-  status: LobbyStatus;
-  /** Matchmaking-room session id of the host (slot owner who created it). */
-  hostId: string;
-  /** Sim-time (ms) the ready-check expires at; 0 when not in ready_check. */
-  readyDeadline: number;
-  blue: LobbySlotView[];
-  red: LobbySlotView[];
+  /** Shared id for a party that must land on the SAME team (invite groups); '' = solo. */
+  partyId: string;
+  /** Sim-time (ms) this player joined the queue (drives the bot-fill countdown). */
+  enqueuedAt: number;
 }
 
 /** A co-op zombie lobby's lifecycle stage. */

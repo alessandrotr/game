@@ -20,13 +20,10 @@ import {
   type ClientMessagePayloads,
   type LeaderboardCategory,
   type LobbyMode,
-  type LobbySlotView,
-  type LobbyStatus,
-  type LobbyView,
+  type QueueMemberView,
   type PlayerView,
   type ProjectileView,
   type ServerMessagePayloads,
-  type Team,
   type VfxAssetId,
   type ZombieLobbyView,
   computePerkModifiers,
@@ -36,7 +33,8 @@ import {
 import { useGameStore, type RoomType } from '../store/useGameStore';
 import { useChatStore } from '../store/useChatStore';
 import { useSpeechStore } from '../store/useSpeechStore';
-import { useLobbyStore } from '../store/useLobbyStore';
+import { useQueueStore } from '../store/useQueueStore';
+import { useInviteStore } from '../store/useInviteStore';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
 import { useCoopStore } from '../store/useCoopStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
@@ -783,88 +781,69 @@ let mmGeneration = 0;
 
 /** Structural view of the runtime matchmaking state (read like the game state,
  *  through minimal shapes rather than the server schema classes). */
-interface RawLobbySlot {
+interface RawQueueMember {
   sessionId: string;
-  name: string;
-  characterClass: LobbySlotView['characterClass'];
-  team: Team;
-  index: number;
-  accepted: boolean;
-}
-interface RawLobby {
-  id: string;
-  name: string;
+  townSessionId: string;
   mode: LobbyMode;
-  status: LobbyStatus;
-  hostId: string;
-  readyDeadline: number;
-  blue: { forEach(cb: (slot: RawLobbySlot) => void): void };
-  red: { forEach(cb: (slot: RawLobbySlot) => void): void };
+  partyId: string;
+  enqueuedAt: number;
 }
 interface RawMmState {
-  lobbies: { forEach(cb: (lobby: RawLobby, key: string) => void): void };
+  members: { forEach(cb: (m: RawQueueMember, key: string) => void): void };
 }
 
-function snapshotSlots(list: { forEach(cb: (slot: RawLobbySlot) => void): void }): LobbySlotView[] {
-  const slots: LobbySlotView[] = [];
-  list.forEach((slot) =>
-    slots.push({
-      sessionId: slot.sessionId,
-      name: slot.name,
-      characterClass: slot.characterClass,
-      team: slot.team,
-      index: slot.index,
-      accepted: slot.accepted,
+function snapshotMembers(state: RawMmState): QueueMemberView[] {
+  const members: QueueMemberView[] = [];
+  state.members.forEach((m) =>
+    members.push({
+      sessionId: m.sessionId,
+      townSessionId: m.townSessionId,
+      mode: m.mode,
+      partyId: m.partyId,
+      enqueuedAt: m.enqueuedAt,
     }),
   );
-  return slots.sort((a, b) => a.index - b.index);
+  return members;
 }
 
-function snapshotLobbies(state: RawMmState): LobbyView[] {
-  const lobbies: LobbyView[] = [];
-  state.lobbies.forEach((lobby) =>
-    lobbies.push({
-      id: lobby.id,
-      name: lobby.name,
-      mode: lobby.mode,
-      status: lobby.status,
-      hostId: lobby.hostId,
-      readyDeadline: lobby.readyDeadline,
-      blue: snapshotSlots(lobby.blue),
-      red: snapshotSlots(lobby.red),
-    }),
-  );
-  return lobbies;
+/** Tell the matchmaking room our TOWN session id so peers can invite us (the
+ *  matchmaking session id differs from the town one). Sent once both are known. */
+function registerTownPresence(): void {
+  const townSessionId = useGameStore.getState().sessionId;
+  if (mmRoom && townSessionId) mmRoom.send(ClientMessage.MmRegisterTown, { townSessionId });
 }
 
 function wireMatchmaking(joined: Room): void {
   joined.onStateChange((state) => {
-    useLobbyStore.getState().setLobbies(snapshotLobbies(state as unknown as RawMmState));
+    useQueueStore.getState().setMembers(snapshotMembers(state as unknown as RawMmState));
   });
   joined.onMessage(ServerMessage.MatchFound, (msg) => {
-    // Tear down both lobby connections, then consume the seat into the arena.
+    // Tear down both matchmaking connections, then consume the seat into the arena.
     disconnectMatchmaking();
     disconnectZombieMatchmaking();
     useMatchResultStore.getState().clear();
     void joinByReservation(msg.reservation);
   });
+  joined.onMessage(ServerMessage.MatchInvite, (msg) => {
+    useInviteStore.getState().show({ inviteId: msg.inviteId, fromName: msg.fromName, mode: msg.mode });
+  });
   joined.onMessage(ServerMessage.LobbyError, (msg) => {
-    useLobbyStore.getState().setError(msg.message);
+    useQueueStore.getState().setError(msg.message);
   });
   joined.onError((code, message) => {
     console.error(`[mm] room error ${code}: ${message ?? ''}`.trim());
     reportClientError('matchmaking-error', { message: message ?? `mm room error ${code}`, code });
   });
   joined.onLeave(() => {
-    // No report here: the lobby connection is dropped intentionally on every
+    // No report here: the matchmaking connection is dropped intentionally on every
     // match transition (and on leaving town), so a leave isn't a fault.
     if (mmRoom === joined) mmRoom = null;
-    useLobbyStore.getState().reset();
+    useQueueStore.getState().reset();
   });
 }
 
-/** Open the lobby connection (idempotent). Reuses the town join options so the
- *  matchmaking room sees the same account/class as the player's town avatar. */
+/** Open the matchmaking connection (idempotent). Reuses the town join options so
+ *  the matchmaking room sees the same account/class as the player's town avatar. */
 export async function connectMatchmaking(): Promise<void> {
   if (!client || !joinOptions || mmRoom) return;
   const generation = mmGeneration;
@@ -877,8 +856,11 @@ export async function connectMatchmaking(): Promise<void> {
       return;
     }
     mmRoom = joined;
-    useLobbyStore.getState().setSession(joined.sessionId);
+    useQueueStore.getState().setSession(joined.sessionId);
     wireMatchmaking(joined);
+    // Bridge town↔matchmaking identity (best-effort; re-sent on town join too, to
+    // beat the race where the town session isn't known yet at connect time).
+    registerTownPresence();
   } catch (err) {
     console.error('[mm] failed to connect to matchmaking:', err);
     reportClientError('matchmaking-error', {
@@ -888,12 +870,12 @@ export async function connectMatchmaking(): Promise<void> {
   }
 }
 
-/** Close the lobby connection and clear the lobby UI (no-op if not connected). */
+/** Close the matchmaking connection and clear the queue UI (no-op if not connected). */
 export function disconnectMatchmaking(): void {
   mmGeneration++; // invalidate any in-flight connectMatchmaking
   const current = mmRoom;
   mmRoom = null;
-  useLobbyStore.getState().reset();
+  useQueueStore.getState().reset();
   if (current) void current.leave().catch(() => {});
 }
 
@@ -1226,31 +1208,26 @@ async function joinByReservation(reservation: unknown): Promise<void> {
   }
 }
 
-// --- Matchmaking intents (sent on the lobby connection) --------------------
+// --- Matchmaking intents (sent on the matchmaking connection) --------------
 
-/** Create a new lobby of the given mode (the server seats you as host). */
-export function sendCreateLobby(name: string, mode: LobbyMode): void {
-  mmRoom?.send(ClientMessage.CreateLobby, { name, mode });
+/** Join (or switch to) the queue for a format. */
+export function sendJoinQueue(mode: LobbyMode): void {
+  mmRoom?.send(ClientMessage.JoinQueue, { mode });
 }
 
-/** Take a specific team slot in an open lobby. */
-export function sendJoinSlot(lobbyId: string, team: Team, index: number): void {
-  mmRoom?.send(ClientMessage.JoinSlot, { lobbyId, team, index });
+/** Leave the queue you're currently in. */
+export function sendLeaveQueue(): void {
+  mmRoom?.send(ClientMessage.LeaveQueue, {});
 }
 
-/** Leave the lobby you're currently in. */
-export function sendLeaveLobby(): void {
-  mmRoom?.send(ClientMessage.LeaveLobby, {});
+/** Invite a specific player (by their TOWN session id) to a format. */
+export function sendInviteToMatch(targetSessionId: string, mode: LobbyMode): void {
+  mmRoom?.send(ClientMessage.InviteToMatch, { targetSessionId, mode });
 }
 
-/** Accept the ready-check for your full lobby. */
-export function sendAcceptMatch(): void {
-  mmRoom?.send(ClientMessage.AcceptMatch, {});
-}
-
-/** Decline the ready-check (returns the others to the open lobby). */
-export function sendDeclineMatch(): void {
-  mmRoom?.send(ClientMessage.DeclineMatch, {});
+/** Accept or decline a received match invite. */
+export function sendInviteRespond(inviteId: string, accept: boolean): void {
+  mmRoom?.send(ClientMessage.InviteRespond, { inviteId, accept });
 }
 
 // --- Co-op Zombie matchmaking intents (sent on the zombie lobby connection) ---

@@ -25,7 +25,7 @@ import {
   sessionKeyOf,
   type JoinOptions,
 } from './util/identity.js';
-import type { Identity } from './matchmaking/lobbies.js';
+import type { Identity } from './matchmaking/queue.js';
 import { announceTown } from '../chat.js';
 import { captureServerError, userFromClaims } from '../observability.js';
 import { verifyToken } from '../auth.js';

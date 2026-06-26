@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useOnClickOutside } from 'usehooks-ts';
-import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
+import { getClassDefinition, getCosmeticOfType, xpProgress, LOBBY_MODES, type LobbyMode } from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
-import { X } from 'lucide-react';
+import { Swords, X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
+import { isTownSessionQueued, myQueueMode, useQueueStore } from '../store/useQueueStore';
+import { sendInviteToMatch } from '../network/colyseus';
 import { fetchPublicPaint } from '../network/paint';
 import { applyClassPaint, paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
 import { ClassPreview } from './ClassPreview';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
-import { Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
+import { Button, Card, IconButton, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS } from './theme';
 
 /**
@@ -144,6 +146,90 @@ function PaperdollCard({
         <StatTile variant="bordered" label="Deaths" value={data.deaths} color={STAT_COLORS.negative} />
         <StatTile variant="bordered" label="K/D" value={kd} color={STAT_COLORS.text} />
       </div>
+
+      {/* Challenge — invite this player to a duel (1v1, opposite teams) or a team
+          format (you land on the same team and queue together). */}
+      <ChallengeSection targetSessionId={data.sessionId} targetName={data.name} />
     </Card>
   );
 }
+
+/**
+ * Invite controls on the paperdoll, queue-aware:
+ *  - If the TARGET is already in a queue, you can't invite them — show a notice.
+ *  - If YOU are already queued for a format, you can only invite people to THAT
+ *    format (you're committed to it), so only that option is offered.
+ *  - Otherwise, the full set: a 1v1 duel call-out plus team-format pills.
+ */
+function ChallengeSection({ targetSessionId, targetName }: { targetSessionId: string; targetName: string }) {
+  const members = useQueueStore((s) => s.members);
+  const mySessionId = useQueueStore((s) => s.mySessionId);
+  const [sent, setSent] = useState(false);
+
+  const targetBusy = isTownSessionQueued(members, targetSessionId);
+  const myMode = myQueueMode(members, mySessionId);
+
+  const invite = (mode: LobbyMode) => {
+    sendInviteToMatch(targetSessionId, mode);
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <div className="border-t border-white/5 px-4 py-3 text-center text-xs text-muted">
+        Invite sent to <span className="font-semibold text-text">{targetName}</span> — waiting for a reply…
+      </div>
+    );
+  }
+
+  if (targetBusy) {
+    return (
+      <div className="border-t border-white/5 px-4 py-3 text-center text-xs text-muted">
+        <span className="font-semibold text-text">{targetName}</span> is already in a queue.
+      </div>
+    );
+  }
+
+  // Committed to a format → only that one is invitable.
+  if (myMode) {
+    return (
+      <div className="border-t border-white/5 px-4 py-3">
+        <Button
+          variant="goldCta"
+          size="md"
+          className="w-full justify-center gap-2"
+          onClick={() => invite(myMode)}
+        >
+          <Swords size={15} aria-hidden="true" />
+          Invite to {myMode}
+        </Button>
+        <p className="mt-1.5 text-center text-[11px] text-muted">You're queued for {myMode}.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-white/5 px-4 py-3">
+      <Button variant="goldCta" size="md" className="w-full justify-center gap-2" onClick={() => invite('1v1')}>
+        <Swords size={15} aria-hidden="true" />
+        Challenge to Duel
+      </Button>
+      <div className="mt-2 flex items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Team</span>
+        {TEAM_INVITE_MODES.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => invite(m)}
+            className="flex-1 rounded-md border border-white/10 bg-black/20 py-1 font-display text-xs font-bold text-text transition hover:border-gold/50 hover:text-gold"
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Team formats invitable from the paperdoll (1v1 has its own primary button). */
+const TEAM_INVITE_MODES = LOBBY_MODES.filter((m) => m !== '1v1');

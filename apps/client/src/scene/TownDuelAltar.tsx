@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Billboard, Text } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
-import { useLobbyStore } from '../store/useLobbyStore';
+import { useQueueStore } from '../store/useQueueStore';
 import { maybeFocusStructure, useFocusStore } from '../store/useFocusStore';
 import { PortalEffect } from './PortalEffect';
 import { FadeGroup } from './FadeGroup';
@@ -88,7 +88,7 @@ export function TownDuelAltar({
   const open = (e: ThreeEvent<PointerEvent>) => {
     if (e.nativeEvent.button !== 0) return; // left-click only
     e.stopPropagation();
-    useLobbyStore.getState().setMenuOpen(true);
+    useQueueStore.getState().setMenuOpen(true);
     maybeFocusStructure('pvp', 'Trial of Blades', rotation[1], position[0], 0, position[2]);
   };
   const hover = (on: boolean) => () => {

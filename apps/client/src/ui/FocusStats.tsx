@@ -1,5 +1,5 @@
-import type { LobbyView, ZombieLobbyView } from '@arena/shared';
-import { useLobbyStore } from '../store/useLobbyStore';
+import type { ZombieLobbyView } from '@arena/shared';
+import { countForMode, useQueueStore } from '../store/useQueueStore';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
 
 /**
@@ -16,18 +16,13 @@ interface Stat {
   live?: boolean;
 }
 
-/** Occupied seats across both teams of a PvP lobby. */
-function occupants(l: LobbyView): number {
-  return [...l.blue, ...l.red].filter((s) => s.sessionId !== '').length;
-}
-
 export function PvpStats() {
-  const lobbies = useLobbyStore((s) => s.lobbies);
-  const queuing = lobbies.filter((l) => l.status === 'queuing');
+  const members = useQueueStore((s) => s.members);
+  const solo = countForMode(members, '1v1');
   const stats: Stat[] = [
-    { value: lobbies.filter((l) => l.status === 'playing').length, label: 'Duels Live', live: true },
-    { value: queuing.reduce((n, l) => n + occupants(l), 0), label: 'In Queue' },
-    { value: queuing.length, label: 'Open Lobbies' },
+    { value: members.length, label: 'In Queue', live: true },
+    { value: solo, label: 'Solo (1v1)' },
+    { value: members.length - solo, label: 'Teams' },
   ];
   return <StatRow stats={stats} />;
 }

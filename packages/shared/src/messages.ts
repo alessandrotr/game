@@ -35,16 +35,17 @@ export enum ClientMessage {
   SetName = 'set_name',
   /** Send a global chat message to everyone in the room. */
   Chat = 'chat',
-  /** Matchmaking: create a new lobby (name + mode). */
-  CreateLobby = 'create_lobby',
-  /** Matchmaking: take a specific team slot in an open lobby. */
-  JoinSlot = 'join_slot',
-  /** Matchmaking: leave the lobby you're currently in. */
-  LeaveLobby = 'leave_lobby',
-  /** Matchmaking: accept the ready-check for your full lobby. */
-  AcceptMatch = 'accept_match',
-  /** Matchmaking: decline the ready-check (returns others to the open lobby). */
-  DeclineMatch = 'decline_match',
+  /** Matchmaking: join the queue for a format (1v1…5v5). Re-sending switches format. */
+  JoinQueue = 'join_queue',
+  /** Matchmaking: leave the queue you're currently in. */
+  LeaveQueue = 'leave_queue',
+  /** Matchmaking: register this connection's TOWN sessionId so peers can invite it
+   *  (the matchmaking room session id differs from the town one). */
+  MmRegisterTown = 'mm_register_town',
+  /** Matchmaking: invite a specific player (by their town sessionId) to a format. */
+  InviteToMatch = 'invite_to_match',
+  /** Matchmaking: accept/decline a received match invite. */
+  InviteRespond = 'invite_respond',
   /** Co-op zombie: create a squad lobby (name + public/private). */
   ZombieCreateLobby = 'z_create_lobby',
   /** Co-op zombie: join a public squad lobby from the browser (by id). */
@@ -103,8 +104,10 @@ export enum ServerMessage {
   Chat = 'chat',
   /** Recent chat history, sent to a client when it joins. */
   ChatHistory = 'chat_history',
-  /** A matchmaking intent was rejected (validation, race, full, etc.). */
+  /** A matchmaking intent was rejected (validation, race, declined invite, etc.). */
   LobbyError = 'lobby_error',
+  /** An incoming match invite from another player (accept/decline prompt). */
+  MatchInvite = 'match_invite',
   /** A match was found — carries a seat reservation to consume into the arena. */
   MatchFound = 'match_found',
   /** A ranked match ended — carries the winner and final scoreboard. */
@@ -209,11 +212,11 @@ export interface ClientMessagePayloads {
   };
   [ClientMessage.SetName]: { name: string };
   [ClientMessage.Chat]: { text: string };
-  [ClientMessage.CreateLobby]: { name: string; mode: LobbyMode };
-  [ClientMessage.JoinSlot]: { lobbyId: string; team: Team; index: number };
-  [ClientMessage.LeaveLobby]: Record<string, never>;
-  [ClientMessage.AcceptMatch]: Record<string, never>;
-  [ClientMessage.DeclineMatch]: Record<string, never>;
+  [ClientMessage.JoinQueue]: { mode: LobbyMode };
+  [ClientMessage.LeaveQueue]: Record<string, never>;
+  [ClientMessage.MmRegisterTown]: { townSessionId: string };
+  [ClientMessage.InviteToMatch]: { targetSessionId: string; mode: LobbyMode };
+  [ClientMessage.InviteRespond]: { inviteId: string; accept: boolean };
   [ClientMessage.ZombieCreateLobby]: { name: string; isPrivate: boolean };
   [ClientMessage.ZombieJoinLobby]: { lobbyId: string };
   [ClientMessage.ZombieJoinByCode]: { code: string };
@@ -298,6 +301,7 @@ export interface ServerMessagePayloads {
   [ServerMessage.Chat]: ChatMessage;
   [ServerMessage.ChatHistory]: { messages: ChatMessage[] };
   [ServerMessage.LobbyError]: { code: string; message: string };
+  [ServerMessage.MatchInvite]: { inviteId: string; fromName: string; mode: LobbyMode };
   /** `reservation` is a Colyseus seat reservation passed straight to
    *  `client.consumeSeatReservation()` — its internal shape is opaque to us. */
   [ServerMessage.MatchFound]: { reservation: unknown };
