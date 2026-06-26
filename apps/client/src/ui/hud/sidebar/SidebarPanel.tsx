@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { IconButton } from '../../primitives';
 import { useSidebarStore } from './useSidebarStore';
 import { panelEntry, type PanelWidth } from './sections';
+import { PANEL_SURFACE, SidebarHeader } from './panelChrome';
 
 const WIDTH_CLASS: Record<PanelWidth, string> = {
   narrow: 'w-[min(26rem,calc(100vw-10rem))]',
@@ -17,6 +16,7 @@ const WIDTH_CLASS: Record<PanelWidth, string> = {
  * Anchored to the left of the rail and absolutely positioned, so expanding it
  * never shifts the rail. The last-shown section is retained through the collapse
  * animation (`shown`) so content doesn't blink away before the slide finishes.
+ * Wears the shared "Trial of Blades" surface + crest header (see panelChrome).
  */
 export function SidebarPanel() {
   const active = useSidebarStore((s) => s.active);
@@ -38,11 +38,13 @@ export function SidebarPanel() {
       role="dialog"
       aria-label={entry?.label}
       aria-hidden={!open}
+      style={{ containerType: 'inline-size' }}
       onTransitionEnd={() => {
         if (active === null) setShown(null);
       }}
       className={cn(
-        'absolute right-24 top-1/2 flex max-h-[88vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel/95 shadow-[0_12px_48px_rgba(0,0,0,0.55)] backdrop-blur-md transition-[opacity,transform] duration-300 ease-out',
+        PANEL_SURFACE,
+        'absolute right-24 top-1/2 max-h-[88vh] -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out',
         entry ? WIDTH_CLASS[entry.width] : WIDTH_CLASS.narrow,
         open
           ? 'pointer-events-auto translate-x-0 opacity-100'
@@ -51,15 +53,10 @@ export function SidebarPanel() {
     >
       {entry && Content && (
         <>
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <h2 className="font-display text-lg font-bold tracking-wide text-gold">
-              {entry.label}
-            </h2>
-            <IconButton icon={X} aria-label="Close" onClick={close} />
-          </div>
+          <SidebarHeader icon={entry.icon} title={entry.label} onClose={close} />
           {/* Sections own their own scroll/layout (simple lists scroll; the
               leaderboard pins its tabs and scrolls its rows). */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-2">
             <Content />
           </div>
         </>

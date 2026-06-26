@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useSidebarStore } from './hud/sidebar/useSidebarStore';
 import { PaintStudio } from './PaintStudio';
-import { Button, IconButton } from './primitives';
+import { Button } from './primitives';
 
 /** Guest gate: paint persists per account + is shown to other players, so guests
  *  get a "Save progress" CTA. Closes the studio and opens the sidebar's inline
@@ -65,11 +65,18 @@ export function PaintOverlay() {
 
   return (
     <div className="fixed inset-0 z-modal flex flex-col bg-bg">
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-        <h2 className="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
-          <Palette size={18} aria-hidden /> Paint Studio
+      <header className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-wide text-text">
+          <Palette size={16} className="text-gold" aria-hidden /> Paint Studio
         </h2>
-        <IconButton icon={X} aria-label="Close paint studio" onClick={close} />
+        <button
+          type="button"
+          onClick={close}
+          className="rounded-lg p-1 text-muted transition hover:bg-white/10 hover:text-text"
+          aria-label="Close paint studio"
+        >
+          <X size={18} />
+        </button>
       </header>
       <div className="min-h-0 flex-1">
         {guest ? <PaintGuestGate /> : <PaintStudio characterClass={characterClass} />}

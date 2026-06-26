@@ -58,7 +58,7 @@ export function SidebarRail() {
   const footer = visible.filter((e) => e.footer);
 
   return (
-    <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-panel/85 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+    <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-panel/55 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
       <RailIdentity />
       <div className="my-0.5 h-px w-7 bg-white/10" />
       {main.map((e) => (
