@@ -455,8 +455,12 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     }
 
     // Animation. The LOCAL player predicts its own (zero latency) from rendered
-    // speed + locally-queued one-shot events; REMOTE players render the server's
-    // authoritative `animState` directly (Phase 9.2).
+    // speed + locally-queued one-shot events. REMOTE *players* (and the mini-boss)
+    // also run the predicted FSM — driven by their rendered (interpolated) speed —
+    // so their locomotion + cast/attack poses are smoothed the same way, instead of
+    // snapping to the raw `animState` string the server replicates only ~20×/sec
+    // (which makes remote casts look choppy). The cheap raw path is kept for the
+    // regular horde (many zombies; the placeholder animator already clock-smooths).
     const sdx = node.position.x - prevPos.current.x;
     const sdz = node.position.z - prevPos.current.z;
     prevPos.current.x = node.position.x;
@@ -464,7 +468,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     // Rendered ground speed (local & remote) — feeds the run-clip timeScale match.
     const moved = Math.hypot(sdx, sdz);
     speedRef.current = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-    if (isLocal || latest.skinId === 'skin.zombie.miniboss') {
+    const smoothedAnim =
+      isLocal || latest.skinId === 'skin.zombie.miniboss' || !isZombieSkin(latest.skinId);
+    if (smoothedAnim) {
       const speed = speedRef.current;
       const predicted = fsm.current.step(
         { speed, alive: true, event: consumeAnimationEvent(sessionId) },

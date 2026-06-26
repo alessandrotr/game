@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Euler, Quaternion, type Group, type Object3D } from 'three';
 import type { CastAim } from '../../store/castAim';
+import { useAimYawSmoother } from './aimSmoothing';
 
 /**
  * Archer weapon gestures (bows + crossbow). Two phases:
@@ -49,12 +50,17 @@ export function useBowAnimator(
   arrows: React.RefObject<Object3D | null>[],
   getCastAim: () => CastAim | null,
   getAim: () => BowAim | null,
+  /** True when this bow belongs to the LOCAL player (aim at frame rate, zero
+   *  latency). Remote owners' aim is eased to hide the ~10Hz charge stream. */
+  getLocalOwner: () => boolean = () => false,
 ): void {
   const initialized = useRef(false);
   const lastSeq = useRef(0);
   const start = useRef(-Infinity);
   const ability = useRef('');
   const castYaw = useRef(0);
+  // Eases a remote owner's hold-aim yaw (local stays frame-rate / zero latency).
+  const aimSmoother = useAimYawSmoother();
 
   const bodyYaw = (n: Group): number => {
     if (!n.parent) return 0;
@@ -69,7 +75,7 @@ export function useBowAnimator(
     }
   };
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const aimNode = aim.current;
     const drawNode = draw.current;
     if (!aimNode || !drawNode) return;
@@ -93,6 +99,7 @@ export function useBowAnimator(
     const firing = e >= 0 && e < 1;
 
     if (firing) {
+      aimSmoother.reset();
       const ab = ability.current;
       if (ab === 'power_shot') {
         // Three rapid shots (count 3, 200ms apart): one loose RICOCHET per shot,
@@ -173,10 +180,11 @@ export function useBowAnimator(
       return;
     }
 
-    // Not firing — show the nocked draw while the local player AIMS a shot.
+    // Not firing — show the nocked draw while a shot is AIMED (local or remote).
     const held = getAim();
     if (held && held.ability in COUNT) {
-      aimNode.rotation.y = held.yaw - bodyYaw(aimNode);
+      const targetYaw = held.yaw - bodyYaw(aimNode);
+      aimNode.rotation.y = aimSmoother.smooth(targetYaw, getLocalOwner(), delta);
       if (held.ability === 'crippling_shot') {
         drawNode.rotation.x = -0.95; // pitched to the sky
         drawNode.position.z = -0.12;
@@ -189,6 +197,7 @@ export function useBowAnimator(
     }
 
     // Rest.
+    aimSmoother.reset();
     aimNode.rotation.y = 0;
     drawNode.position.z = 0;
     drawNode.rotation.x = 0;

@@ -4,6 +4,7 @@ import { Euler, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMateri
 import type { CastAim } from '../../store/castAim';
 import { setWeaponTip } from '../../store/weaponTip';
 import type { AimState } from './localAim';
+import { useAimYawSmoother } from './aimSmoothing';
 
 // Scratch objects reused across frames (no per-frame allocation).
 const _q = new Quaternion();
@@ -77,6 +78,9 @@ export function useWeaponCastAnimator(
   getChannel: () => ChannelState | null,
   ownerId?: string,
   getAim: () => AimState | null = () => null,
+  /** True for the LOCAL player (aim at frame rate). Remote owners' charge dir is
+   *  replicated at ~10Hz, so their wind-up yaw is eased instead of stepped. */
+  getLocalOwner: () => boolean = () => false,
 ): void {
   // Baselined on the first frame so a cast that already happened before mount
   // (e.g. a remount mid-game) doesn't replay; every later bump fires a swing.
@@ -93,6 +97,8 @@ export function useWeaponCastAnimator(
   // Wind-up amount [0..1] while a chargeable ability is held, and its aim yaw.
   const charge = useRef(0);
   const chargeYaw = useRef(0);
+  // Eases a remote owner's wind-up aim yaw (local stays frame-rate / zero latency).
+  const aimSmoother = useAimYawSmoother();
 
   useFrame((state, delta) => {
     const aimNode = aim.current;
@@ -113,6 +119,7 @@ export function useWeaponCastAnimator(
       gesture.current = true;
       releaseStart.current = -1;
       charge.current = 0; // released into the cast; no residual wind-up after
+      aimSmoother.reset(); // next wind-up snaps to its start, not the last aim
     }
 
     if (!gesture.current) {
@@ -122,7 +129,9 @@ export function useWeaponCastAnimator(
       if (held && aimNode.parent) {
         aimNode.parent.getWorldQuaternion(_q);
         _e.setFromQuaternion(_q, 'YXZ');
-        chargeYaw.current = wrap(held.yaw - _e.y);
+        chargeYaw.current = aimSmoother.smooth(wrap(held.yaw - _e.y), getLocalOwner(), delta);
+      } else {
+        aimSmoother.reset();
       }
       charge.current += ((held ? 1 : 0) - charge.current) * Math.min(1, delta * 9);
       const c = charge.current;
