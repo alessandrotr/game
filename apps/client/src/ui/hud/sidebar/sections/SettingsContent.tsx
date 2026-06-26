@@ -1,12 +1,12 @@
-import { X } from 'lucide-react';
-import { useHudStore } from '../../store/useHudStore';
-import { useSettingsStore } from '../../store/useSettingsStore';
-import { useQualityStore, QUALITY_LABEL, type QualityTier } from '../../store/useQualityStore';
-import { useFullscreen } from '../../hooks/useFullscreen';
-import { Dialog, DialogClose, DialogContent, DialogTitle, IconButton } from '../primitives';
-import { AudioControl } from '../AudioControl';
+import { useHudStore } from '../../../../store/useHudStore';
+import { useQualityStore, QUALITY_LABEL, type QualityTier } from '../../../../store/useQualityStore';
+import { useFullscreen } from '../../../../hooks/useFullscreen';
+import { AudioControl } from '../../../AudioControl';
 import { cn } from '@/lib/utils';
-import { resetCameraHeightScrollOffset, resetCameraZoom } from '../../store/cameraControl';
+import {
+  resetCameraHeightScrollOffset,
+  resetCameraZoom,
+} from '../../../../store/cameraControl';
 
 /** A labelled on/off switch row, bound to a boolean + setter. */
 function ToggleRow({
@@ -86,7 +86,7 @@ function CameraControlRow() {
   const mode = useHudStore((s) => s.cameraControlMode);
   const setMode = useHudStore((s) => s.setCameraControlMode);
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors">
+    <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5">
       <span className="min-w-0">
         <span className="block text-sm text-text">Camera control</span>
         <span className="block text-[11px] text-muted">1: Scroll zooms · 2: Scroll tilts</span>
@@ -115,14 +115,11 @@ function CameraControlRow() {
 }
 
 /**
- * Settings — a small modal reached from the game menu that centralizes the HUD
- * preferences (player-card density, chat visibility, hide-HUD). Bound to the
- * reactive `useHudStore` so flipping a toggle updates the live UI immediately.
+ * Settings — the HUD preferences (volume, graphics quality, camera mode, chat /
+ * HUD / perf toggles). Lifted out of the old `SettingsPanel` dialog into the town
+ * sidebar; bound to the reactive stores so toggles update the live UI immediately.
  */
-export function SettingsPanel() {
-  const open = useSettingsStore((s) => s.open);
-  const setOpen = useSettingsStore((s) => s.setOpen);
-
+export function SettingsContent() {
   const hidden = useHudStore((s) => s.hidden);
   const setHidden = useHudStore((s) => s.setHidden);
   const chatCollapsed = useHudStore((s) => s.chatCollapsed);
@@ -132,50 +129,35 @@ export function SettingsPanel() {
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-sm p-0" aria-describedby={undefined}>
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <DialogTitle className="font-display text-lg font-bold tracking-wide text-gold">
-            Settings
-          </DialogTitle>
-          <DialogClose asChild>
-            <IconButton icon={X} aria-label="Close" />
-          </DialogClose>
-        </div>
-
-        <div className="p-2">
-          <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5">
-            <span className="min-w-0">
-              <span className="block text-sm text-text">Volume</span>
-              <span className="block text-[11px] text-muted">Master volume · mute</span>
-            </span>
-            <AudioControl />
-          </div>
-          <QualityRow />
-          <CameraControlRow />
-          <ToggleRow
-            label="Fullscreen"
-            hint="Fill the screen with the game"
-            checked={isFullscreen}
-            onChange={toggleFullscreen}
-          />
-          <ToggleRow label="Hide chat" checked={chatCollapsed} onChange={setChatCollapsed} />
-          <ToggleRow
-            label="Hide HUD"
-            hint="Press H in-game to toggle"
-            checked={hidden}
-            onChange={setHidden}
-          />
-          <ToggleRow
-            label="Show performance stats"
-            hint="FPS / frame time / draw calls (top-right)"
-            checked={showPerf}
-            onChange={setShowPerf}
-          />
-          {/* Camera lock toggles are disabled for now — the view is fixed at the
-              lowest tilt (see cameraControl). */}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block text-sm text-text">Volume</span>
+          <span className="block text-[11px] text-muted">Master volume · mute</span>
+        </span>
+        <AudioControl />
+      </div>
+      <QualityRow />
+      <CameraControlRow />
+      <ToggleRow
+        label="Fullscreen"
+        hint="Fill the screen with the game"
+        checked={isFullscreen}
+        onChange={toggleFullscreen}
+      />
+      <ToggleRow label="Hide chat" checked={chatCollapsed} onChange={setChatCollapsed} />
+      <ToggleRow
+        label="Hide HUD"
+        hint="Press H in-game to toggle"
+        checked={hidden}
+        onChange={setHidden}
+      />
+      <ToggleRow
+        label="Show performance stats"
+        hint="FPS / frame time / draw calls (top-right)"
+        checked={showPerf}
+        onChange={setShowPerf}
+      />
+    </div>
   );
 }

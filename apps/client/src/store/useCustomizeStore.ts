@@ -1,35 +1,31 @@
 import { create } from 'zustand';
 
-/** Which tab the customization hub opens to. */
-export type CustomizeTab = 'customize' | 'paint' | 'store';
-
+/**
+ * Customization hub state. The hub itself lives in the town sidebar — which of
+ * its two views (Champion / Store) shows is driven by the sidebar's active
+ * section, so this store no longer owns an open/tab flag. It keeps the bits the
+ * hub views share: the try-on preview and the full-screen paint studio toggle.
+ */
 interface CustomizeStore {
-  open: boolean;
-  tab: CustomizeTab;
   /** Cosmetic id being previewed on the showcase avatar (try-before-equip). Not
    *  persisted or equipped — purely a visual try-on. `null` = show the equipped
    *  look. For an emote, the showcase character plays it. Cleared when the hub
-   *  closes or the tab changes. */
+   *  closes. */
   previewId: string | null;
-  /** Open the hub (optionally to a specific tab). */
-  show: (tab?: CustomizeTab) => void;
-  setOpen: (open: boolean) => void;
-  setTab: (tab: CustomizeTab) => void;
   /** Preview a cosmetic on the avatar (pass null to clear). */
   setPreview: (id: string | null) => void;
+
+  /** The paint studio is a focused, full-screen surface launched from the hub. */
+  paintOpen: boolean;
+  openPaint: () => void;
+  closePaint: () => void;
 }
 
-/**
- * Controls the player's customization & store hub (a large modal opened from the
- * town player card). Store-controlled like the leaderboard, so any HUD affordance
- * can open it to a chosen tab.
- */
 export const useCustomizeStore = create<CustomizeStore>((set) => ({
-  open: false,
-  tab: 'customize',
   previewId: null,
-  show: (tab) => set((s) => ({ open: true, tab: tab ?? s.tab, previewId: null })),
-  setOpen: (open) => set((s) => ({ open, previewId: open ? s.previewId : null })),
-  setTab: (tab) => set({ tab, previewId: null }),
   setPreview: (id) => set({ previewId: id }),
+
+  paintOpen: false,
+  openPaint: () => set({ paintOpen: true }),
+  closePaint: () => set({ paintOpen: false }),
 }));

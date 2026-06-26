@@ -42,6 +42,7 @@ import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore, type Appearance } from '../store/useCosmeticsStore';
+import { useCharacterStore } from '../store/useCharacterStore';
 import { usePaintStore } from '../store/usePaintStore';
 import { useConnectionStore } from '../store/useConnectionStore';
 import { useEffectsStore } from '../store/useEffectsStore';
@@ -1011,10 +1012,9 @@ export function leaveToCharacterSelect(): void {
 
 /** Join a world for the first time (from the character-select screen). Identity
  *  (token + display name) comes from the signed-in account. */
-export async function connectToRoom(
-  roomType: RoomType,
-  characterClass: CharacterClass,
-): Promise<void> {
+/** Build the join payload for a class from the player's account + equipped look
+ *  for that class. Shared by the first join, world swaps, and character changes. */
+function buildJoinOptions(characterClass: CharacterClass): void {
   const { token, username } = useAuthStore.getState();
   // The look the player joins with comes from their equipped loadout for this class.
   const look = useCosmeticsStore.getState().appearanceFor(characterClass);
@@ -1032,6 +1032,13 @@ export async function connectToRoom(
     paintRev: usePaintStore.getState().revFor(characterClass),
     sessionKey: TAB_SESSION,
   };
+}
+
+export async function connectToRoom(
+  roomType: RoomType,
+  characterClass: CharacterClass,
+): Promise<void> {
+  buildJoinOptions(characterClass);
   const store = useGameStore.getState();
   store.reset();
   resetCooldowns();
@@ -1094,7 +1101,7 @@ function waitForLocalPlayer(sessionId: string, timeoutMs = 2500): Promise<void> 
  *  still tracks it as the 'arena' room type, since it renders the same scene. */
 export async function travelTo(
   roomType: RoomType,
-  options?: { zombie?: boolean },
+  options?: { zombie?: boolean; label?: string },
 ): Promise<void> {
   if (!client || !joinOptions || traveling) return;
   // The zombie horde is a distinct room handler; we still track it client-side
@@ -1109,11 +1116,12 @@ export async function travelTo(
   // Cover the world swap with the branded loading screen.
   store.setTransitioning(
     true,
-    options?.zombie
-      ? 'Entering the horde…'
-      : roomType === 'arena'
-        ? 'Entering the arena…'
-        : 'Returning to town…',
+    options?.label ??
+      (options?.zombie
+        ? 'Entering the horde…'
+        : roomType === 'arena'
+          ? 'Entering the arena…'
+          : 'Returning to town…'),
   );
   // Matchmaking only exists in town: drop it when leaving for the arena (it's
   // reopened below when arriving in town).
@@ -1161,6 +1169,18 @@ export async function travelTo(
     traveling = false;
     store.setTransitioning(false);
   }
+}
+
+/** Switch the local player to a different class without leaving town — rebuilds
+ *  the join payload for the new champion (its equipped look) and does the same
+ *  smooth, covered room swap as a portal, so there's no flash back to the
+ *  character-select screen. The choice is persisted via `useCharacterStore`. */
+export async function changeCharacter(characterClass: CharacterClass): Promise<void> {
+  if (!client || traveling) return;
+  if (joinOptions?.characterClass === characterClass) return; // already this class
+  useCharacterStore.getState().setSelectedClass(characterClass);
+  buildJoinOptions(characterClass);
+  await travelTo('town', { label: 'Switching champion…' });
 }
 
 /** Consume a matchmaking seat reservation and enter the dedicated 1v1 arena. */
