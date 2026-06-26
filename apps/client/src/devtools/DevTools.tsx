@@ -140,6 +140,10 @@ export default function DevTools() {
       value: false,
       onChange: (v: boolean) => useDebugStore.getState().set({ flatGround: v }),
     },
+    'Instanced horde (test)': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ instancedHorde: v }),
+    },
   }));
 
   // Level (DEV): jump your character up some levels to test level-gated content

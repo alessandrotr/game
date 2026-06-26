@@ -8,7 +8,7 @@ import {
   type Mesh,
   type ToneMapping,
 } from 'three';
-import { type MapAssetId } from '@arena/shared';
+import { type MapAssetId, isZombieSkin, ZOMBIE_MINIBOSS_SKIN_ID } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { TownAtmosphere } from './TownAtmosphere';
@@ -30,6 +30,7 @@ import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
 import { InstancedDrums } from './InstancedDrums';
 import { InstancedCovers } from './InstancedCovers';
+import { ZombieHorde } from './ZombieHorde';
 import { CoverStructureEntity } from './CoverStructureEntity';
 import { Projectiles } from './Projectiles';
 import { Pickables } from './Pickables';
@@ -114,6 +115,18 @@ export function GameScene() {
   const hideBarrels = useDebugStore((s) => s.hideBarrels);
   const hideDestructibles = useDebugStore((s) => s.hideDestructibles);
   const hideStructures = useDebugStore((s) => s.hideStructures);
+  const instancedHorde = useDebugStore((s) => s.instancedHorde);
+
+  // When the batched horde is on, regular zombies are drawn by <ZombieHorde> — so
+  // drop them from the per-entity list (humans + mini-boss still render normally).
+  const entityIds = useMemo(() => {
+    if (!instancedHorde) return playerIds;
+    const players = useGameStore.getState().players;
+    return playerIds.filter((id) => {
+      const p = players.get(id);
+      return !(p && isZombieSkin(p.skinId) && p.skinId !== ZOMBIE_MINIBOSS_SKIN_ID);
+    });
+  }, [playerIds, instancedHorde]);
 
   return (
     <Canvas
@@ -191,9 +204,10 @@ export function GameScene() {
       {!gunMode && <DestinationMarker />}
 
       {!focused &&
-        playerIds.map((id) => (
+        entityIds.map((id) => (
           <PlayerEntity key={id} sessionId={id} />
         ))}
+      {isArena && zombieMode && instancedHorde && <ZombieHorde />}
 
       {isArena && !hideBarrels &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}

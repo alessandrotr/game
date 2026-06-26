@@ -27,6 +27,9 @@ interface DebugState {
   hideMapProps: boolean;
   /** Swap the fbm grass ground for a flat material (isolates ground-shader cost). */
   flatGround: boolean;
+  /** Render the regular-zombie horde via the batched instanced renderer instead of
+   *  one PlayerEntity each. Opt-in while it's being built out (bodies first). */
+  instancedHorde: boolean;
   set: (patch: Partial<DebugState>) => void;
 }
 
@@ -41,5 +44,6 @@ export const useDebugStore = create<DebugState>((set) => ({
   hideStructures: false,
   hideMapProps: false,
   flatGround: false,
+  instancedHorde: false,
   set: (patch) => set(patch),
 }));
