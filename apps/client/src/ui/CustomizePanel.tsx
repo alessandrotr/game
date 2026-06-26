@@ -6,7 +6,6 @@ import {
   Footprints,
   Frame,
   Lock,
-  Palette,
   ShoppingBag,
   Smile,
   Sparkles,
@@ -14,12 +13,10 @@ import {
   Tag,
   User,
   Wand2,
-  X,
 } from 'lucide-react';
 import {
   COSMETICS,
   MAX_EMOTE_SLOTS,
-  claimableCount,
   classCosmeticsOf,
   cosmeticsOfType,
   getClassDefinition,
@@ -38,12 +35,11 @@ import {
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { useUpgradeStore } from '../store/useUpgradeStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
-import { useCustomizeStore, type CustomizeTab } from '../store/useCustomizeStore';
+import { useCustomizeStore } from '../store/useCustomizeStore';
+import { useSidebarStore } from './hud/sidebar/useSidebarStore';
 import { ClassPreview } from './ClassPreview';
-import { PaintStudio } from './PaintStudio';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
 import {
@@ -63,16 +59,7 @@ import {
   setEmoteThumbHover,
   type EmoteThumbHandle,
 } from '../render/emoteThumbnails';
-import {
-  Button,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  LevelBadge,
-  Meter,
-} from './primitives';
+import { Button, LevelBadge, Meter } from './primitives';
 import { STAT_COLORS } from './theme';
 
 // ---------------------------------------------------------------------------
@@ -1029,8 +1016,9 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
 function CustomizeContent({ characterClass }: { characterClass: CharacterClass }) {
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
-  const setTab = useCustomizeStore((s) => s.setTab);
-  const browse = () => setTab('store');
+  // "Browse store" jumps switch the hub to its Store view — which is the sidebar's
+  // Store section.
+  const browse = () => useSidebarStore.getState().open('store');
   const clearSlot = (patch: Partial<Loadout>) =>
     useCosmeticsStore.getState().equip(characterClass, patch);
 
@@ -1105,145 +1093,41 @@ function CustomizeContent({ characterClass }: { characterClass: CharacterClass }
 }
 
 // ---------------------------------------------------------------------------
-// Shell
+// Champion hub content (Customize / Store views)
 // ---------------------------------------------------------------------------
 
-const TABS: { id: CustomizeTab; label: string; icon: typeof User }[] = [
-  { id: 'customize', label: 'Customize', icon: Sparkles },
-  { id: 'paint', label: 'Paint', icon: Palette },
-  { id: 'store', label: 'Store', icon: ShoppingBag },
-];
-
 /**
- * The player's customization & store hub: a large modal opened from the town
- * player card. A persistent left showcase (your live avatar + identity) sits
- * beside the active tab — Customize (equip what you own) or Store (browse &
- * unlock). Cosmetics are owned and equipped **per class**, so everything here is
- * scoped to the character you're currently playing. Equipping is immediate: it
- * broadcasts live to the town and persists to the account.
+ * The customization & store hub body, hosted in the town sidebar. A persistent
+ * left showcase (your live avatar + identity) sits beside the active view —
+ * `customize` (equip what you own) or `store` (browse & unlock). Cosmetics are
+ * owned and equipped **per class**, so everything here is scoped to the character
+ * you're currently playing. Equipping is immediate: it broadcasts live to the
+ * town and persists to the account. Which view shows is chosen by the sidebar
+ * rail (Champion vs Store); the panel + rail own the chrome — this is just the body.
  */
-/** Guest gate for the Paint tab: paint persists per account + is shown to other
- *  players, so guests get the same "Save progress" upgrade CTA used at sign-in
- *  (opens the shared UpgradeAccountDialog mounted by the town HUD). */
-function PaintGuestGate() {
-  const openUpgrade = useUpgradeStore((s) => s.setOpen);
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gold/15 text-gold">
-        <Palette size={26} aria-hidden />
-      </div>
-      <div>
-        <h3 className="font-display text-lg font-bold text-text">Painting is account-only</h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-          Create a free account to paint your character — your paint job saves to your profile and
-          shows to everyone in the world.
-        </p>
-      </div>
-      <Button variant="gold" size="lg" onClick={() => openUpgrade(true)}>
-        Save progress
-      </Button>
-    </div>
-  );
-}
-
-export function CustomizePanel() {
-  const open = useCustomizeStore((s) => s.open);
-  const setOpen = useCustomizeStore((s) => s.setOpen);
-  const tab = useCustomizeStore((s) => s.tab);
-  const setTab = useCustomizeStore((s) => s.setTab);
+export function ChampionContent({ view }: { view: 'customize' | 'store' }) {
   const sessionId = useGameStore((s) => s.sessionId);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
-  const byClass = useCosmeticsStore((s) => s.byClass);
-  const progress = useAuthStore((s) => s.progress);
-  const guest = useAuthStore((s) => s.guest);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   const characterClass = me?.characterClass ?? selectedClass;
-  // Items this class can claim now but hasn't — badged on the Store tab.
-  const level =
-    (me?.characterClass === characterClass ? me.level : undefined) ??
-    progress.find((p) => p.characterClass === characterClass)?.level ??
-    1;
-  const claimable = claimableCount(
-    classCosmeticsOf(byClass, characterClass).owned,
-    characterClass,
-    level,
-  );
-  // Overall unlock progress for this class (shown in the header on the Store tab).
-  const catalog = classCatalog(characterClass);
-  const ownedCount = classCosmeticsOf(byClass, characterClass).owned.filter((id) =>
-    catalog.some((c) => c.id === id),
-  ).length;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        className="flex h-[88vh] max-h-[760px] max-w-5xl flex-col p-0 sm:max-w-5xl"
-        aria-describedby={undefined}
-      >
-        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
-          <DialogTitle className="max-lg:sr-only flex items-center gap-2 font-display text-lg font-bold tracking-wide text-gold">
-            <Sparkles size={18} aria-hidden /> Champion
-          </DialogTitle>
-          <div className="ml-2 flex gap-1 rounded-xl bg-black/30 p-1">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = t.id === tab;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  aria-pressed={active}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
-                    active ? 'bg-gold/15 font-semibold text-gold' : 'text-muted hover:text-text'
-                  }`}
-                >
-                  <Icon size={14} aria-hidden /> {t.label}
-                  {t.id === 'store' && claimable > 0 && (
-                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-bold text-black">
-                      {claimable}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {tab === 'store' && (
-            <span className="max-lg:sr-only ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted">
-              <span className="font-semibold text-text">{ownedCount}</span> / {catalog.length}{' '}
-              unlocked
-            </span>
+    <>
+      {/* One shared, hidden WebGL context renders every emote thumbnail (blit into
+          per-card 2D canvases), so the catalog scales without burning a context
+          per card. Mounted with the hub so it isn't torn down on collapse. */}
+      <EmoteThumbStage characterClass={characterClass} />
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
+        <Showcase characterClass={characterClass} />
+        <div className="flex min-h-0 flex-col">
+          {view === 'store' ? (
+            <StoreContent characterClass={characterClass} />
+          ) : (
+            <CustomizeContent characterClass={characterClass} />
           )}
-          <DialogClose asChild>
-            <IconButton icon={X} aria-label="Close" className={tab === 'store' ? '' : 'ml-auto'} />
-          </DialogClose>
         </div>
-
-        {/* One shared, hidden WebGL context renders every emote thumbnail (blit
-            into per-card 2D canvases), so the catalog scales without burning a
-            context per card. */}
-        <EmoteThumbStage characterClass={characterClass} />
-
-        {tab === 'paint' ? (
-          // The paint studio needs the full body as an interactive canvas, so it
-          // spans the panel instead of the showcase/content split. Guests can't
-          // paint (it persists per account) — they get the upgrade CTA instead.
-          <div className="min-h-0 flex-1">
-            {guest ? <PaintGuestGate /> : <PaintStudio characterClass={characterClass} />}
-          </div>
-        ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
-            <Showcase characterClass={characterClass} />
-            <div className="flex min-h-0 flex-col">
-              {tab === 'store' ? (
-                <StoreContent characterClass={characterClass} />
-              ) : (
-                <CustomizeContent characterClass={characterClass} />
-              )}
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
 }

@@ -266,19 +266,22 @@ function ContextGuard() {
 }
 
 /**
- * Pause the world's render loop while a full-screen modal (the Champion /
- * customize hub) covers it. That overlay is an opaque blurred backdrop — the
- * scene behind it is invisible — yet the canvas would otherwise keep drawing
- * shadows, IBL and every entity at 60fps, burning GPU that the modal's own 3D
- * canvases (avatar showcase + thumbnails) are competing for. Since the client
- * never simulates (state is server-authoritative and keeps arriving over the
- * network regardless of rendering), freezing the loop changes nothing visible
- * and nothing about game state; on close we resume `'always'` and the next
- * frame snaps to the latest server state behind the closing dialog.
+ * Pause the world's render loop while a full-screen *opaque* overlay covers it —
+ * now just the paint studio. The town behind it is fully hidden, yet the canvas
+ * would otherwise keep drawing shadows, IBL and every entity at 60fps, burning
+ * GPU that the studio's own 3D canvas is competing for. Since the client never
+ * simulates (state is server-authoritative and keeps arriving over the network
+ * regardless of rendering), freezing the loop changes nothing visible and nothing
+ * about game state; on close we resume `'always'` and the next frame snaps to the
+ * latest server state.
+ *
+ * NOTE: deliberately keyed on the paint overlay only — NOT the sidebar Champion
+ * hub. The hub is a side panel that leaves the town visible behind it, so pausing
+ * there would freeze a visible scene.
  */
 function PauseWhileCovered() {
   const setFrameloop = useThree((s) => s.setFrameloop);
-  const covered = useCustomizeStore((s) => s.open);
+  const covered = useCustomizeStore((s) => s.paintOpen);
   // Also pause when the browser tab is hidden — no reason to render an unfocused
   // tab at 60fps. The view snaps to the latest server state when it returns.
   const [hidden, setHidden] = useState(

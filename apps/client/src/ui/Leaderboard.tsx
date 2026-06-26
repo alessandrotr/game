@@ -274,32 +274,107 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Global leaderboard (town): a store-controlled modal listing the top players
- * ranked by wins. Opened from the game menu (no built-in trigger). Data is
- * fetched on open via a `RequestLeaderboard` round-trip. The modal is a dense
- * table on desktop and reflows to a stacked card list on mobile so it never
- * scrolls sideways.
+ * The leaderboard body — category tabs + a dense ranked table (desktop) that
+ * reflows to stacked cards (mobile / narrow), with on-reveal data fetch. Shared
+ * by the diegetic town-tablet dialog and the town sidebar panel; each host
+ * supplies its own chrome + header. `active` = is this surface currently shown,
+ * which drives the fetch (and the spinner only when the tab has no cached rows).
  */
-export function Leaderboard() {
-  const { open, loading, enabled, category, boards, setOpen, setLoading, setCategory } =
-    useLeaderboardStore();
+export function LeaderboardContent({ active = true }: { active?: boolean }) {
+  const loading = useLeaderboardStore((s) => s.loading);
+  const enabled = useLeaderboardStore((s) => s.enabled);
+  const category = useLeaderboardStore((s) => s.category);
+  const boards = useLeaderboardStore((s) => s.boards);
+  const setLoading = useLeaderboardStore((s) => s.setLoading);
+  const setCategory = useLeaderboardStore((s) => s.setCategory);
   const entries = boards[category] ?? [];
   const username = useAuthStore((s) => s.username);
-  // Cinematic focus engaged from the town tablet → dock right, no backdrop, so the
-  // podium champions stay visible on the left. Centered (today's look) otherwise.
-  const docked = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
 
-  // Fetch fresh standings whenever the dialog opens or the active tab changes.
-  // Radix's onOpenChange only fires for its own close interactions, so an
-  // externally-driven `open` (the game menu) wouldn't trigger a fetch otherwise.
-  // Show the spinner only when this tab has no cached rows yet — switching back
-  // to an already-seen board shows it instantly and refreshes silently. Read the
-  // cache via getState so a reply landing doesn't re-trigger this effect (loop).
+  // Fetch fresh standings whenever the surface becomes visible or the active tab
+  // changes. Read the cache via getState so a reply landing doesn't re-trigger
+  // this effect (loop). Spinner only when this tab has no cached rows yet.
   useEffect(() => {
-    if (!open) return;
+    if (!active) return;
     if (!useLeaderboardStore.getState().boards[category]) setLoading(true);
     requestLeaderboard(category);
-  }, [open, category, setLoading]);
+  }, [active, category, setLoading]);
+
+  return (
+    <div
+      // A container so the contents size in `cqi` (% of panel width), scaling
+      // with whatever host (docked dialog / sidebar panel) renders it.
+      style={{ containerType: 'inline-size' }}
+      className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-5 pb-5 pt-3"
+    >
+      <CategoryTabs active={category} onPick={setCategory} />
+      <SectionLabel>Top players · {CATEGORY_META[category].blurb}</SectionLabel>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-black/15 text-[clamp(0.82rem,2.7cqi,1.12rem)]">
+        {loading ? (
+          <LoadingRows />
+        ) : !enabled ? (
+          <EmptyState>Persistence is disabled on this server — no standings yet.</EmptyState>
+        ) : entries.length === 0 ? (
+          <EmptyState>No ranked matches played yet. Be the first to win one!</EmptyState>
+        ) : (
+          <>
+            {/* Desktop: dense aligned table with a sticky header. */}
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
+                    <TableHead className="pl-3">Player</TableHead>
+                    <TableHead className="pr-4 text-right text-gold">
+                      {CATEGORY_META[category].tab}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((entry, i) => (
+                    <DeskRow
+                      key={i}
+                      entry={entry}
+                      rank={i + 1}
+                      me={isLocalPlayer(entry.name, username)}
+                      category={category}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile: stacked cards, no horizontal scroll. */}
+            <ul className="divide-y divide-white/5 sm:hidden">
+              {entries.map((entry, i) => (
+                <MobileRow
+                  key={i}
+                  entry={entry}
+                  rank={i + 1}
+                  me={isLocalPlayer(entry.name, username)}
+                  category={category}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Global leaderboard (town) — the diegetic entry point: clicking the town tablet
+ * focuses the camera on the champions' podium and docks this panel right (no
+ * backdrop) so the podium stays visible. The town sidebar renders the same
+ * `LeaderboardContent` inline. Data is fetched via a `RequestLeaderboard`
+ * round-trip; dense table on desktop, stacked cards on mobile.
+ */
+export function Leaderboard() {
+  const open = useLeaderboardStore((s) => s.open);
+  const setOpen = useLeaderboardStore((s) => s.setOpen);
+  // Cinematic focus engaged from the town tablet → dock right, no backdrop, so the
+  // podium champions stay visible on the left. Centered otherwise.
+  const docked = useFocusStore((s) => s.panel === 'leaderboard' && !!s.target);
 
   // Release the camera focus + movement lock whenever the dialog isn't open, and
   // on unmount (e.g. leaving town) so a stale focus can't hijack another scene.
@@ -313,9 +388,6 @@ export function Leaderboard() {
       <DialogContent
         dock={docked ? 'right' : 'center'}
         backdrop={!docked}
-        // Frosted panel matching the matchmaking menu. A container so the contents
-        // size in `cqi` (% of panel width), scaling with the panel — which itself
-        // scales with the viewport when docked, bounded when centered.
         style={{ containerType: 'inline-size' }}
         className={
           'flex max-h-[85vh] flex-col overflow-hidden border-white/10 bg-panel/55 p-0 backdrop-blur-2xl ' +
@@ -340,60 +412,7 @@ export function Leaderboard() {
           </DialogClose>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-5 pb-5 pt-3">
-          <CategoryTabs active={category} onPick={setCategory} />
-          <SectionLabel>Top players · {CATEGORY_META[category].blurb}</SectionLabel>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-black/15 text-[clamp(0.82rem,2.7cqi,1.12rem)]">
-            {loading ? (
-              <LoadingRows />
-            ) : !enabled ? (
-              <EmptyState>Persistence is disabled on this server — no standings yet.</EmptyState>
-            ) : entries.length === 0 ? (
-              <EmptyState>No ranked matches played yet. Be the first to win one!</EmptyState>
-            ) : (
-              <>
-                {/* Desktop: dense aligned table with a sticky header. */}
-                <div className="hidden sm:block">
-                  <Table>
-                    <TableHeader className="sticky top-0 z-10 bg-panel/95 backdrop-blur-sm">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-14 border-r border-white/10 pl-4 pr-3" />
-                        <TableHead className="pl-3">Player</TableHead>
-                        <TableHead className="pr-4 text-right text-gold">
-                          {CATEGORY_META[category].tab}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entries.map((entry, i) => (
-                        <DeskRow
-                          key={i}
-                          entry={entry}
-                          rank={i + 1}
-                          me={isLocalPlayer(entry.name, username)}
-                          category={category}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile: stacked cards, no horizontal scroll. */}
-                <ul className="divide-y divide-white/5 sm:hidden">
-                  {entries.map((entry, i) => (
-                    <MobileRow
-                      key={i}
-                      entry={entry}
-                      rank={i + 1}
-                      me={isLocalPlayer(entry.name, username)}
-                      category={category}
-                    />
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
-        </div>
+        <LeaderboardContent active={open} />
       </DialogContent>
     </Dialog>
   );
