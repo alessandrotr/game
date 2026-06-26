@@ -45,6 +45,7 @@ import {
   attackSpeedMultiplier,
   moveSpeedMultiplier,
   CHARACTER_CLASSES,
+  CLASS_LOADOUTS,
   isCharacterClass,
   type AbilityDef,
   type AbilityKind,
@@ -929,8 +930,17 @@ export class ArenaRoom extends AvatarRoom {
     } else {
       const baseCd = config.cooldownMs * (perkMods?.cooldownMult ?? 1);
       cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
-
     }
+
+    // Apply a 250ms lockout to the Ultimate (R) ability after any other ability cast.
+    const classLoadout = CLASS_LOADOUTS[player.characterClass as CharacterClass];
+    const rAbility = classLoadout?.['R'];
+    if (rAbility && rAbility !== ability) {
+      const existingR = cd[rAbility] ?? 0;
+      const lockout = this.simTime + 250;
+      cd[rAbility] = Math.max(existingR, lockout);
+    }
+
     player.rotation = Math.atan2(dirX, dirZ);
 
     // Broadcast at cast START so clients play the cast animation / wind-up VFX

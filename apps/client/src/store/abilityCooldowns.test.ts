@@ -137,4 +137,33 @@ describe('abilityCooldowns store', () => {
 
     nowSpy.mockRestore();
   });
+
+  it('applies a non-additive 250ms lockout to the R ability when casting a non-R ability', () => {
+    useGameStore.setState({ sessionId: 'mage_player' });
+    const p: Partial<PlayerView> = {
+      sessionId: 'mage_player',
+      characterClass: 'mage',
+      perk1: '',
+      perk2: '',
+      perk3: '',
+    };
+    useGameStore.getState().players.set('mage_player', p as PlayerView);
+
+    // Mage R is arcane_blast, Q is fireball
+    expect(cooldownRemaining('arcane_blast')).toBe(0);
+
+    // Cast Q
+    triggerCooldown('fireball', 500);
+    expect(cooldownRemaining('arcane_blast')).toBeCloseTo(250, 0);
+
+    // Cast W, shouldn't stack
+    triggerCooldown('frost_nova', 5000);
+    expect(cooldownRemaining('arcane_blast')).toBeCloseTo(250, 0);
+
+    // If R is already on a larger cooldown, lockout does not reduce it or add to it
+    triggerCooldown('arcane_blast', 10000);
+    const beforeCast = cooldownRemaining('arcane_blast');
+    triggerCooldown('fireball', 500);
+    expect(cooldownRemaining('arcane_blast')).toBeCloseTo(beforeCast, 0);
+  });
 });

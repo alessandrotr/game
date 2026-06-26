@@ -340,7 +340,7 @@ export const ABILITY_REGISTRY = {
     aoeRadius: 8,
     effects: [
       // A self `field` status: ticks 6 to enemies within radius 8 every 0.5s for 3s.
-      { type: 'status', status: { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 6, magnitude: 8 } },
+      { type: 'status', status: { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 6, magnitude: 8, ability: 'heal' } },
     ],
   },
   // E — Blessing: a shield, plus +20 damage on the priest's NEXT Smite (Q only).

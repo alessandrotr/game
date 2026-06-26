@@ -1,4 +1,4 @@
-import { computePerkModifiers, isPerkId, ABILITIES, type AbilityKind } from '@arena/shared';
+import { computePerkModifiers, isPerkId, ABILITIES, type AbilityKind, CLASS_LOADOUTS } from '@arena/shared';
 import { useGameStore } from './useGameStore';
 
 /**
@@ -32,21 +32,33 @@ export function getAbilityManaCost(ability: AbilityKind): number {
 
 /** Begin a cooldown of `cooldownMs` for an ability, starting now. */
 export function triggerCooldown(ability: AbilityKind, cooldownMs: number): void {
+  const now = performance.now();
   if (ability === 'ninja_e') {
-    const now = performance.now();
     if (ninjaEStage === 0) {
       ninjaEStage = 1;
       ninjaEFirstCast = now;
       readyAt.set('ninja_e', now + 314);
-      return;
     } else if (ninjaEStage === 1) {
       ninjaEStage = 0;
       ninjaEFirstCast = null;
       readyAt.set('ninja_e', now + 6000 * getLocalCooldownMult());
-      return;
+    }
+  } else {
+    readyAt.set(ability, now + cooldownMs);
+  }
+
+  // Apply a non-additive 250ms lockout to the Ultimate (R) ability after any other ability cast.
+  const { sessionId, players } = useGameStore.getState();
+  const me = sessionId ? players.get(sessionId) : undefined;
+  if (me) {
+    const classLoadout = CLASS_LOADOUTS[me.characterClass];
+    const rAbility = classLoadout?.['R'];
+    if (rAbility && rAbility !== ability) {
+      const existingR = readyAt.get(rAbility) ?? 0;
+      const lockout = now + 250;
+      readyAt.set(rAbility, Math.max(existingR, lockout));
     }
   }
-  readyAt.set(ability, performance.now() + cooldownMs);
 }
 
 /** Milliseconds remaining on an ability's cooldown (0 if ready). */
