@@ -27,6 +27,7 @@ import { HudLayout, HudZone } from './hud/HudLayout';
 import { MobileJoystickGate } from './hud/MobileJoystick';
 import { PerkPicker } from './PerkPicker';
 import { PerkBar } from './PerkBar';
+import { HeldPickableIndicator } from './HeldPickableIndicator';
 
 /**
  * In-game heads-up display, composed onto the HUD zone system.
@@ -62,6 +63,9 @@ export function Hud() {
                 {/* Active perk icons (left of the ability bar). */}
                 <PerkBar />
                 <CombatHud />
+                {/* Held pickable (molotov / grenade) — mirrors the perk icons on
+                    the right of the ability bar. */}
+                <HeldPickableIndicator />
               </div>
             </div>
           </HudZone>

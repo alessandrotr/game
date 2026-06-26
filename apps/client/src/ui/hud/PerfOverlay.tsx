@@ -1,6 +1,6 @@
 import { usePerfStore } from '../../store/usePerfStore';
 import { useHudStore } from '../../store/useHudStore';
-import { useGameStore } from '../../store/useGameStore';
+import { useGameStore, selectHumanPlayerCount, selectBotCount } from '../../store/useGameStore';
 
 /** Compact triangle count, e.g. 12.3k / 1.2M. */
 function compact(n: number): string {
@@ -20,7 +20,9 @@ export function PerfOverlay() {
   const ms = usePerfStore((s) => s.ms);
   const calls = usePerfStore((s) => s.calls);
   const tris = usePerfStore((s) => s.tris);
-  const players = useGameStore((s) => s.playerIds.length);
+  const players = useGameStore(selectHumanPlayerCount);
+  const zombieMode = useGameStore((s) => s.zombieMode);
+  const bots = useGameStore(selectBotCount);
 
   if (!show) return null;
 
@@ -35,6 +37,7 @@ export function PerfOverlay() {
         {calls} draws · {compact(tris)} tris
       </div>
       <div>{players} players</div>
+      {zombieMode && <div>{bots} bots</div>}
     </div>
   );
 }

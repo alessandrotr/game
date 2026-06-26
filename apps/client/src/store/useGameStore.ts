@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { structureFootprint } from '@arena/shared';
+import { isZombieSkin, structureFootprint } from '@arena/shared';
 import type {
   ArenaObstacle,
   BarrelView,
@@ -346,3 +346,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 }));
+
+/**
+ * Count of real (human / bot combatant) players, excluding zombie-family entities
+ * — wave enemies live in the same `players` map and would otherwise inflate any
+ * "players online" readout (perf overlay, chat header). Recomputed on each store
+ * change but returns a primitive, so consumers only re-render when it changes.
+ */
+export const selectHumanPlayerCount = (s: GameStore): number => {
+  let n = 0;
+  for (const id of s.playerIds) {
+    const p = s.players.get(id);
+    if (p && !isZombieSkin(p.skinId)) n++;
+  }
+  return n;
+};
+
+/**
+ * Count of AI bot entities — the zombie-family bodies that {@link
+ * selectHumanPlayerCount} excludes. The complement of the human count over the
+ * shared `players` map; surfaced as a separate "bots" line in the perf overlay.
+ */
+export const selectBotCount = (s: GameStore): number => {
+  let n = 0;
+  for (const id of s.playerIds) {
+    const p = s.players.get(id);
+    if (p && isZombieSkin(p.skinId)) n++;
+  }
+  return n;
+};

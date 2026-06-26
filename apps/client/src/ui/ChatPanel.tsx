@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ChevronDown, MessageSquare, Users } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from '@arena/shared';
 import { useChatStore } from '../store/useChatStore';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore, selectHumanPlayerCount } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { sendChat } from '../network/colyseus';
@@ -17,7 +17,7 @@ import { Badge, Button, IconButton, Input } from './primitives';
  */
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
-  const onlineCount = useGameStore((s) => s.playerIds.length);
+  const onlineCount = useGameStore(selectHumanPlayerCount);
   const hidden = useHudStore((s) => s.hidden);
   const focused = useFocusStore((s) => !!s.target);
   const collapsed = useHudStore((s) => s.chatCollapsed);
