@@ -195,10 +195,15 @@ export class BotDirector {
   }
 
   /**
-   * Decide chase vs. kite. The tick loop honours `attackTargets` *over*
-   * `destinations`, so the two are mutually exclusive: setting an attack target
-   * makes `updateAutoAttack` close into range and strike; clearing it and setting
-   * a destination lets the bot reposition (and still cast while moving).
+   * Decide chase vs. kite, and drive the legs every tick.
+   *
+   * We set BOTH seams when closing in: `attackTargets` (so auto-attack modes like
+   * zombie survival chase + strike on the timer via `updateAutoAttack`) AND a
+   * chase `destination`. The tick loop honours `attackTargets` over `destinations`
+   * when auto-attack is enabled, so the destination is simply ignored there. But
+   * in PvP modes (FFA/ranked) auto-attack is OFF, so without a destination the bot
+   * would just stand still — it only ever moved via the flee branch, which is why
+   * bots looked rooted unless badly hurt. Feeding a chase destination fixes that.
    */
   private manageMovement(bot: Player, target: Player, profile: BotProfile): void {
     const auto = AUTO_ATTACKS[bot.characterClass as CharacterClass];
@@ -216,9 +221,36 @@ export class BotDirector {
       return;
     }
 
-    // Otherwise auto-attack-move: chase into range, then strike on the timer.
+    // Otherwise close in: mark the attack target (auto-attack modes strike on the
+    // timer) and walk toward striking range so non-auto-attack modes chase too.
     this.ctx.attackTargets.set(bot.sessionId, target.sessionId);
-    this.ctx.destinations.delete(bot.sessionId);
+    this.setChaseDestination(bot, target, auto.range, dist, rooted);
+  }
+
+  /** Walk toward the target, stopping at roughly striking range. Cleared when
+   *  already in range (stand and fight) or rooted (can't move). Mirrors the
+   *  room's auto-attack chase for modes that don't run it. */
+  private setChaseDestination(
+    bot: Player,
+    target: Player,
+    range: number,
+    dist: number,
+    rooted: boolean,
+  ): void {
+    const standoff = range * 0.85;
+    if (rooted || dist <= standoff) {
+      this.ctx.destinations.delete(bot.sessionId);
+      return;
+    }
+    const dx = target.x - bot.x;
+    const dz = target.z - bot.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const travel = dist - standoff;
+    const limit = ARENA_HALF_SIZE - PLAYER_RADIUS;
+    this.ctx.destinations.set(bot.sessionId, {
+      x: clampTo(bot.x + (dx / len) * travel, limit),
+      z: clampTo(bot.z + (dz / len) * travel, limit),
+    });
   }
 
   /** Set a destination directly away from the threat, out to roughly attack
