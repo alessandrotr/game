@@ -368,30 +368,35 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   const spawn = useEffectsStore.getState().spawn;
   const dir: [number, number, number] = [msg.dirX, 0, msg.dirZ];
 
-  if (msg.ability === 'ninja_r') {
-    // Spawn black smoke cloud at origin where the ninja was
-    spawn('vfx.smoke_teleport', [msg.x, 0.05, msg.z], [0, 0, 1]);
-    // Spawn black smoke cloud at destination where the ninja will teleport
-    if (msg.tx !== undefined && msg.tz !== undefined) {
-      spawn('vfx.smoke_teleport', [msg.tx, 0.05, msg.tz], [0, 0, 1]);
-    }
-    return;
-  }
-
   const caster = useGameStore.getState().players.get(msg.casterId);
   // Aim the caster's weapon down the ability line (remote players only; the local
   // player set its own aim with zero latency at cast time). The server-driven
   // `animState: 'cast'` triggers the weapon swing; this supplies its direction.
+  // Done BEFORE any early-return so the ninja's teleport (R) still swings the
+  // katana on remote bodies.
   if (caster && msg.casterId !== useGameStore.getState().sessionId) {
     setCastAim(msg.casterId, Math.atan2(msg.dirX, msg.dirZ), ABILITIES[msg.ability]?.channelMs ?? 0, msg.ability);
   }
-  const aoeSizeBonus = caster
-    ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus
-    : 0;
-  // Recolor the cast VFX to the caster's equipped weapon glow (null = default).
+  // Recolor the cast VFX to the caster's equipped weapon glow / enchant (null =
+  // default). For the ninja with no enchant equipped this falls back to the
+  // katana's showpiece color; once a ninja enchant exists it drives the tint.
   const tint = caster
     ? abilityTintColor(caster.characterClass, caster.weaponId, caster.enchantId) ?? undefined
     : undefined;
+
+  if (msg.ability === 'ninja_r') {
+    // Spawn smoke cloud at origin where the ninja was
+    spawn('vfx.smoke_teleport', [msg.x, 0.05, msg.z], [0, 0, 1], undefined, undefined, undefined, tint);
+    // Spawn smoke cloud at destination where the ninja will teleport
+    if (msg.tx !== undefined && msg.tz !== undefined) {
+      spawn('vfx.smoke_teleport', [msg.tx, 0.05, msg.tz], [0, 0, 1], undefined, undefined, undefined, tint);
+    }
+    return;
+  }
+
+  const aoeSizeBonus = caster
+    ? computePerkModifiers([caster.perk1, caster.perk2, caster.perk3].filter(isPerkId)).aoeSizeBonus
+    : 0;
 
   const def = ABILITIES[msg.ability];
   let baseRadius = def?.aoeRadius ?? 0;
@@ -403,13 +408,20 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
     if (isSecondSwing) {
       lastNinjaQCast.delete(msg.casterId);
       baseRadius = 4.5;
+      // The second slash is a server-driven follow-up (+300ms), so the local
+      // player never set its own aim for it (the remote-only guard above skips
+      // it too). Bump the local cast aim here so the katana swings a second time
+      // to match the second slash VFX.
+      if (msg.casterId === useGameStore.getState().sessionId) {
+        setCastAim(msg.casterId, Math.atan2(msg.dirX, msg.dirZ), 0, 'ninja_q');
+      }
     } else {
       lastNinjaQCast.set(msg.casterId, now);
       baseRadius = 4.0;
     }
     const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
     const vfxId = isSecondSwing ? 'vfx.ninja_slash_2' : 'vfx.ninja_slash_1';
-    spawn(vfxId, [msg.x, 0.9, msg.z], dir, msg.casterId, undefined, scale);
+    spawn(vfxId, [msg.x, 0.9, msg.z], dir, msg.casterId, undefined, scale, tint);
     return;
   }
 

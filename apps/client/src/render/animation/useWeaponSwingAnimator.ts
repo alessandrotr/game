@@ -18,6 +18,13 @@ const _e = new Euler(0, 0, 0, 'YXZ');
  *   • charge      — throw the blade straight back, hold for the dash, return.
  *   • shield_wall — lift the sword up, then back down.
  * Driven by the cast EVENT (a bumped `seq` on the aim store).
+ *
+ * The ninja's katana reuses the same vocabulary so it casts like the other
+ * classes' weapons:
+ *   • ninja_q (Katana Slash)   — a frontal sweep, like the warrior's cleave.
+ *   • ninja_w (Shuriken)       — a forward stab/cast down the line, like a mage Q.
+ *   • ninja_e (Shadow Dash)    — blade thrown back, like the warrior's charge.
+ *   • ninja_r (Smoke Teleport) — a heavier raised forward cast, like a mage R.
  */
 
 /** Per-ability gesture duration (seconds). cleave matches its 280ms VFX. */
@@ -26,6 +33,11 @@ const GESTURE_DUR: Record<string, number> = {
   ground_slam: 0.48,
   charge: 0.5,
   shield_wall: 0.5,
+  // Ninja katana — mapped onto the reference gestures above.
+  ninja_q: 0.28, // like cleave
+  ninja_w: 0.3, // forward cast thrust (mage Q feel)
+  ninja_e: 0.5, // like charge
+  ninja_r: 0.42, // heavier forward cast (mage R feel)
 };
 
 const SWEEP = Math.PI / 2 + 0.2; // half the cleave arc (~180°)
@@ -45,38 +57,54 @@ interface Pose {
   yaw: number; // sweep.rotation.y
   lift: number; // sweep.position.y
   scale: number; // lay scale
+  push: number; // lay.position.z — forward lunge ALONG the cast line (yawed frame)
   fade: number; // 0 keep grip tilt → 1 fade it out (clean gesture orientation)
 }
-const REST: Pose = { pitch: 0, yaw: 0, lift: 0, scale: 1, fade: 0 };
+const REST: Pose = { pitch: 0, yaw: 0, lift: 0, scale: 1, push: 0, fade: 0 };
 
 /** A laid-flat blade sweeping `half` radians each side, growing for impact. */
 function sweepPose(e: number, half: number): Pose {
   const a = trap(e, 0.18, 0.84);
-  return { pitch: a * LAY, yaw: a * (-half + e * 2 * half), lift: 0, scale: 1 + (GROW - 1) * a, fade: a };
+  return { pitch: a * LAY, yaw: a * (-half + e * 2 * half), lift: 0, scale: 1 + (GROW - 1) * a, push: 0, fade: a };
 }
 
 /** A full 360° spin: lay flat fast, sweep the WHOLE circle, lift out. The yaw is
  *  NOT scaled by the lay (unlike `sweepPose`) so the arc is a true 360°. */
 function spinPose(e: number): Pose {
   const a = trap(e, 0.12, 0.88);
-  return { pitch: a * LAY, yaw: -Math.PI + e * 2 * Math.PI, lift: 0, scale: 1 + (GROW - 1) * a, fade: a };
+  return { pitch: a * LAY, yaw: -Math.PI + e * 2 * Math.PI, lift: 0, scale: 1 + (GROW - 1) * a, push: 0, fade: a };
+}
+
+/** A forward stab/cast: lay the blade flat down the cast line (yaw 0, locked to
+ *  castYaw) and lunge forward — the melee echo of a mage's thrust-and-return.
+ *  `lunge` is the peak forward push and `rise` an optional overhead lift for a
+ *  heavier (ultimate) cast. */
+function castPose(e: number, lunge: number, rise: number): Pose {
+  const a = trap(e, 0.16, 0.5);
+  return { pitch: a * LAY, yaw: 0, lift: a * rise, scale: 1 + 0.3 * a, push: a * lunge, fade: a };
 }
 
 function poseFor(ability: string, e: number): Pose {
   switch (ability) {
     case 'cleave':
-      return sweepPose(e, SWEEP); // ~180° (unchanged)
+    case 'ninja_q':
+      return sweepPose(e, SWEEP); // ~180° frontal arc
     case 'ground_slam':
       return spinPose(e); // full 360°
-    case 'charge': {
+    case 'ninja_w':
+      return castPose(e, 0.35, 0.05); // quick forward cast thrust (mage Q feel)
+    case 'ninja_r':
+      return castPose(e, 0.55, 0.25); // heavier raised forward cast (mage R feel)
+    case 'charge':
+    case 'ninja_e': {
       // Blade thrown straight back (opposite the dash) and held, then returned.
       const a = trap(e, 0.22, 0.72);
-      return { pitch: a * -1.5, yaw: 0, lift: 0, scale: 1, fade: a };
+      return { pitch: a * -1.5, yaw: 0, lift: 0, scale: 1, push: 0, fade: a };
     }
     case 'shield_wall': {
       // Raise the sword up (and tilt overhead), then lower it.
       const a = trap(e, 0.35, 0.6);
-      return { pitch: a * -0.5, yaw: 0, lift: a * 0.4, scale: 1, fade: a };
+      return { pitch: a * -0.5, yaw: 0, lift: a * 0.4, scale: 1, push: 0, fade: a };
     }
     default:
       return REST;
@@ -135,6 +163,9 @@ export function useWeaponSwingAnimator(
 
     layNode.rotation.x = p.pitch;
     layNode.scale.setScalar(p.scale);
+    // Forward lunge along the cast line: lay sits inside the yawed sweep, so its
+    // local +Z points down castYaw (a stab toward the target, not body-forward).
+    layNode.position.z = p.push;
     sweepNode.position.y = p.lift;
     // Lock the sweep to the cast-direction frame (where the VFX sweeps): world
     // yaw = castYaw + p.yaw, achieved by subtracting the body's live yaw. So the
