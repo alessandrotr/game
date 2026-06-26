@@ -68,6 +68,11 @@ export class CombatSystem {
     string,
     { at: number; radius: number; onLand: LeafEffect[] }
   >();
+  /** CC Diminishing Returns tracking (non-replicated server-side state) */
+  private readonly playerCcChains = new Map<
+    string,
+    { ccCount: number; lastCcTime: number }
+  >();
 
   constructor(
     private readonly ctx: ArenaContext,
@@ -621,10 +626,35 @@ export class CombatSystem {
     }
 
     const now = this.ctx.now();
+
+    // CC Diminishing Returns & Chain Protection
+    let durationMs = spec.durationMs;
+    const isCc = spec.kind === 'stun' || spec.kind === 'root' || spec.kind === 'silence' || spec.kind === 'slow';
+    if (isCc && !isZombieSkin(target.skinId)) {
+      let chain = this.playerCcChains.get(target.sessionId);
+      if (!chain || now - chain.lastCcTime > 8000) {
+        chain = { ccCount: 0, lastCcTime: 0 };
+      }
+      chain.ccCount++;
+      if (chain.ccCount === 1) {
+        chain.lastCcTime = now;
+        this.playerCcChains.set(target.sessionId, chain);
+      } else if (chain.ccCount === 2) {
+        durationMs = Math.round(durationMs * 0.5);
+        chain.lastCcTime = now;
+        this.playerCcChains.set(target.sessionId, chain);
+      } else if (chain.ccCount >= 3) {
+        // Immune. Do not apply the status, do not update lastCcTime so it expires.
+        return;
+      }
+    }
+
+    if (durationMs <= 0) return;
+
     this.removeStatuses(target, spec.kind);
     const s = new StatusEffect();
     s.kind = spec.kind;
-    s.expiresAt = now + spec.durationMs;
+    s.expiresAt = now + durationMs;
     s.magnitude = spec.magnitude ?? 0;
     s.tickMs = spec.tickMs ?? 0;
     s.tickAmount = spec.tickAmount ?? 0;
@@ -705,9 +735,12 @@ export class CombatSystem {
         } else {
           // `field`: a damaging aura — tick every enemy within `magnitude` of the
           // carrier (it follows the player, so the field tracks them).
-          this.forEachEnemyInRadius(player.x, player.z, s.magnitude, player.sessionId, (enemy) =>
-            this.dealDamage(enemy, s.tickAmount, player.sessionId),
-          );
+          this.forEachEnemyInRadius(player.x, player.z, s.magnitude, player.sessionId, (enemy) => {
+            this.dealDamage(enemy, s.tickAmount, player.sessionId, s.ability || undefined);
+            if (s.ability === 'heal') {
+              this.applyStatus(enemy, { kind: 'slow', durationMs: 1000, magnitude: 0.80 }, player.sessionId);
+            }
+          });
         }
         s.nextTickAt += s.tickMs;
       }
