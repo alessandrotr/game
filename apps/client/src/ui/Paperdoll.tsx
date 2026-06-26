@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useOnClickOutside } from 'usehooks-ts';
-import { getClassDefinition, getCosmeticOfType, xpProgress, LOBBY_MODES, type LobbyMode } from '@arena/shared';
+import {
+  getClassDefinition,
+  getCosmeticOfType,
+  xpProgress,
+  LOBBY_MODES,
+  type LobbyMode,
+} from '@arena/shared';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { Swords, X } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
@@ -87,18 +93,23 @@ function PaperdollCard({
   const title = data.titleId ? getCosmeticOfType(data.titleId, 'title') : undefined;
 
   return (
-    <Card ref={cardRef} variant="modal" className="pointer-events-auto absolute right-4 top-1/2 w-72 -translate-y-1/2">
+    <Card
+      ref={cardRef}
+      variant="modal"
+      className="pointer-events-auto absolute right-24 top-1/2 w-72 -translate-y-1/2"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <LevelBadge level={data.level} size="md" color={rimColorOf(data.rimId)} />
           <div className="min-w-0">
-            <div className="truncate text-lg font-bold tracking-wide text-text">
-              {data.name}
-            </div>
+            <div className="truncate text-lg font-bold tracking-wide text-text">{data.name}</div>
             <div className="text-xs font-medium text-muted">{def.name}</div>
             {title && (
-              <div className="truncate text-[10px] uppercase tracking-wider" style={{ color: title.color }}>
+              <div
+                className="truncate text-[10px] uppercase tracking-wider"
+                style={{ color: title.color }}
+              >
                 {title.text}
               </div>
             )}
@@ -142,8 +153,18 @@ function PaperdollCard({
 
       {/* Record */}
       <div className="flex gap-2 px-4 py-3">
-        <StatTile variant="bordered" label="Kills" value={data.kills} color={STAT_COLORS.positive} />
-        <StatTile variant="bordered" label="Deaths" value={data.deaths} color={STAT_COLORS.negative} />
+        <StatTile
+          variant="bordered"
+          label="Kills"
+          value={data.kills}
+          color={STAT_COLORS.positive}
+        />
+        <StatTile
+          variant="bordered"
+          label="Deaths"
+          value={data.deaths}
+          color={STAT_COLORS.negative}
+        />
         <StatTile variant="bordered" label="K/D" value={kd} color={STAT_COLORS.text} />
       </div>
 
@@ -161,7 +182,13 @@ function PaperdollCard({
  *    format (you're committed to it), so only that option is offered.
  *  - Otherwise, the full set: a 1v1 duel call-out plus team-format pills.
  */
-function ChallengeSection({ targetSessionId, targetName }: { targetSessionId: string; targetName: string }) {
+function ChallengeSection({
+  targetSessionId,
+  targetName,
+}: {
+  targetSessionId: string;
+  targetName: string;
+}) {
   const members = useQueueStore((s) => s.members);
   const mySessionId = useQueueStore((s) => s.mySessionId);
   const [sent, setSent] = useState(false);
@@ -177,7 +204,8 @@ function ChallengeSection({ targetSessionId, targetName }: { targetSessionId: st
   if (sent) {
     return (
       <div className="border-t border-white/5 px-4 py-3 text-center text-xs text-muted">
-        Invite sent to <span className="font-semibold text-text">{targetName}</span> — waiting for a reply…
+        Invite sent to <span className="font-semibold text-text">{targetName}</span> — waiting for a
+        reply…
       </div>
     );
   }
@@ -210,12 +238,19 @@ function ChallengeSection({ targetSessionId, targetName }: { targetSessionId: st
 
   return (
     <div className="border-t border-white/5 px-4 py-3">
-      <Button variant="goldCta" size="md" className="w-full justify-center gap-2" onClick={() => invite('1v1')}>
+      <Button
+        variant="goldCta"
+        size="md"
+        className="w-full justify-center gap-2"
+        onClick={() => invite('1v1')}
+      >
         <Swords size={15} aria-hidden="true" />
         Challenge to Duel
       </Button>
       <div className="mt-2 flex items-center gap-1.5">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Team</span>
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          Team
+        </span>
         {TEAM_INVITE_MODES.map((m) => (
           <button
             key={m}

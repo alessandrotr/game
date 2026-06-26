@@ -1,17 +1,9 @@
 import { useState } from 'react';
 import { useProgress } from '@react-three/drei';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { CLASS_LIST, type AbilityKind } from '@arena/shared';
+import { ABILITIES, CLASS_LIST } from '@arena/shared';
 import { ClassPreview } from './ClassPreview';
 import { Badge, IconButton, Meter } from './primitives';
-
-/** Pretty-print an ability id, e.g. `frost_nova` → `Frost Nova`. */
-function labelOf(ability: AbilityKind): string {
-  return ability
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
 
 // Stat bar maxima are derived from the roster so the bars compare classes
 // honestly without hardcoded magic numbers.
@@ -82,7 +74,7 @@ export function ClassCarousel() {
         <div className="flex flex-wrap gap-2">
           {cls.abilities.map((ability) => (
             <Badge key={ability} variant="gold">
-              {labelOf(ability)}
+              {ABILITIES[ability].name}
             </Badge>
           ))}
         </div>

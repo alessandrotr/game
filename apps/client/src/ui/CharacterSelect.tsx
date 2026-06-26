@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import {
+  ABILITIES,
   CLASS_LIST,
   classCosmeticsOf,
   getClassDefinition,
@@ -43,13 +44,6 @@ import { rimColorOf } from './rim';
 import { ABILITY_ICON } from './abilityIcons';
 import { AbilityHover } from './AbilityTooltipCard';
 import { STAT_COLORS } from './theme';
-
-/** Title-case a snake_case ability id ("frost_nova" → "Frost Nova"). */
-const titleCase = (s: string) =>
-  s
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
 
 /** One big vital readout — a glowing colored numeral under an icon medallion,
  *  centred in its half. Scales down a step on small screens. */
@@ -117,7 +111,7 @@ function AbilityBadge({ ability }: { ability: AbilityKind }) {
         <Icon size={20} aria-hidden="true" />
       </span>
       <span className="w-full truncate text-center text-[9px] font-medium uppercase tracking-wider text-muted transition-colors group-hover:text-gold/90">
-        {titleCase(ability)}
+        {ABILITIES[ability].name}
       </span>
     </AbilityHover>
   );
