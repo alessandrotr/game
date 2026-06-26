@@ -20,7 +20,13 @@ import {
   type CameraConfig,
 } from '../tuning';
 import { useEnvStore } from '../tuning/useEnvStore';
-import { sendBotControl, sendDevGrantPerk, sendDevAddLevel, sendDevSpawnTrap } from '../network/colyseus';
+import {
+  sendBotControl,
+  sendDevGrantPerk,
+  sendDevAddLevel,
+  sendDevSpawnTrap,
+  sendDevSetWave,
+} from '../network/colyseus';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { useDebugStore } from '../store/useDebugStore';
 import { useGameStore } from '../store/useGameStore';
@@ -152,6 +158,15 @@ export default function DevTools() {
   useControls('Level (debug)', () => ({
     levels: { value: 1, min: 1, max: 50, step: 1, label: 'Levels' },
     'Add levels': button((get) => sendDevAddLevel(get('Level (debug).levels') as number)),
+  }));
+
+  // Wave (DEV): jump the zombie director straight to a wave and open every door
+  // that should be unlocked by then, then start that wave's horde. Lets you reach
+  // late-game content (the altar at wave 13, the boss at 16) instantly. The
+  // server ignores this in production and outside zombie mode.
+  useControls('Wave (debug)', () => ({
+    wave: { value: 13, min: 1, max: 30, step: 1, label: 'Wave' },
+    'Jump to wave': button((get) => sendDevSetWave(get('Wave (debug).wave') as number)),
   }));
 
   // Traps (DEV): spawn any trap kind at your current location for testing.

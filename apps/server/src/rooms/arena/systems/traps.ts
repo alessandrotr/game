@@ -13,6 +13,8 @@ import {
   BUFF_TRAP_COOLDOWN_MS,
   BUFF_DURATION_MS,
   BUFF_TRAP_EFFECT_RADIUS,
+  ALTAR_SPAWN_WAVE,
+  ALTAR_GEM_COUNT,
   ServerMessage,
   isZombieSkin,
   type TrapDef,
@@ -123,6 +125,14 @@ export class TrapSystem {
   /** Fire a trap's effect and start its cooldown. */
   private activate(t: TrapRuntime, now: number): void {
     const { x, z, radius, kind } = t.obj;
+    // Resonance of the Void: once the altar is up (wave 13+), any trap firing
+    // lights the next unlit gem socket — kind doesn't matter, duplicates count.
+    if (
+      this.ctx.state.zombieLevel >= ALTAR_SPAWN_WAVE &&
+      this.ctx.state.altarGemsLit < ALTAR_GEM_COUNT
+    ) {
+      this.ctx.state.altarGemsLit += 1;
+    }
     if (kind === 'heal') {
       // Heal beacon: instantly restores every living player and fires a beam of
       // light rising to the sky around the radius (the VFX IS the heal — no

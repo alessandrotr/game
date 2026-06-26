@@ -1,6 +1,24 @@
 import {
+  ALTAR_ASSET_ID,
+  ALTAR_GEM_COUNT,
+  ALTAR_HEIGHT,
+  ALTAR_POSITION,
+  ALTAR_RADIUS,
+  ALTAR_RITUAL_RADIUS,
   ARENA_PORTAL_POINT,
   PLAYER_RADIUS,
+  RITUAL_CHANNEL_MS,
+  RITUAL_MANA_DRAIN_PER_SEC,
+  RITUAL_RUSH_SPRINTERS,
+  RITUAL_SLOW_MAGNITUDE,
+  RITUAL_SOLO_SHOCKWAVE_RADIUS,
+  RITUAL_SOLO_SHOCKWAVE_STUN_MS,
+  RITUAL_SOLO_SPRINTERS,
+  SINGULARITY_DURATION_MS,
+  SUPERWEAPON_CHARGES,
+  SUPERWEAPON_ID,
+  TITAN_SKIN_ID,
+  titanHpForPlayers,
   ServerMessage,
   ZOMBIE_FAT_ATTACK_BONUS_MS,
   ZOMBIE_FAT_SKIN_ID,
@@ -38,6 +56,7 @@ import { makeZombieProfile, type BotProfile } from './bots.js';
 import type { CombatSystem } from './combat.js';
 import type { CoverSystem } from './cover.js';
 import type { DestructibleSystem } from './destructibles.js';
+import type { GroundZoneSystem } from './groundZones.js';
 import type { ProjectileSystem } from './projectiles.js';
 import type { TrapSystem } from './traps.js';
 
@@ -90,6 +109,7 @@ export interface ZombieSurvivalDeps {
   barrels: BarrelSystem;
   destructibles: DestructibleSystem;
   traps: TrapSystem;
+  groundZones: GroundZoneSystem;
   /** Replicate a server event to all clients (Colyseus `room.broadcast`). */
   broadcast: (type: string | number, message?: unknown) => void;
 }
@@ -108,7 +128,195 @@ export class ZombieSurvival {
   /** Next time (sim ms) each mini-boss may take a special action, keyed by id. */
   private readonly bossNextActionAt = new Map<string, number>();
 
+  /** Resonance of the Void: true once the Altar of Resonance has been placed. */
+  private altarSpawned = false;
+
   constructor(private readonly deps: ZombieSurvivalDeps) {}
+
+  // --- Resonance of the Void: end-game altar -------------------------------
+
+  /** Place the Altar of Resonance at the room centre, once. A solid, indestructible
+   *  obelisk (a CoverStructure → static-cylinder collider, so players/zombies path
+   *  around it); (0,0) is empty in the zombie room so it never overlaps fixed cover.
+   *  Idempotent — safe to call every wave from {@link ALTAR_SPAWN_WAVE} on. */
+  ensureAltar(): void {
+    if (this.altarSpawned) return;
+    this.altarSpawned = true;
+    this.deps.cover.addSection([
+      {
+        assetId: ALTAR_ASSET_ID,
+        x: ALTAR_POSITION.x,
+        z: ALTAR_POSITION.z,
+        rotation: 0,
+        radius: ALTAR_RADIUS,
+        height: ALTAR_HEIGHT,
+        maxHp: 9999,
+        indestructible: true,
+        lengthScale: 1,
+      },
+    ]);
+  }
+
+  // --- Resonance of the Void: the claiming ritual --------------------------
+
+  /** Active ritual channels, keyed by channeller session id. */
+  private readonly rituals = new Map<string, { startAt: number; solo: boolean }>();
+
+  /** True while this player is channelling the altar ritual (regen is suppressed
+   *  for them in the room loop so the drain actually bites). */
+  isRitualing(id: string): boolean {
+    return this.rituals.has(id);
+  }
+
+  /** True if (x,z) is inside the altar's walkable ritual ring. */
+  private inRitualZone(x: number, z: number): boolean {
+    const dx = x - ALTAR_POSITION.x;
+    const dz = z - ALTAR_POSITION.z;
+    return dx * dx + dz * dz <= ALTAR_RITUAL_RADIUS * ALTAR_RITUAL_RADIUS;
+  }
+
+  /** Try to begin the claiming ritual. Validates all gates and, on success, pays
+   *  the sacrifice (multi: silence + slow the channeller; solo: an opening
+   *  shockwave instead) and rushes Sprinters at the channeller. Returns whether
+   *  it started. */
+  startRitual(id: string): boolean {
+    if (this.rituals.has(id)) return true;
+    const player = this.deps.state.players.get(id);
+    if (!player || !player.alive || player.superweapon) return false;
+    // Gates: all 4 gems lit, a wave in progress (altar is silent between waves),
+    // and standing inside the ritual ring.
+    if (this.deps.state.altarGemsLit < ALTAR_GEM_COUNT) return false;
+    if (this.deps.state.zombiesRemaining <= 0) return false;
+    if (!this.inRitualZone(player.x, player.z)) return false;
+    // Regen is suppressed during the channel, so the full cost must be banked or
+    // the drain would break it mid-way: 4s × 20/s = 80 mana.
+    const cost = (RITUAL_CHANNEL_MS / 1000) * RITUAL_MANA_DRAIN_PER_SEC;
+    if (player.mana < cost) return false;
+
+    const solo = this.countHumans() <= 1;
+    this.rituals.set(id, { startAt: this.deps.now(), solo });
+    // Reuse the replicated channel field so peers see the wind-up pose/VFX.
+    player.channelAbility = 'ritual';
+    player.channelDirX = 0;
+    player.channelDirZ = 1;
+
+    if (solo) {
+      // Solo: no silence; an opening shockwave knocks back + stuns nearby zombies.
+      this.deps.combat.forEachEnemyInRadius(
+        player.x,
+        player.z,
+        RITUAL_SOLO_SHOCKWAVE_RADIUS,
+        id,
+        (enemy) => {
+          this.deps.combat.applyStatus(
+            enemy,
+            { kind: 'stun', durationMs: RITUAL_SOLO_SHOCKWAVE_STUN_MS },
+            id,
+          );
+          const ex = enemy.x - player.x;
+          const ez = enemy.z - player.z;
+          const d = Math.hypot(ex, ez) || 1;
+          this.deps.combat.displace(enemy, ex / d, ez / d, 4, 18, 0, id);
+        },
+      );
+      this.deps.broadcast(ServerMessage.AbilityCast, {
+        casterId: id,
+        ability: 'ground_slam',
+        x: player.x,
+        y: 0.05,
+        z: player.z,
+        dirX: 0,
+        dirZ: 1,
+      });
+    } else {
+      // Multi-player sacrifice: silenced + 50% slowed for the channel duration.
+      this.deps.combat.applyStatus(player, { kind: 'silence', durationMs: RITUAL_CHANNEL_MS }, '');
+      this.deps.combat.applyStatus(
+        player,
+        { kind: 'slow', durationMs: RITUAL_CHANNEL_MS, magnitude: RITUAL_SLOW_MAGNITUDE },
+        '',
+      );
+    }
+
+    // Rush Sprinters that prioritise the channeller (scaled down when solo).
+    const count = solo ? RITUAL_SOLO_SPRINTERS : RITUAL_RUSH_SPRINTERS;
+    for (let i = 0; i < count; i++) this.spawnRushSprinter(id);
+    return true;
+  }
+
+  /** Stop a ritual (player released the key, was interrupted, or it completed).
+   *  Clears the wind-up + the multi-player sacrifice statuses. */
+  stopRitual(id: string): void {
+    if (!this.rituals.delete(id)) return;
+    const player = this.deps.state.players.get(id);
+    if (player && player.channelAbility === 'ritual') {
+      player.channelAbility = '';
+      this.deps.combat.removeStatuses(player, 'silence');
+      this.deps.combat.removeStatuses(player, 'slow');
+    }
+  }
+
+  /** Per-tick: drain the channeller's mana, enforce the stay-in-ring rule (solo),
+   *  break on death/stun/empty mana, and grant the superweapon on completion. */
+  updateRituals(dt: number): void {
+    if (this.rituals.size === 0) return;
+    const now = this.deps.now();
+    for (const [id, r] of this.rituals) {
+      const player = this.deps.state.players.get(id);
+      if (!player || !player.alive || isStunned(player)) {
+        this.stopRitual(id);
+        continue;
+      }
+      player.mana = Math.max(0, player.mana - RITUAL_MANA_DRAIN_PER_SEC * dt);
+      if (player.mana <= 0) {
+        this.stopRitual(id);
+        continue;
+      }
+      // Solo channellers must stay inside the ring — stepping out cancels.
+      if (r.solo && !this.inRitualZone(player.x, player.z)) {
+        this.stopRitual(id);
+        continue;
+      }
+      if (now - r.startAt >= RITUAL_CHANNEL_MS) {
+        player.superweapon = SUPERWEAPON_ID;
+        player.soulCharges = SUPERWEAPON_CHARGES;
+        this.stopRitual(id);
+      }
+    }
+  }
+
+  /** Spawn one Sprinter that beelines for `targetId` (the ritual rush). Mirrors
+   *  {@link spawnZombie}'s Sprinter variant but forces the variant + chase target. */
+  private spawnRushSprinter(targetId: string): void {
+    const level = this.deps.state.zombieLevel;
+    if (this.deps.bots.size >= zombieMaxAlive(level) + 24) return;
+    const id = `zombie-${this.deps.nextBotId()}`;
+    const player = new Player();
+    player.sessionId = id;
+    player.name = 'Sprinter';
+    player.characterClass = 'warrior';
+    player.skinId = ZOMBIE_SPRINTER_SKIN_ID;
+    player.team = 'red';
+    this.deps.resetPlayer(player);
+    const limit = this.deps.arenaLimit - PLAYER_RADIUS;
+    const jitter = () => (Math.random() * 2 - 1) * 1.6;
+    const portal = this.pickPortal();
+    player.x = clamp(portal.x + jitter(), -limit, limit);
+    player.z = clamp(portal.z + jitter(), -limit, limit);
+    player.maxHp = zombieSprinterHealthForLevel(level);
+    player.hp = player.maxHp;
+    this.deps.state.players.set(id, player);
+    this.deps.verticalVelocity.set(id, 0);
+    this.deps.grounded.set(id, true);
+    this.deps.cooldowns.set(id, {});
+    this.deps.bots.set(id, makeZombieProfile());
+    const ai = this.aiFor(id);
+    ai.speedOffset =
+      ZOMBIE_SPRINTER_SPEED_MIN +
+      Math.random() * (ZOMBIE_SPRINTER_SPEED_MAX - ZOMBIE_SPRINTER_SPEED_MIN);
+    // Lock onto the channeller so the rush converges on them.
+    this.deps.attackTargets.set(id, targetId);
+  }
 
   // --- Per-zombie AI personality -------------------------------------------
 
@@ -454,6 +662,115 @@ export class ZombieSurvival {
         dirX: 0,
         dirZ: 1,
       });
+    }
+  }
+
+  // --- Resonance of the Void: the Necrotic Titan ---------------------------
+
+  /** True once the Titan has been spawned this run (it only ever spawns once). */
+  private titanSpawned = false;
+  /** True once the Titan's 50%-HP Devourer Singularity has fired. */
+  private titanWellFired = false;
+
+  /** Spawn the Necrotic Titan (wave 16). A colossal, CC-immune boss zombie whose
+   *  HP scales with the human count. Returns whether it actually spawned (false if
+   *  one already exists) so the caller can freeze the normal horde exactly once. */
+  spawnTitan(): boolean {
+    if (this.titanSpawned) return false;
+    this.titanSpawned = true;
+    const id = `zombie-titan-${this.deps.nextBotId()}`;
+    const player = new Player();
+    player.sessionId = id;
+    player.name = 'Necrotic Titan';
+    player.characterClass = 'warrior';
+    player.skinId = TITAN_SKIN_ID;
+    player.team = 'red';
+    this.deps.resetPlayer(player);
+    const limit = this.deps.arenaLimit - 1.5;
+    const portal = this.pickPortal();
+    player.x = clamp(portal.x, -limit, limit);
+    player.z = clamp(portal.z, -limit, limit);
+    const hp = titanHpForPlayers(this.countHumans());
+    player.maxHp = hp;
+    player.hp = hp;
+    this.deps.state.players.set(id, player);
+    this.deps.verticalVelocity.set(id, 0);
+    this.deps.grounded.set(id, true);
+    this.deps.cooldowns.set(id, {});
+    this.deps.bots.set(id, makeZombieProfile());
+    this.aiFor(id).speedOffset = -2.0; // ponderous
+    return true;
+  }
+
+  /** Drive the Necrotic Titan: a 50%-HP Devourer Singularity (a gravity well at
+   *  the room centre, once), then alternating Decimating Fissure (a forward fan
+   *  of shockwaves) and Corrosive Mortar (acid pools around the target). */
+  updateTitanAI(bot: Player, id: string): void {
+    if (this.deps.now() < (this.bossNextActionAt.get(id) ?? 0)) return;
+
+    // 50% phase: a single massive gravity well at the room centre.
+    if (!this.titanWellFired && bot.maxHp > 0 && bot.hp <= bot.maxHp * 0.5) {
+      this.titanWellFired = true;
+      this.deps.groundZones.spawn(
+        'singularity',
+        ALTAR_POSITION.x,
+        ALTAR_POSITION.z,
+        14,
+        0,
+        1000,
+        SINGULARITY_DURATION_MS,
+        '',
+      );
+      this.bossNextActionAt.set(id, this.deps.now() + 5000);
+      return;
+    }
+
+    // Acquire the nearest living human.
+    let target: Player | undefined;
+    let minD2 = Infinity;
+    this.deps.state.players.forEach((p, pid) => {
+      if (!p.alive || this.deps.bots.has(pid)) return;
+      const dx = p.x - bot.x;
+      const dz = p.z - bot.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < minD2) {
+        minD2 = d2;
+        target = p;
+      }
+    });
+    if (!target) {
+      this.bossNextActionAt.set(id, this.deps.now() + 1000);
+      return;
+    }
+
+    this.bossNextActionAt.set(id, this.deps.now() + (3000 + Math.random() * 2000));
+
+    if (Math.random() < 0.5) {
+      // Decimating Fissure: three heavy shockwaves in a tight forward fan.
+      const base = Math.atan2(target.x - bot.x, target.z - bot.z);
+      for (const off of [-0.25, 0, 0.25]) {
+        const a = base + off;
+        this.deps.projectiles.spawnProjectile(bot, 'fireball', Math.sin(a), Math.cos(a), 18, 40, 1.4, [
+          { type: 'damage', amount: 45 },
+        ]);
+      }
+      this.deps.broadcast(ServerMessage.AbilityCast, {
+        casterId: id,
+        ability: 'ground_slam',
+        x: bot.x,
+        y: 0.05,
+        z: bot.z,
+        dirX: 0,
+        dirZ: 1,
+      });
+    } else {
+      // Corrosive Mortar: three acid pools (high-DoT fire fields) around the target.
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + Math.random();
+        const px = target.x + Math.cos(a) * 4;
+        const pz = target.z + Math.sin(a) * 4;
+        this.deps.groundZones.spawn('molotov_fire', px, pz, 3.5, 25, 500, 8000, id);
+      }
     }
   }
 

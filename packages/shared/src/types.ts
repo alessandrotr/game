@@ -92,6 +92,11 @@ export interface PlayerView {
   chargeAbility: string;
   chargeDirX: number;
   chargeDirZ: number;
+  /** Equipped end-game superweapon id ('' = none) — overrides the class loadout
+   *  while set; the client swaps the action bar + weapon model. */
+  superweapon: string;
+  /** Remaining Soul Charges for the equipped superweapon (0 when none). */
+  soulCharges: number;
 }
 
 /** Replicated burning barrel. Mirrors `Barrel` in the server schema. An exploded
@@ -348,4 +353,6 @@ export interface ArenaStateView {
   zombiesRemaining: number;
   /** Zombies currently alive in the arena (for the HUD's live count). */
   zombiesAlive: number;
+  /** Resonance of the Void: lit altar gem sockets (0–4); at 4 the ritual unlocks. */
+  altarGemsLit: number;
 }

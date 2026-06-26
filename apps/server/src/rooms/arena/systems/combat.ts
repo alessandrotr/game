@@ -11,6 +11,7 @@ import {
   ZOMBIE_FAT_SKIN_ID,
   ZOMBIE_MINIBOSS_SKIN_ID,
   isZombieSkin,
+  TITAN_SKIN_ID,
   BUFF_TRAP_DAMAGE_MULT,
   ServerMessage,
   damageTakenMultiplier,
@@ -605,6 +606,14 @@ export class CombatSystem {
    *  replaces the old one (re-applying refreshes its duration). */
   applyStatus(target: Player, spec: StatusSpec, fromId: string): void {
     if (!target.alive || spec.durationMs <= 0) return;
+
+    // The Necrotic Titan is immune to all crowd control (stun/root/slow/silence).
+    if (
+      target.skinId === TITAN_SKIN_ID &&
+      (spec.kind === 'stun' || spec.kind === 'root' || spec.kind === 'slow' || spec.kind === 'silence')
+    ) {
+      return;
+    }
 
     // Friendly fire CC check in Zombie Mode
     if (this.ctx.state.zombieMode && fromId) {

@@ -48,6 +48,8 @@ interface GameStore {
   /** How many sections beyond the main room are unlocked (0–3).
    *  Drives section rendering, minimap, and door barrier state. */
   unlockedSections: number;
+  /** Resonance of the Void: lit altar gem sockets (0–4); at 4 the ritual unlocks. */
+  altarGemsLit: number;
 
   /**
    * Reactive lists of ids — change only when membership changes, so React
@@ -106,6 +108,7 @@ interface GameStore {
     alive: number,
     coop: boolean,
     sections: number,
+    gems: number,
   ) => void;
   /** Toggle the world-swap loading screen (with an optional tagline). */
   setTransitioning: (transitioning: boolean, label?: string) => void;
@@ -159,6 +162,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   zombiesRemaining: 0,
   zombiesAlive: 0,
   unlockedSections: 0,
+  altarGemsLit: 0,
   playerIds: [],
   projectileIds: [],
   barrelIds: [],
@@ -190,7 +194,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setArenaSeed: (seed) => {
     if (get().arenaSeed !== seed) set({ arenaSeed: seed });
   },
-  setZombie: (mode, level, remaining, alive, coop, sections) => {
+  setZombie: (mode, level, remaining, alive, coop, sections, gems) => {
     const s = get();
     if (
       s.zombieMode !== mode ||
@@ -198,7 +202,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       s.zombieLevel !== level ||
       s.zombiesRemaining !== remaining ||
       s.zombiesAlive !== alive ||
-      s.unlockedSections !== sections
+      s.unlockedSections !== sections ||
+      s.altarGemsLit !== gems
     ) {
       set({
         zombieMode: mode,
@@ -207,6 +212,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         zombiesRemaining: remaining,
         zombiesAlive: alive,
         unlockedSections: sections,
+        altarGemsLit: gems,
       });
     }
   },
@@ -316,6 +322,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       zombiesRemaining: 0,
       zombiesAlive: 0,
       unlockedSections: 0,
+      altarGemsLit: 0,
       playerIds: [],
       projectileIds: [],
       barrelIds: [],

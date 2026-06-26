@@ -71,6 +71,12 @@ export enum ClientMessage {
   DevAddLevel = 'dev_add_level',
   /** Dev-only: spawn a trap at a location (radius is optional). */
   DevSpawnTrap = 'dev_spawn_trap',
+  /** Dev-only: jump the zombie wave director to a wave, opening every door that
+   *  should be unlocked by then, then start that wave's horde. */
+  DevSetWave = 'dev_set_wave',
+  /** Resonance of the Void: start/stop channelling the altar ritual to claim the
+   *  superweapon. Server validates gem count, proximity, and wave phase. */
+  RitualChannel = 'ritual_channel',
   /** Feature flag: enable/disable auto-attacks for the room (off by default). */
   SetAutoAttack = 'set_auto_attack',
   /** Ask the server for the global leaderboard (town only). */
@@ -280,6 +286,10 @@ export interface ClientMessagePayloads {
     z: number;
     radius?: number;
   };
+  /** Dev-only: jump straight to a zombie wave (opens doors unlocked by then). */
+  [ClientMessage.DevSetWave]: { wave: number };
+  /** Start (`active: true`) or stop channelling the altar ritual. */
+  [ClientMessage.RitualChannel]: { active: boolean };
   /** Toggle the auto-attack feature flag for the room. */
   [ClientMessage.SetAutoAttack]: { enabled: boolean };
   /** Zombie perk: pick slot 0 (visible A), 1 (visible B), or 2 (jolly).

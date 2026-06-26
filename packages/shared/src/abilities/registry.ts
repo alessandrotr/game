@@ -468,6 +468,124 @@ export const ABILITY_REGISTRY = {
       },
     ],
   },
+
+  // === Resonance of the Void — the Singularity Cannon superweapon kit ===
+  // Equipped via the altar ritual; overrides the wielder's QWER (+ basic) while
+  // held and costs Soul Charges, not mana (see SUPERWEAPON_LOADOUT / SUPERWEAPON_COST).
+  void_blast: {
+    id: 'void_blast',
+    name: 'Void Blast',
+    icon: 'Crosshair',
+    aim: 'direction',
+    cooldownMs: 250,
+    manaCost: 0,
+    castTimeMs: 0,
+    range: 40,
+    damage: 60,
+    projectileSpeed: 60,
+    projectileRange: 40,
+    projectileRadius: 0.9,
+    effects: [
+      {
+        type: 'projectile',
+        speed: 60,
+        range: 40,
+        radius: 0.9,
+        vfx: VFX_ARCANE,
+        // Punches through up to 5 enemies (damaging each), then is consumed.
+        pierce: true,
+        pierceMax: 5,
+        onHit: [{ type: 'damage', amount: 60 }],
+      },
+    ],
+  },
+  gravity_mortar: {
+    id: 'gravity_mortar',
+    name: 'Gravity Mortar',
+    icon: 'CircleDot',
+    aim: 'point',
+    cooldownMs: 6000,
+    manaCost: 0,
+    castTimeMs: 0,
+    range: 22,
+    damage: 120,
+    aoeRadius: 5,
+    effects: [
+      {
+        type: 'aoe',
+        at: 'point',
+        radius: 5,
+        vfx: 'singularity',
+        // A short, high-damage crush at the impact point (a stun stands in for
+        // the gravity "hold" until a ground-zone pull effect exists).
+        onHit: [
+          { type: 'damage', amount: 120 },
+          { type: 'status', status: { kind: 'stun', durationMs: 1500 } },
+        ],
+      },
+    ],
+  },
+  aether_pulse: {
+    id: 'aether_pulse',
+    name: 'Aether Pulse',
+    icon: 'Waves',
+    aim: 'self',
+    cooldownMs: 5000,
+    manaCost: 0,
+    castTimeMs: 0,
+    range: 8,
+    damage: 70,
+    aoeRadius: 8,
+    effects: [
+      {
+        type: 'aoe',
+        at: 'caster',
+        radius: 8,
+        onHit: [
+          { type: 'damage', amount: 70 },
+          { type: 'knockback', distance: 6, speed: 22 },
+          { type: 'status', status: { kind: 'stun', durationMs: 2000 } },
+        ],
+      },
+    ],
+  },
+  phase_dash: {
+    id: 'phase_dash',
+    name: 'Phase Dash',
+    icon: 'Move',
+    aim: 'direction',
+    cooldownMs: 4000,
+    manaCost: 0,
+    castTimeMs: 0,
+    range: 6,
+    damage: 40,
+    effects: [
+      {
+        type: 'dash',
+        distance: 6,
+        speed: 30,
+        damage: 40,
+        impactRadius: 3,
+        onLand: [{ type: 'damage', amount: 40 }],
+      },
+    ],
+  },
+  unleash_cataclysm: {
+    id: 'unleash_cataclysm',
+    name: 'Unleash Cataclysm',
+    icon: 'Sun',
+    aim: 'direction',
+    cooldownMs: 12000,
+    manaCost: 0,
+    castTimeMs: 0,
+    range: 30,
+    // Per-tick beam damage (channel ticks every channelTickMs over channelMs).
+    damage: 40,
+    channelMs: 3000,
+    channelTickMs: 150,
+    beamWidth: 2.5,
+    effects: [],
+  },
 } satisfies Record<string, AbilityDef>;
 
 /** Every ability id known to the game (the registry keys, as a literal union). */
@@ -513,3 +631,27 @@ export const CLASS_LOADOUTS: Record<CharacterClass, Partial<Record<AbilitySlot, 
   priest: { Q: 'smite', W: 'heal', E: 'renew', R: 'condemn' },
   ninja: { Q: 'ninja_q', W: 'ninja_w', E: 'ninja_e', R: 'ninja_r' },
 };
+
+/** The Singularity Cannon's QWER bindings. While a player holds the superweapon,
+ *  the server maps the slot they press (resolved from their class loadout) to
+ *  these abilities — so no client action-bar change is needed for it to fire. */
+export const SUPERWEAPON_LOADOUT: Record<AbilitySlot, AbilityKind> = {
+  Q: 'gravity_mortar',
+  W: 'aether_pulse',
+  E: 'phase_dash',
+  R: 'unleash_cataclysm',
+};
+
+/** Which QWER slot an ability id occupies for a class ('' → not a slotted
+ *  ability). Used to translate a pressed class ability into its superweapon
+ *  override while the cannon is equipped. */
+export function slotForAbility(
+  characterClass: CharacterClass,
+  ability: AbilityKind,
+): AbilitySlot | undefined {
+  const loadout = CLASS_LOADOUTS[characterClass];
+  for (const slot of ABILITY_SLOTS) {
+    if (loadout?.[slot] === ability) return slot;
+  }
+  return undefined;
+}

@@ -115,6 +115,8 @@ interface RawState {
   zombiesRemaining?: number;
   zombiesAlive?: number;
   unlockedSections?: number;
+  /** Resonance of the Void: lit altar gem sockets (0–4). */
+  altarGemsLit?: number;
 }
 
 // Strip any trailing slash so the Colyseus client builds clean URLs even if
@@ -201,6 +203,8 @@ function snapshotState(state: RawState): {
       chargeAbility: player.chargeAbility ?? '',
       chargeDirX: player.chargeDirX ?? 0,
       chargeDirZ: player.chargeDirZ ?? 1,
+      superweapon: player.superweapon ?? '',
+      soulCharges: player.soulCharges ?? 0,
     });
   });
 
@@ -614,6 +618,7 @@ function wireRoom(joined: Room): void {
           raw.zombiesAlive ?? 0,
           raw.coopZombie ?? false,
           raw.unlockedSections ?? 0,
+          raw.altarGemsLit ?? 0,
         );
       // Feed the interpolation buffer used to render remote players smoothly.
       const now = performance.now();
@@ -1404,6 +1409,16 @@ export function sendDevAddLevel(amount: number): void {
 /** Dev-only: spawn a trap at a location. */
 export function sendDevSpawnTrap(values: ClientMessagePayloads[ClientMessage.DevSpawnTrap]): void {
   room?.send(ClientMessage.DevSpawnTrap, values);
+}
+
+/** Dev-only: jump the zombie run to `wave` (opens doors unlocked by then). */
+export function sendDevSetWave(wave: number): void {
+  room?.send(ClientMessage.DevSetWave, { wave });
+}
+
+/** Resonance of the Void: start/stop channelling the altar ritual. */
+export function sendRitualChannel(active: boolean): void {
+  room?.send(ClientMessage.RitualChannel, { active });
 }
 
 /** Toggle the auto-attack feature flag for the current room. */

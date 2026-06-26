@@ -1,6 +1,7 @@
 import { useMemo, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
+import { ZOMBIE_MINIBOSS_SKIN_ID, TITAN_SKIN_ID } from '@arena/shared';
 import { useEffectsStore, type ActiveEffect } from '../store/useEffectsStore';
 import { useGameStore } from '../store/useGameStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
@@ -42,13 +43,15 @@ function EffectAnchor({ effect, children }: { effect: ActiveEffect; children: Re
     }
   });
 
-  const isMiniBossStomp = useMemo(() => {
-    if (effect.vfxId !== 'vfx.ground_slam' || !effect.followId) return false;
+  const stompBossScale = useMemo(() => {
+    if (effect.vfxId !== 'vfx.ground_slam' || !effect.followId) return 1;
     const player = useGameStore.getState().players.get(effect.followId);
-    return player?.skinId === 'skin.zombie.miniboss';
+    if (player?.skinId === TITAN_SKIN_ID) return 2.6; // the Titan's slam dwarfs the mini-boss's
+    if (player?.skinId === ZOMBIE_MINIBOSS_SKIN_ID) return 1.4;
+    return 1;
   }, [effect.vfxId, effect.followId]);
 
-  const scale = (effect.scale ?? 1.0) * (isMiniBossStomp ? 1.4 : 1.0);
+  const scale = (effect.scale ?? 1.0) * stompBossScale;
 
   return (
     <group ref={ref} position={effect.origin} scale={scale}>
@@ -69,14 +72,14 @@ export function VfxLayer() {
         if (!descriptor) return null;
         const onComplete = () => remove(effect.key);
 
-        const isMiniBossStomp = effect.vfxId === 'vfx.ground_slam' && effect.followId && (() => {
+        const isBossStomp = effect.vfxId === 'vfx.ground_slam' && effect.followId && (() => {
           const player = useGameStore.getState().players.get(effect.followId);
-          return player?.skinId === 'skin.zombie.miniboss';
+          return player?.skinId === ZOMBIE_MINIBOSS_SKIN_ID || player?.skinId === TITAN_SKIN_ID;
         })();
 
         // A registered burst shader owns its own animation + lifetime; otherwise
         // fall back to the descriptor-driven placeholder primitives.
-        const Burst = isMiniBossStomp ? undefined : BURST_SHADERS[effect.vfxId];
+        const Burst = isBossStomp ? undefined : BURST_SHADERS[effect.vfxId];
         if (Burst) {
           return (
             <EffectAnchor key={effect.key} effect={effect}>
