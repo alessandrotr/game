@@ -365,7 +365,7 @@ describe('Ninja Class Abilities Integration', () => {
     ctx.state.players.set('enemy', enemy);
 
     // 1. Test destruction (depleted to 0)
-    combat.addShield(priest, 40, 6000, 'priest', 'renew');
+    combat.addShield(priest, 40, 4000, 'priest', 'renew');
     expect(priest.shield).toBe(40);
     expect(enemy.hp).toBe(100);
 
@@ -378,7 +378,7 @@ describe('Ninja Class Abilities Integration', () => {
 
     // 2. Test expiration
     enemy.hp = 100; // Reset enemy HP
-    combat.addShield(priest, 40, 6000, 'priest', 'renew');
+    combat.addShield(priest, 40, 4000, 'priest', 'renew');
     expect(priest.shield).toBe(40);
 
     // Advance clock to expire status
