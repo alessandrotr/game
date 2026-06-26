@@ -18,6 +18,24 @@ export function MergedGroupMesh({ group }: { group: MergedGroup }) {
       />
     );
   }
+  // Plain opaque parts were merged across colors into one vertex-colored mesh.
+  if (group.vertexColors) {
+    return (
+      <mesh
+        geometry={group.geometry}
+        castShadow={group.castShadow}
+        receiveShadow={group.receiveShadow}
+      >
+        <meshStandardMaterial
+          vertexColors
+          metalness={p.metalness ?? 0.1}
+          roughness={p.roughness ?? 0.7}
+          flatShading
+        />
+      </mesh>
+    );
+  }
+
   return (
     <mesh geometry={group.geometry} castShadow={group.castShadow} receiveShadow={group.receiveShadow}>
       <meshStandardMaterial

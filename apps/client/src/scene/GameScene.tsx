@@ -14,6 +14,7 @@ import { useFocusStore } from '../store/useFocusStore';
 import { TownAtmosphere } from './TownAtmosphere';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useQualityStore } from '../store/useQualityStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { ShadowFollow } from './ShadowFollow';
@@ -103,6 +104,15 @@ export function GameScene() {
   const tier = useQualityStore((s) => s.tier);
   const quality = useQualityStore((s) => s.settings);
 
+  // Dev-only perf bisection toggles (Leva "Perf Debug"); all false in prod.
+  const hideVfx = useDebugStore((s) => s.hideVfx);
+  const hideLights = useDebugStore((s) => s.hideLights);
+  const hideZones = useDebugStore((s) => s.hideZones);
+  const hidePickables = useDebugStore((s) => s.hidePickables);
+  const hideBarrels = useDebugStore((s) => s.hideBarrels);
+  const hideDestructibles = useDebugStore((s) => s.hideDestructibles);
+  const hideStructures = useDebugStore((s) => s.hideStructures);
+
   return (
     <Canvas
       // Remount cleanly when the quality tier changes (rare) so shadow on/off and
@@ -132,7 +142,7 @@ export function GameScene() {
       {isArena ? (
         <>
           <Arena />
-          <ArenaLights barrelIds={barrelRoster} />
+          {!hideLights && <ArenaLights barrelIds={barrelRoster} />}
           {useGameStore.getState().zombieMode && <ShadowFollow />}
         </>
       ) : (
@@ -183,20 +193,20 @@ export function GameScene() {
           <PlayerEntity key={id} sessionId={id} />
         ))}
 
-      {isArena &&
+      {isArena && !hideBarrels &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
 
-      {isArena &&
+      {isArena && !hideDestructibles &&
         destructibleIds.map((id) => <DestructibleEntity key={id} destructibleId={id} />)}
 
-      {isArena &&
+      {isArena && !hideStructures &&
         structureIds.map((id) => <CoverStructureEntity key={id} structureId={id} />)}
 
-      {isArena && <Pickables />}
-      {isArena && <GroundZones />}
-      {isArena && zombieMode && <Traps />}
+      {isArena && !hidePickables && <Pickables />}
+      {isArena && !hideZones && <GroundZones />}
+      {isArena && zombieMode && !hideZones && <Traps />}
 
-      <VfxLayer />
+      {!hideVfx && <VfxLayer />}
       {isArena && (
         <>
           <Projectiles />

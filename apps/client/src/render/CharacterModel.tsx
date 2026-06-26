@@ -385,7 +385,11 @@ function PlaceholderCharacter({
   return (
     <group scale={scale}>
       <group ref={group}>
-        <AssetMesh source={descriptor.render} paint={paint} />
+        {/* Merge the body's static parts into a few batched meshes (the procedural
+            animator moves the whole group, never individual parts, so this is safe).
+            Auto-skips for PAINTED bodies, whose per-part textures can't be merged —
+            so custom player paint still renders per part. */}
+        <AssetMesh source={descriptor.render} paint={paint} merge />
         {children}
       </group>
     </group>

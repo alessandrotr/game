@@ -16,6 +16,7 @@ import { MergedGroupMesh } from '../render/MergedGroupMesh';
 import { AssetInstance } from '../render/AssetInstance';
 import { WaterSurface } from './WaterSurface';
 import { useGameStore } from '../store/useGameStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { useEnvStore } from '../tuning/useEnvStore';
 import { useFrame } from '@react-three/fiber';
 
@@ -50,7 +51,12 @@ function DirtGround({ sizeX, sizeZ }: { sizeX: number; sizeZ: number }) {
   const fogColor = useEnvStore((s) => s.arena.fogColor);
   const grassDark = useEnvStore((s) => s.arena.grassDark);
   const grassLight = useEnvStore((s) => s.arena.grassLight);
+  // Dev "Perf Debug": a plain material to isolate the fbm grass-shader cost.
+  const flatGround = useDebugStore((s) => s.flatGround);
   const material = useMemo(() => {
+    if (flatGround) {
+      return new MeshStandardMaterial({ color: new Color(grassLight), roughness: 1, metalness: 0 });
+    }
     const m = new MeshStandardMaterial({ color: new Color(grassLight), roughness: 1, metalness: 0 });
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uGrassDark = { value: new Color(grassDark) };
@@ -99,7 +105,7 @@ function DirtGround({ sizeX, sizeZ }: { sizeX: number; sizeZ: number }) {
     };
     m.customProgramCacheKey = () => `arena-grass-${grassDark}-${grassLight}-${fogColor}`;
     return m;
-  }, [grassDark, grassLight, fogColor]);
+  }, [grassDark, grassLight, fogColor, flatGround]);
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={material}>

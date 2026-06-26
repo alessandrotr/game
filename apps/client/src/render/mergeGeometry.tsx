@@ -1,9 +1,11 @@
 import {
   BoxGeometry,
   CapsuleGeometry,
+  Color,
   ConeGeometry,
   CylinderGeometry,
   Euler,
+  Float32BufferAttribute,
   Matrix4,
   Quaternion,
   SphereGeometry,
@@ -64,10 +66,31 @@ export interface MergedGroup {
   part: PlaceholderPart; // representative — supplies the material props
   castShadow: boolean;
   receiveShadow: boolean;
+  /** When true the group bakes each part's color into a vertex-color attribute, so
+   *  plain opaque parts of ANY color share ONE mesh (color no longer splits draws). */
+  vertexColors: boolean;
 }
 
-/** Material identity: parts that match here can share one merged mesh. */
+/** A "plain" part is an opaque, non-special, non-glowing standard surface — the
+ *  bulk of most props (walls, logs, planks, stone). Such parts only differ by
+ *  COLOR, so they can be baked into a single vertex-colored mesh. Parts with a
+ *  special material (glass/brick/tile/fire), an emissive glow, or transparency are
+ *  NOT plain — they keep their own per-material mesh so nothing regresses. */
+function isPlain(p: PlaceholderPart): boolean {
+  return (
+    !p.material &&
+    (!p.emissive || p.emissive === '#000000') &&
+    (p.opacity == null || p.opacity === 1)
+  );
+}
+
+/** Material identity: parts that match here can share one merged mesh. Plain parts
+ *  group by their lit params only (color goes to vertex colors); everything else
+ *  keeps the full per-material identity so glass/brick/tile/glow stay correct. */
 function materialKey(p: PlaceholderPart): string {
+  if (isPlain(p)) {
+    return ['vc', p.metalness ?? '-', p.roughness ?? '-'].join('#');
+  }
   return [
     p.material ?? 'std',
     p.color,
@@ -90,7 +113,14 @@ export function mergePlaced(
 ): MergedGroup[] {
   const groups = new Map<
     string,
-    { geos: BufferGeometry[]; rep: PlaceholderPart; cast: boolean; recv: boolean; region: string }
+    {
+      geos: BufferGeometry[];
+      rep: PlaceholderPart;
+      cast: boolean;
+      recv: boolean;
+      region: string;
+      vertexColors: boolean;
+    }
   >();
   for (const { part, matrix } of placed) {
     const geo = geometryForPart(part);
@@ -98,10 +128,25 @@ export function mergePlaced(
     const cast = part.castShadow ?? true;
     const recv = part.receiveShadow ?? true;
     const region = regionOf ? regionOf(part) : 'all';
+    const vertexColors = isPlain(part);
+    if (vertexColors) {
+      // Bake this part's flat color into a per-vertex color attribute so parts of
+      // different colors can still merge into one mesh. `new Color(hex)` yields the
+      // linear-space rgb three expects for vertex colors.
+      const c = new Color(part.color || '#ffffff');
+      const count = geo.getAttribute('position').count;
+      const colors = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        colors[i * 3] = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new Float32BufferAttribute(colors, 3));
+    }
     const key = `${region}|${materialKey(part)}|${cast ? 1 : 0}|${recv ? 1 : 0}`;
     let g = groups.get(key);
     if (!g) {
-      g = { geos: [], rep: part, cast, recv, region };
+      g = { geos: [], rep: part, cast, recv, region, vertexColors };
       groups.set(key, g);
     }
     g.geos.push(geo);
@@ -118,6 +163,7 @@ export function mergePlaced(
         part: g.rep,
         castShadow: g.cast,
         receiveShadow: g.recv,
+        vertexColors: g.vertexColors,
       });
     }
   }

@@ -22,6 +22,7 @@ import {
 import { useEnvStore } from '../tuning/useEnvStore';
 import { sendBotControl, sendDevGrantPerk, sendDevAddLevel } from '../network/colyseus';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { MetaPanel } from './MetaPanel';
 import { AbilityPanels } from './AbilityPanel';
 import { EnvPanels } from './EnvPanel';
@@ -93,6 +94,52 @@ export default function DevTools() {
       sendDevGrantPerk({ action: 'grant', perkId: get('Perks (debug).perk') as PerkId }),
     ),
     'Clear all': button(() => sendDevGrantPerk({ action: 'clear' })),
+  }));
+
+  // Perf Debug (DEV): each switch HIDES one class of thing. Flip them off during
+  // a laggy fight and watch the FPS meter — whichever switch makes FPS jump is the
+  // culprit. All default off (show everything); dev-only, so prod is unaffected.
+  useControls('Perf Debug', () => ({
+    'Hide nameplates + HP bars': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideNameplates: v }),
+    },
+    'Hide combat VFX': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideVfx: v }),
+    },
+    'Hide point lights (fire/braziers)': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideLights: v }),
+    },
+    'Hide ground zones + traps': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideZones: v }),
+    },
+    'Hide pickables': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hidePickables: v }),
+    },
+    'Hide barrels': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideBarrels: v }),
+    },
+    'Hide oil drums': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideDestructibles: v }),
+    },
+    'Hide houses/cars/cover': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideStructures: v }),
+    },
+    'Hide scenery props': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ hideMapProps: v }),
+    },
+    'Flat ground (no grass shader)': {
+      value: false,
+      onChange: (v: boolean) => useDebugStore.getState().set({ flatGround: v }),
+    },
   }));
 
   // Level (DEV): jump your character up some levels to test level-gated content

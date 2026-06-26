@@ -27,6 +27,7 @@ import { useArenaLayout } from './useArenaLayout';
 import { TEAM_COLORS } from '../lib/teamColors';
 import { useGameStore } from '../store/useGameStore';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
 import { getCursorGround } from '../store/cursorState';
@@ -117,6 +118,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const gunView = useGameStore((s) => s.gunView);
   const hideOwnBody = isLocal && gunMode && gunView === 'fps';
   const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
+  // Dev-only perf toggle: hide the floating nameplate + HP bar (Leva "Perf Debug").
+  const hideNameplates = useDebugStore((s) => s.hideNameplates);
   // Equipped title can change live (equip broadcast), so read it reactively —
   // the selector only re-renders this entity when the title id actually changes.
   const titleId = useGameStore((s) => s.players.get(sessionId)?.titleId ?? '');
@@ -623,7 +626,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       )}
 
       {/* Name + HP bar always face the camera (billboarded), independent of
-          the character's facing. */}
+          the character's facing. (Dev "Perf Debug" can hide these to measure cost.) */}
+      {!hideNameplates && (
       <Billboard position={[0, billboardY, 0]}>
         <group ref={hpBar}>
           <mesh>
@@ -676,6 +680,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           </Text>
         )}
       </Billboard>
+      )}
     </group>
   );
 }

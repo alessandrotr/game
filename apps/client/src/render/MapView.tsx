@@ -11,6 +11,7 @@ import { assets } from '../assets/registry';
 import { AssetInstance } from './AssetInstance';
 import { mergePlaced, trsMatrix, type MergedGroup } from './mergeGeometry';
 import { MergedGroupMesh } from './MergedGroupMesh';
+import { useDebugStore } from '../store/useDebugStore';
 
 /**
  * Renders a map's placed instances. Ground/walls are owned by the scene; this
@@ -47,7 +48,10 @@ export function MapView({
   // Merged geometries are created here; free them when they're replaced/unmount.
   useEffect(() => () => merged.forEach((g) => g.geometry.dispose()), [merged]);
 
-  if (!map) return null;
+  // Dev "Perf Debug": skip the scenery props to measure their cost.
+  const hideMapProps = useDebugStore((s) => s.hideMapProps);
+
+  if (!map || hideMapProps) return null;
 
   return (
     <group>
