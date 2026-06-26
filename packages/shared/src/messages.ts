@@ -69,6 +69,8 @@ export enum ClientMessage {
   DevGrantPerk = 'dev_grant_perk',
   /** Dev-only: bump the caller's character level by N (grants the XP needed). */
   DevAddLevel = 'dev_add_level',
+  /** Dev-only: spawn a trap at a location (radius is optional). */
+  DevSpawnTrap = 'dev_spawn_trap',
   /** Feature flag: enable/disable auto-attacks for the room (off by default). */
   SetAutoAttack = 'set_auto_attack',
   /** Ask the server for the global leaderboard (town only). */
@@ -271,6 +273,13 @@ export interface ClientMessagePayloads {
     | { action: 'clear' };
   /** Dev-only: add `amount` levels to the caller. */
   [ClientMessage.DevAddLevel]: { amount: number };
+  /** Dev-only: spawn a trap at a location (radius is optional). */
+  [ClientMessage.DevSpawnTrap]: {
+    kind: 'heal' | 'death' | 'singularity' | 'buff';
+    x: number;
+    z: number;
+    radius?: number;
+  };
   /** Toggle the auto-attack feature flag for the room. */
   [ClientMessage.SetAutoAttack]: { enabled: boolean };
   /** Zombie perk: pick slot 0 (visible A), 1 (visible B), or 2 (jolly).

@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { GLSL_NOISE, UV_VERTEX } from '../render/shaders/common';
+import { SINGULARITY_DURATION_MS } from '@arena/shared';
 
 const ENABLE_3D_FLAMES = true; // Toggle this to false to easily revert back to flat 2D ground circle only
 
@@ -70,6 +71,101 @@ const molotovFireFrag = /* glsl */ `
   }
 `;
 
+const singularityFunnelFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime;
+  ${GLSL_NOISE}
+  void main() {
+    vec2 uv = vUv;
+    // Spiral twist going downwards
+    float swirl = uv.y * 3.14159;
+    float angleUv = uv.x + swirl - uTime * 1.2;
+    float heightUv = uv.y + uTime * 2.0;
+
+    // Multi-layered vertical flow
+    vec2 flowUv1 = vec2(angleUv * 5.0, heightUv * 1.5);
+    vec2 flowUv2 = vec2(angleUv * 10.0, heightUv * 3.0);
+    float n1 = fbm(flowUv1);
+    float n2 = fbm(flowUv2);
+    float n = n1 * 0.6 + n2 * 0.4;
+
+    // Intensity profile: concentrates near bottom
+    float pullIntensity = smoothstep(0.2, 0.7, n) * (1.0 - uv.y);
+    
+    // Grey/White wind speed streaks falling into the void
+    float streaksPattern = sin(angleUv * 20.0 + heightUv * 10.0);
+    float streaks = smoothstep(0.88, 0.96, streaksPattern) * (1.0 - uv.y);
+
+    // Deep purple base color shifting to hot neon pink inside, with electric blue/cyan streaks
+    vec3 deepPurple = vec3(0.08, 0.01, 0.28);
+    vec3 neonPink = vec3(0.9, 0.08, 0.65);
+    vec3 brightCyan = vec3(0.35, 0.85, 1.0);
+
+    vec3 col = mix(deepPurple, neonPink, pullIntensity);
+    col = mix(col, brightCyan, streaks * pullIntensity * 1.6);
+
+    // Fade top edge to blend with environment, and fade bottom point to look like it drops into a void
+    float verticalFade = smoothstep(1.0, 0.75, uv.y) * smoothstep(0.0, 0.1, uv.y);
+    float alpha = (pullIntensity * 0.6 + streaks * 0.45) * verticalFade * 0.85;
+
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+const singularityPullFrag = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime;
+  ${GLSL_NOISE}
+  void main() {
+    vec2 p = vUv - vec2(0.5);
+    float dist = length(p) * 2.0;
+    float angle = atan(p.y, p.x);
+
+    // Exact radius mask - sharp line / clear edge to mark exact damage area
+    float mask = smoothstep(1.0, 0.98, dist);
+
+    // Gravitational space-bending warp towards center core
+    float warp = pow(1.0 - clamp(dist, 0.0, 1.0), 3.0);
+    float warpedDist = dist + warp * 0.55;
+
+    // Swirling spirals moving inward
+    float spiral = sin(angle * 5.0 - warpedDist * 14.0 - uTime * 8.0);
+    float gravityPull = smoothstep(0.0, 0.5, spiral) * (1.0 - dist);
+
+    // High velocity wind lines
+    float windPattern = sin(angle * 12.0 + warpedDist * 28.0 - uTime * 12.0);
+    float windLines = smoothstep(0.90, 0.98, windPattern) * (1.0 - dist * 0.7);
+    
+    // Swirling energy particles getting pulled
+    vec2 polar = vec2(angle * 4.0, warpedDist * 8.0 - uTime * 6.0);
+    float pNoise = fbm(polar * 3.5);
+    float particles = step(0.78, pNoise) * smoothstep(0.05, 0.95, dist);
+
+    // High contrast black-hole space palette
+    vec3 voidBlack = vec3(0.02, 0.0, 0.05);
+    vec3 gravityVoid = vec3(0.25, 0.03, 0.55); // glowing purple suction
+    vec3 accretionGold = vec3(0.9, 0.15, 0.65); // neon pink accretion boundary
+    vec3 highEnergyCyan = vec3(0.3, 0.8, 1.0); // high speed light distortion
+
+    // Mix colors
+    vec3 col = mix(voidBlack, gravityVoid, gravityPull * 0.85);
+    col = mix(col, accretionGold, windLines * 0.7);
+    col = mix(col, highEnergyCyan, particles * 0.95);
+
+    // Alpha composition
+    float alpha = (0.15 + gravityPull * 0.6 + windLines * 0.5 + particles * 0.65) * mask;
+    
+    // Add central pitch black hole shadow on the ground
+    float eventHorizonMask = smoothstep(0.28, 0.33, dist);
+    col = mix(vec3(0.0), col, eventHorizonMask);
+    alpha = mix(0.98, alpha, eventHorizonMask);
+
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
 /**
  * Lingering ground effects — the molotov's burning puddle, singularity vortex, or flux core overcharge.
  * Rendered as flat, animated discs sized EXACTLY to the zone's radius.
@@ -85,22 +181,60 @@ function GroundZoneEntity({ id }: { id: string }) {
   const suction1 = useRef<THREE.Mesh>(null);
   const suction2 = useRef<THREE.Mesh>(null);
 
+  // 3D Singularity references
+  const coreSphere = useRef<THREE.Mesh>(null);
+  const coronaSphere = useRef<THREE.Mesh>(null);
+  const funnelMesh = useRef<THREE.Mesh>(null);
+  const funnelMatRef = useRef<THREE.ShaderMaterial>(null);
+
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
 
   const matRef3D = useRef<THREE.ShaderMaterial>(null);
   const uniforms3D = useMemo(() => ({ uTime: { value: 0 } }), []);
 
+  const pullMatRef = useRef<THREE.ShaderMaterial>(null);
+  const pullUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+
+  const funnelUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+
   const initial = useGameStore.getState().groundZones.get(id);
+
+  const mountTimeRef = useRef<number | null>(null);
 
   useFrame((state, delta) => {
     const z = useGameStore.getState().groundZones.get(id);
     if (!z) return;
     const tEl = state.clock.elapsedTime;
 
+    if (mountTimeRef.current === null) {
+      mountTimeRef.current = tEl;
+    }
+    const elapsed = tEl - mountTimeRef.current;
+
+    let visualScale = 1.0;
+    if (z.kind === 'singularity') {
+      const duration = SINGULARITY_DURATION_MS / 1000;
+      if (elapsed < 0.4) {
+        // Quick expansion: 0 -> 1 over 0.4s
+        const t = elapsed / 0.4;
+        visualScale = t * t * (3.0 - 2.0 * t);
+      } else if (elapsed > duration - 1.2) {
+        const pullStart = duration - 1.2; // 4.8s
+        const pullEnd = duration - 0.2;   // 5.8s
+        if (elapsed < pullEnd) {
+          const t = (elapsed - pullStart) / (pullEnd - pullStart);
+          // Ease-in collapse: starts slow, then snaps rapidly into the void (6th power easing)
+          visualScale = 1.0 - Math.pow(t, 6);
+        } else {
+          visualScale = 0.0;
+        }
+      }
+    }
+
     if (groupRef.current && initial && initial.radius > 0) {
-      const scale = z.radius / initial.radius;
-      groupRef.current.scale.set(scale, 1, scale);
+      const scale = (z.radius / initial.radius) * visualScale;
+      groupRef.current.scale.set(scale, scale, scale);
     }
 
     if (matRef.current?.uniforms?.uTime) {
@@ -108,6 +242,12 @@ function GroundZoneEntity({ id }: { id: string }) {
     }
     if (matRef3D.current?.uniforms?.uTime) {
       matRef3D.current.uniforms.uTime.value += delta;
+    }
+    if (pullMatRef.current?.uniforms?.uTime) {
+      pullMatRef.current.uniforms.uTime.value += delta;
+    }
+    if (funnelMatRef.current?.uniforms?.uTime) {
+      funnelMatRef.current.uniforms.uTime.value += delta;
     }
 
     if (z.kind === 'singularity') {
@@ -149,6 +289,21 @@ function GroundZoneEntity({ id }: { id: string }) {
         (suction2.current.material as THREE.MeshBasicMaterial).opacity = 0.5 * progress;
         suction2.current.rotation.z = tEl * 1.2 + Math.PI;
       }
+
+      // 3D Funnel and Sphere animations
+      if (funnelMesh.current) {
+        funnelMesh.current.rotation.y = tEl * 0.6;
+      }
+      if (coreSphere.current) {
+        const pulse = 1.0 + Math.sin(tEl * 10.0) * 0.06 + Math.cos(tEl * 6.0) * 0.03;
+        coreSphere.current.scale.set(pulse, pulse, pulse);
+      }
+      if (coronaSphere.current) {
+        const pulse = 1.0 + Math.sin(tEl * 10.0 + Math.PI * 0.5) * 0.08 + Math.cos(tEl * 4.0) * 0.03;
+        coronaSphere.current.scale.set(pulse, pulse, pulse);
+        coronaSphere.current.rotation.y = tEl * 1.2;
+        coronaSphere.current.rotation.x = tEl * 0.6;
+      }
     } else if (z.kind === 'buff_core') {
       // High-energy rapid pulsation
       if (core.current) {
@@ -172,7 +327,7 @@ function GroundZoneEntity({ id }: { id: string }) {
 
   if (initial.kind === 'singularity') {
     return (
-      <group position={[initial.x, 0, initial.z]}>
+      <group ref={groupRef} position={[initial.x, 0, initial.z]}>
         {/* Outer Accretion Disk matching the doubled gravity pull radius (2 * r) */}
         <mesh ref={outerSwirl} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[r * 0.6, r * 2.0, 48]} />
@@ -187,6 +342,47 @@ function GroundZoneEntity({ id }: { id: string }) {
         <mesh ref={suction2} position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[r * 0.5, r * 2.0, 32]} />
           <meshBasicMaterial color="#4c1d95" transparent opacity={0} depthWrite={false} />
+        </mesh>
+
+        {/* Gravity Pull Swirl & Wind Shader precisely fitting the damage radius (r) */}
+        <mesh position={[0, 0.038, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[r * 2.0, r * 2.0]} />
+          <shaderMaterial
+            ref={pullMatRef}
+            vertexShader={UV_VERTEX}
+            fragmentShader={singularityPullFrag}
+            uniforms={pullUniforms}
+            transparent
+            depthWrite={false}
+            blending={THREE.NormalBlending}
+          />
+        </mesh>
+
+        {/* 3D Gravity Funnel Cylinder */}
+        <mesh ref={funnelMesh} position={[0, 0.7, 0]} rotation={[0, 0, 0]}>
+          <cylinderGeometry args={[r * 0.12, r * 1.3, 1.4, 32, 1, true]} />
+          <shaderMaterial
+            ref={funnelMatRef}
+            vertexShader={UV_VERTEX}
+            fragmentShader={singularityFunnelFrag}
+            uniforms={funnelUniforms}
+            transparent
+            depthWrite={false}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+
+        {/* 3D Glowing Corona Shell */}
+        <mesh ref={coronaSphere} position={[0, 0.7, 0]}>
+          <sphereGeometry args={[r * 0.22, 32, 32]} />
+          <meshBasicMaterial color="#db2777" transparent opacity={0.65} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+
+        {/* 3D Event Horizon black hole sphere */}
+        <mesh ref={coreSphere} position={[0, 0.7, 0]}>
+          <sphereGeometry args={[r * 0.18, 32, 32]} />
+          <meshBasicMaterial color="#000000" />
         </mesh>
 
         {/* Outer dark purple gravity well base area */}
