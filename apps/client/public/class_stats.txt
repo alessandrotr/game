@@ -215,9 +215,9 @@ Abilities:
     Aim:           Self
     Cooldown:      8000 ms
     Mana Cost:     40 MP
-    Effects:       Applies a 40 HP shield for 6000 ms. When the shield expires or is
+    Effects:       Applies a 40 HP shield for 4000 ms. When the shield expires or is
                    destroyed, it deals a 15 damage burst in a 4-radius area to enemies.
-                   Also empowers the next Smite cast within 6000 ms to deal +20 bonus damage.
+                   Also empowers the next Smite cast within 4000 ms to deal +20 bonus damage.
 
   - [R] Judgment
     Aim:           Direction

@@ -355,8 +355,8 @@ export const ABILITY_REGISTRY = {
     range: 0,
     damage: 0,
     effects: [
-      { type: 'shield', amount: 40, durationMs: 6000 },
-      { type: 'status', status: { kind: 'empower', durationMs: 6000, magnitude: 20, ability: 'smite' } },
+      { type: 'shield', amount: 40, durationMs: 4000 },
+      { type: 'status', status: { kind: 'empower', durationMs: 4000, magnitude: 20, ability: 'smite' } },
     ],
   },
   condemn: {
