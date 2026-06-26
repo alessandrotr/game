@@ -14,7 +14,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { PlaceholderPart, Vec3 } from '@arena/shared';
+import type { PlaceholderModel, PlaceholderPart, Vec3 } from '@arena/shared';
 
 /**
  * Static-geometry merging for placeholder props.
@@ -44,6 +44,37 @@ function geometryForPart(part: PlaceholderPart): BufferGeometry {
     default:
       return new BoxGeometry(a[0] ?? 1, a[1] ?? 1, a[2] ?? 1);
   }
+}
+
+/**
+ * Per-model merged geometry for a placeholder prop, cached so every instance of
+ * the same model (e.g. every oil drum) shares one set of batched meshes. A prop's
+ * parts never move relative to each other, so baking them into a few
+ * material-grouped meshes turns a ~30-part house from ~30 draw calls into a
+ * handful, with no visible change. Animated `fire` parts can't be baked (they each
+ * need their own live shader), so they're kept out and drawn individually.
+ */
+export interface MergedProp {
+  groups: MergedGroup[];
+  fireParts: PlaceholderPart[];
+}
+const mergedPropCache = new WeakMap<PlaceholderModel, MergedProp>();
+
+export function getMergedProp(model: PlaceholderModel): MergedProp {
+  const cached = mergedPropCache.get(model);
+  if (cached) return cached;
+  const fireParts: PlaceholderPart[] = [];
+  const placed: { part: PlaceholderPart; matrix: Matrix4 }[] = [];
+  for (const part of model.parts) {
+    if (part.material === 'fire') {
+      fireParts.push(part);
+      continue;
+    }
+    placed.push({ part, matrix: trsMatrix(part.position, part.rotation, part.scale) });
+  }
+  const result: MergedProp = { groups: mergePlaced(placed), fireParts };
+  mergedPropCache.set(model, result);
+  return result;
 }
 
 /** Compose a TRS matrix from a placeholder part's (or prop's) transform. */

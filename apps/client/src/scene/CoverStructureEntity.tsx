@@ -122,18 +122,14 @@ export function CoverStructureEntity({ structureId }: { structureId: string }) {
       // Crumbled: squash flat into a low rubble footprint.
       scale={[1, s.destroyed ? 0.18 : 1, 1]}
     >
-      {isCar ? (
+      {isCar && (
+        // Cars stay per-entity (rolling body + individually spinning wheels).
         <group ref={carGroup}>
           <AssetInstance id={s.assetId as AssetId} />
         </group>
-      ) : (
-        // Stretch only the visual along the prop's local length (X) axis — the
-        // circular collider + HP bar (siblings) keep the base footprint, so a
-        // longer trailer is never wider.
-        <group scale={[s.lengthScale, 1, 1]}>
-          <AssetInstance id={s.assetId as AssetId} />
-        </group>
       )}
+      {/* Non-car bodies (trailers/houses/dumpsters) are drawn in one batch by
+          <InstancedCovers>; this group keeps the collider + HP bar below. */}
       {isCar && stage === 'smoke' && <CarSmoke height={s.height} radius={s.radius} />}
       {isCar && stage === 'fire' && <CarFire height={s.height} radius={s.radius} />}
       {!s.destroyed && !structureId.startsWith('door-') && (

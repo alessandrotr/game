@@ -2,7 +2,7 @@ import { Suspense, useMemo, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { DoubleSide, AdditiveBlending, type ShaderMaterial, type CanvasTexture, type Matrix4 } from 'three';
+import { DoubleSide, AdditiveBlending, type ShaderMaterial, type CanvasTexture } from 'three';
 import type { GltfModel, PlaceholderModel, PlaceholderPart, RenderSource } from '@arena/shared';
 import { UV_VERTEX, useUTime } from './shaders/common';
 import { barrelFireFrag } from './shaders/coverEffects';
@@ -13,44 +13,13 @@ import { brickOnBeforeCompile, brickCacheKey } from './brickMaterial';
 import { roofTileOnBeforeCompile, roofTileCacheKey } from './roofTileMaterial';
 import { enchantMaterialFor, type EnchantParams } from './enchantMaterial';
 import { AssetErrorBoundary } from './AssetErrorBoundary';
-import { mergePlaced, trsMatrix, type MergedGroup } from './mergeGeometry';
+import { getMergedProp } from './mergeGeometry';
 import { MergedGroupMesh } from './MergedGroupMesh';
 
 /** The paint texture for a given part name, or null when it has none / unpainted. */
 function partMap(paint: PaintTextures | undefined, name?: string) {
   if (!paint || !name) return null;
   return (paint as Record<string, CanvasTexture | null | undefined>)[name] ?? null;
-}
-
-/**
- * Per-model merged geometry for a placeholder prop, cached so every instance of
- * the same model (e.g. every oil drum) shares one set of batched meshes. A prop's
- * parts never move relative to each other, so baking them into a few
- * material-grouped meshes turns a ~30-part house from ~30 draw calls into a
- * handful, with no visible change. Animated `fire` parts can't be baked (they each
- * need their own live shader), so they're kept out and drawn individually.
- */
-interface MergedProp {
-  groups: MergedGroup[];
-  fireParts: PlaceholderPart[];
-}
-const mergedPropCache = new WeakMap<PlaceholderModel, MergedProp>();
-
-function getMergedProp(model: PlaceholderModel): MergedProp {
-  const cached = mergedPropCache.get(model);
-  if (cached) return cached;
-  const fireParts: PlaceholderPart[] = [];
-  const placed: { part: PlaceholderPart; matrix: Matrix4 }[] = [];
-  for (const part of model.parts) {
-    if (part.material === 'fire') {
-      fireParts.push(part);
-      continue;
-    }
-    placed.push({ part, matrix: trsMatrix(part.position, part.rotation, part.scale) });
-  }
-  const result: MergedProp = { groups: mergePlaced(placed), fireParts };
-  mergedPropCache.set(model, result);
-  return result;
 }
 
 /**

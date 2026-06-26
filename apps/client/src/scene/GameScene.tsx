@@ -28,6 +28,8 @@ import { TownBreachRift } from './TownBreachRift';
 import { PlayerEntity } from './PlayerEntity';
 import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
+import { InstancedDrums } from './InstancedDrums';
+import { InstancedCovers } from './InstancedCovers';
 import { CoverStructureEntity } from './CoverStructureEntity';
 import { Projectiles } from './Projectiles';
 import { Pickables } from './Pickables';
@@ -196,9 +198,11 @@ export function GameScene() {
       {isArena && !hideBarrels &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
 
+      {isArena && !hideDestructibles && <InstancedDrums />}
       {isArena && !hideDestructibles &&
         destructibleIds.map((id) => <DestructibleEntity key={id} destructibleId={id} />)}
 
+      {isArena && !hideStructures && <InstancedCovers />}
       {isArena && !hideStructures &&
         structureIds.map((id) => <CoverStructureEntity key={id} structureId={id} />)}
 
