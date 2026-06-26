@@ -11,6 +11,8 @@ interface DevHandlerDeps {
   perkSystem: PerkSystem | undefined;
   setBotPopulation: (message: ClientMessagePayloads[ClientMessage.BotControl]) => void;
   traps: TrapSystem;
+  /** Jump the zombie wave director to `wave` and open the doors unlocked by then. */
+  devJumpToWave: (wave: number) => void;
 }
 
 /**
@@ -82,6 +84,17 @@ export function registerDevHandlers(room: ArenaRoom, deps: DevHandlerDeps): void
         },
         true,
       );
+    },
+  );
+
+  // Dev-only: jump the zombie run to a chosen wave (opens doors unlocked by then,
+  // then starts that wave's horde). No-op in production / outside zombie mode.
+  room.onMessage(
+    ClientMessage.DevSetWave,
+    (_client, message: ClientMessagePayloads[ClientMessage.DevSetWave]) => {
+      if (process.env.NODE_ENV === 'production') return;
+      const wave = Number(message?.wave);
+      if (Number.isFinite(wave) && wave > 0) deps.devJumpToWave(wave);
     },
   );
 }

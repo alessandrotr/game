@@ -21,6 +21,9 @@ import {
   isRooted,
   isStunned,
   isZombieSkin,
+  ZOMBIE_MINIBOSS_SKIN_ID,
+  TITAN_SKIN_ID,
+  TITAN_SCALE,
   stepLocomotion,
   type AnimationName,
   type ArenaObstacle,
@@ -126,17 +129,22 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const chunkCount = Math.max(1, Math.round(maxHp / HP_PER_CHUNK));
   const bubble = useSpeechStore((s) => s.bubbles[sessionId]);
   const skinId = useGameStore((s) => s.players.get(sessionId)?.skinId ?? '');
-  const isMiniBoss = skinId === 'skin.zombie.miniboss';
-  const scaleMult = isMiniBoss ? 2.5 : 1;
+  const isMiniBoss = skinId === ZOMBIE_MINIBOSS_SKIN_ID;
+  const isTitan = skinId === TITAN_SKIN_ID;
+  const scaleMult = isTitan ? TITAN_SCALE : isMiniBoss ? 2.5 : 1;
   const billboardY = 2.7 * scaleMult;
   const bubbleY = 3.4 * scaleMult;
 
   // Selective store listener: only trigger a re-render when the rage threshold is crossed,
-  // preventing constant re-renders/useMemo updates on every HP fluctuation.
+  // preventing constant re-renders/useMemo updates on every HP fluctuation. The Titan
+  // shares the berserk cue (it enters its Devourer Singularity phase at 50%).
   const isRaged = useGameStore((s) => {
     const p = s.players.get(sessionId);
     if (!p) return false;
-    return p.skinId === 'skin.zombie.miniboss' && p.hp < p.maxHp * 0.5;
+    return (
+      (p.skinId === ZOMBIE_MINIBOSS_SKIN_ID || p.skinId === TITAN_SKIN_ID) &&
+      p.hp < p.maxHp * 0.5
+    );
   });
 
   const descriptor = useMemo(() => {
@@ -464,7 +472,10 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     const moved = Math.hypot(sdx, sdz);
     speedRef.current = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
     const smoothedAnim =
-      isLocal || latest.skinId === 'skin.zombie.miniboss' || !isZombieSkin(latest.skinId);
+      isLocal ||
+      latest.skinId === ZOMBIE_MINIBOSS_SKIN_ID ||
+      latest.skinId === TITAN_SKIN_ID ||
+      !isZombieSkin(latest.skinId);
     if (smoothedAnim) {
       const speed = speedRef.current;
       const predicted = fsm.current.step(

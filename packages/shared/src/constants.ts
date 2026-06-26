@@ -133,6 +133,82 @@ export const BUFF_TRAP_DAMAGE_MULT = 2.5;
 /** Active zone effect radius for the buff trap. */
 export const BUFF_TRAP_EFFECT_RADIUS = 9;
 
+// --- Resonance of the Void: end-game altar / ritual / superweapon / boss ----
+// Zombie-mode end-game loop (wave 13+). An Altar of Resonance rises at the room
+// centre; four gem sockets light as traps auto-fire (any trap, any kind — only
+// the count matters). With all 4 lit a player can channel a ritual at the altar
+// to claim the Singularity Cannon superweapon. The Necrotic Titan arrives on a
+// fixed wave no matter what, with a countdown running from the altar's spawn.
+
+/** Wave the Altar of Resonance rises at the room centre. */
+export const ALTAR_SPAWN_WAVE = 13;
+/** Wave the Necrotic Titan spawns — fixed, regardless of ritual progress. The
+ *  countdown HUD runs from {@link ALTAR_SPAWN_WAVE} to this. */
+export const TITAN_SPAWN_WAVE = 16;
+/** Altar world position (room centre; (0,0) is empty in the zombie room). */
+export const ALTAR_POSITION = { x: 0, z: 0 } as const;
+/** Prop asset id the altar is replicated/rendered as (a CoverStructure). */
+export const ALTAR_ASSET_ID = 'prop.altar';
+/** Solid obelisk collision footprint radius — players/zombies path around it. */
+export const ALTAR_RADIUS = 1.4;
+/** Visual height of the altar collider (Rapier static cylinder). */
+export const ALTAR_HEIGHT = 3;
+/** Walkable glowing ritual ring around the base — the channeller must stay
+ *  inside this radius (solo cancels on leaving). Comfortably clears the obelisk. */
+export const ALTAR_RITUAL_RADIUS = 3;
+/** Gem sockets on the altar. Each trap auto-fire lights the next unlit one. */
+export const ALTAR_GEM_COUNT = 4;
+
+/** Ritual channel duration (ms) to claim the superweapon. */
+export const RITUAL_CHANNEL_MS = 4000;
+/** Mana drained per second while channelling. Regen is suppressed for the
+ *  channel's duration so this actually bites: {@link RITUAL_CHANNEL_MS} at this
+ *  rate = 80 mana total, so ~80 banked mana is required to finish. */
+export const RITUAL_MANA_DRAIN_PER_SEC = 20;
+/** Move-speed multiplier while channelling (multi-player only — 50% slow). */
+export const RITUAL_SLOW_MAGNITUDE = 0.5;
+/** Sprinters rushed at the channeller when the ritual starts (multi-player). */
+export const RITUAL_RUSH_SPRINTERS = 8;
+/** Sprinters rushed at a solo channeller (scaled down). */
+export const RITUAL_SOLO_SPRINTERS = 3;
+/** Solo only: radius of the opening shockwave that knocks back + stuns zombies. */
+export const RITUAL_SOLO_SHOCKWAVE_RADIUS = 8;
+/** Solo only: stun applied by the opening shockwave (ms). */
+export const RITUAL_SOLO_SHOCKWAVE_STUN_MS = 2000;
+
+/** The superweapon's id — stored in `Player.superweapon` while wielded; keys the
+ *  ability-loadout override and the client action-bar / weapon-model swap. */
+export const SUPERWEAPON_ID = 'singularity_cannon';
+
+/** Soul Charges the Singularity Cannon comes loaded with. It uses no mana and
+ *  takes no pickups; when charges hit 0 the weapon despawns and the class
+ *  loadout returns. Tuned so a clean Titan kill spends ~70–80% of the bar. */
+export const SUPERWEAPON_CHARGES = 600;
+/** Charge cost per superweapon action (basic attack + the four ability slots). */
+export const SUPERWEAPON_COST = {
+  basic: 2,
+  Q: 15,
+  W: 10,
+  E: 10,
+  R: 50,
+} as const;
+
+/** Necrotic Titan skin id (a 2.5×-scaled boss zombie). */
+export const TITAN_SKIN_ID = 'skin.zombie.titan';
+/** Titan render scale — the mini-boss body (already 2.5×) rendered even larger so
+ *  the Titan towers over it. */
+export const TITAN_SCALE = 4;
+/** Titan HP, base + per additional human. Solo 4000 → 5-player 14000. */
+export const TITAN_BASE_HP = 4000;
+export const TITAN_HP_PER_PLAYER = 2500;
+/** HP the team must burst in 5s at the Titan's 50% gravity-well phase to break it. */
+export const TITAN_STAGGER_DAMAGE = 2000;
+
+/** Titan HP for a given count of present humans (min 1). */
+export function titanHpForPlayers(humans: number): number {
+  return TITAN_BASE_HP + Math.max(0, Math.floor(humans) - 1) * TITAN_HP_PER_PLAYER;
+}
+
 
 /** Player movement speed in world units per second. */
 export const PLAYER_SPEED = 9;
@@ -811,7 +887,8 @@ export function isZombieSkin(skinId: string): boolean {
     skinId === ZOMBIE_SKIN_ID ||
     skinId === ZOMBIE_SPRINTER_SKIN_ID ||
     skinId === ZOMBIE_FAT_SKIN_ID ||
-    skinId === ZOMBIE_MINIBOSS_SKIN_ID
+    skinId === ZOMBIE_MINIBOSS_SKIN_ID ||
+    skinId === TITAN_SKIN_ID
   );
 }
 
@@ -900,6 +977,8 @@ export {
   ABILITY_REGISTRY,
   ABILITY_SLOTS,
   CLASS_LOADOUTS,
+  SUPERWEAPON_LOADOUT,
+  slotForAbility,
   isAbilityKind,
 } from './abilities/registry.js';
 

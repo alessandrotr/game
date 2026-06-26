@@ -8,6 +8,7 @@ import { useMinimumDuration } from './hooks/useMinimumDuration';
 import { useAbilityHotkeys } from './hooks/useAbilityHotkeys';
 import { useJump } from './hooks/useJump';
 import { useInteract } from './hooks/useInteract';
+import { useRitual } from './hooks/useRitual';
 import { useEmotes } from './hooks/useEmotes';
 import { useServerMovementTuning } from './hooks/useServerMovementTuning';
 import { useServerAbilityTuning } from './hooks/useServerAbilityTuning';
@@ -69,6 +70,7 @@ export default function App() {
   useAbilityHotkeys(connected && inArena);
   useJump(connected && !inArena); // jump in town; the arena uses spacebar to throw
   useInteract(connected && inArena); // spacebar grabs/throws pickables (arena only)
+  useRitual(connected && inArena); // hold F at the altar to channel the ritual (zombie only; server-gated)
   useEmotes(connected); // number keys → dances
   useServerMovementTuning(connected && inArena);
   useServerAbilityTuning(connected && inArena);

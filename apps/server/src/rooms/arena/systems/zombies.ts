@@ -126,6 +126,26 @@ export class ZombieDirector {
     this.publish(this.hooks.aliveZombies());
   }
 
+  /** Dev-only: jump straight to `level` and immediately begin its horde (door
+   *  unlocks are driven separately by the room). Clears the in-flight quota so
+   *  the target wave starts fresh; existing zombies are left for the room. */
+  jumpToLevel(level: number, now: number): void {
+    this.level = Math.max(0, Math.floor(level) - 1);
+    this.quota = 0;
+    this.perkPaused = false;
+    this.phase = 'intermission';
+    this.beginLevel(now); // increments to `level`, sets quota, fires onWaveBegin
+    this.publish(this.hooks.aliveZombies());
+  }
+
+  /** Clear the current wave's remaining spawn quota (the level won't clear until
+   *  every alive enemy — e.g. a boss — is dead). Used to freeze the normal horde
+   *  for the Necrotic Titan's boss wave. */
+  freezeHorde(): void {
+    this.quota = 0;
+    this.publish(this.hooks.aliveZombies());
+  }
+
   /** A randomized gap until the next spawn pulse, so the horde arrives unevenly. */
   private randomSpawnDelay(): number {
     const span = ZOMBIE_SPAWN_INTERVAL_MAX_MS - ZOMBIE_SPAWN_INTERVAL_MIN_MS;

@@ -110,6 +110,15 @@ export class Player extends Schema {
   @type('string') chargeAbility = '';
   @type('number') chargeDirX = 0;
   @type('number') chargeDirZ = 1;
+  /** Equipped end-game superweapon id ('' = none → normal class loadout). While
+   *  set, the player's Q/W/E/R + basic attack are overridden by the cannon and
+   *  cost Soul Charges instead of mana. Kept last so existing replicated field
+   *  offsets are unchanged. */
+  @type('string') superweapon = '';
+  /** Remaining Soul Charges for the equipped superweapon (0 when none). The
+   *  weapon despawns at 0. Kept last so existing replicated field offsets are
+   *  unchanged. */
+  @type('number') soulCharges = 0;
 }
 
 /** Authoritative in-flight projectile, mirrors `ProjectileView` in `@arena/shared`. */
@@ -260,4 +269,8 @@ export class ArenaState extends Schema {
   /** How many sections beyond the main room are unlocked (0–3). Drives the
    *  client's section rendering, minimap, and door barrier state. */
   @type('number') unlockedSections = 0;
+  /** Resonance of the Void: how many of the altar's 4 gem sockets are lit
+   *  (0–4). Each trap auto-fire lights the next one; at 4 the ritual unlocks.
+   *  Kept last so existing replicated field offsets are unchanged. */
+  @type('number') altarGemsLit = 0;
 }

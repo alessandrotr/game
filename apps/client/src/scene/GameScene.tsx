@@ -8,7 +8,7 @@ import {
   type Mesh,
   type ToneMapping,
 } from 'three';
-import { type MapAssetId, isZombieSkin, ZOMBIE_MINIBOSS_SKIN_ID } from '@arena/shared';
+import { type MapAssetId, isZombieSkin, ZOMBIE_MINIBOSS_SKIN_ID, TITAN_SKIN_ID } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { TownAtmosphere } from './TownAtmosphere';
@@ -36,6 +36,7 @@ import { Projectiles } from './Projectiles';
 import { Pickables } from './Pickables';
 import { GroundZones } from './GroundZones';
 import { Traps } from './Traps';
+import { AltarOfResonance } from './AltarOfResonance';
 import { CameraRig } from './CameraRig';
 import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
@@ -118,7 +119,12 @@ export function GameScene() {
     const players = useGameStore.getState().players;
     return playerIds.filter((id) => {
       const p = players.get(id);
-      return !(p && isZombieSkin(p.skinId) && p.skinId !== ZOMBIE_MINIBOSS_SKIN_ID);
+      return !(
+        p &&
+        isZombieSkin(p.skinId) &&
+        p.skinId !== ZOMBIE_MINIBOSS_SKIN_ID &&
+        p.skinId !== TITAN_SKIN_ID
+      );
     });
   }, [playerIds, instancedHorde]);
 
@@ -211,6 +217,7 @@ export function GameScene() {
       {isArena && !hidePickables && <Pickables />}
       {isArena && !hideZones && <GroundZones />}
       {isArena && zombieMode && !hideZones && <Traps />}
+      {isArena && zombieMode && <AltarOfResonance />}
 
       {!hideVfx && <VfxLayer />}
       {isArena && (

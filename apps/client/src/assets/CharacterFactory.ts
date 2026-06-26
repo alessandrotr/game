@@ -4,6 +4,8 @@ import {
   ZOMBIE_SPRINTER_SKIN_ID,
   ZOMBIE_FAT_SKIN_ID,
   ZOMBIE_MINIBOSS_SKIN_ID,
+  TITAN_SKIN_ID,
+  TITAN_SCALE,
   getCosmeticOfType,
   type CharacterClass,
   type CharacterDescriptor,
@@ -91,6 +93,15 @@ registerSkin({
   id: ZOMBIE_MINIBOSS_SKIN_ID,
   baseId: 'char.warrior',
   render: { kind: 'placeholder', parts: zombieBody('miniboss'), scale: 2.5 },
+  hideWeapon: true,
+});
+
+/** Necrotic Titan: the mini-boss body rendered far larger (the end-game boss).
+ *  {@link TITAN_SKIN_ID}. */
+registerSkin({
+  id: TITAN_SKIN_ID,
+  baseId: 'char.warrior',
+  render: { kind: 'placeholder', parts: zombieBody('miniboss'), scale: TITAN_SCALE },
   hideWeapon: true,
 });
 

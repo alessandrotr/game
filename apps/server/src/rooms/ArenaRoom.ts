@@ -21,6 +21,12 @@ import {
   MAX_PLAYERS,
   PLAYER_RADIUS,
   ZOMBIE_COOP_MAX_PLAYERS,
+  ALTAR_SPAWN_WAVE,
+  TITAN_SPAWN_WAVE,
+  TITAN_SKIN_ID,
+  SUPERWEAPON_LOADOUT,
+  SUPERWEAPON_COST,
+  slotForAbility,
   TICK_MS,
   ZOMBIE_ATTACK_MAX_MS,
   ZOMBIE_ATTACK_MIN_MS,
@@ -366,6 +372,7 @@ export class ArenaRoom extends AvatarRoom {
         barrels: this.barrels,
         destructibles: this.destructibles,
         traps: this.traps,
+        groundZones: this.groundZones,
         broadcast: (type, message) => this.broadcast(type, message),
       });
       this.cover.setRoomLayout(this.roomLayout);
@@ -398,8 +405,15 @@ export class ArenaRoom extends AvatarRoom {
           if (!this.perkSystem) return true;
           return !this.perkSystem.hasPendingOffers();
         },
-        onWaveBegin: () => {
+        onWaveBegin: (level) => {
           this.perkSystem?.resetWaveCharges();
+          // Resonance of the Void: raise the altar at the centre from wave 13 on,
+          // and on wave 16 spawn the Necrotic Titan + freeze the normal horde so
+          // it's a clean boss phase (spawnTitan returns true only the first time).
+          if (level >= ALTAR_SPAWN_WAVE) this.zombie!.ensureAltar();
+          if (level >= TITAN_SPAWN_WAVE && this.zombie!.spawnTitan()) {
+            this.zombieDirector!.freezeHorde();
+          }
         },
       });
       this.zombieDirector.start(this.simTime);
@@ -519,12 +533,35 @@ export class ArenaRoom extends AvatarRoom {
       perkSystem: this.perkSystem,
       setBotPopulation: (message) => this.setBotPopulation(message),
       traps: this.traps,
+      devJumpToWave: (wave) => {
+        if (!this.zombieDirector || !this.zombie) return;
+        const target = Math.max(1, Math.floor(wave));
+        // Open each door whose unlock wave we've now reached. tryUnlockDoor opens
+        // at most one section per call and bumps unlockedSections, so loop until
+        // it stops making progress (bounded by the door count).
+        for (let i = 0; i < 8; i++) {
+          const before = this.state.unlockedSections;
+          this.zombie.tryUnlockDoor(target);
+          if (this.state.unlockedSections === before) break;
+        }
+        this.zombieDirector.jumpToLevel(target, this.simTime);
+      },
     });
 
     this.onMessage(
       ClientMessage.SetAutoAttack,
       (_client, message: ClientMessagePayloads[ClientMessage.SetAutoAttack]) =>
         this.setAutoAttackEnabled(!!message?.enabled),
+    );
+    // Resonance of the Void: start/stop channelling the altar ritual. The system
+    // validates gems / wave phase / proximity / mana; an invalid start is a no-op.
+    this.onMessage(
+      ClientMessage.RitualChannel,
+      (client, message: ClientMessagePayloads[ClientMessage.RitualChannel]) => {
+        if (!this.zombieMode || !this.zombie) return;
+        if (message?.active) this.zombie.startRitual(client.sessionId);
+        else this.zombie.stopRitual(client.sessionId);
+      },
     );
     this.onMessage(
       ClientMessage.AimChannel,
@@ -800,14 +837,29 @@ export class ArenaRoom extends AvatarRoom {
     }
 
     const ability = message.ability;
-    const config = this.tuning.abilityFor(player.characterClass, ability);
+    // Resonance of the Void: while the Singularity Cannon is equipped, the slot
+    // the player pressed (resolved from their class loadout) fires the cannon's
+    // ability and costs Soul Charges instead of mana. `ability` stays the pressed
+    // id (so the client's cooldown UI / ResetCooldown line up); `castAbility` is
+    // what actually resolves + drives VFX + keys the server cooldown.
+    let castAbility = ability;
+    let superweaponCost = 0;
+    if (player.superweapon) {
+      const slot = slotForAbility(player.characterClass as CharacterClass, ability);
+      if (slot) {
+        castAbility = SUPERWEAPON_LOADOUT[slot];
+        superweaponCost = SUPERWEAPON_COST[slot];
+      }
+    }
+    const isSuperweapon = superweaponCost > 0;
+    const config = this.tuning.abilityFor(player.characterClass, castAbility);
     const cd = this.cooldowns.get(sessionId);
     if (!cd) return;
 
     // While a channel (the priest beam) is active, re-pressing its key interrupts
     // it and every OTHER ability is locked out for the duration.
     if (this.channels.isActive(sessionId)) {
-      if (player.channelAbility === ability) {
+      if (player.channelAbility === castAbility) {
         this.channels.stop(sessionId);
       } else {
         this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
@@ -820,23 +872,28 @@ export class ArenaRoom extends AvatarRoom {
     const state = this.ninjaEStates.get(sessionId);
     const inRecastWindow = state && this.simTime >= state.windowStart && this.simTime <= state.windowEnd;
 
-    if (!inRecastWindow && (cd[ability] ?? 0) > this.simTime + CAST_COOLDOWN_GRACE_MS) {
+    if (!inRecastWindow && (cd[castAbility] ?? 0) > this.simTime + CAST_COOLDOWN_GRACE_MS) {
 
       this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
       return;
     }
 
     let manaCost = config.manaCost;
-    if (ability === 'ninja_e' && inRecastWindow) {
+    if (castAbility === 'ninja_e' && inRecastWindow) {
       manaCost += 10;
     }
-    if (player.mana < manaCost) {
+    if (isSuperweapon) {
+      if (player.soulCharges < superweaponCost) {
+        this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
+        return;
+      }
+    } else if (player.mana < manaCost) {
 
       this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability });
       return;
     }
     if (this.pendingCasts.has(sessionId)) {
-      if (ability === 'ninja_r') {
+      if (castAbility === 'ninja_r') {
         this.pendingCasts.delete(sessionId);
       } else {
 
@@ -910,16 +967,22 @@ export class ArenaRoom extends AvatarRoom {
 
     // Commit cost + cooldown at cast start, then face the cast direction.
     const perkMods = this.perkSystem?.getModifiers(sessionId);
-    spendMana(player, manaCost * (perkMods?.manaCostMult ?? 1));
-    if (ability === 'ninja_e') {
+    if (isSuperweapon) {
+      // The cannon spends Soul Charges; running dry despawns it (class kit returns).
+      player.soulCharges = Math.max(0, player.soulCharges - superweaponCost);
+      if (player.soulCharges <= 0) player.superweapon = '';
+    } else {
+      spendMana(player, manaCost * (perkMods?.manaCostMult ?? 1));
+    }
+    if (castAbility === 'ninja_e') {
       if (inRecastWindow && state) {
         const baseCd = 6000 * (perkMods?.cooldownMult ?? 1);
-        cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
+        cd[castAbility] = Math.max(cd[castAbility] ?? 0, this.simTime) + baseCd;
         this.ninjaEStates.delete(sessionId);
       } else {
         const windowStart = this.simTime + 314;
         const windowEnd = this.simTime + 1700;
-        cd[ability] = windowStart;
+        cd[castAbility] = windowStart;
         this.ninjaEStates.set(sessionId, {
           stage: 1,
           windowStart,
@@ -930,13 +993,13 @@ export class ArenaRoom extends AvatarRoom {
       }
     } else {
       const baseCd = config.cooldownMs * (perkMods?.cooldownMult ?? 1);
-      cd[ability] = Math.max(cd[ability] ?? 0, this.simTime) + baseCd;
+      cd[castAbility] = Math.max(cd[castAbility] ?? 0, this.simTime) + baseCd;
     }
 
     // Apply a 250ms lockout to the Ultimate (R) ability after any other ability cast.
     const classLoadout = CLASS_LOADOUTS[player.characterClass as CharacterClass];
     const rAbility = classLoadout?.['R'];
-    if (rAbility && rAbility !== ability) {
+    if (rAbility && rAbility !== castAbility) {
       const existingR = cd[rAbility] ?? 0;
       const lockout = this.simTime + 250;
       cd[rAbility] = Math.max(existingR, lockout);
@@ -948,7 +1011,7 @@ export class ArenaRoom extends AvatarRoom {
     // immediately, whether or not the effect has a wind-up.
     this.broadcast(ServerMessage.AbilityCast, {
       casterId: sessionId,
-      ability,
+      ability: castAbility,
       x: player.x,
       y: PROJECTILE_Y,
       z: player.z,
@@ -974,7 +1037,7 @@ export class ArenaRoom extends AvatarRoom {
       // Rooted wind-up: cancel any move and resolve when the timer elapses.
       this.destinations.delete(sessionId);
       this.pendingCasts.set(sessionId, {
-        ability,
+        ability: castAbility,
         config,
         dirX,
         dirZ,
@@ -985,7 +1048,7 @@ export class ArenaRoom extends AvatarRoom {
       });
     } else {
       let activeConfig = config;
-      if (ability === 'ninja_e' && inRecastWindow && state) {
+      if (castAbility === 'ninja_e' && inRecastWindow && state) {
         activeConfig = {
           ...config,
           effects: [
@@ -1279,6 +1342,13 @@ export class ArenaRoom extends AvatarRoom {
         if (player.statuses.length > 0) player.statuses.clear();
         player.shield = 0;
         player.holding = ''; // a carried object is lost on death
+        // Resonance of the Void: the Singularity Cannon leaves the wielder on death.
+        // TODO(resonance): drop it as a re-pickable with its remaining charges (the
+        // chosen design); interim behaviour is that it's lost.
+        if (player.superweapon) {
+          player.superweapon = '';
+          player.soulCharges = 0;
+        }
         // What death means here is the mode's call: a slain zombie is REMOVED
         // (vanishes immediately — no corpse animation, clears the "all dead" check
         // at once); a co-op human LINGERs (death is final, stays to spectate/quit
@@ -1310,7 +1380,11 @@ export class ArenaRoom extends AvatarRoom {
       if (player.statuses.some((s) => s.kind === 'buff')) {
         manaRegenMult *= 1.5;
       }
-      regenMana(player, MANA_REGEN * this.mode.manaRegenMult * manaRegenMult, dt);
+      // Suppress regen while channelling the altar ritual so the 20/s drain
+      // actually depletes (see ZombieSurvival.updateRituals).
+      if (!this.zombie?.isRitualing(sessionId)) {
+        regenMana(player, MANA_REGEN * this.mode.manaRegenMult * manaRegenMult, dt);
+      }
       // Crowd control / buffs / dot-hot: prune, tick, and expire shields.
       this.combat.updateStatuses(player);
 
@@ -1331,6 +1405,11 @@ export class ArenaRoom extends AvatarRoom {
         // Knock dynamic objects (barrels, drums, tires) over while walking
         this.barrels.triggerInRadius(player.x, player.z, 1.6, sessionId);
         this.destructibles.pushInRadius(player.x, player.z, 1.6, sessionId, 1);
+      } else if (player.skinId === TITAN_SKIN_ID) {
+        // Resonance of the Void: the Necrotic Titan's boss routines.
+        this.zombie!.updateTitanAI(player, sessionId);
+        this.barrels.triggerInRadius(player.x, player.z, 2.6, sessionId);
+        this.destructibles.pushInRadius(player.x, player.z, 2.6, sessionId, 1);
       }
 
       // Capture pre-move position to derive locomotion (run vs idle) below.
@@ -1483,6 +1562,7 @@ export class ArenaRoom extends AvatarRoom {
     // Zombies are solid: keep a horde from collapsing onto a single point (and
     // off the top of a player) by separating overlapping bodies each tick.
     if (this.zombieMode) this.zombie!.resolveZombieCollisions();
+    if (this.zombieMode) this.zombie!.updateRituals(dt);
 
     this.channels.update();
     this.combat.processDashImpacts();
@@ -1583,6 +1663,8 @@ export class ArenaRoom extends AvatarRoom {
     player.maxHp = stats.health * (this.perkSystem?.getModifiers(player.sessionId).maxHpMult ?? 1);
     player.maxMana = stats.mana;
     player.shield = 0;
+    player.superweapon = '';
+    player.soulCharges = 0;
     if (player.statuses.length > 0) player.statuses.clear();
     this.displacements.delete(player.sessionId);
     reviveFull(player);
