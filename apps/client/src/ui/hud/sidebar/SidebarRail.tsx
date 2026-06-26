@@ -22,11 +22,15 @@ function RailButton({
       aria-label={entry.label}
       aria-pressed={entry.kind === 'panel' ? active : undefined}
       className={cn(
-        'group relative grid size-11 place-items-center rounded-xl outline-none transition-colors',
+        'group relative grid size-11 place-items-center rounded-xl outline-none transition duration-200',
         'focus-visible:ring-2 focus-visible:ring-gold/80',
         active
           ? 'bg-gold/15 text-gold ring-1 ring-gold/30'
-          : 'text-muted hover:bg-white/5 hover:text-text',
+          : entry.accent
+            ? // The upgrade CTA — a soft gold-gradient chip that brightens on hover,
+              // so it reads as special without shouting. No resting glow.
+              'bg-linear-to-b from-gold/25 to-gold/5 text-gold ring-1 ring-gold/25 hover:from-gold/35 hover:to-gold/10'
+            : 'text-muted hover:bg-white/5 hover:text-text',
       )}
     >
       <Icon size={20} aria-hidden="true" />

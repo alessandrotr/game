@@ -26,6 +26,8 @@ interface BaseEntry {
   guestOnly?: boolean;
   /** Footer entries render in a separate group below a divider. */
   footer?: boolean;
+  /** Give the rail icon a distinct gold-accent treatment (the upgrade CTA). */
+  accent?: boolean;
 }
 
 /** A nav entry that expands a content panel beside the rail. */
@@ -100,22 +102,24 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
   // --- Account actions (footer; inline panels like the rest) ---
   {
     kind: 'panel',
-    id: 'save-progress',
-    label: 'Save progress',
-    icon: UserPlus,
-    width: 'narrow',
-    guestOnly: true,
-    footer: true,
-    Content: SaveProgressContent,
-  },
-  {
-    kind: 'panel',
     id: 'change-character',
     label: 'Change character',
     icon: RotateCcw,
     width: 'narrow',
     footer: true,
     Content: ChangeCharacterContent,
+  },
+  // Guests only, kept last — the upgrade CTA, given a distinct gold accent.
+  {
+    kind: 'panel',
+    id: 'save-progress',
+    label: 'Save progress',
+    icon: UserPlus,
+    width: 'narrow',
+    guestOnly: true,
+    footer: true,
+    accent: true,
+    Content: SaveProgressContent,
   },
 ];
 
