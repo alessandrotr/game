@@ -27,6 +27,7 @@ import { useArenaLayout } from './useArenaLayout';
 import { TEAM_COLORS } from '../lib/teamColors';
 import { useGameStore } from '../store/useGameStore';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
 import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
 import { getCursorGround } from '../store/cursorState';
@@ -117,6 +118,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const gunView = useGameStore((s) => s.gunView);
   const hideOwnBody = isLocal && gunMode && gunView === 'fps';
   const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
+  // Dev-only perf toggle: hide the floating nameplate + HP bar (Leva "Perf Debug").
+  const hideNameplates = useDebugStore((s) => s.hideNameplates);
   // Equipped title can change live (equip broadcast), so read it reactively —
   // the selector only re-renders this entity when the title id actually changes.
   const titleId = useGameStore((s) => s.players.get(sessionId)?.titleId ?? '');
@@ -455,8 +458,12 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     }
 
     // Animation. The LOCAL player predicts its own (zero latency) from rendered
-    // speed + locally-queued one-shot events; REMOTE players render the server's
-    // authoritative `animState` directly (Phase 9.2).
+    // speed + locally-queued one-shot events. REMOTE *players* (and the mini-boss)
+    // also run the predicted FSM — driven by their rendered (interpolated) speed —
+    // so their locomotion + cast/attack poses are smoothed the same way, instead of
+    // snapping to the raw `animState` string the server replicates only ~20×/sec
+    // (which makes remote casts look choppy). The cheap raw path is kept for the
+    // regular horde (many zombies; the placeholder animator already clock-smooths).
     const sdx = node.position.x - prevPos.current.x;
     const sdz = node.position.z - prevPos.current.z;
     prevPos.current.x = node.position.x;
@@ -464,7 +471,9 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     // Rendered ground speed (local & remote) — feeds the run-clip timeScale match.
     const moved = Math.hypot(sdx, sdz);
     speedRef.current = delta > 0 && moved < TELEPORT_STEP ? moved / delta : 0;
-    if (isLocal || latest.skinId === 'skin.zombie.miniboss') {
+    const smoothedAnim =
+      isLocal || latest.skinId === 'skin.zombie.miniboss' || !isZombieSkin(latest.skinId);
+    if (smoothedAnim) {
       const speed = speedRef.current;
       const predicted = fsm.current.step(
         { speed, alive: true, event: consumeAnimationEvent(sessionId) },
@@ -617,7 +626,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       )}
 
       {/* Name + HP bar always face the camera (billboarded), independent of
-          the character's facing. */}
+          the character's facing. (Dev "Perf Debug" can hide these to measure cost.) */}
+      {!hideNameplates && (
       <Billboard position={[0, billboardY, 0]}>
         <group ref={hpBar}>
           <mesh>
@@ -670,6 +680,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           </Text>
         )}
       </Billboard>
+      )}
     </group>
   );
 }

@@ -17,7 +17,9 @@ export function AssetInstance({ id }: { id: AssetId }) {
     }
     case 'prop': {
       const prop = assets.getProp(id as `prop.${string}`);
-      return prop ? <AssetMesh source={prop.render} /> : null;
+      // Props are static (until destroyed) — batch their parts into a few merged
+      // meshes so dense fields of barrels/drums/houses aren't hundreds of draws.
+      return prop ? <AssetMesh source={prop.render} merge /> : null;
     }
     case 'weapon': {
       const weapon = assets.getWeapon(id as `weapon.${string}`);

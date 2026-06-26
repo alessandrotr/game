@@ -8,12 +8,13 @@ import {
   type Mesh,
   type ToneMapping,
 } from 'three';
-import { type MapAssetId } from '@arena/shared';
+import { type MapAssetId, isZombieSkin, ZOMBIE_MINIBOSS_SKIN_ID } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { TownAtmosphere } from './TownAtmosphere';
 import { useCustomizeStore } from '../store/useCustomizeStore';
 import { useQualityStore } from '../store/useQualityStore';
+import { useDebugStore } from '../store/useDebugStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { ShadowFollow } from './ShadowFollow';
@@ -27,6 +28,9 @@ import { TownBreachRift } from './TownBreachRift';
 import { PlayerEntity } from './PlayerEntity';
 import { BarrelEntity } from './BarrelEntity';
 import { DestructibleEntity } from './DestructibleEntity';
+import { InstancedDrums } from './InstancedDrums';
+import { InstancedCovers } from './InstancedCovers';
+import { ZombieHorde } from './ZombieHorde';
 import { CoverStructureEntity } from './CoverStructureEntity';
 import { Projectiles } from './Projectiles';
 import { Pickables } from './Pickables';
@@ -103,6 +107,27 @@ export function GameScene() {
   const tier = useQualityStore((s) => s.tier);
   const quality = useQualityStore((s) => s.settings);
 
+  // Dev-only perf bisection toggles (Leva "Perf Debug"); all false in prod.
+  const hideVfx = useDebugStore((s) => s.hideVfx);
+  const hideLights = useDebugStore((s) => s.hideLights);
+  const hideZones = useDebugStore((s) => s.hideZones);
+  const hidePickables = useDebugStore((s) => s.hidePickables);
+  const hideBarrels = useDebugStore((s) => s.hideBarrels);
+  const hideDestructibles = useDebugStore((s) => s.hideDestructibles);
+  const hideStructures = useDebugStore((s) => s.hideStructures);
+  const instancedHorde = useDebugStore((s) => s.instancedHorde);
+
+  // When the batched horde is on, regular zombies are drawn by <ZombieHorde> — so
+  // drop them from the per-entity list (humans + mini-boss still render normally).
+  const entityIds = useMemo(() => {
+    if (!instancedHorde) return playerIds;
+    const players = useGameStore.getState().players;
+    return playerIds.filter((id) => {
+      const p = players.get(id);
+      return !(p && isZombieSkin(p.skinId) && p.skinId !== ZOMBIE_MINIBOSS_SKIN_ID);
+    });
+  }, [playerIds, instancedHorde]);
+
   return (
     <Canvas
       // Remount cleanly when the quality tier changes (rare) so shadow on/off and
@@ -132,7 +157,7 @@ export function GameScene() {
       {isArena ? (
         <>
           <Arena />
-          <ArenaLights barrelIds={barrelRoster} />
+          {!hideLights && <ArenaLights barrelIds={barrelRoster} />}
           {useGameStore.getState().zombieMode && <ShadowFollow />}
         </>
       ) : (
@@ -179,24 +204,27 @@ export function GameScene() {
       {!gunMode && <DestinationMarker />}
 
       {!focused &&
-        playerIds.map((id) => (
+        entityIds.map((id) => (
           <PlayerEntity key={id} sessionId={id} />
         ))}
+      {isArena && zombieMode && instancedHorde && <ZombieHorde />}
 
-      {isArena &&
+      {isArena && !hideBarrels &&
         barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
 
-      {isArena &&
+      {isArena && !hideDestructibles && <InstancedDrums />}
+      {isArena && !hideDestructibles &&
         destructibleIds.map((id) => <DestructibleEntity key={id} destructibleId={id} />)}
 
-      {isArena &&
+      {isArena && !hideStructures && <InstancedCovers />}
+      {isArena && !hideStructures &&
         structureIds.map((id) => <CoverStructureEntity key={id} structureId={id} />)}
 
-      {isArena && <Pickables />}
-      {isArena && <GroundZones />}
-      {isArena && zombieMode && <Traps />}
+      {isArena && !hidePickables && <Pickables />}
+      {isArena && !hideZones && <GroundZones />}
+      {isArena && zombieMode && !hideZones && <Traps />}
 
-      <VfxLayer />
+      {!hideVfx && <VfxLayer />}
       {isArena && (
         <>
           <Projectiles />

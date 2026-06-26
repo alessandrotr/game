@@ -4,7 +4,6 @@ import { Billboard } from '@react-three/drei';
 import { Quaternion, Vector3 } from 'three';
 import type { Group, Mesh } from 'three';
 import { useGameStore } from '../store/useGameStore';
-import { AssetInstance } from '../render/AssetInstance';
 
 /**
  * A destructible environment object rendered from replicated state — either a
@@ -72,7 +71,7 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
         position={[initial.x, initial.y, initial.z]}
         quaternion={[initial.qx, initial.qy, initial.qz, initial.qw]}
       >
-        {isTire ? (
+        {isTire && (
           // A boulder: a faceted low-poly stone, scaled a touch irregular. The body
           // quaternion (applied to the group) tumbles it as it's knocked around —
           // same destructible/roll behaviour the tire had.
@@ -80,13 +79,9 @@ export function DestructibleEntity({ destructibleId }: { destructibleId: string 
             <icosahedronGeometry args={[initial.sx, 0]} />
             <meshStandardMaterial color={TIRE_COLOR} roughness={1} metalness={0} flatShading />
           </mesh>
-        ) : (
-          // Oil drum: shift the model down by its half-height so the body's center
-          // (the rotation pivot) sits at the drum's middle — it tips/rolls cleanly.
-          <group position={[0, -initial.sy, 0]}>
-            <AssetInstance id="prop.arena.drum" />
-          </group>
         )}
+        {/* Oil-drum bodies are drawn in one batch by <InstancedDrums>; this group
+            still smooths position so the integrity bar above tracks the drum. */}
       </group>
       {hasHp && (
         // Floating integrity bar — billboarded, position-tracked in useFrame so it

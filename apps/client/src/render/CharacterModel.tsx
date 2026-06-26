@@ -198,7 +198,12 @@ function BowWeaponMount({
   // Nocked-arrow draw preview: local from the held key, remote from the replicated
   // charge state — so everyone sees the wind-up.
   const getAimForOwner = useRef(() => getAim(ownerId)).current;
-  useBowAnimator(aim, draw, arrows, getCastAimForOwner, getAimForOwner);
+  // The local player aims at frame rate; remote owners' charge dir streams at
+  // ~10Hz, so the animator eases their bow instead of stepping it.
+  const getLocalOwner = useRef(
+    () => !!ownerId && ownerId === useGameStore.getState().sessionId,
+  ).current;
+  useBowAnimator(aim, draw, arrows, getCastAimForOwner, getAimForOwner, getLocalOwner);
   const gripRot = (weapon.grip?.rotation ?? [0, 0, 0]) as [number, number, number];
   // Pivot OFFSET: the bow models its belly at +Z (the riser, which sits in the
   // hand), but it should rotate around the CHORD (the string / nock, `bulge`
@@ -309,7 +314,21 @@ function CasterWeaponMount({
     return { yaw: Math.atan2(dx, dz) };
   }).current;
   const getAimForOwner = useRef(() => getAim(ownerId)).current;
-  useWeaponCastAnimator(aim, tip, flare, getCastAimForOwner, getChannel, ownerId, getAimForOwner);
+  // Local owner aims at frame rate; remote owners' charge dir streams at ~10Hz,
+  // so the animator eases their wind-up aim instead of stepping it.
+  const getLocalOwner = useRef(
+    () => !!ownerId && ownerId === useGameStore.getState().sessionId,
+  ).current;
+  useWeaponCastAnimator(
+    aim,
+    tip,
+    flare,
+    getCastAimForOwner,
+    getChannel,
+    ownerId,
+    getAimForOwner,
+    getLocalOwner,
+  );
 
   const gripRotation = weapon.grip?.rotation ?? [0, 0, 0];
 
@@ -366,7 +385,11 @@ function PlaceholderCharacter({
   return (
     <group scale={scale}>
       <group ref={group}>
-        <AssetMesh source={descriptor.render} paint={paint} />
+        {/* Merge the body's static parts into a few batched meshes (the procedural
+            animator moves the whole group, never individual parts, so this is safe).
+            Auto-skips for PAINTED bodies, whose per-part textures can't be merged —
+            so custom player paint still renders per part. */}
+        <AssetMesh source={descriptor.render} paint={paint} merge />
         {children}
       </group>
     </group>
