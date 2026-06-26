@@ -41,7 +41,6 @@ import { CameraControls } from './CameraControls';
 import { PerfMeter } from './PerfMeter';
 import { MouseMove } from './MouseMove';
 import { JoystickMove } from './JoystickMove';
-import { GunControls } from './GunControls';
 import { GroundTargeter } from './GroundTargeter';
 import { StatusIndicators } from './StatusIndicators';
 import { ChannelBeams, ChannelAim, FieldAuras } from './ChannelBeams';
@@ -72,9 +71,6 @@ export function GameScene() {
   const destructibleIds = useGameStore((s) => s.destructibleIds);
   const structureIds = useGameStore((s) => s.structureIds);
   const isArena = useGameStore((s) => s.room) === 'arena';
-  // Gun Mode Zombie swaps the point-to-move input for WASD + mouse-aim + fire.
-  const gunMode = useGameStore((s) => s.gunMode);
-  const gunView = useGameStore((s) => s.gunView);
   // Zombie mode: warm the horde models' GPU upload/shader-compile up front so the
   // first wave doesn't hitch.
   const zombieMode = useGameStore((s) => s.zombieMode);
@@ -82,8 +78,6 @@ export function GameScene() {
   // others) so no one can wander/jump into the framed shot — or be standing on
   // top of the subject if you clicked it from right beside it.
   const focused = useFocusStore((s) => !!s.target);
-  // First person hides the cursor (pointer lock); top-down still cursor-aims.
-  const fpsView = gunMode && gunView === 'fps';
   const room = isArena ? 'arena' : 'town';
   const mapId: MapAssetId = isArena ? 'map.arena' : 'map.town';
   // The match's procedural cover (static props). Burning barrels are NOT here —
@@ -190,18 +184,12 @@ export function GameScene() {
       <Portals mapId={mapId} />
 
       <PerfMeter />
-      {gunMode ? (
-        <GunControls />
-      ) : (
-        <>
-          <MouseMove />
-          <JoystickMove />
-        </>
-      )}
+      <MouseMove />
+      <JoystickMove />
       <CameraControls />
-      {isArena && !fpsView && <CursorTracker />}
-      {isArena && !gunMode && <GroundTargeter />}
-      {!gunMode && <DestinationMarker />}
+      {isArena && <CursorTracker />}
+      {isArena && <GroundTargeter />}
+      <DestinationMarker />
 
       {!focused &&
         entityIds.map((id) => (

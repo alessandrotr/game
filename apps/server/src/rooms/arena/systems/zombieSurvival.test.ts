@@ -23,7 +23,6 @@ const make = (over: Partial<ZombieSurvivalDeps> = {}) =>
     arenaLimit: 38,
     arenaLimitZ: 38,
     zombieStaticObstacles: [],
-    gunMode: false,
     nextBotId: () => 1,
     resetPlayer: () => {},
     roomLayout: () => null,

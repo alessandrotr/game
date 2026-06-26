@@ -81,15 +81,6 @@ export interface PlayerView {
   /** Pickable object the player is carrying over their head ('' if none) — drives
    *  the held-object render. A {@link PickableKind} by construction. */
   holding: string;
-  /** Gun Mode Zombie: the equipped gun id ('' outside gun mode). A {@link GunKind}
-   *  by construction. Drives the ammo HUD + weapon model. */
-  equippedGun: string;
-  /** Rounds left in the equipped gun's magazine. */
-  magAmmo: number;
-  /** Spare rounds in reserve; -1 ({@link GUN_RESERVE_INFINITE}) = unlimited. */
-  reserveAmmo: number;
-  /** True while reloading the equipped gun (can't fire until it completes). */
-  reloading: boolean;
   /** Zombie perk slot 1 (a `PerkId` or '' if empty). */
   perk1: string;
   /** Zombie perk slot 2 (a `PerkId` or '' if empty). */
@@ -364,9 +355,6 @@ export interface ArenaStateView {
   layoutSeed: number;
   /** Zombie survival mode is active (drives the wave HUD). False in every other room. */
   zombieMode: boolean;
-  /** Gun Mode Zombie is active — zombie survival with gun controls (WASD + mouse
-   *  aim + right-click fire) instead of the ability kit. Implies `zombieMode`. */
-  gunMode: boolean;
   /** Current zombie wave/level (1-based; 0 before the first horde starts). */
   zombieLevel: number;
   /** Zombies left to defeat this level (alive + not-yet-spawned). 0 between levels. */

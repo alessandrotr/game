@@ -1,10 +1,9 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Vector3 } from 'three';
 import { useGameStore } from '../store/useGameStore';
 import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { getLocalRenderTransform } from '../store/localPlayer';
-import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
 import {
   getCameraYaw,
   getCameraPitch,
@@ -62,13 +61,6 @@ const _right = new Vector3();
 const _viewDir = new Vector3();
 const _up = new Vector3(0, 1, 0);
 
-/** Gun Mode Zombie (first-person camera): eye height above the feet (world
- *  units) and how tightly the camera position tracks the predicted body. */
-const GUN_EYE_HEIGHT = 1.6;
-const GUN_POS_SMOOTH = 24;
-/** Wider field of view in first person (vs the follow camera's 55°) for the
- *  open, fast-reading feel of an FPS. */
-const GUN_FOV = 90;
 const FOLLOW_FOV = 55;
 
 /** Set the camera's vertical FOV (no-op if unchanged — avoids a per-frame
@@ -98,8 +90,6 @@ export function CameraRig() {
   // Scratch vectors reused every frame (allocated once per mount, not per render).
   const desired = useRef(new Vector3()).current;
   const target = useRef(new Vector3()).current;
-  // Smoothed first-person eye position in gun mode (null until it initializes).
-  const eye = useRef<Vector3 | null>(null);
   // Cinematic focus: the smoothed point the camera aims at, and whether we're still
   // animating (stays true through the return glide after the focus target clears).
   const focusLook = useRef(new Vector3()).current;
@@ -111,11 +101,10 @@ export function CameraRig() {
 
     // Cinematic focus on a town structure. Takes over the camera while a focus
     // target is set (and through a short return glide afterward), gliding to frame
-    // the subject screen-left. Gun mode wins (town has none, but be safe).
+    // the subject screen-left.
     const focusState = useFocusStore.getState();
     const focusTarget = focusState.target;
-    const gunActive = useGameStore.getState().gunMode;
-    if ((focusTarget || focusActive.current) && !gunActive) {
+    if (focusTarget || focusActive.current) {
       const localT = getLocalRenderTransform();
       const px = localT.active ? localT.x : me?.x;
       const pz = localT.active ? localT.z : me?.z;
@@ -192,41 +181,6 @@ export function CameraRig() {
     // motion; fall back to the server snapshot before prediction starts.
     const local = getLocalRenderTransform();
 
-    const { gunMode, gunView } = useGameStore.getState();
-    if (gunMode && local.active && gunView === 'fps') {
-      // First person: the eye sits at the player's head and looks along the
-      // mouse-look yaw/pitch; the body faces the same way (see PlayerEntity), and
-      // the local model is hidden so we're not inside it.
-      if (camera instanceof PerspectiveCamera) setFov(camera, GUN_FOV);
-      const aim = getFpsAim();
-      const yaw = isFpsEngaged() ? aim.yaw : local.rotation;
-      const pitch = isFpsEngaged() ? aim.pitch : 0;
-      // Track the head position tightly (a light smoothing kills prediction jitter).
-      const k = 1 - Math.exp(-GUN_POS_SMOOTH * delta);
-      eye.current ??= new Vector3(local.x, GUN_EYE_HEIGHT, local.z);
-      eye.current.x = MathUtils.lerp(eye.current.x, local.x, k);
-      eye.current.z = MathUtils.lerp(eye.current.z, local.z, k);
-      eye.current.y = GUN_EYE_HEIGHT;
-      camera.position.copy(eye.current);
-      const cp = Math.cos(pitch);
-      target.set(
-        eye.current.x + Math.sin(yaw) * cp,
-        eye.current.y + Math.sin(pitch),
-        eye.current.z + Math.cos(yaw) * cp,
-      );
-      camera.lookAt(target);
-      return;
-    }
-    if (gunMode && local.active && gunView === 'topdown') {
-      // Top-down: a fixed, predictable shooter cam centered on the player — no
-      // aim-lead. Same orbit as the normal follow, just with locked orientation.
-      if (camera instanceof PerspectiveCamera) setFov(camera, FOLLOW_FOV);
-      eye.current = null;
-      target.set(local.x, 0, local.z);
-      applyOrbit(camera, target, desired, me, delta, true /* lockOrientation */);
-      return;
-    }
-    eye.current = null; // reset so re-entering gun mode starts fresh
     if (camera instanceof PerspectiveCamera) setFov(camera, FOLLOW_FOV);
 
     if (local.active) {
@@ -252,9 +206,8 @@ function applyOrbit(
   desired: Vector3,
   me: { team?: string } | undefined,
   delta: number,
-  lockOrientation = false,
 ): void {
-  orbitDesired(target, me, desired, lockOrientation);
+  orbitDesired(target, me, desired);
   const t = 1 - Math.exp(-getCamera().followSmoothing * delta);
   camera.position.lerp(desired, t);
   camera.lookAt(target);
@@ -266,7 +219,6 @@ function orbitDesired(
   target: Vector3,
   me: { team?: string } | undefined,
   out: Vector3,
-  lockOrientation = false,
 ): void {
   const cam = getCamera();
   const mode = useHudStore.getState().cameraControlMode;
@@ -275,18 +227,14 @@ function orbitDesired(
   const effectiveHeight = baseHeight + (mode === 2 ? getHeightScrollOffset() : 0);
   const effectiveZoom = mode === 1 ? getCameraZoom() : 1;
   // Base orientation: blue looks down +Z, red is mirrored 180°. The user yaw
-  // offset orbits the view on top of that — unless the orientation is locked
-  // (the top-down Gun Mode camera keeps a fixed, predictable view).
+  // offset orbits the view on top of that.
   const baseYaw = me?.team === 'red' ? Math.PI : 0;
-  const yaw = baseYaw + (lockOrientation ? 0 : getCameraYaw());
+  const yaw = baseYaw + getCameraYaw();
   // Tilt: orbit up/down at a constant radius from the player. The base pitch
   // comes from the tuned height/distance; the user offset adds a small ± tilt.
   const radius = Math.hypot(baseDistance, effectiveHeight) * effectiveZoom;
   const basePitch = Math.atan2(effectiveHeight, baseDistance);
-  const pitch = Math.min(
-    MAX_PITCH,
-    Math.max(MIN_PITCH, basePitch + (lockOrientation ? 0 : getCameraPitch())),
-  );
+  const pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, basePitch + getCameraPitch()));
   const horiz = radius * Math.cos(pitch);
   out.set(
     target.x + Math.sin(yaw) * horiz,

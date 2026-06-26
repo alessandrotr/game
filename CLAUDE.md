@@ -15,7 +15,6 @@ Surfaces / modes:
 - **Town** — social hub (chat, cosmetics, no combat), portals into play.
 - **Arena** — public FFA + ranked PvP (1v1…5v5, first to 5 kills/team).
 - **Zombie survival** — co-op wave defense (abilities) with a **perk** roguelite layer.
-- **Gun-mode zombie** — same survival, fought with guns instead of abilities.
 - Matchmaking lobbies (PvP ranked + zombie co-op squads), account auth + persistence,
   cosmetics wardrobe + custom paint, leaderboards.
 
@@ -79,8 +78,7 @@ pnpm lint / pnpm format
   fields **at the END** (comment: "Kept last so existing replicated field offsets are
   unchanged"). Reordering breaks decode for connected clients. `Player` is ~44 fields —
   Colyseus has a 64-field ceiling; be economical.
-- **Adding a client→server message:** register the handler in the room (`onCreate`, runs
-  all modes — **not** `registerGunHandlers`, which is gun-mode only), add it to
+- **Adding a client→server message:** register the handler in the room (`onCreate`), add it to
   `ClientMessage` + payload map in shared, and **deploy server before client**. An
   unregistered message **disconnects the client in prod** (Colyseus `client.leave`). An
   `onMessage('*')` catch-all in `ArenaRoom.onCreate` absorbs version skew.
@@ -92,7 +90,7 @@ pnpm lint / pnpm format
 
 ## Code Conventions
 
-- **Data-driven registries.** Abilities, perks, cosmetics, guns, pickables, destructibles
+- **Data-driven registries.** Abilities, perks, cosmetics, pickables, destructibles
   are `Record`-keyed data tables in shared; logic reads them. Tooltips auto-generate from
   effect data (`abilities/describe.ts`) to avoid drift.
 - **IDs are `category.name`** (`char.warrior`, `weapon.sword`, `vfx.fireball`); ability/

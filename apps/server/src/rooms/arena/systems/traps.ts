@@ -61,8 +61,8 @@ interface TrapRuntime {
  *  - Heal trap → drops a team-heal pickup (the same drop the mini-boss leaves).
  *  - Death trap → releases an ownerless molotov-style fire field over the trap.
  *
- * Zombie mode only; never created in gun mode (the room gates that). The system
- * is a no-op until {@link addTrap} is called when a section unlocks.
+ * Zombie mode only. The system is a no-op until {@link addTrap} is called when a
+ * section unlocks.
  */
 export class TrapSystem {
   private readonly traps: TrapRuntime[] = [];

@@ -11,7 +11,6 @@ import { CoopOverlay } from './CoopOverlay';
 import { PlayerCard } from './PlayerCard';
 import { MatchResult } from './MatchResult';
 import { WaveAnnouncement, ZombieHud } from './ZombieHud';
-import { GunHud } from './GunHud';
 import { Leaderboard } from './Leaderboard';
 import { FocusTitle } from './FocusTitle';
 import { CustomizePanel } from './CustomizePanel';
@@ -74,10 +73,6 @@ export function Hud() {
         {/* Zombie-survival wave banner (top-center) — self-gates on zombie mode,
             stays visible like the combat HUD since it's mission-critical. */}
         {inArena && <ZombieHud />}
-
-        {/* Gun Mode Zombie weapon HUD (ammo / reload / weapon slots) — self-gates
-            on gun mode; combat-critical so it stays visible like the combat HUD. */}
-        {inArena && <GunHud />}
 
         {!chromeHidden && (
           <>

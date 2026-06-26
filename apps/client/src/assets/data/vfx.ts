@@ -371,37 +371,6 @@ const dash: VfxDescriptor = {
   render: { kind: 'placeholder', parts: [{ name: 'streak', shape: 'box', args: [1.6, 0.1, 0.4], color: '#cfe6ff', emissive: '#9ec5ff', emissiveIntensity: 2, opacity: 0.7 }] },
 };
 
-/** Gun Mode Zombie bullet — a small, fast brass tracer. Kept tight to the
- *  bullet's collision radius (~0.2) so the visual matches the hit area. */
-const bullet: VfxDescriptor = {
-  id: 'vfx.bullet',
-  displayName: 'Bullet',
-  behavior: 'projectile',
-  speed: 60,
-  durationMs: 1200,
-  render: {
-    kind: 'placeholder',
-    parts: [
-      {
-        name: 'core',
-        shape: 'sphere',
-        args: [0.12, 10, 10],
-        color: '#fff6d6',
-        emissive: '#ffd86a',
-        emissiveIntensity: 3,
-      },
-      {
-        name: 'tracer',
-        shape: 'box',
-        args: [0.06, 0.06, 0.5],
-        color: '#ffd86a',
-        emissive: '#ff9a2e',
-        emissiveIntensity: 2,
-        opacity: 0.7,
-      },
-    ],
-  },
-};
 
 /** Priest condemn — a column of holy light slamming onto the target. */
 const condemn: VfxDescriptor = {
@@ -813,7 +782,6 @@ export const VFX: VfxDescriptor[] = [
   smash,
   groundSlam,
   dash,
-  bullet,
   condemn,
   death,
   carExplosion,

@@ -7,7 +7,6 @@ import {
   RANKED_MODE,
   ZOMBIE_SURVIVAL_MODE,
   ZOMBIE_COOP_MODE,
-  GUN_ZOMBIE_MODE,
 } from './modes';
 
 // These tests double as the living spec for the game-mode system: what each
@@ -28,19 +27,13 @@ describe('resolveGameMode', () => {
   it('maps zombie options to the right zombie variant', () => {
     expect(resolveGameMode({ mode: ZOMBIE_MODE })).toBe(ZOMBIE_SURVIVAL_MODE);
     expect(resolveGameMode({ mode: ZOMBIE_MODE, coop: true })).toBe(ZOMBIE_COOP_MODE);
-    expect(resolveGameMode({ mode: ZOMBIE_MODE, gun: true })).toBe(GUN_ZOMBIE_MODE);
-  });
-
-  it('prefers gun over coop when both are set', () => {
-    expect(resolveGameMode({ mode: ZOMBIE_MODE, gun: true, coop: true })).toBe(GUN_ZOMBIE_MODE);
   });
 });
 
 describe('game-mode capabilities (the contract each mode keeps)', () => {
-  it('PvP modes (FFA, ranked): rectangle arena, respawn, manual attack, perks, chest; no guns/zombies', () => {
+  it('PvP modes (FFA, ranked): rectangle arena, respawn, manual attack, perks, chest; no zombies', () => {
     for (const m of [FFA_MODE, RANKED_MODE]) {
       expect(m.zombie).toBe(false);
-      expect(m.gun).toBe(false);
       expect(m.respawns).toBe(true);
       expect(m.manualAttack).toBe(true);
       expect(m.usesPerks).toBe(true);
@@ -54,11 +47,9 @@ describe('game-mode capabilities (the contract each mode keeps)', () => {
   it('zombie survival: horde sim, forced auto-attack, perks, faster mana, no chest, respawns', () => {
     const m = ZOMBIE_SURVIVAL_MODE;
     expect(m.zombie).toBe(true);
-    expect(m.gun).toBe(false);
     expect(m.autoAttack).toBe(true);
     expect(m.manualAttack).toBe(false);
     expect(m.usesPerks).toBe(true);
-    expect(m.usesGuns).toBe(false);
     expect(m.usesChest).toBe(false);
     expect(m.roomExpansion).toBe(true);
     expect(m.respawns).toBe(true);
@@ -69,15 +60,6 @@ describe('game-mode capabilities (the contract each mode keeps)', () => {
     expect(ZOMBIE_COOP_MODE.zombie).toBe(true);
     expect(ZOMBIE_COOP_MODE.respawns).toBe(false);
     expect(ZOMBIE_COOP_MODE.roomExpansion).toBe(true);
-  });
-
-  it('gun zombie: guns instead of perks/abilities, and faster (no walk penalty)', () => {
-    const m = GUN_ZOMBIE_MODE;
-    expect(m.zombie).toBe(true);
-    expect(m.gun).toBe(true);
-    expect(m.usesGuns).toBe(true);
-    expect(m.usesPerks).toBe(false);
-    expect(m.walkSpeedPenalty).toBe(0);
   });
 });
 

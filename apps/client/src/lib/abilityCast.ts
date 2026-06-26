@@ -77,8 +77,6 @@ function facingDir(): { dx: number; dz: number } {
 export function castAbilitySlotMobile(slot: AbilitySlot): void {
   const me = localPlayer();
   if (!me) return;
-  // Gun Mode Zombie disables the ability kit entirely (guns only).
-  if (useGameStore.getState().gunMode) return;
 
   const ability = CLASS_LOADOUTS[me.characterClass as CharacterClass]?.[slot];
   if (!ability) return; // empty slot

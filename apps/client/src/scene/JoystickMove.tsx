@@ -24,8 +24,8 @@ const SEND_INTERVAL = 0.04;
  * held. Releasing the joystick stops the player immediately (unlike a tap, a
  * joystick release means "stop here").
  *
- * Mirrors `GunControls`' camera-relative WASD projection so the feel matches.
- * Server stays authoritative; this only reports the target.
+ * Camera-relative WASD projection. Server stays authoritative; this only
+ * reports the target.
  */
 export function JoystickMove() {
   const camera = useThree((s) => s.camera);

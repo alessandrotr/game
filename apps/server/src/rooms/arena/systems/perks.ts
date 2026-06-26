@@ -6,7 +6,9 @@ import {
   PERKS,
   ServerMessage,
   computePerkModifiers,
+  isLowHp,
   isPerkId,
+  perkSpeed,
   perkPhaseAtWave,
   perksFullyMaxed,
   type PerkId,
@@ -393,11 +395,7 @@ export class PerkSystem {
 export function getPerkMoveSpeedMult(perkSystem: PerkSystem | undefined, player: Player): { mult: number; bonus: number } {
   if (!perkSystem) return { mult: 1, bonus: 0 };
   const mods = perkSystem.getModifiers(player.sessionId);
-  let mult = 1;
-  let bonus = mods.moveSpeedBonus;
-  if (player.alive && player.maxHp > 0 && player.hp / player.maxHp < 0.40) {
-    mult *= mods.lowHpSpeedMult;
-    bonus += mods.lowHpSpeedBonus;
-  }
-  return { mult, bonus };
+  // Shared fold (same low-HP gating the client predictor uses) keeps the two
+  // sides in lockstep — see packages/shared/src/moveSpeed.ts.
+  return perkSpeed(mods, isLowHp(player.hp, player.maxHp, player.alive));
 }

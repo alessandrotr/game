@@ -11,7 +11,6 @@ import { monitor } from '@colyseus/monitor';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {
   ARENA_ROOM,
-  GUN_ZOMBIE_ROOM,
   MATCHMAKING_ROOM,
   TOWN_ROOM,
   ZOMBIE_MATCHMAKING_ROOM,
@@ -85,7 +84,7 @@ app.get('/health', (_req, res) => {
 // world rooms (town/arena/zombie) rather than raw CCU: a player holds several
 // parallel connections (their world room + matchmaking lobbies), so CCU counted
 // each person ~3×. They're in exactly one world room, so this is one-per-player.
-const WORLD_ROOMS = new Set<string>([TOWN_ROOM, ARENA_ROOM, ZOMBIE_ROOM, GUN_ZOMBIE_ROOM]);
+const WORLD_ROOMS = new Set<string>([TOWN_ROOM, ARENA_ROOM, ZOMBIE_ROOM]);
 app.get('/online', async (_req, res) => {
   try {
     const rooms = await matchMaker.query({});
@@ -146,9 +145,6 @@ gameServer.define(ARENA_ROOM, ArenaRoom);
 // Zombie survival: the same arena room, under its own handler with the mode
 // baked into `onCreate`'s options — so its co-op rooms only match each other.
 gameServer.define(ZOMBIE_ROOM, ArenaRoom, { mode: ZOMBIE_MODE });
-// Gun Mode Zombie: the same zombie-survival sim, but the player fights with guns.
-// A distinct public drop-in handler (so it only matches other gun-mode players).
-gameServer.define(GUN_ZOMBIE_ROOM, ArenaRoom, { mode: ZOMBIE_MODE, gun: true });
 gameServer.define(MATCHMAKING_ROOM, MatchmakingRoom);
 // Co-op zombie squads: a separate singleton lobby registry for ZOMBIE_ROOM runs.
 gameServer.define(ZOMBIE_MATCHMAKING_ROOM, ZombieMatchmakingRoom);

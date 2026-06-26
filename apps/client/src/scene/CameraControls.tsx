@@ -8,7 +8,6 @@ import {
   resetCameraView,
 } from '../store/cameraControl';
 import { useCameraPrefsStore } from '../store/useCameraPrefsStore';
-import { useGameStore } from '../store/useGameStore';
 import { useHudStore } from '../store/useHudStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { isTouchDevice } from '../hooks/useIsTouch';
@@ -73,8 +72,6 @@ export function CameraControls() {
     };
     const onMove = (e: MouseEvent) => {
       if (!dragging) return;
-      // Gun mode keeps a locked view: middle-drag doesn't rotate/tilt it.
-      if (useGameStore.getState().gunMode) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
@@ -112,10 +109,6 @@ export function CameraControls() {
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
-      // Gun Mode Zombie: a locked shooter camera — no manual yaw/tilt at all (WASD
-      // moves the character, and the view stays fixed for predictable aim). Wheel
-      // zoom still works (handled separately).
-      if (useGameStore.getState().gunMode) return;
       if (e.code === 'ArrowLeft')
         yawDir.current = -1; // orbit left
       else if (e.code === 'ArrowRight')
@@ -159,7 +152,6 @@ export function CameraControls() {
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (useGameStore.getState().gunMode) return; // locked shooter camera
       if (useFocusStore.getState().target) return; // locked during a focus
       for (const t of Array.from(e.changedTouches)) {
         if (cam.size >= 2) break;

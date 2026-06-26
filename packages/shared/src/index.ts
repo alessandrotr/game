@@ -14,4 +14,5 @@ export * from './messages.js';
 export * from './chat.js';
 export * from './perks.js';
 export * from './perk-modifiers.js';
+export * from './moveSpeed.js';
 export * from './roomLayout.js';

@@ -77,8 +77,6 @@ export interface ZombieSurvivalDeps {
   /** This tick's cover+prop circles (rebuilt each tick by the room, shared by
    *  reference) — used to re-resolve zombies shoved into an obstacle. */
   zombieStaticObstacles: ArenaObstacle[];
-  /** True in gun-mode zombie (no traps spawn behind unlocked doors). */
-  gunMode: boolean;
   /** Allocate the next unique bot sequence number (the room owns the counter). */
   nextBotId: () => number;
   /** Reset a freshly-built bot to spawn defaults (shared room logic). */
@@ -490,10 +488,10 @@ export class ZombieSurvival {
     // Generate cover for the newly unlocked section.
     const section = layout.sections[nextIndex];
     if (section) {
-      // Traps are zombie-mode only and never appear in gun mode. Compute it up
-      // front so cover generation can reserve its area (nothing spawns on a
-      // trap) — the client mirrors this exact call so both layouts agree.
-      const trap = this.deps.gunMode ? null : trapForSection(this.deps.state.layoutSeed, section);
+      // Compute the section's trap up front so cover generation can reserve its
+      // area (nothing spawns on a trap) — the client mirrors this exact call so
+      // both layouts agree.
+      const trap = trapForSection(this.deps.state.layoutSeed, section);
       const sectionCover = generateSectionCover(this.deps.state.layoutSeed, section, trap);
       this.deps.cover.addSection(sectionCover.structures);
       this.deps.barrels.addBarrels(sectionCover.barrels);

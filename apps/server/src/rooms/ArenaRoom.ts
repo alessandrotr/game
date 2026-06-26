@@ -16,8 +16,6 @@ import {
   teamSizeForMode,
   AUTO_ATTACKS,
   GROUND_Y,
-  gunMoveSpeedMult,
-  type GunView,
   MANA_REGEN,
   MATCH_RESULT_LINGER_MS,
   MAX_PLAYERS,
@@ -79,14 +77,12 @@ import { ArenaMatch } from './arena/systems/match.js';
 import { ChannelSystem } from './arena/systems/channels.js';
 import { CombatSystem } from './arena/systems/combat.js';
 import { ProjectileSystem } from './arena/systems/projectiles.js';
-import { GunSystem } from './arena/systems/guns.js';
 import { BarrelSystem } from './arena/systems/barrels.js';
 import { DestructibleSystem } from './arena/systems/destructibles.js';
 import { GroundZoneSystem } from './arena/systems/groundZones.js';
 import { PickableSystem } from './arena/systems/pickables.js';
 import { TrapSystem } from './arena/systems/traps.js';
 import { resolveGameMode, deathPolicy, type GameMode } from './arena/modes.js';
-import { registerGunHandlers } from './arena/gunHandlers.js';
 import { registerDevHandlers } from './arena/devHandlers.js';
 import { ArenaPhysics } from './arena/systems/physics.js';
 import { CoverSystem } from './arena/systems/cover.js';
@@ -211,24 +207,17 @@ export class ArenaRoom extends AvatarRoom {
    *  at runtime via {@link ClientMessage.SetAutoAttack}; forced on in zombie mode
    *  so zombies chase + strike (players still attack with abilities only). */
   private autoAttackEnabled = false;
-  /** This room's game mode (FFA / ranked / zombie / gun-zombie / coop) — the
-   *  SINGLE source of truth for per-mode config + behaviour. Set in `onCreate`. */
+  /** This room's game mode (FFA / ranked / zombie / coop) — the SINGLE source of
+   *  truth for per-mode config + behaviour. Set in `onCreate`. */
   private mode!: GameMode;
   /** Endless-horde survival (zombies, room expansion, forced auto-attack). */
   private get zombieMode(): boolean {
     return this.mode.zombie;
   }
-  /** Gun Mode Zombie: survival fought with guns instead of the ability kit. */
-  private get gunMode(): boolean {
-    return this.mode.gun;
-  }
   /** Co-op squad run: death is final and the run ends when the whole squad falls. */
   private get coopZombie(): boolean {
     return !this.mode.respawns;
   }
-  /** Per-player active Gun Mode view ('fps' | 'topdown'), reported by the client.
-   *  Drives the per-view move speed so movement matches the client predictor. */
-  private readonly gunViews = new Map<string, GunView>();
   /** Latches once the co-op run is over (all players fell) so the game-over
    *  broadcast + room teardown fire exactly once. */
   private coopOver = false;
@@ -265,11 +254,6 @@ export class ArenaRoom extends AvatarRoom {
   private projectiles!: ProjectileSystem;
   /** Held beam channeling (e.g. the priest beam). Owns its own per-caster state. */
   private channels!: ChannelSystem;
-  /** Gun Mode Zombie weapons (magazine / fire-rate / reload / switch). Built in
-   *  every arena but only driven when {@link gunMode} is on. */
-  /** Gun system — built only when `mode.usesGuns` (gun-mode zombie); undefined
-   *  otherwise. All access is optional-chained. */
-  private guns?: GunSystem;
   private barrels!: BarrelSystem;
   private destructibles!: DestructibleSystem;
   /** HP-bearing cover structures (trailers/cars/dumpsters) that crumble. */
@@ -298,14 +282,13 @@ export class ArenaRoom extends AvatarRoom {
   override onCreate(options?: {
     mode?: LobbyMode | typeof ZOMBIE_MODE;
     coop?: boolean;
-    gun?: boolean;
   }): void {
     this.setState(new ArenaState());
 
-    // Resolve this room's game mode (FFA / ranked / zombie / gun-zombie / co-op)
-    // from the options baked into its `define`. The mode object is the single
-    // source of truth for per-mode config + behaviour; the `zombieMode`/`gunMode`/
-    // `coopZombie` getters are thin derived views of it.
+    // Resolve this room's game mode (FFA / ranked / zombie / co-op) from the
+    // options baked into its `define`. The mode object is the single source of
+    // truth for per-mode config + behaviour; the `zombieMode`/`coopZombie`
+    // getters are thin derived views of it.
     this.mode = resolveGameMode(options);
 
     // Play-area bounds + forced auto-attack come straight from the mode.
@@ -343,7 +326,6 @@ export class ArenaRoom extends AvatarRoom {
       // Auto-attack must be on for zombies to chase + strike; the Attack message
       // is ignored for humans (see the handler), so only zombies ever swing.
       this.state.zombieMode = true;
-      this.state.gunMode = this.gunMode;
 
       // --- Room expansion system: generate the section/door layout. Doors are
       //     placed as indestructible walls that crumble when the matching wave is
@@ -362,7 +344,6 @@ export class ArenaRoom extends AvatarRoom {
         arenaLimit: this.arenaLimit,
         arenaLimitZ: this.arenaLimitZ,
         zombieStaticObstacles: this.zombieStaticObstacles,
-        gunMode: this.gunMode,
         nextBotId: () => ++this.botSeq,
         resetPlayer: (player) => this.resetPlayer(player),
         roomLayout: () => this.roomLayout,
@@ -413,7 +394,7 @@ export class ArenaRoom extends AvatarRoom {
 
     // Perks exist in any ability-mode arena. Zombie waves offer them on wave
     // clear; the non-zombie FFA / team arena has no wave system, so they're
-    // granted via dev tools for testing. (Gun mode has no ability kit.)
+    // granted via dev tools for testing.
     if (this.mode.usesPerks) {
       this.perkSystem = new PerkSystem(this.buildContext());
     }
@@ -553,7 +534,7 @@ export class ArenaRoom extends AvatarRoom {
         const player = this.state.players.get(client.sessionId);
         if (!player || !player.alive) return;
         const ability = typeof message?.ability === 'string' ? message.ability : '';
-        if (ability && isAbilityKind(ability) && !this.gunMode) {
+        if (ability && isAbilityKind(ability)) {
           player.chargeAbility = ability;
           const dx = Number(message?.dirX) || 0;
           const dz = Number(message?.dirZ) || 0;
@@ -571,10 +552,6 @@ export class ArenaRoom extends AvatarRoom {
     // than the server (a deploy in progress) can't get DISCONNECTED for sending a
     // message this build doesn't handle yet. Specific handlers above take priority.
     this.onMessage('*', () => {});
-
-    // Gun Mode Zombie weapon input (fire / switch / reload / aim). Registered
-    // only in gun mode; the handlers are a no-op for dead players / CC'd casters.
-    if (this.mode.usesGuns && this.guns) registerGunHandlers(this, this.guns, this.gunViews);
 
     // Swallow + capture a thrown tick instead of letting it bubble to
     // `uncaughtException` (which restarts the process and disconnects everyone).
@@ -646,7 +623,6 @@ export class ArenaRoom extends AvatarRoom {
     this.match = new ArenaMatch(ctx);
     this.combat = new CombatSystem(ctx, this.match);
     this.projectiles = new ProjectileSystem(ctx, this.combat);
-    if (this.mode.usesGuns) this.guns = new GunSystem(ctx, this.projectiles);
     this.physics = new ArenaPhysics(this.obstacles, this.zombieMode);
     this.barrels = new BarrelSystem(ctx, this.combat, this.physics);
     this.destructibles = new DestructibleSystem(ctx, this.combat, this.physics);
@@ -776,8 +752,6 @@ export class ArenaRoom extends AvatarRoom {
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
     this.ninjaEStates.delete(client.sessionId);
-    this.guns?.remove(client.sessionId);
-    this.gunViews.delete(client.sessionId);
     this.channels.stop(client.sessionId);
     this.perkSystem?.reset(client.sessionId);
     this.match.forget(client.sessionId);
@@ -794,11 +768,6 @@ export class ArenaRoom extends AvatarRoom {
     persistProfileDelta(db, profile, player, this.match.outcomeFor(sessionId));
   }
 
-  // --- Gun Mode Zombie input ---------------------------------------------
-
-  /** Wire the gun-mode weapon handlers (fire / switch / reload / aim). The
-   *  {@link GunSystem} owns the magazine / fire-rate / reload rules. */
-  /** Resolve a normalized aim vector, falling back to the player's facing. */
   // --- Ability input -----------------------------------------------------
 
   private handleCast(
@@ -809,12 +778,6 @@ export class ArenaRoom extends AvatarRoom {
     if (!player || !player.alive || !isAbilityKind(message?.ability)) return;
     // A cast means the charge was released — end the wind-up.
     player.chargeAbility = '';
-
-
-    // Gun Mode Zombie disables the entire ability kit — the player fights with
-    // guns only. Reject every cast server-side too, so a crafted client can't
-    // fire a locked ability.
-    if (this.mode.usesGuns) return;
 
     // Crowd control: a stun blocks everything; a silence blocks casting.
     if (isStunned(player) || isSilenced(player)) {
@@ -1434,11 +1397,6 @@ export class ArenaRoom extends AvatarRoom {
         // the client predictor) walks toward the destination and slides around
         // obstacles, so client and server stay in lockstep. Slows/hastes scale
         // the walk speed.
-        // Gun Mode Zombie: the body faces the mouse cursor (streamed via
-        // AimWeapon), not the movement direction — so preserve the aim rotation
-        // across the step (twin-stick: strafe while aiming where you click).
-        const gunAiming = this.gunMode && player.team === 'blue';
-        const aimRotation = player.rotation;
         const arrived = stepMove(
           player,
           this.destinations.get(sessionId) ?? null,
@@ -1448,8 +1406,7 @@ export class ArenaRoom extends AvatarRoom {
               return ((this.tuning.walkSpeedFor(player.characterClass) - this.mode.walkSpeedPenalty) +
                 perk.bonus) *
                 moveSpeedMultiplier(player) *
-                perk.mult *
-                (gunAiming ? gunMoveSpeedMult(this.gunViews.get(sessionId) ?? 'fps') : 1);
+                perk.mult;
             })(),
             rotationSpeed: m.rotationSpeed,
             stoppingDistance: m.stoppingDistance,
@@ -1459,7 +1416,6 @@ export class ArenaRoom extends AvatarRoom {
           },
           dt,
         );
-        if (gunAiming) player.rotation = aimRotation;
         if (arrived) this.destinations.delete(sessionId);
       }
 
@@ -1510,8 +1466,6 @@ export class ArenaRoom extends AvatarRoom {
     // Projectiles/abilities apply their impulses, THEN we step the shared world
     // once, THEN the barrel/destructible systems read back the new transforms.
     this.projectiles.update(dt);
-    // Gun Mode Zombie: complete any reloads whose timer elapsed this tick.
-    this.guns?.update();
     // Roll any shot cars forward (moves their collider) BEFORE the physics step,
     // so drums/barrels collide against the car's new position this tick.
     this.cover.update(dt);
@@ -1609,9 +1563,6 @@ export class ArenaRoom extends AvatarRoom {
     if (player.statuses.length > 0) player.statuses.clear();
     this.displacements.delete(player.sessionId);
     reviveFull(player);
-    // Gun Mode Zombie: (re)issue a fresh weapon loadout to human players on every
-    // spawn. Zombies/bots are 'red' and never carry guns.
-    if (player.team === 'blue') this.guns?.equipLoadout(player);
   }
 
   // --- Practice bots -----------------------------------------------------

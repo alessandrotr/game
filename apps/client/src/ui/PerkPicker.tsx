@@ -23,9 +23,8 @@ const TIER_COLORS: Record<string, { border: string; glow: string; bg: string; la
 export function PerkPicker() {
   const offer = usePerkStore((s) => s.offer);
   const zombieMode = useGameStore((s) => s.zombieMode);
-  const gunMode = useGameStore((s) => s.gunMode);
 
-  if (!offer || !zombieMode || gunMode) return null;
+  if (!offer || !zombieMode) return null;
 
   const pick = (slot: number, target?: PerkId) => {
     sendPerkPick(slot, target);

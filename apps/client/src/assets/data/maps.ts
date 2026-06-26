@@ -233,9 +233,6 @@ const town: MapDescriptor = {
     // Zombie survival gate — set apart from the arena gate so the two read as
     // distinct gateways. Travels straight into a co-op zombie arena.
     { kind: 'portal', center: [8, 0, -14], radius: 2.2, label: 'Zombie Mode', mode: 'zombie' },
-    // Gun Mode Zombie gate — the horde fought with guns. Mirrored to the other
-    // side of the arena gate so the three portals fan out across the plaza.
-    { kind: 'portal', center: [-8, 0, -14], radius: 2.2, label: 'Gun Mode Zombie', mode: 'gunzombie' },
   ],
 };
 

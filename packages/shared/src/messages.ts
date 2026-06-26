@@ -7,7 +7,7 @@
  * damage) that drive transient client feedback.
  */
 
-import type { AbilityConfig, AbilityKind, GunKind, GunView, LobbyMode, Team } from './constants.js';
+import type { AbilityConfig, AbilityKind, LobbyMode, Team } from './constants.js';
 import type { CharacterClass } from './assets.js';
 import type { ClassStats } from './classes.js';
 import type { ChatMessage } from './chat.js';
@@ -70,19 +70,6 @@ export enum ClientMessage {
   DevAddLevel = 'dev_add_level',
   /** Feature flag: enable/disable auto-attacks for the room (off by default). */
   SetAutoAttack = 'set_auto_attack',
-  /** Gun Mode Zombie: fire the equipped gun toward an aim direction (right-click).
-   *  The server enforces the magazine, fire rate, and reload. */
-  FireWeapon = 'fire_weapon',
-  /** Gun Mode Zombie: equip a gun by its slot (3 = pistol, 4 = machine gun). */
-  SwitchWeapon = 'switch_weapon',
-  /** Gun Mode Zombie: reload the equipped gun (R). */
-  ReloadWeapon = 'reload_weapon',
-  /** Gun Mode Zombie: update the facing/aim direction (mouse cursor), streamed so
-   *  the character and remote clients track the cursor between shots. */
-  AimWeapon = 'aim_weapon',
-  /** Gun Mode Zombie: tell the server which camera view is active (fps/topdown)
-   *  so it applies the matching move speed (kept in lockstep with prediction). */
-  SetGunView = 'set_gun_view',
   /** Ask the server for the global leaderboard (town only). */
   RequestLeaderboard = 'request_leaderboard',
   /** Play an emote (dance) — replicated so everyone sees it. */
@@ -150,9 +137,6 @@ export enum ServerMessage {
   /** Co-op zombie run ended (every player fell). Carries the wave reached for the
    *  defeat screen; the client returns to town. */
   ZombieGameOver = 'zombie_game_over',
-  /** Gun Mode Zombie: a gun was fired (drives the muzzle flash + shot SFX). The
-   *  bullet itself is a replicated projectile; this is just the firing feedback. */
-  WeaponFired = 'weapon_fired',
   /** Zombie perk progression: offer 2 visible perks (+ the implicit jolly) after
    *  a wave clear. The client renders the picker; the player replies with
    *  {@link ClientMessage.PerkPick}. */
@@ -286,16 +270,6 @@ export interface ClientMessagePayloads {
   [ClientMessage.DevAddLevel]: { amount: number };
   /** Toggle the auto-attack feature flag for the room. */
   [ClientMessage.SetAutoAttack]: { enabled: boolean };
-  /** Fire the equipped gun along a normalized aim direction (the cursor). */
-  [ClientMessage.FireWeapon]: { dirX: number; dirZ: number };
-  /** Equip a gun by its number-key slot (3 = pistol, 4 = machine gun). */
-  [ClientMessage.SwitchWeapon]: { slot: number };
-  /** Reload the equipped gun. */
-  [ClientMessage.ReloadWeapon]: Record<string, never>;
-  /** Stream the gun-mode facing/aim direction (normalized server-side). */
-  [ClientMessage.AimWeapon]: { dirX: number; dirZ: number };
-  /** Set the active Gun Mode camera view (drives the server-side move speed). */
-  [ClientMessage.SetGunView]: { view: GunView };
   /** Zombie perk: pick slot 0 (visible A), 1 (visible B), or 2 (jolly).
    *  `upgradeTarget` is the perk id to upgrade when using the free-choice path
    *  (only used during upgrade waves; omit for a fresh pick or a jolly). */
@@ -366,16 +340,6 @@ export interface ServerMessagePayloads {
   [ServerMessage.HealTrap]: { x: number; z: number; radius: number };
   /** Co-op zombie run ended — the wave the squad reached (for the defeat screen). */
   [ServerMessage.ZombieGameOver]: { level: number };
-  /** A gun was fired: the shooter, which gun, and the muzzle origin + aim — drives
-   *  the muzzle flash and shot SFX (the bullet is a replicated projectile). */
-  [ServerMessage.WeaponFired]: {
-    shooterId: string;
-    gun: GunKind;
-    x: number;
-    z: number;
-    dirX: number;
-    dirZ: number;
-  };
   /** Zombie perk offer: the two visible options (the jolly is resolved server-side
    *  on pick). `isUpgrade` is true when the player should upgrade an existing perk
    *  rather than pick a new one; `fixedUpgrade` is the pre-rolled upgrade path

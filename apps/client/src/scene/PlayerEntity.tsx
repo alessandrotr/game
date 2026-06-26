@@ -13,8 +13,11 @@ import {
   PLAYER_RADIUS,
   clampToUnlockedArea,
   collideObstacles,
+  computePerkModifiers,
+  effectiveMoveSpeed,
   getCosmeticOfType,
-  gunMoveSpeedMult,
+  isLowHp,
+  isPerkId,
   isRooted,
   isStunned,
   isZombieSkin,
@@ -29,8 +32,6 @@ import { useGameStore } from '../store/useGameStore';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { useDebugStore } from '../store/useDebugStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
-import { getFpsAim, isFpsEngaged } from '../store/fpsAim';
-import { getCursorGround } from '../store/cursorState';
 import { clearDestination, getDestination } from '../store/destinationState';
 import { clearLocalDash, getLocalDash } from '../store/dashState';
 import { useTargetStore } from '../store/targetState';
@@ -112,11 +113,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const isTargeted = useTargetStore((s) => s.targetId === sessionId);
   // Team halo only reads as meaningful in the arena (town is teamless/FFA).
   const inArena = useGameStore((s) => s.room === 'arena');
-  // First-person gun mode hides the local player's own body (the camera is inside
-  // its head); the top-down view and everyone else still render normally.
-  const gunMode = useGameStore((s) => s.gunMode);
-  const gunView = useGameStore((s) => s.gunView);
-  const hideOwnBody = isLocal && gunMode && gunView === 'fps';
   const teamColor = TEAM_COLORS[player?.team === 'red' ? 'red' : 'blue'];
   // Dev-only perf toggle: hide the floating nameplate + HP bar (Leva "Perf Debug").
   const hideNameplates = useDebugStore((s) => s.hideNameplates);
@@ -282,6 +278,18 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       const mv = getLocalMovement(latest.characterClass as CharacterClass);
       const isArena = useGameStore.getState().room === 'arena';
       const isZombieRoom = isArena && useGameStore.getState().zombieMode;
+
+      // Effective predicted speed — folds perks, low-HP perks, and slow/haste
+      // status exactly like the server (shared `effectiveMoveSpeed`), so the
+      // prediction matches by construction and speed changes show immediately
+      // instead of drifting and snapping. `base` is net of the mode walk-speed
+      // penalty (FFA=1, zombie/town=0 — see arena `modes.ts`).
+      const speedMods = computePerkModifiers(
+        [latest.perk1, latest.perk2, latest.perk3].filter(isPerkId),
+      );
+      const lowHp = isLowHp(latest.hp, latest.maxHp, latest.alive);
+      const walkPenalty = isArena && !isZombieRoom ? 1 : 0;
+      const predSpeed = effectiveMoveSpeed(mv.speed - walkPenalty, speedMods, latest, lowHp);
       const halfBounds = (isArena ? (isZombieRoom ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
       // FFA arena is a rectangle (longer N/S); zombie + town stay square. Must
       // match the server's per-axis clamp (ArenaRoom arenaLimitZ) for lockstep.
@@ -349,7 +357,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
         const dist = Math.hypot(dx, dz);
         if (dist > 1e-3) predictedRot.current = Math.atan2(dx / dist, dz / dist);
         if (dist > cfg.range) {
-          const step = Math.min(mv.speed * delta, dist - cfg.range + 0.01);
+          const step = Math.min(predSpeed * delta, dist - cfg.range + 0.01);
           pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
           pos.z = clamp(pos.z + (dz / dist) * step, -halfBoundsZ, halfBoundsZ);
           // Same post-move obstacle push-out the server applies to the chase path.
@@ -364,9 +372,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           { x: pos.x, z: pos.z, rotation: predictedRot.current },
           dest.active ? { x: dest.x, z: dest.z } : null,
           {
-            // Gun mode walks slower per view (matches the server's gun-mode speed
-            // so prediction stays in lockstep) — first person is calmer than top-down.
-            speed: gunMode ? mv.speed * gunMoveSpeedMult(gunView) : (isArena ? mv.speed - 1 : mv.speed),
+            speed: predSpeed,
             rotationSpeed: mv.rotationSpeed,
             stoppingDistance: mv.stoppingDistance,
             halfBounds,
@@ -424,20 +430,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
           const t = 1 - Math.exp(-SETTLE_RATE * delta);
           pos.x = MathUtils.lerp(pos.x, latest.x, t);
           pos.z = MathUtils.lerp(pos.z, latest.z, t);
-        }
-      }
-
-      // Gun Mode Zombie: the local body faces where you're aiming (not the move
-      // direction) — first person tracks the mouse-look yaw, top-down tracks the
-      // cursor. Override the predicted rotation each frame for zero-latency facing.
-      if (useGameStore.getState().gunMode) {
-        if (useGameStore.getState().gunView === 'fps') {
-          if (isFpsEngaged()) predictedRot.current = getFpsAim().yaw;
-        } else {
-          const cur = getCursorGround();
-          const cdx = cur.x - pos.x;
-          const cdz = cur.z - pos.z;
-          if (Math.hypot(cdx, cdz) > 1e-3) predictedRot.current = Math.atan2(cdx, cdz);
         }
       }
 
@@ -548,7 +540,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     <group ref={group}>
       {/* Only the body turns to face movement (see `body` ref) — the nameplate,
           HP bar, and ground rings below stay rotation-free so they don't wobble. */}
-      <group ref={body} visible={!hideOwnBody}>
+      <group ref={body}>
         {/* Zombies render lightweight (no shadows, frustum-culled) — dozens of
             rigged hordlings would otherwise flood the shadow pass + skinning. */}
         <CharacterModel

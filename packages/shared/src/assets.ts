@@ -225,9 +225,8 @@ export interface MapZone {
   /** Optional on-ground label. */
   label?: string;
   /** A `portal` zone's destination. Omitted = the opposite world (town↔arena);
-   *  `'zombie'` = the zombie-survival arena; `'gunzombie'` = Gun Mode Zombie
-   *  (zombie survival fought with guns). Each is a distinct room handler. */
-  mode?: 'zombie' | 'gunzombie';
+   *  `'zombie'` = the zombie-survival arena (a distinct room handler). */
+  mode?: 'zombie';
 }
 
 export interface MapDescriptor {

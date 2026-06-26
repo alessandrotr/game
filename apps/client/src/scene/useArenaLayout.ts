@@ -34,7 +34,6 @@ export function useArenaLayout(): GeneratedArenaLayout {
   // Must match the server's flag so client and server rebuild the identical
   // layout (zombie mode adds trailers/drums and clears the flank portals).
   const zombieMode = useGameStore((s) => s.zombieMode);
-  const gunMode = useGameStore((s) => s.gunMode);
   const unlockedSections = useGameStore((s) => s.unlockedSections);
 
   return useMemo(() => {
@@ -57,9 +56,8 @@ export function useArenaLayout(): GeneratedArenaLayout {
 
     for (let i = 0; i < unlockedSections && i < roomLayout.sections.length; i++) {
       const section = roomLayout.sections[i]!;
-      // Mirror the server: reserve the trap's area so decor placement matches
-      // (traps are zombie-mode only, never gun mode).
-      const trap = gunMode ? null : trapForSection(seed, section);
+      // Mirror the server: reserve the trap's area so decor placement matches.
+      const trap = trapForSection(seed, section);
       const sectionCover = generateSectionCover(seed, section, trap);
       // NOTE: section cover *structures* (cars/trailers/dumpsters) are NOT added
       // to layoutObstacles here. They're already tracked dynamically via the
@@ -75,5 +73,5 @@ export function useArenaLayout(): GeneratedArenaLayout {
       obstacles: mergedObstacles,
       props: mergedProps,
     };
-  }, [seed, zombieMode, gunMode, unlockedSections]);
+  }, [seed, zombieMode, unlockedSections]);
 }

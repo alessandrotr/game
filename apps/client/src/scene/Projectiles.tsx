@@ -20,7 +20,6 @@ const ABILITY_VFX: Record<string, VfxAssetId> = {
   holy_bolt: 'vfx.holy_bolt',
   auto_bolt: 'vfx.fireball',
   auto_arrow: 'vfx.arrow',
-  bullet: 'vfx.bullet',
   ninja_w: 'vfx.shuriken',
   shuriken: 'vfx.shuriken',
 };
