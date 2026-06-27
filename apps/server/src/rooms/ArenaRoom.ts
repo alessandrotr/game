@@ -1,6 +1,9 @@
-import { type Client } from '@colyseus/core';
+import { matchMaker, type Client } from '@colyseus/core';
 import type { ZOMBIE_MODE } from '@arena/shared';
 import {
+  ARENA_ROOM,
+  ZOMBIE_ROOM,
+  REMATCH_WINDOW_MS,
   ARENA_HALF_SIZE,
   ARENA_HALF_Z,
   ARENA_POND,
@@ -167,6 +170,14 @@ interface PendingCast {
  * ({@link ArenaMatch}) systems via a shared {@link ArenaContext}. All gameplay is
  * server-owned.
  */
+/** The options an ArenaRoom is created with (by matchmaking, or by a rematch). */
+interface ArenaRoomOptions {
+  mode?: LobbyMode | typeof ZOMBIE_MODE;
+  coop?: boolean;
+  /** Ranked bot-fill: practice bots per team when the queue was short on humans. */
+  botFill?: { blue?: number; red?: number };
+}
+
 export class ArenaRoom extends AvatarRoom {
   override maxClients = MAX_PLAYERS;
 
@@ -289,6 +300,19 @@ export class ArenaRoom extends AvatarRoom {
    *  card and the persisted per-class lifetime stats. */
   private zombieStats?: ZombieStats;
 
+  /** The options this room was created with — reused verbatim to recreate it for
+   *  a rematch (same mode / coop / bot-fill, so the group re-forms identically). */
+  private createOptions: ArenaRoomOptions = {};
+  /** Each human's original join options, kept so a rematch can re-reserve their
+   *  seat with the same identity (token / class / cosmetics / team). */
+  private readonly joinOptionsBySession = new Map<string, JoinOptions>();
+  /** Post-match rematch coordination. 'open' while collecting votes. */
+  private rematchPhase: 'none' | 'open' | 'resolved' = 'none';
+  /** Session ids of humans who have accepted the rematch. */
+  private readonly rematchAccepted = new Set<string>();
+  /** Epoch ms the rematch window closes (also broadcast for the client countdown). */
+  private rematchDeadline = 0;
+
   protected override jumpForce(): number {
     return this.tuning.movement.jumpForce;
   }
@@ -298,13 +322,8 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(sessionId);
   }
 
-  override onCreate(options?: {
-    mode?: LobbyMode | typeof ZOMBIE_MODE;
-    coop?: boolean;
-    /** Ranked bot-fill: practice bots to spawn per team when the matchmaking
-     *  queue couldn't field enough real players in time. */
-    botFill?: { blue?: number; red?: number };
-  }): void {
+  override onCreate(options?: ArenaRoomOptions): void {
+    this.createOptions = options ?? {};
     this.setState(new ArenaState());
 
     // Resolve this room's game mode (FFA / ranked / zombie / co-op) from the
@@ -543,6 +562,11 @@ export class ArenaRoom extends AvatarRoom {
       },
     );
 
+    this.onMessage<ClientMessagePayloads[ClientMessage.RematchVote]>(
+      ClientMessage.RematchVote,
+      (client, message) => this.handleRematchVote(client.sessionId, message?.accept === true),
+    );
+
     // Dev-only tuning + debug handlers (live balance, bots, grant perks, add
     // levels). Given just the systems it needs + a bot-population callback.
     registerDevHandlers(this, {
@@ -683,6 +707,7 @@ export class ArenaRoom extends AvatarRoom {
         this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability: abilityId });
       },
       zombieStats: this.zombieStats,
+      onMatchEnd: () => this.openRematch(),
     };
   }
 
@@ -760,6 +785,8 @@ export class ArenaRoom extends AvatarRoom {
     this.perkSystem?.init(client.sessionId);
     // Begin run-stat tracking (zombie mode only).
     this.zombieStats?.start(client.sessionId);
+    // Remember how they joined so a rematch can re-reserve the same seat/identity.
+    this.joinOptionsBySession.set(client.sessionId, options ?? {});
 
     this.sendWelcome(client);
 
@@ -827,6 +854,11 @@ export class ArenaRoom extends AvatarRoom {
     this.channels.stop(client.sessionId);
     this.perkSystem?.reset(client.sessionId);
     this.match.forget(client.sessionId);
+    this.joinOptionsBySession.delete(client.sessionId);
+    this.rematchAccepted.delete(client.sessionId);
+    // A player leaving during the rematch vote cancels it for everyone (the group
+    // can't re-form short a member). Resolved phase = a rematch already in flight.
+    if (this.rematchPhase === 'open') this.cancelRematch('left');
     this.unregisterSession(client);
   }
 
@@ -1671,9 +1703,9 @@ export class ArenaRoom extends AvatarRoom {
   }
 
   /** Co-op zombie: when no human player is left alive, broadcast the game-over
-   *  (the wave reached) so clients show the defeat screen, then tear the room down
-   *  after a short linger. Latched so it fires exactly once, and only once at
-   *  least one human has joined (so an empty just-created room doesn't end). */
+   *  (the wave reached) so clients show the defeat screen, then open the rematch
+   *  vote. Latched so it fires exactly once, and only once at least one human has
+   *  joined (so an empty just-created room doesn't end). */
   private checkCoopGameOver(): void {
     if (this.coopOver) return;
     let humans = 0;
@@ -1688,7 +1720,7 @@ export class ArenaRoom extends AvatarRoom {
     const wave = this.zombieDirector?.currentLevel() ?? this.state.zombieLevel;
     this.broadcastZombieResults(wave);
     this.broadcast(ServerMessage.ZombieGameOver, { level: wave });
-    this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+    this.openRematch();
   }
 
   /** Build + broadcast the end-of-run stat card from each human's run tallies. */
@@ -1727,7 +1759,99 @@ export class ArenaRoom extends AvatarRoom {
       players,
     });
   }
-  
+
+  // --- Post-match rematch flow -------------------------------------------
+
+  /** The session ids of the room's human players (everyone who isn't a bot). */
+  private humanSessionIds(): string[] {
+    const ids: string[] = [];
+    this.state.players.forEach((_player, id) => {
+      if (!this.bots.has(id)) ids.push(id);
+    });
+    return ids;
+  }
+
+  /** Open the rematch vote once a match/run ends. The results screen stays up (no
+   *  auto-return); the room waits for every human to accept (→ recreate) or for a
+   *  decline / leave / timeout (→ everyone back to town). */
+  private openRematch(): void {
+    if (this.rematchPhase !== 'none') return;
+    const humans = this.humanSessionIds();
+    // No humans to vote (shouldn't happen at a real match end) — just tear down.
+    if (humans.length === 0) {
+      this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+      return;
+    }
+    this.rematchPhase = 'open';
+    this.rematchAccepted.clear();
+    this.rematchDeadline = Date.now() + REMATCH_WINDOW_MS;
+    this.broadcastRematchUpdate();
+    // Safety: if the group hasn't all accepted by the deadline, return to town.
+    this.clock.setTimeout(() => {
+      if (this.rematchPhase === 'open') this.cancelRematch('timeout');
+    }, REMATCH_WINDOW_MS);
+  }
+
+  private broadcastRematchUpdate(): void {
+    this.broadcast(ServerMessage.RematchUpdate, {
+      ready: this.rematchAccepted.size,
+      total: this.humanSessionIds().length,
+      deadlineMs: this.rematchDeadline,
+    });
+  }
+
+  /** A human voted. Accept → tally (and start the rematch once all are in);
+   *  decline → cancel for everyone. */
+  private handleRematchVote(sessionId: string, accept: boolean): void {
+    if (this.rematchPhase !== 'open') return;
+    if (this.bots.has(sessionId) || !this.state.players.has(sessionId)) return;
+    if (!accept) {
+      this.cancelRematch('declined');
+      return;
+    }
+    this.rematchAccepted.add(sessionId);
+    this.broadcastRematchUpdate();
+    const humans = this.humanSessionIds();
+    if (humans.every((id) => this.rematchAccepted.has(id))) void this.doRematch();
+  }
+
+  /** Call off the rematch and send everyone back to town. */
+  private cancelRematch(reason: string): void {
+    if (this.rematchPhase === 'resolved') return;
+    this.rematchPhase = 'resolved';
+    this.broadcast(ServerMessage.RematchCancelled, { reason });
+    // Clients travel to town themselves; dispose as a backstop once they've gone.
+    this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+  }
+
+  /** Everyone accepted: create a fresh room with the same options and hand each
+   *  human a seat reservation into it, then tear this room down. */
+  private async doRematch(): Promise<void> {
+    if (this.rematchPhase === 'resolved') return;
+    this.rematchPhase = 'resolved';
+    try {
+      const handler = this.zombieMode ? ZOMBIE_ROOM : ARENA_ROOM;
+      const room = await matchMaker.createRoom(handler, this.createOptions);
+      for (const id of this.humanSessionIds()) {
+        const client = this.clients.getById(id);
+        const opts = this.joinOptionsBySession.get(id);
+        if (!client || !opts) continue;
+        const reservation = await matchMaker.reserveSeatFor(room, opts);
+        client.send(ServerMessage.Rematch, { reservation });
+      }
+      // Give clients a moment to consume their reservations, then dispose.
+      this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+    } catch (err) {
+      captureServerError(err, {
+        message: '[arena] rematch failed:',
+        tags: { where: 'arena.doRematch', roomId: this.roomId },
+      });
+      // Couldn't spin up the rematch — fall back to sending everyone to town.
+      this.rematchPhase = 'open'; // allow cancelRematch to run its teardown
+      this.cancelRematch('error');
+    }
+  }
+
   /** Find a safe spot and spawn a treasure chest, ensuring no overlap with cover, players, or spawn points. */
   private trySpawnChest(): void {
     // Only ever one chest alive at a time.

@@ -54,15 +54,20 @@ describe('run history (pg-mem)', () => {
     expect(await getRunHistory(db, p.id, 'mage')).toHaveLength(0);
   });
 
-  it('prunes to the most recent N per class+mode', async () => {
-    const p = await createAccount(db, 'p@example.com', 'P', 'salt:hash');
-    for (let i = 0; i < MAX_PER_CLASS_MODE + 5; i++) {
-      await recordRunHistory(db, zombieRun({ playerId: p.id, wave: i }));
-    }
-    const runs = await getRunHistory(db, p.id, 'warrior');
-    expect(runs).toHaveLength(MAX_PER_CLASS_MODE);
-    // The oldest (low wave numbers) were pruned; the newest survives.
-    expect(runs[0]?.wave).toBe(MAX_PER_CLASS_MODE + 4);
-    expect(runs.some((r) => r.wave === 0)).toBe(false);
-  });
+  it(
+    'prunes to the most recent N per class+mode',
+    async () => {
+      const p = await createAccount(db, 'p@example.com', 'P', 'salt:hash');
+      for (let i = 0; i < MAX_PER_CLASS_MODE + 5; i++) {
+        await recordRunHistory(db, zombieRun({ playerId: p.id, wave: i }));
+      }
+      const runs = await getRunHistory(db, p.id, 'warrior');
+      expect(runs).toHaveLength(MAX_PER_CLASS_MODE);
+      // The oldest (low wave numbers) were pruned; the newest survives.
+      expect(runs[0]?.wave).toBe(MAX_PER_CLASS_MODE + 4);
+      expect(runs.some((r) => r.wave === 0)).toBe(false);
+    },
+    // pg-mem is slow running 55 sequential insert+prune cycles; real Postgres is fine.
+    20000,
+  );
 });

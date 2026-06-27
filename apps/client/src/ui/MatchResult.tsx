@@ -1,41 +1,19 @@
-import { useEffect, useState } from 'react';
 import type { MatchScore, Team } from '@arena/shared';
 import { useMatchResultStore } from '../store/useMatchResultStore';
 import { useGameStore } from '../store/useGameStore';
-import { travelTo } from '../network/colyseus';
-import { Button, Card, Overlay } from './primitives';
+import { Card, Overlay } from './primitives';
+import { RematchControls } from './RematchControls';
 import { STAT_COLORS, TEAM_COLORS, TEAM_LABELS } from './theme';
-
-/** Seconds the results screen shows before auto-returning to town. */
-const AUTO_RETURN_SECONDS = 8;
 
 /**
  * End-of-match overlay (ranked team match). Shown when the server broadcasts
  * `MatchOver`: declares Victory/Defeat for the local player's team, lists the
- * final Blue/Red scoreboard, and returns to town — on a button or after a short
- * countdown.
+ * final Blue/Red scoreboard, and offers a rematch (or return to town). The screen
+ * stays up until the rematch vote resolves — no auto-close.
  */
 export function MatchResult() {
   const result = useMatchResultStore((s) => s.result);
   const sessionId = useGameStore((s) => s.sessionId);
-  const [secondsLeft, setSecondsLeft] = useState(AUTO_RETURN_SECONDS);
-
-  // Tick down and return to town once the result is shown.
-  useEffect(() => {
-    if (!result) return;
-    setSecondsLeft(AUTO_RETURN_SECONDS);
-    const id = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(id);
-          void travelTo('town');
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [result]);
 
   if (!result) return null;
 
@@ -70,16 +48,7 @@ export function MatchResult() {
         </div>
 
         <div className="px-6 pb-5 pt-3">
-          <Button
-            variant="gold"
-            onClick={() => void travelTo('town')}
-            className="w-full px-5 py-2.5 shadow-none"
-          >
-            Return to Town
-          </Button>
-          <div className="mt-2 text-center text-[11px] text-muted">
-            Returning automatically in {secondsLeft}s…
-          </div>
+          <RematchControls />
         </div>
       </Card>
     </Overlay>

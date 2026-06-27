@@ -38,6 +38,7 @@ import { useInviteStore } from '../store/useInviteStore';
 import { useZombieLobbyStore } from '../store/useZombieLobbyStore';
 import { useCoopStore } from '../store/useCoopStore';
 import { useMatchResultStore } from '../store/useMatchResultStore';
+import { useRematchStore } from '../store/useRematchStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useLevelUpStore } from '../store/useLevelUpStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -686,6 +687,18 @@ function wireRoom(joined: Room): void {
     // Co-op squad wiped — show the defeat screen (CoopOverlay returns to town).
     useCoopStore.getState().setGameOver(msg.level);
   });
+  joined.onMessage(ServerMessage.RematchUpdate, (msg) => {
+    // Post-match rematch vote tally (drives the Rematch controls on the result screen).
+    useRematchStore.getState().update(msg);
+  });
+  joined.onMessage(ServerMessage.Rematch, (msg) => {
+    // Everyone accepted — drop into the freshly created room via its reservation.
+    void joinByReservation(msg.reservation);
+  });
+  joined.onMessage(ServerMessage.RematchCancelled, () => {
+    // Someone declined / left / the window lapsed — everyone returns to town.
+    void travelTo('town');
+  });
   joined.onMessage(ServerMessage.Detonation, (msg) => {
     // A thrown pickable burst (server already applied the area damage). The
     // grenade gets the bigger fireball; the molotov a smaller fire pop (its
@@ -776,6 +789,7 @@ function teardownSession(): void {
   useChatStore.getState().clear();
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
+  useRematchStore.getState().reset();
 }
 
 // --- Matchmaking lobby connection (parallel to the town room) ---------------
@@ -1056,6 +1070,7 @@ export async function connectToRoom(
   useChatStore.getState().clear();
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
+  useRematchStore.getState().reset();
   store.setStatus('connecting');
 
   try {
@@ -1155,6 +1170,7 @@ export async function travelTo(
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
+  useRematchStore.getState().reset();
 
     const t0 = performance.now();
     room = await client.joinOrCreate(handler, joinOptions);
@@ -1219,6 +1235,7 @@ async function joinByReservation(reservation: unknown): Promise<void> {
     useChatStore.getState().clear();
   useSpeechStore.getState().clear();
   useMatchResultStore.getState().clear();
+  useRematchStore.getState().reset();
 
     // The reservation shape is internal to Colyseus; consume it directly.
     const t0 = performance.now();
@@ -1340,6 +1357,11 @@ export function sendJump(): void {
 /** Spacebar in the arena: grab a nearby pickable, or throw the carried one. */
 export function sendInteract(): void {
   room?.send(ClientMessage.Interact, {});
+}
+
+/** Post-match: vote on a rematch. `accept: false` declines (everyone → town). */
+export function sendRematchVote(accept: boolean): void {
+  room?.send(ClientMessage.RematchVote, { accept });
 }
 
 /** Set the auto-attack target (attack-move toward a player and strike). */

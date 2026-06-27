@@ -909,6 +909,13 @@ export const EMOTE_MS = 5000;
 export const MATCH_RESULT_LINGER_MS = 20000;
 
 /**
+ * How long the post-match rematch vote stays open. If the whole group hasn't
+ * accepted by then, the rematch lapses and everyone is sent back to town. Sized
+ * so players have time to read the scoreboard and decide without the room lingering.
+ */
+export const REMATCH_WINDOW_MS = 30000;
+
+/**
  * Level curve, shared by server (persistence) and client (HUD). Each level needs
  * quadratically more XP: lvl 1 at 0, 2 at 100, 3 at 400, 4 at 900 … so
  * `xpForLevel(L) = 100·(L-1)²` and `levelForXp` is its inverse.

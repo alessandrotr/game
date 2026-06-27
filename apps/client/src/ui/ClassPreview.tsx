@@ -61,8 +61,13 @@ interface ClassPreviewProps {
   animation?: AnimationName;
   /** Explicit paint textures to apply, overriding the local-player default. Used
    *  by the paperdoll to show ANOTHER player's paint (the caller fetches it). When
-   *  omitted, falls back to the local player's own paint for this class. */
+   *  omitted, falls back to the local player's own paint for this class — unless
+   *  `useOwnPaint` is false. */
   paint?: PaintTextures;
+  /** Whether to fall back to the LOCAL player's paint when no explicit `paint` is
+   *  given. Defaults true (own showcase). Set false when previewing a PEER (the
+   *  paperdoll) so an un-painted peer shows the default skin, not the inspector's. */
+  useOwnPaint?: boolean;
 }
 
 /** Camera + orbit framing per `align` for the full showcase. `'top'` pulls the
@@ -86,6 +91,7 @@ function ClassPreviewImpl({
   transparent = false,
   animation = 'idle',
   paint: paintOverride,
+  useOwnPaint = true,
 }: ClassPreviewProps) {
   const storeSelected = useCharacterStore((s) => s.selectedClass);
   const selected = characterClass ?? storeSelected;
@@ -102,7 +108,7 @@ function ClassPreviewImpl({
   // Reflect custom paint: an explicit override (e.g. a peer's, fetched by the
   // paperdoll) wins; otherwise the local player's own paint for this class.
   const painted = usePaintStore((s) => !!s.customizedByClass[selected]);
-  const paint = paintOverride ?? (painted ? paintTexturesFor(selected) : undefined);
+  const paint = paintOverride ?? (useOwnPaint && painted ? paintTexturesFor(selected) : undefined);
   // Resolve the equipped pedestal (color + shader effect); a neutral gray ring
   // is the default for every class when nothing is equipped.
   const ped = pedestalId ? getCosmeticOfType(pedestalId, 'pedestal') : undefined;

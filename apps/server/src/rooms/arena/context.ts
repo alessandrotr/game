@@ -54,6 +54,9 @@ export interface ArenaContext {
   recordKill(sessionId: string): void;
   /** Zombie-survival run-stat accumulator (zombie mode only; undefined otherwise). */
   readonly zombieStats?: ZombieStats;
+  /** Called when a ranked match ends, so the room can run the post-match flow
+   *  (rematch vote → recreate or return to town). */
+  onMatchEnd?(): void;
   /** Reset cooldowns for a player (all, or a specific ability). */
   resetCooldowns(sessionId: string, abilityId?: string): void;
 }

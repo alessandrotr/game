@@ -1,10 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Clock, Crown, Eye, Flame, LogOut, Shield, Skull, Swords } from 'lucide-react';
 import type { ZombieRunResultLine, ZombieRunResults } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { travelTo } from '../network/colyseus';
 import { Button, Card, Overlay } from './primitives';
+import { RematchControls } from './RematchControls';
 import { STAT_COLORS } from './theme';
 
 /** Total zombies a player felled (all variants, including bosses). */
@@ -36,8 +37,6 @@ function fmtNum(n: number): string {
   return n >= 10000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
-/** Seconds the defeat screen shows before auto-returning to town. */
-const AUTO_RETURN_SECONDS = 8;
 
 /**
  * Co-op zombie death flow (death is final). On the local player's death it offers
@@ -168,28 +167,12 @@ function SpectateBanner({ sessionId }: { sessionId: string | null }) {
   );
 }
 
-/** The whole squad fell — defeat screen with the end-of-run stat card,
- *  auto-returns to town. */
+/** The whole squad fell — defeat screen with the end-of-run stat card. Stays up
+ *  until the rematch vote resolves (recreate the run, or everyone → town). */
 function DefeatScreen({ level }: { level: number }) {
-  const [secondsLeft, setSecondsLeft] = useState(AUTO_RETURN_SECONDS);
   const results = useCoopStore((s) => s.runResults);
   const sessionId = useGameStore((s) => s.sessionId);
   const myName = sessionId ? (useGameStore.getState().players.get(sessionId)?.name ?? null) : null;
-
-  useEffect(() => {
-    setSecondsLeft(AUTO_RETURN_SECONDS);
-    const id = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(id);
-          void travelTo('town');
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
 
   return (
     <Overlay closeOnBackdrop={false}>
@@ -217,16 +200,7 @@ function DefeatScreen({ level }: { level: number }) {
         {results && <RunStats results={results} myName={myName} />}
 
         <div className="px-6 pb-5 pt-4">
-          <Button
-            variant="gold"
-            onClick={() => void travelTo('town')}
-            className="w-full px-5 py-2.5 shadow-none"
-          >
-            Return to Town
-          </Button>
-          <div className="mt-2 text-center text-[11px] text-muted">
-            Returning automatically in {secondsLeft}s…
-          </div>
+          <RematchControls />
         </div>
       </Card>
     </Overlay>

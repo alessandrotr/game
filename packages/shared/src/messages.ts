@@ -96,6 +96,9 @@ export enum ClientMessage {
   /** Zombie perk progression: pick a perk (slot 0/1/2) or upgrade an existing
    *  perk. Sent in response to a {@link ServerMessage.PerkOffer}. */
   PerkPick = 'perk_pick',
+  /** Post-match: vote on a rematch with the same group. `accept: false` (or
+   *  leaving) sends everyone back to town. Sent on the arena/zombie room. */
+  RematchVote = 'rematch_vote',
 }
 
 /** Message identifiers sent from server to client (discrete events, not state sync). */
@@ -157,6 +160,14 @@ export enum ServerMessage {
   PerkOffer = 'perk_offer',
   /** Reset cooldowns for a specific ability or all abilities. */
   ResetCooldown = 'reset_cooldown',
+  /** Post-match rematch vote tally update (how many of the group are ready). */
+  RematchUpdate = 'rematch_update',
+  /** Everyone accepted a rematch — carries a seat reservation into the fresh room
+   *  (consumed exactly like {@link MatchFound}). */
+  Rematch = 'rematch',
+  /** The rematch was called off (someone declined, left, or the window lapsed) —
+   *  the client returns to town. */
+  RematchCancelled = 'rematch_cancelled',
 }
 
 /** A player's line on the end-of-match scoreboard. */
@@ -299,6 +310,8 @@ export interface ClientMessagePayloads {
    *  `upgradeTarget` is the perk id to upgrade when using the free-choice path
    *  (only used during upgrade waves; omit for a fresh pick or a jolly). */
   [ClientMessage.PerkPick]: { slot: number; upgradeTarget?: PerkId };
+  /** Post-match rematch vote. `accept: false` declines (everyone goes to town). */
+  [ClientMessage.RematchVote]: { accept: boolean };
 }
 
 /** One player's stats for a finished co-op zombie run (end-of-run card). */
@@ -417,4 +430,12 @@ export interface ServerMessagePayloads {
     /** The ability kind to reset. If omitted, resets all. */
     ability?: string;
   };
+  /** Rematch vote tally: how many of the group are ready, the total needed, and
+   *  the epoch-ms deadline after which the rematch lapses (everyone → town). */
+  [ServerMessage.RematchUpdate]: { ready: number; total: number; deadlineMs: number };
+  /** Everyone accepted — a seat reservation into the fresh room (consume like
+   *  {@link MatchFound}). */
+  [ServerMessage.Rematch]: { reservation: unknown };
+  /** The rematch was called off — the client returns to town. */
+  [ServerMessage.RematchCancelled]: { reason?: string };
 }

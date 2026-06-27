@@ -130,6 +130,9 @@ function PaperdollCard({
             weaponId={data.weaponId}
             enchantId={data.enchantId}
             paint={paint}
+            // Inspecting a peer: never fall back to the local player's paint, so an
+            // un-painted player (e.g. a guest) shows the default skin, not ours.
+            useOwnPaint={false}
           />
           <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
             drag to rotate

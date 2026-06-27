@@ -1,6 +1,5 @@
 import {
   MATCH_KILL_TARGET,
-  MATCH_RESULT_LINGER_MS,
   ServerMessage,
   teamKillTargetFor,
   type LobbyMode,
@@ -77,7 +76,7 @@ export class ArenaMatch {
       target: this.teamKillTarget,
       scores,
     });
-    // Clients return to town on their own; dispose as a backstop if they linger.
-    this.ctx.setTimeout(() => this.ctx.disconnect(), MATCH_RESULT_LINGER_MS);
+    // Hand off to the room's post-match flow (rematch vote → recreate or town).
+    this.ctx.onMatchEnd?.();
   }
 }
