@@ -14,7 +14,6 @@ import {
   BUFF_DURATION_MS,
   BUFF_TRAP_EFFECT_RADIUS,
   ALTAR_SPAWN_WAVE,
-  ALTAR_GEM_COUNT,
   ServerMessage,
   isZombieSkin,
   type TrapDef,
