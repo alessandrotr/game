@@ -10,7 +10,7 @@ import {
   xpProgress,
   type CharacterClass,
 } from '@arena/shared';
-import { Heart, Droplet, Wind, Swords, Sparkles, ShoppingBag } from 'lucide-react';
+import { Heart, Droplet, Wind, Sparkles, ShoppingBag } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
@@ -27,7 +27,6 @@ const STAT_BARS = [
   { key: 'health', label: 'Health', icon: Heart, color: STAT_COLORS.positive },
   { key: 'mana', label: 'Mana', icon: Droplet, color: STAT_COLORS.mana },
   { key: 'moveSpeed', label: 'Speed', icon: Wind, color: STAT_COLORS.cast },
-  { key: 'attackDamage', label: 'Power', icon: Swords, color: STAT_COLORS.negative },
 ] as const;
 
 /** Max of each stat across every class — the denominator for the comparative bars. */
@@ -154,17 +153,6 @@ export function CharacterSheet() {
                 valueClassName="text-[11px] tabular-nums text-text"
               />
             ))}
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-muted">
-            <span className="uppercase tracking-wide">Difficulty</span>
-            <span className="flex gap-1">
-              {[1, 2, 3].map((n) => (
-                <span
-                  key={n}
-                  className={`h-1.5 w-4 rounded-full ${n <= def.stats.difficulty ? 'bg-gold' : 'bg-white/15'}`}
-                />
-              ))}
-            </span>
           </div>
         </section>
 
