@@ -1,21 +1,20 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
   ChevronRight,
-  Eye,
   Footprints,
   Frame,
+  ListFilter,
   Lock,
-  ShoppingBag,
   Smile,
   Sparkles,
   Sword,
   Tag,
   User,
   Wand2,
+  X,
 } from 'lucide-react';
 import {
-  COSMETICS,
   MAX_EMOTE_SLOTS,
   classCosmeticsOf,
   cosmeticsOfType,
@@ -28,7 +27,6 @@ import {
   type AnimationName,
   type CharacterClass,
   type Cosmetic,
-  type CosmeticRarity,
   type CosmeticType,
   type Loadout,
   type PedestalEffect,
@@ -38,7 +36,6 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
-import { useSidebarStore } from './hud/sidebar/useSidebarStore';
 import { ClassPreview } from './ClassPreview';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
@@ -61,17 +58,9 @@ import {
 } from '../render/emoteThumbnails';
 import { Button, LevelBadge, Meter } from './primitives';
 import { STAT_COLORS } from './theme';
+import { cn } from '@/lib/utils';
+import { PANEL_SURFACE } from './hud/sidebar/panelChrome';
 
-// ---------------------------------------------------------------------------
-// Rarity system — one source of truth for the accent + sort weight.
-// ---------------------------------------------------------------------------
-
-const RARITY: Record<CosmeticRarity, string> = {
-  common: '#9aa3b8',
-  rare: '#4a8bff',
-  epic: '#9a6cff',
-  legendary: '#e8b24a',
-};
 /** Icon per cosmetic type (used on swatches + category headers). */
 const TYPE_ICON: Record<CosmeticType, typeof Tag> = {
   skin: User,
@@ -94,15 +83,6 @@ function itemsFor(type: CosmeticType, characterClass: CharacterClass): Cosmetic[
   return all.filter((c) => (c as { characterClass?: string }).characterClass === characterClass);
 }
 
-/** Every catalog item relevant to a class (shared types + this class's class-bound). */
-function classCatalog(characterClass: CharacterClass): Cosmetic[] {
-  return COSMETICS.filter(
-    (c) =>
-      !CLASS_BOUND.has(c.type) ||
-      (c as { characterClass?: string }).characterClass === characterClass,
-  );
-}
-
 /** The display color a cosmetic "is" (its own color, or its rarity accent). */
 function colorOf(c: Cosmetic): string {
   // Only items that *are* a color carry one (pedestals/dyes/rims/enchants). The
@@ -117,7 +97,7 @@ function colorOf(c: Cosmetic): string {
 const CATEGORIES: { type: CosmeticType; label: string; icon: typeof Tag }[] = [
   { type: 'weapon', label: 'Weapons', icon: Sword },
   { type: 'enchant', label: 'Enchants', icon: Wand2 },
-  { type: 'rim', label: 'Avatar Rims', icon: Frame },
+  { type: 'rim', label: 'Rings', icon: Frame },
   { type: 'pedestal', label: 'Pedestals', icon: Footprints },
   { type: 'emote', label: 'Emotes', icon: Smile },
   { type: 'title', label: 'Titles', icon: Tag },
@@ -406,68 +386,16 @@ function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
   );
 }
 
-/** Modern rarity chip — a gradient pill tinted by the rarity color, with a soft
- *  glow + bevel. Reads instantly without turning the card into a rainbow. */
-function RarityTag({ rarity }: { rarity: CosmeticRarity }) {
-  const c = RARITY[rarity];
-  return (
-    <span
-      className="inline-flex shrink-0 items-center rounded-full border px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.12em] backdrop-blur-sm"
-      style={{
-        color: `color-mix(in srgb, ${c} 75%, #ffffff)`,
-        borderColor: `${c}66`,
-        background: `linear-gradient(135deg, ${c}40, ${c}12)`,
-        boxShadow: `0 0 10px ${c}40, inset 0 1px 0 ${c}33`,
-        textShadow: `0 0 6px ${c}66`,
-      }}
-    >
-      {rarity}
-    </span>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
-/** The CTA verb + style for an item's current state (level-gated). */
-function cardAction(
-  c: Cosmetic,
-  owned: boolean,
-  equipped: boolean,
-  loadout: Loadout,
-  level: number,
-) {
-  if (!owned) {
-    // Locked until the class reaches the required level.
-    if (!isUnlocked(c, level)) {
-      return {
-        label: `Lv ${requiredLevelFor(c)}`,
-        variant: 'panel' as const,
-        icon: Lock,
-        disabled: true,
-      };
-    }
-    return { label: 'Unlock', variant: 'goldCta' as const, icon: Sparkles, disabled: false };
-  }
-  if (c.type === 'emote') {
-    return equipped
-      ? {
-          label: `Key ${loadout.emotes.indexOf(c.id) + 1}`,
-          variant: 'goldOutline' as const,
-          icon: Check,
-          disabled: false,
-        }
-      : { label: 'Bind', variant: 'panel' as const, icon: undefined, disabled: false };
-  }
-  return equipped
-    ? { label: 'Equipped', variant: 'goldOutline' as const, icon: Check, disabled: true }
-    : { label: 'Equip', variant: 'panel' as const, icon: undefined, disabled: false };
-}
-
-/** A calm storefront card: neutral frame, quiet rarity tag, single CTA. The
- *  only strong color is the item's own (a pedestal's hue); state reads from the
- *  badge + gold equipped ring, not a per-rarity wash. */
+/**
+ * A store item tile — thumbnail + name only. Hovering previews the item on the
+ * avatar and frames the tile teal; clicking equips it (gold frame + check, or the
+ * key number for a bound emote). Locked (level-gated) items dim out with a level
+ * badge and aren't selectable until unlocked.
+ */
 function StoreCard({
   c,
   characterClass,
@@ -484,211 +412,108 @@ function StoreCard({
   const previewing = useCustomizeStore((s) => s.previewId === c.id);
   const equipped = isEquipped(c, loadout);
   const locked = !owned && !isUnlocked(c, level);
-  const act = cardAction(c, owned, equipped, loadout, level);
   const [hovered, setHovered] = useState(false);
-  // Clicking the card previews it on the avatar (owned or not). The button (which
-  // stops propagation) unlocks/equips — equip needs ownership, unlock needs level.
-  const preview = () => useCustomizeStore.getState().setPreview(c.id);
-  const onAction = (e: MouseEvent) => {
-    e.stopPropagation();
-    if (owned) equipCosmetic(characterClass, c);
-    else if (!locked) useCosmeticsStore.getState().unlock(characterClass, c.id);
-    preview();
+  const emoteSlot = c.type === 'emote' && equipped ? loadout.emotes.indexOf(c.id) + 1 : 0;
+
+  // Click equips (auto-unlocking a level-eligible item first). Hover previews on
+  // the avatar without committing the loadout.
+  const select = () => {
+    if (locked) return;
+    if (!owned) useCosmeticsStore.getState().unlock(characterClass, c.id);
+    equipCosmetic(characterClass, c);
   };
+
+  const accent = equipped ? 'gold' : !locked && (hovered || previewing) ? 'teal' : 'none';
 
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={preview}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
+      onClick={select}
+      onPointerEnter={() => {
+        setHovered(true);
+        if (!locked) useCustomizeStore.getState().setPreview(c.id);
+      }}
+      onPointerLeave={() => {
+        setHovered(false);
+        if (previewing) useCustomizeStore.getState().setPreview(null);
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          preview();
+          select();
         }
       }}
-      aria-pressed={previewing}
-      title={`Preview ${c.name}`}
-      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        previewing ? 'border-white/40' : 'border-white/10 hover:border-white/20'
+      aria-pressed={equipped}
+      title={locked ? `${c.name} · unlocks at level ${requiredLevelFor(c)}` : c.name}
+      className={`group relative flex aspect-5/6 cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-black/25 transition ${
+        accent === 'gold'
+          ? 'border-gold shadow-[0_0_18px_rgba(232,178,74,0.45)]'
+          : accent === 'teal'
+            ? 'border-[#67d6cf] shadow-[0_0_18px_rgba(103,214,207,0.4)]'
+            : 'border-white/10 hover:border-white/25'
       }`}
     >
-      <div className="relative grid h-24 place-items-center bg-black/20">
-        <div className={`h-full w-full ${locked ? 'opacity-40 grayscale' : ''}`}>
-          {c.type === 'pedestal' ? (
-            <PedestalThumb c={c} hovered={hovered && !locked} />
-          ) : c.type === 'weapon' ? (
-            <WeaponThumb c={c} hovered={hovered && !locked} />
-          ) : c.type === 'enchant' ? (
-            <EnchantThumb c={c} characterClass={characterClass} hovered={hovered && !locked} />
-          ) : c.type === 'title' ? (
-            <div className="grid h-full place-items-center">
-              <TitleThumb c={c} />
-            </div>
-          ) : c.type === 'emote' ? (
-            <EmoteThumb anim={c.anim} hovered={hovered && !locked} />
-          ) : (
-            <div className="grid h-full place-items-center">
-              <Swatch c={c} size={52} />
-            </div>
-          )}
-        </div>
-        {/* Rarity tag — bottom-left of the thumbnail. */}
-        <span className="absolute bottom-2 left-2">
-          <RarityTag rarity={c.rarity} />
-        </span>
-        {locked ? (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur-sm">
-            <Lock size={10} /> Lv {requiredLevelFor(c)}
-          </span>
-        ) : equipped ? (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
-            <Check size={10} /> Equipped
-          </span>
+      <div
+        className={`relative grid flex-1 place-items-center ${locked ? 'opacity-40 grayscale' : ''}`}
+      >
+        {c.type === 'pedestal' ? (
+          <PedestalThumb c={c} hovered={hovered && !locked} />
+        ) : c.type === 'weapon' ? (
+          <WeaponThumb c={c} hovered={hovered && !locked} />
+        ) : c.type === 'enchant' ? (
+          <EnchantThumb c={c} characterClass={characterClass} hovered={hovered && !locked} />
+        ) : c.type === 'title' ? (
+          <TitleThumb c={c} />
+        ) : c.type === 'emote' ? (
+          <EmoteThumb anim={c.anim} hovered={hovered && !locked} />
         ) : (
-          previewing && (
-            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
-              <Eye size={10} /> Preview
-            </span>
-          )
+          <Swatch c={c} size={56} />
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <span className="truncate text-sm font-semibold text-text">{c.name}</span>
-        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
-          {c.description}
-        </p>
-        <Button
-          variant={act.variant}
-          size="sm"
-          onClick={onAction}
-          disabled={act.disabled}
-          className="mt-auto w-full gap-1.5"
+
+      {/* Equipped check (gold) / bound-emote key, top-right. */}
+      {equipped && c.type !== 'emote' && (
+        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-gold text-black shadow">
+          <Check size={12} />
+        </span>
+      )}
+      {c.type === 'emote' && equipped && (
+        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-md bg-gold text-[11px] font-bold leading-none text-black shadow">
+          {emoteSlot}
+        </span>
+      )}
+      {/* Locked → level badge, top-right. */}
+      {locked && (
+        <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur-sm">
+          <Lock size={10} /> Lv {requiredLevelFor(c)}
+        </span>
+      )}
+
+      {/* Name — bottom-left, over a soft scrim. */}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6">
+        <span
+          className={`block truncate text-left text-[12px] font-semibold ${equipped ? 'text-gold' : 'text-white'}`}
         >
-          {act.icon && <act.icon size={13} />} {act.label}
-        </Button>
-      </div>
+          {c.name}
+        </span>
+      </span>
     </div>
   );
 }
 
-/** A labelled category block: an obvious header (icon + name + owned/total) over
- *  that category's card grid. This is the primary structure of the store. */
-function CategorySection({
-  type,
-  label,
+/** One wardrobe category tab — an icon over a bracketed label, stretched to share
+ *  the strip evenly. The active tab lifts into a glowing gold-gradient plate with a
+ *  bright underline + chevron; the rest sit quiet until hovered. */
+function WardrobeTab({
   icon: Icon,
-  characterClass,
-  level,
-}: {
-  type: CosmeticType;
-  label: string;
-  icon: typeof Tag;
-  characterClass: CharacterClass;
-  level: number;
-}) {
-  const items = itemsFor(type, characterClass);
-  const ownedHere = useCosmeticsStore(
-    (s) =>
-      items.filter((c) => classCosmeticsOf(s.byClass, characterClass).owned.includes(c.id)).length,
-  );
-  if (items.length === 0) return null;
-  return (
-    <section className="mb-6 last:mb-0">
-      <div className="mb-3 flex items-center gap-2.5">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/10 text-gold">
-          <Icon size={15} aria-hidden />
-        </span>
-        <h3 className="font-display text-sm font-bold uppercase tracking-[0.18em] text-text">
-          {label}
-        </h3>
-        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted">
-          {ownedHere}/{items.length}
-        </span>
-        <span className="h-px flex-1 bg-linear-to-r from-white/12 to-transparent" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {items.map((c) => (
-          <StoreCard key={c.id} c={c} characterClass={characterClass} level={level} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-type StoreFilter = 'all' | CosmeticType;
-
-/** Tab content: the storefront — a category filter over clearly-labelled
- *  category sections. "All" shows every section stacked; a filter narrows to one. */
-function StoreContent({ characterClass }: { characterClass: CharacterClass }) {
-  const [filter, setFilter] = useState<StoreFilter>('all');
-  // The catalog relevant to this class (shared items + this class's class-bound).
-  const catalogTotal = classCatalog(characterClass).length;
-  // This class's level gates what can be unlocked (live value if playing it,
-  // else the persisted per-class level).
-  const progress = useAuthStore((s) => s.progress);
-  const sessionId = useGameStore((s) => s.sessionId);
-  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
-  const level =
-    (me?.characterClass === characterClass ? me.level : undefined) ??
-    progress.find((p) => p.characterClass === characterClass)?.level ??
-    1;
-  const shown = filter === 'all' ? CATEGORIES : CATEGORIES.filter((cat) => cat.type === filter);
-
-  return (
-    // h-full so this fills its (full-height) grid cell — otherwise the flex-1
-    // scroll/canvas wrapper below has no height to flex into and collapses.
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-2.5">
-        {/* Chips scroll horizontally rather than wrapping — there are enough
-            categories (weapons/enchants included) to overflow on narrower panels. */}
-        <div className="scrollbar-none flex min-w-0 flex-1 gap-1 overflow-x-auto">
-          <FilterChip
-            active={filter === 'all'}
-            label="All"
-            count={catalogTotal}
-            onClick={() => setFilter('all')}
-          />
-          {CATEGORIES.map((cat) => (
-            <FilterChip
-              key={cat.type}
-              active={filter === cat.type}
-              label={cat.label}
-              count={itemsFor(cat.type, characterClass).length}
-              onClick={() => setFilter(cat.type)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        {shown.map((cat) => (
-          <CategorySection
-            key={cat.type}
-            type={cat.type}
-            label={cat.label}
-            icon={cat.icon}
-            characterClass={characterClass}
-            level={level}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** A store category filter chip. */
-function FilterChip({
-  active,
   label,
-  count,
+  active,
   onClick,
 }: {
-  active: boolean;
+  icon: typeof Tag;
   label: string;
-  count: number;
+  active: boolean;
   onClick: () => void;
 }) {
   return (
@@ -696,100 +521,268 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs transition ${
-        active ? 'bg-gold/15 font-semibold text-gold' : 'text-muted hover:text-text'
-      }`}
+      className="group relative flex flex-1 basis-0 flex-col items-center gap-1.5 px-1 pb-3 pt-2.5 outline-none"
     >
-      {label} <span className="opacity-50">{count}</span>
+      <span
+        className={`grid h-12 w-full max-w-[4.75rem] place-items-center rounded-xl border transition-all duration-200 ${
+          active
+            ? 'scale-105 border-gold/70 bg-linear-to-b from-gold/30 to-gold/5 text-gold shadow-[0_0_22px_rgba(232,178,74,0.45),inset_0_1px_0_rgba(255,255,255,0.18)]'
+            : 'border-white/10 bg-white/[0.03] text-white/55 group-hover:-translate-y-0.5 group-hover:border-white/25 group-hover:bg-white/[0.06] group-hover:text-white'
+        }`}
+      >
+        <Icon size={active ? 22 : 19} aria-hidden className="transition-all duration-200" />
+      </span>
+      <span
+        className={`text-[10px] font-bold uppercase tracking-[0.16em] transition-colors duration-200 ${
+          active ? 'text-gold [text-shadow:0_0_10px_rgba(232,178,74,0.5)]' : 'text-muted group-hover:text-text'
+        }`}
+      >
+        [{label}]
+      </span>
+      {active && (
+        <>
+          <span
+            aria-hidden
+            className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-linear-to-r from-transparent via-gold to-transparent"
+          />
+          <span
+            aria-hidden
+            className="absolute -bottom-[5px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-gold"
+          />
+        </>
+      )}
     </button>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Customize — the loadout editor (owned items only)
-// ---------------------------------------------------------------------------
-
-/** A selectable owned-item card in a slot — same rich thumbnail as the store
- *  (3D pedestal / nameplate title / icon), selected state via a check pill. */
-function OptionTile({ c, characterClass }: { c: Cosmetic; characterClass: CharacterClass }) {
-  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
-  const equipped = isEquipped(c, loadout);
-  const slot = c.type === 'emote' ? loadout.emotes.indexOf(c.id) + 1 : 0;
-  const [hovered, setHovered] = useState(false);
+/** The bottom-bar "Owned" filter — a small switch that narrows the grid to items
+ *  you already own (off = browse the full catalog, locked items included). */
+function OwnedToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
-      onClick={() => equipCosmetic(characterClass, c)}
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className="flex items-center gap-2 text-xs font-semibold transition"
+    >
+      <span className={on ? 'text-gold' : 'text-muted'}>Owned</span>
+      <span
+        className={`relative h-4 w-7 rounded-full transition-colors ${on ? 'bg-gold/80' : 'bg-white/15'}`}
+      >
+        <span
+          className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${on ? 'left-3.5' : 'left-0.5'}`}
+        />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * The unified wardrobe: one tab per cosmetic category over a single item grid.
+ * Every item shows with its state badged — owned, equipped (gold check), or locked
+ * (`Lv N`) — and clicking previews it on the avatar; its button unlocks/equips/binds.
+ * The bottom "Owned" switch narrows the grid to what you already own. Replaces the
+ * old Customize / Store split with one surface.
+ */
+function WardrobeContent({
+  characterClass,
+  onClose,
+}: {
+  characterClass: CharacterClass;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<CosmeticType>('weapon');
+  const [ownedOnly, setOwnedOnly] = useState(false);
+
+  // This class's level gates what can be unlocked (live value if playing it, else
+  // the persisted per-class level).
+  const progress = useAuthStore((s) => s.progress);
+  const sessionId = useGameStore((s) => s.sessionId);
+  const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
+  const level =
+    (me?.characterClass === characterClass ? me.level : undefined) ??
+    progress.find((p) => p.characterClass === characterClass)?.level ??
+    1;
+
+  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
+  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
+  const clearSlot = (patch: Partial<Loadout>) =>
+    useCosmeticsStore.getState().equip(characterClass, patch);
+
+  const all = itemsFor(tab, characterClass);
+  const items = ownedOnly ? all.filter((c) => owned.includes(c.id)) : all;
+  // Pedestal / enchant lead with a "Default" tile (clears the slot back to base).
+  const showDefaultPedestal = tab === 'pedestal';
+  const showDefaultEnchant = tab === 'enchant';
+  // Pad the grid out with empty cells so it reads as a full case (rounding up to a
+  // multiple of the column count, a couple of rows minimum).
+  const filled = (showDefaultPedestal ? 1 : 0) + (showDefaultEnchant ? 1 : 0) + items.length;
+  const emptyCount = Math.max(8, Math.ceil(filled / 4) * 4) - filled;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Category tabs + close — the tabs are the panel's header, stretched to
+          fill the full width of the case. */}
+      <div className="relative flex items-stretch border-b border-white/10 px-2 pt-1">
+        <div className="flex min-w-0 flex-1">
+          {CATEGORIES.map((cat) => (
+            <WardrobeTab
+              key={cat.type}
+              icon={cat.icon}
+              label={cat.label}
+              active={tab === cat.type}
+              onClick={() => setTab(cat.type)}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-2 top-2 shrink-0 rounded-lg p-1 text-muted transition hover:bg-white/10 hover:text-text"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+          {showDefaultPedestal && (
+            <DefaultPedestalTile
+              active={!loadout.pedestalId}
+              onSelect={() => clearSlot({ pedestalId: '' })}
+            />
+          )}
+          {showDefaultEnchant && (
+            <DefaultEnchantTile
+              active={!loadout.enchantId}
+              onSelect={() => clearSlot({ enchantId: '' })}
+              characterClass={characterClass}
+            />
+          )}
+          {items.map((c) => (
+            <StoreCard key={c.id} c={c} characterClass={characterClass} level={level} />
+          ))}
+          {Array.from({ length: emptyCount }, (_, i) => (
+            <div
+              key={`empty-${i}`}
+              aria-hidden
+              className="aspect-5/6 rounded-2xl border-2 border-white/5 bg-black/15"
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom bar — Store pill (browse all) + the Owned filter switch. */}
+      <div className="flex items-center justify-between border-t border-white/10 px-5 py-3">
+        <button
+          type="button"
+          onClick={() => setOwnedOnly(false)}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+            ownedOnly
+              ? 'border-white/10 bg-black/30 text-muted hover:text-text'
+              : 'border-gold/40 bg-gold/10 text-gold'
+          }`}
+        >
+          <ListFilter size={14} aria-hidden /> Store <ChevronRight size={14} aria-hidden />
+        </button>
+        <OwnedToggle on={ownedOnly} onChange={setOwnedOnly} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Default ("un-equipped") tiles — the base look for slots that can be cleared.
+// ---------------------------------------------------------------------------
+
+/** A storefront-shaped card for a slot's "default" (un-equipped) state — the same
+ *  frame as {@link StoreCard} so it sits flush in the wardrobe grid. */
+function DefaultCard({
+  active,
+  onSelect,
+  label,
+  renderThumb,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  label: string;
+  renderThumb: (hovered: boolean) => ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
-      aria-pressed={equipped}
-      title={`${c.name} · ${c.rarity}`}
-      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        equipped ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      aria-pressed={active}
+      title={label}
+      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
+        active ? 'border-white/40' : 'border-white/10 hover:border-white/20'
       }`}
     >
-      <div className="relative grid h-16 place-items-center bg-black/20">
-        {c.type === 'pedestal' ? (
-          <PedestalThumb c={c} hovered={hovered} />
-        ) : c.type === 'weapon' ? (
-          <WeaponThumb c={c} hovered={hovered} />
-        ) : c.type === 'enchant' ? (
-          <EnchantThumb c={c} characterClass={characterClass} hovered={hovered} />
-        ) : c.type === 'title' ? (
-          <TitleThumb c={c} />
-        ) : c.type === 'emote' ? (
-          <EmoteThumb anim={c.anim} hovered={hovered} />
-        ) : (
-          <Swatch c={c} size={40} />
-        )}
-        {equipped && c.type !== 'emote' && (
-          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
-            <Check size={11} />
-          </span>
-        )}
-        {c.type === 'emote' && equipped && (
-          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded bg-gold text-[10px] font-bold text-black">
-            {slot}
+      <div className="relative grid h-24 place-items-center bg-black/20">
+        {renderThumb(hovered)}
+        {active && (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
+            <Check size={10} /> Equipped
           </span>
         )}
       </div>
-      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">{c.name}</span>
-    </button>
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
+        <span className="truncate text-sm font-semibold text-text">{label}</span>
+        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
+          The default look — no extra flourish.
+        </p>
+        <Button
+          variant={active ? 'goldOutline' : 'panel'}
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          disabled={active}
+          className="mt-auto w-full gap-1.5"
+        >
+          {active ? (
+            <>
+              <Check size={13} /> Equipped
+            </>
+          ) : (
+            'Equip'
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
 
 /** The default (un-equipped) pedestal — the neutral gray ring every character
  *  starts with. Selecting it clears the equipped pedestal back to default. */
 function DefaultPedestalTile({ active, onSelect }: { active: boolean; onSelect: () => void }) {
-  const [hovered, setHovered] = useState(false);
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      aria-pressed={active}
-      title="Default pedestal"
-      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        active ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
-      }`}
-    >
-      <div className="relative grid h-16 place-items-center bg-black/20">
+    <DefaultCard
+      active={active}
+      onSelect={onSelect}
+      label="Default"
+      renderThumb={(hovered) => (
         <PedestalCanvas effect="ring" color={DEFAULT_PEDESTAL_COLOR} hovered={hovered} />
-        {active && (
-          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
-            <Check size={11} />
-          </span>
-        )}
-      </div>
-      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">Default</span>
-    </button>
+      )}
+    />
   );
 }
 
 /** The default (no-enchant) tile for the enchant slot — shows the class's plain
- *  weapon in a live canvas (like the pedestal's default tile). Selecting it
- *  clears the equipped enchant. */
+ *  weapon in a live canvas. Selecting it clears the equipped enchant. */
 function DefaultEnchantTile({
   active,
   onSelect,
@@ -799,126 +792,21 @@ function DefaultEnchantTile({
   onSelect: () => void;
   characterClass: CharacterClass;
 }) {
-  const [hovered, setHovered] = useState(false);
   const weaponId = resolveCharacter(characterClass).weaponId;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      aria-pressed={active}
-      title="No enchant"
-      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        active ? 'border-gold/50' : 'border-white/10 hover:border-white/20'
-      }`}
-    >
-      <div className="relative grid h-16 place-items-center bg-black/20">
-        {weaponId && <WeaponCanvas weaponId={weaponId} hovered={hovered} />}
-        {active && (
-          <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-gold text-black">
-            <Check size={11} />
-          </span>
-        )}
-      </div>
-      <span className="truncate px-2 py-1.5 text-[12px] font-medium text-text">Default</span>
-    </button>
-  );
-}
-
-/** Section header with the slot name + a "browse store" affordance. */
-function SlotHeader({
-  title,
-  icon: Icon,
-  onBrowse,
-}: {
-  title: string;
-  icon: typeof Tag;
-  onBrowse: () => void;
-}) {
-  return (
-    <div className="mb-2 flex items-center gap-2">
-      <Icon size={14} className="text-gold/70" aria-hidden />
-      <span className="font-display text-[11px] uppercase tracking-[0.2em] text-gold/80">
-        {title}
-      </span>
-      <span className="h-px flex-1 bg-linear-to-r from-gold/20 to-transparent" />
-      <button
-        type="button"
-        onClick={onBrowse}
-        className="flex items-center gap-0.5 text-[11px] text-muted transition hover:text-gold"
-      >
-        Store <ChevronRight size={12} />
-      </button>
-    </div>
-  );
-}
-
-function EmptySlot({ onBrowse }: { onBrowse: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onBrowse}
-      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/15 bg-black/20 px-3 py-3 text-[12px] text-muted transition hover:border-gold/40 hover:text-gold"
-    >
-      <ShoppingBag size={13} /> Unlock some in the Store
-    </button>
-  );
-}
-
-/**
- * One single-select slot. Pedestal leads with a "Default" tile (the gray ring —
- * its un-equipped state); title has no default tile since every character always
- * has a title equipped (starting Novice).
- */
-function SingleSlot({
-  title,
-  icon,
-  type,
-  characterClass,
-  equippedId,
-  onClear,
-  onBrowse,
-}: {
-  title: string;
-  icon: typeof Tag;
-  type: 'pedestal' | 'title' | 'rim' | 'weapon' | 'enchant';
-  characterClass: CharacterClass;
-  equippedId: string;
-  onClear: () => void;
-  onBrowse: () => void;
-}) {
-  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
-  const items = itemsFor(type, characterClass).filter((c) => owned.includes(c.id));
-  // Pedestal leads with the gray-ring default; enchant leads with a "None" tile
-  // (remove the effect). Weapon never clears — its base is always an owned tile.
-  const lead = type === 'pedestal' ? 'pedestal' : type === 'enchant' ? 'none' : 'none-needed';
-  return (
-    <section className="mb-5">
-      <SlotHeader title={title} icon={icon} onBrowse={onBrowse} />
-      {items.length === 0 && lead === 'none-needed' ? (
-        <EmptySlot onBrowse={onBrowse} />
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          {lead === 'pedestal' && <DefaultPedestalTile active={!equippedId} onSelect={onClear} />}
-          {lead === 'none' && (
-            <DefaultEnchantTile
-              active={!equippedId}
-              onSelect={onClear}
-              characterClass={characterClass}
-            />
-          )}
-          {items.map((c) => (
-            <OptionTile key={c.id} c={c} characterClass={characterClass} />
-          ))}
-        </div>
-      )}
-    </section>
+    <DefaultCard
+      active={active}
+      onSelect={onSelect}
+      label="No Enchant"
+      renderThumb={(hovered) =>
+        weaponId ? <WeaponCanvas weaponId={weaponId} hovered={hovered} /> : <span />
+      }
+    />
   );
 }
 
 // ---------------------------------------------------------------------------
-// Shared left showcase (avatar + identity) — same across all tabs.
+// Left showcase — the free-standing champion (over the world) + identity card.
 // ---------------------------------------------------------------------------
 
 function Showcase({ characterClass }: { characterClass: CharacterClass }) {
@@ -943,7 +831,6 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const animation: AnimationName =
     preview?.type === 'emote' ? (preview.anim as AnimationName) : 'idle';
 
-  // Level + XP — overlaid on the canvas next to / below the name (both tabs).
   const sessionId = useGameStore.getState().sessionId;
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   const record = progress.find((p) => p.characterClass === characterClass);
@@ -951,38 +838,42 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const { span, into } = xpProgress(level, me?.xp ?? record?.xp ?? 0);
 
   return (
-    // The equipped/previewed rim frames the whole showcase (panel shape so the
-    // full body + pedestal still read; a circle would crop them).
-    <AvatarFrame rimId={rimId} shape="panel" size="md" className="min-h-[300px]">
-      <ClassPreview
-        characterClass={characterClass}
-        skinId={skinId}
-        dyeId={dyeId}
-        pedestalId={pedestalId}
-        weaponId={weaponId}
-        enchantId={enchantId}
-        animation={animation}
-        spin={false}
-      />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
+    <div className="hidden w-80 shrink-0 flex-col justify-end gap-3 md:flex">
+      {/* The champion, free-standing over the town (transparent canvas — no frame). */}
+      <div className="relative h-104">
+        <ClassPreview
+          characterClass={characterClass}
+          skinId={skinId}
+          dyeId={dyeId}
+          pedestalId={pedestalId}
+          weaponId={weaponId}
+          enchantId={enchantId}
+          animation={animation}
+          spin={false}
+          transparent
+        />
         {preview && (
-          <div className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80 backdrop-blur-sm">
+          <div className="pointer-events-none absolute left-1/2 top-3 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/85 backdrop-blur-sm">
             Previewing
           </div>
         )}
+      </div>
+
+      {/* Identity card. */}
+      <div className="rounded-2xl border border-white/10 bg-panel/55 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
         <div className="flex items-center gap-3">
-          <LevelBadge level={level} size="md" color={rimColorOf(rimId)} className="shrink-0" />
+          <LevelBadge level={level} size="lg" color={rimColorOf(rimId)} className="shrink-0" />
           <div className="min-w-0">
             {title && (
               <div
-                className="truncate text-[11px] font-semibold uppercase tracking-[0.18em]"
+                className="truncate text-[10px] font-semibold uppercase tracking-[0.2em]"
                 style={{ color: title.color, textShadow: `0 0 8px ${title.color}66` }}
               >
                 {title.text}
               </div>
             )}
-            <div className="truncate text-xl font-semibold tracking-wide text-white">
-              {username ?? 'Adventurer'}
+            <div className="truncate text-2xl font-bold tracking-wide text-white">
+              {username ?? me?.name ?? 'Adventurer'}
             </div>
             <div className="truncate text-xs text-muted">
               {def.name} · {def.role}
@@ -1005,107 +896,22 @@ function Showcase({ characterClass }: { characterClass: CharacterClass }) {
           />
         </div>
       </div>
-    </AvatarFrame>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Customize — the loadout editor for the current class (owned items only)
-// ---------------------------------------------------------------------------
-
-function CustomizeContent({ characterClass }: { characterClass: CharacterClass }) {
-  const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
-  const owned = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).owned);
-  // "Browse store" jumps switch the hub to its Store view — which is the sidebar's
-  // Store section.
-  const browse = () => useSidebarStore.getState().open('store');
-  const clearSlot = (patch: Partial<Loadout>) =>
-    useCosmeticsStore.getState().equip(characterClass, patch);
-
-  const ownedEmotes = cosmeticsOfType('emote').filter((c) => owned.includes(c.id));
-
-  return (
-    <div className="h-full overflow-y-auto px-5 py-4">
-      <SingleSlot
-        title="Weapon"
-        icon={Sword}
-        type="weapon"
-        characterClass={characterClass}
-        equippedId={loadout.weaponId}
-        onClear={() => clearSlot({ weaponId: '' })}
-        onBrowse={browse}
-      />
-      <SingleSlot
-        title="Enchant"
-        icon={Wand2}
-        type="enchant"
-        characterClass={characterClass}
-        equippedId={loadout.enchantId}
-        onClear={() => clearSlot({ enchantId: '' })}
-        onBrowse={browse}
-      />
-      <SingleSlot
-        title="Avatar Rim"
-        icon={Frame}
-        type="rim"
-        characterClass={characterClass}
-        equippedId={loadout.rimId}
-        onClear={() => clearSlot({ rimId: '' })}
-        onBrowse={browse}
-      />
-      <SingleSlot
-        title="Pedestal"
-        icon={Footprints}
-        type="pedestal"
-        characterClass={characterClass}
-        equippedId={loadout.pedestalId}
-        onClear={() => clearSlot({ pedestalId: '' })}
-        onBrowse={browse}
-      />
-      <SingleSlot
-        title="Title"
-        icon={Tag}
-        type="title"
-        characterClass={characterClass}
-        equippedId={loadout.titleId}
-        onClear={() => clearSlot({ titleId: '' })}
-        onBrowse={browse}
-      />
-      <section>
-        <SlotHeader title={`Emotes · keys 1–${MAX_EMOTE_SLOTS}`} icon={Smile} onBrowse={browse} />
-        {ownedEmotes.length === 0 ? (
-          <EmptySlot onBrowse={browse} />
-        ) : (
-          <>
-            <p className="mb-2 text-[11px] text-muted">
-              Tap to bind in order — the slot number is the key you press in-game.
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {ownedEmotes.map((c) => (
-                <OptionTile key={c.id} c={c} characterClass={characterClass} />
-              ))}
-            </div>
-          </>
-        )}
-      </section>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Champion hub content (Customize / Store views)
+// Champion hub content (the unified wardrobe)
 // ---------------------------------------------------------------------------
 
 /**
- * The customization & store hub body, hosted in the town sidebar. A persistent
- * left showcase (your live avatar + identity) sits beside the active view —
- * `customize` (equip what you own) or `store` (browse & unlock). Cosmetics are
- * owned and equipped **per class**, so everything here is scoped to the character
- * you're currently playing. Equipping is immediate: it broadcasts live to the
- * town and persists to the account. Which view shows is chosen by the sidebar
- * rail (Champion vs Store); the panel + rail own the chrome — this is just the body.
+ * The wardrobe hub body. The free-standing champion + identity card sit to the
+ * left (over the world); the tabbed item case is its own floating panel on the
+ * right. Cosmetics are owned and equipped **per class**, so everything is scoped
+ * to the character you're currently playing. Equipping is immediate: it broadcasts
+ * live to the town and persists to the account.
  */
-export function ChampionContent({ view }: { view: 'customize' | 'store' }) {
+export function ChampionContent({ onClose }: { onClose: () => void }) {
   const sessionId = useGameStore((s) => s.sessionId);
   const selectedClass = useCharacterStore((s) => s.selectedClass);
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
@@ -1118,15 +924,14 @@ export function ChampionContent({ view }: { view: 'customize' | 'store' }) {
           per card. Mounted with the hub so it isn't torn down on collapse. */}
       <EmoteThumbStage characterClass={characterClass} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)]">
-        <Showcase characterClass={characterClass} />
-        <div className="flex min-h-0 flex-col">
-          {view === 'store' ? (
-            <StoreContent characterClass={characterClass} />
-          ) : (
-            <CustomizeContent characterClass={characterClass} />
-          )}
-        </div>
+      <Showcase characterClass={characterClass} />
+      <div
+        className={cn(
+          PANEL_SURFACE,
+          'flex h-[80vh] w-[min(46rem,calc(100vw-26rem))] min-w-0 flex-col',
+        )}
+      >
+        <WardrobeContent characterClass={characterClass} onClose={onClose} />
       </div>
     </>
   );

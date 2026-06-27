@@ -4,6 +4,7 @@ import { useCustomizeStore } from '../../../store/useCustomizeStore';
 import { SidebarRail } from './SidebarRail';
 import { SidebarPanel } from './SidebarPanel';
 import { ChampionPanel } from './ChampionPanel';
+import { ChampionSheetPanel } from './ChampionSheetPanel';
 import { useSidebarStore } from './useSidebarStore';
 
 /**
@@ -52,6 +53,7 @@ export function Sidebar() {
     <div ref={rootRef} className="pointer-events-none fixed inset-y-0 right-0 z-popover">
       <SidebarPanel />
       <ChampionPanel />
+      <ChampionSheetPanel />
       <div className="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2">
         <SidebarRail />
       </div>

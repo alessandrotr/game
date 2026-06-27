@@ -25,7 +25,7 @@ export function RailIdentity() {
   useGameStore((s) => s.tick); // re-render ~20×/s so level / XP track the server
   const byClass = useCosmeticsStore((s) => s.byClass);
   const openSidebar = useSidebarStore((s) => s.open);
-  const active = useSidebarStore((s) => s.active === 'champion' || s.active === 'store');
+  const active = useSidebarStore((s) => s.active === 'champion');
 
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
   if (!me) return null;
@@ -37,8 +37,9 @@ export function RailIdentity() {
   const owned = classCosmeticsOf(byClass, me.characterClass).owned;
   const claimable = claimableCount(owned, me.characterClass, me.level);
 
-  // Items to claim → straight to the Store; otherwise the Champion view.
-  const open = () => openSidebar(claimable > 0 ? 'store' : 'champion');
+  // The portrait opens the player's own character sheet ("paperdoll"); the sheet
+  // surfaces a "Customize" jump into the wardrobe (and a claimable count when set).
+  const open = () => openSidebar('champion');
 
   return (
     <button

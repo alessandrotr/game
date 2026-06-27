@@ -1,5 +1,6 @@
 import {
   Keyboard,
+  Palette,
   RotateCcw,
   Settings,
   ShoppingBag,
@@ -8,6 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
+import { useCustomizeStore } from '../../../store/useCustomizeStore';
 import type { SidebarSectionId } from './useSidebarStore';
 import { ControlsContent } from './sections/ControlsContent';
 import { SettingsContent } from './sections/SettingsContent';
@@ -62,6 +64,15 @@ export type SidebarEntry = PanelEntry | ActionEntry;
  * (`footer: true`) are one-shot account actions grouped below a divider.
  */
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
+  // --- Paint studio — a one-shot action that launches the full-screen paint
+  //     surface (overlay lives in PaintOverlay, driven by useCustomizeStore). ---
+  {
+    kind: 'action',
+    id: 'paint',
+    label: 'Paint',
+    icon: Palette,
+    run: () => useCustomizeStore.getState().openPaint(),
+  },
   // --- Store view of the champion hub. The Champion (customize) view is opened by
   //     the identity portrait at the top of the rail; both share one mounted hub. ---
   {

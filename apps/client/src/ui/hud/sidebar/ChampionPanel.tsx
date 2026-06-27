@@ -1,28 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Palette, ShoppingBag, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '../../primitives';
 import { ChampionContent } from '../../CustomizePanel';
 import { useCustomizeStore } from '../../../store/useCustomizeStore';
 import { useSidebarStore } from './useSidebarStore';
-import { PANEL_SURFACE, SidebarHeader } from './panelChrome';
 
 /**
- * The customization hub panel — Champion (equip) and Store (browse) views share
- * this one container. Unlike the simple sidebar sections it stays MOUNTED once
- * first opened (toggling visibility, never unmounting) so the showcase + the
- * shared WebGL thumbnail contexts — especially the R3F `EmoteThumbStage` — aren't
- * torn down and recreated when collapsing or switching between the two views.
- * Wears the shared "Trial of Blades" surface + crest header (see panelChrome).
+ * The unified Store / wardrobe. The champion stands free to the left (over the
+ * world) beside its own floating item case on the right — the tabs are the case's
+ * header, so there's no separate crest bar. Stays MOUNTED once first opened
+ * (toggling visibility, never unmounting) so the showcase + the shared WebGL
+ * thumbnail contexts — especially the R3F `EmoteThumbStage` — aren't torn down and
+ * recreated when collapsing. Opened from the Store rail icon or the character
+ * sheet's "Customize" button (both route to the `store` section).
  */
 export function ChampionPanel() {
   const active = useSidebarStore((s) => s.active);
   const close = useSidebarStore((s) => s.close);
-  const openPaint = useCustomizeStore((s) => s.openPaint);
   const setPreview = useCustomizeStore((s) => s.setPreview);
 
-  const isHub = active === 'champion' || active === 'store';
-  const view: 'customize' | 'store' = active === 'store' ? 'store' : 'customize';
+  const isHub = active === 'store';
 
   // Lazy-mount on first open (no WebGL contexts spun up just by entering town),
   // then keep mounted.
@@ -38,33 +34,31 @@ export function ChampionPanel() {
 
   if (!mounted) return null;
 
-  const title = view === 'store' ? 'Store' : 'Champion';
-
   return (
-    <div
-      role="dialog"
-      aria-label={title}
-      aria-hidden={!isHub}
-      style={{ containerType: 'inline-size' }}
-      className={cn(
-        PANEL_SURFACE,
-        'absolute right-24 top-1/2 max-h-[88vh] w-[min(64rem,calc(100vw-10rem))] -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out',
-        isHub
-          ? 'pointer-events-auto translate-x-0 opacity-100'
-          : 'pointer-events-none invisible translate-x-3 opacity-0',
-      )}
-    >
-      <SidebarHeader icon={view === 'store' ? ShoppingBag : Sparkles} title={title} onClose={close}>
-        {/* Paint lives in Customize only — it edits your champion, not the store. */}
-        {view === 'customize' && (
-          <Button variant="panel" size="sm" onClick={openPaint} className="gap-1.5">
-            <Palette size={14} aria-hidden /> Paint
-          </Button>
+    <>
+      {/* Backdrop — dims + blurs the town so the case reads as a focused surface.
+          Clicking it closes the hub. */}
+      <div
+        aria-hidden
+        onClick={close}
+        className={cn(
+          'fixed inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-300',
+          isHub ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
         )}
-      </SidebarHeader>
-      <div className="flex min-h-0 flex-1 flex-col pt-2">
-        <ChampionContent view={view} />
+      />
+      <div
+        role="dialog"
+        aria-label="Store"
+        aria-hidden={!isHub}
+        className={cn(
+          'absolute right-24 top-1/2 flex -translate-y-1/2 items-end gap-8 transition-[opacity,transform] duration-300 ease-out',
+          isHub
+            ? 'pointer-events-auto translate-x-0 opacity-100'
+            : 'pointer-events-none invisible translate-x-3 opacity-0',
+        )}
+      >
+        <ChampionContent onClose={close} />
       </div>
-    </div>
+    </>
   );
 }
