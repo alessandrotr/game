@@ -51,6 +51,7 @@ interface TrapRuntime {
   /** Snapshot of `cooldownMs` at activation (for the progress arc). */
   cooldownSpan: number;
   isDevSpawned?: boolean;
+  sectionIndex?: number;
 }
 
 /**
@@ -98,6 +99,7 @@ export class TrapSystem {
       cooldownEndsAt: 0,
       cooldownSpan: tuning.cooldownMs,
       isDevSpawned,
+      sectionIndex: def.sectionIndex,
     });
   }
 
@@ -126,12 +128,12 @@ export class TrapSystem {
   private activate(t: TrapRuntime, now: number): void {
     const { x, z, radius, kind } = t.obj;
     // Resonance of the Void: once the altar is up (wave 13+), any trap firing
-    // lights the next unlit gem socket — kind doesn't matter, duplicates count.
+    // lights the corresponding gem socket on the altar using a bitmask.
     if (
       this.ctx.state.zombieLevel >= ALTAR_SPAWN_WAVE &&
-      this.ctx.state.altarGemsLit < ALTAR_GEM_COUNT
+      t.sectionIndex !== undefined
     ) {
-      this.ctx.state.altarGemsLit += 1;
+      this.ctx.state.altarGemsLit |= (1 << t.sectionIndex);
     }
     if (kind === 'heal') {
       // Heal beacon: instantly restores every living player and fires a beam of

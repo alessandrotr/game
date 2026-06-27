@@ -103,6 +103,14 @@ export class CoverSystem {
     this.roomLayout = layout;
   }
 
+  /** Dynamically add obstacles to the room's live collision array and physics engine. */
+  addObstacles(obs: ArenaObstacle[]): void {
+    for (const o of obs) {
+      this.collision.push(o);
+      this.physics.addStaticCylinder(o.x, o.z, o.radius, o.height || 1);
+    }
+  }
+
   /** Spawn the match's HP-bearing cover from the generated layout. */
   init(specs: CoverStructureSpec[]): void {
     this.ctx.state.structures.clear();

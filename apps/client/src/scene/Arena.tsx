@@ -10,6 +10,7 @@ import {
   type Vec3,
   type RoomLayout,
   type SectionBounds,
+  ALTAR_ASSET_ID,
 } from '@arena/shared';
 import { mergePlaced, trsMatrix } from '../render/mergeGeometry';
 import { MergedGroupMesh } from '../render/MergedGroupMesh';
@@ -436,6 +437,16 @@ export function Arena() {
   const unlockedSections = useGameStore((s) => s.unlockedSections);
   const arenaSeed = useGameStore((s) => s.arenaSeed);
 
+  // Check if the Altar of Resonance has spawned in the active cover structures
+  const structureIds = useGameStore((s) => s.structureIds);
+  const hasAltar = useMemo(() => {
+    const structures = useGameStore.getState().structures;
+    for (const id of structureIds) {
+      if (structures.get(id)?.assetId === ALTAR_ASSET_ID) return true;
+    }
+    return false;
+  }, [structureIds]);
+
   const isExpanded = zombieMode;
   // FFA arena is a rectangle (longer N/S); zombie stays square (expands via rooms).
   const groundX = isExpanded ? ZOMBIE_ROOM_HALF_SIZE * 2 : ARENA_HALF_SIZE * 2;
@@ -453,8 +464,8 @@ export function Arena() {
       {/* Packed-dirt floor with its worn patches + oil spills painted into the
           shader (one opaque surface — no decal meshes to z-fight or clip feet). */}
       <DirtGround sizeX={groundX} sizeZ={groundZ} />
-      {/* The fixed central pond + island + bridges (FFA only). */}
-      {!isExpanded && <Pond />}
+      {/* The fixed central pond + island + bridges (FFA, or Zombie mode once the Altar has spawned). */}
+      {(!zombieMode || hasAltar) && <Pond />}
       {/* Perimeter hoardings (merged). */}
       {fence.map((g) => (
         <MergedGroupMesh key={g.key} group={g} />
