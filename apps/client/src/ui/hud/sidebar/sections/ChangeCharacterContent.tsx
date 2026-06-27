@@ -62,9 +62,7 @@ function ChampionTile({
       disabled={current}
       onClick={onSelect}
       className={`group relative aspect-square overflow-hidden rounded-lg border transition-all duration-150 ${
-        current
-          ? 'cursor-default'
-          : 'border-white/10 hover:-translate-y-0.5 hover:border-white/30'
+        current ? 'cursor-default' : 'border-white/10 hover:-translate-y-0.5 hover:border-white/30'
       }`}
       style={current ? { borderColor: accent, boxShadow: `0 0 18px ${accent}55` } : undefined}
     >
@@ -78,7 +76,9 @@ function ChampionTile({
         }`}
         style={
           current
-            ? { backgroundImage: `linear-gradient(to top, ${accent}40, transparent 55%, rgba(0,0,0,0.25))` }
+            ? {
+                backgroundImage: `linear-gradient(to top, ${accent}40, transparent 55%, rgba(0,0,0,0.25))`,
+              }
             : undefined
         }
       />
@@ -131,9 +131,6 @@ export function ChangeCharacterContent() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      <p className="mb-3 text-[13px] text-muted">
-        Pick a different champion — town reloads with your new fighter and its equipped look.
-      </p>
       <div className="grid grid-cols-2 gap-2.5">
         {CLASS_LIST.map((c) => (
           <ChampionTile

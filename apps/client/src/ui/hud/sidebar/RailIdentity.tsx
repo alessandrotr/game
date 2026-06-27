@@ -82,9 +82,7 @@ export function RailIdentity() {
         <span className="block truncate text-sm font-semibold tracking-wide text-white">
           {me.name}
         </span>
-        <span className="block truncate text-[11px] text-muted">
-          {def.name} · {def.role}
-        </span>
+        <span className="block truncate text-[11px] text-muted">{def.name}</span>
         {/* XP — labelled bar with the into/span text, mirroring the Store sheet. */}
         <span className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
           <span>XP</span>
