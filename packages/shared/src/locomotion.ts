@@ -51,6 +51,22 @@ export interface LocomotionResult {
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
+/**
+ * Fixed integration granularity (seconds). The collide-and-slide below is
+ * step-size dependent — "advance straight toward the target, then push out of
+ * obstacles" traces a different curve around a pillar for a big step than for
+ * many small ones. The server ticks at 50ms and the client renders at ~16ms
+ * (variable); if each stepped its own dt in one go, their paths around cover
+ * would diverge and the body would snap on reconcile (rubber-banding past
+ * obstacles). Sub-dividing BOTH sides' dt into chunks of this fixed size makes
+ * the slide path depend on the granularity, not the caller's frame/tick rate, so
+ * prediction matches authority around cover by construction.
+ */
+const SUBSTEP_S = 1 / 120;
+/** Cap sub-steps per call so a stalled frame (huge dt) can't spin a long loop;
+ *  the reconcile snap handles any residual after a real hitch. */
+const MAX_SUBSTEPS = 32;
+
 /** Interpolate an angle along the shortest path, handling the ±π wrap. */
 export function lerpAngle(a: number, b: number, t: number): number {
   const tau = Math.PI * 2;
@@ -79,10 +95,11 @@ export function resolveCircles(x: number, z: number, circles: readonly Circle[])
 }
 
 /**
- * Advance one locomotion step toward `dest` (or null = stand still). Fixed order:
- * step toward target → slide around obstacles → clamp to bounds → face travel
- * direction → final safety resolve. Pure: returns the next transform, mutates
- * nothing.
+ * Advance locomotion toward `dest` (or null = stand still) over `dt`, integrated
+ * in fixed {@link SUBSTEP_S} sub-steps so the obstacle slide is identical on the
+ * server (50ms tick) and the client predictor (~16ms frame). Per sub-step, fixed
+ * order: step toward target → slide around obstacles → clamp to bounds → face
+ * travel direction. Pure: returns the next transform, mutates nothing.
  */
 export function stepLocomotion(
   cur: LocomotionState,
@@ -92,24 +109,30 @@ export function stepLocomotion(
 ): LocomotionResult {
   let { x, z, rotation } = cur;
   let arrived = false;
+  const hbZ = p.halfBoundsZ ?? p.halfBounds;
 
-  if (dest) {
-    const dx = dest.x - x;
-    const dz = dest.z - z;
-    const distance = Math.hypot(dx, dz);
-    const remaining = distance - p.stoppingDistance;
-    if (remaining > 0.02 && distance > 1e-6) {
+  if (dest && dt > 0) {
+    let remainingTime = dt;
+    for (let i = 0; i < MAX_SUBSTEPS && remainingTime > 1e-6; i++) {
+      const h = Math.min(SUBSTEP_S, remainingTime);
+      remainingTime -= h;
+
+      const dx = dest.x - x;
+      const dz = dest.z - z;
+      const distance = Math.hypot(dx, dz);
+      const remaining = distance - p.stoppingDistance;
+      if (remaining <= 0.02 || distance <= 1e-6) {
+        arrived = true;
+        break;
+      }
       const ndx = dx / distance;
       const ndz = dz / distance;
-      const step = Math.min(p.speed * dt, remaining);
+      const step = Math.min(p.speed * h, remaining);
       // Advance, then slide around obstacles (push-out preserves tangential motion).
       const slid = resolveCircles(x + ndx * step, z + ndz * step, p.obstacles);
-      const hbZ = p.halfBoundsZ ?? p.halfBounds;
       x = clamp(slid.x, -p.halfBounds, p.halfBounds);
       z = clamp(slid.z, -hbZ, hbZ);
-      rotation = lerpAngle(rotation, Math.atan2(ndx, ndz), 1 - Math.exp(-p.rotationSpeed * dt));
-    } else {
-      arrived = true;
+      rotation = lerpAngle(rotation, Math.atan2(ndx, ndz), 1 - Math.exp(-p.rotationSpeed * h));
     }
   }
 
