@@ -35,7 +35,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useGameStore } from '../store/useGameStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { Showcase } from './CustomizePanel';
 import { ABILITY_ICON } from './abilityIcons';
 import { ClassVitals } from './ClassVitals';
 import { PANEL_SURFACE, SidebarHeader } from './hud/sidebar/panelChrome';
@@ -80,19 +79,16 @@ export function CharacterSheet({ onClose }: { onClose: () => void }) {
   const winRate = games === 0 ? '—' : `${Math.round((wins / games) * 100)}%`;
 
   return (
-    <>
-      {/* Left — the exact same free-standing champion showcase the store uses. */}
-      <Showcase characterClass={characterClass} />
-
-      {/* Right — the info panel, tabbed: Profile (vitals/abilities/customize),
-          Record (arena + survival), and History (recent runs). */}
-      <div
-        className={cn(
-          PANEL_SURFACE,
-          'flex h-[80vh] w-[min(38rem,calc(100vw-26rem))] min-w-0 flex-col',
-        )}
-      >
-        <SidebarHeader icon={UserRound} title="Champion" onClose={onClose} />
+    // The info panel, tabbed: Profile (vitals/abilities), Record (arena +
+    // survival), and History (recent runs). A plain sidebar surface — no town
+    // backdrop, no free-standing 3D champion — like the other menus.
+    <div
+      className={cn(
+        PANEL_SURFACE,
+        'flex h-[80vh] w-[min(38rem,calc(100vw-10rem))] min-w-0 flex-col',
+      )}
+    >
+      <SidebarHeader icon={UserRound} title="Champion" onClose={onClose} />
 
         {/* Tabs — class Profile, lifetime Record, per-run History. */}
         <div className="flex gap-1 border-b border-white/10 px-5">
@@ -161,8 +157,7 @@ export function CharacterSheet({ onClose }: { onClose: () => void }) {
         )}
 
         {tab === 'history' && <RunHistoryTab characterClass={characterClass} />}
-      </div>
-    </>
+    </div>
   );
 }
 
