@@ -285,6 +285,19 @@ export interface PathState {
   goalX: number;
   goalZ: number;
   has: boolean;
+  /** For throttled AI chase repathing: the next sim time a recompute is allowed. */
+  repathAt?: number;
+}
+
+/** True when the straight line a→b is clear of routed cover (no detour needed). */
+export function lineOfSightClear(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  p: PathfindParams,
+): boolean {
+  return clearLine(ax, az, bx, bz, p.obstacles, p.agentRadius ?? PLAYER_RADIUS);
 }
 
 export function emptyPathState(): PathState {
@@ -335,6 +348,39 @@ export function nextWaypoint(
 /** True when the mover is steering toward the final waypoint (the goal itself). */
 export function onFinalWaypoint(state: PathState): boolean {
   return state.idx >= state.pts.length - 1;
+}
+
+/**
+ * Chase variant of {@link nextWaypoint} for AI (zombies/bots) following a MOVING
+ * target through cover. Recomputes the route at most every `repathMs` (the target
+ * moves continuously, so a per-frame repath would be far too costly with a big
+ * horde), advancing along the cached route in between. Use only when the straight
+ * line to the target is blocked — open-field chasing should steer directly.
+ */
+export function nextWaypointThrottled(
+  posX: number,
+  posZ: number,
+  goalX: number,
+  goalZ: number,
+  state: PathState,
+  params: PathfindParams,
+  now: number,
+  repathMs: number,
+): { x: number; z: number } {
+  if (!state.has || now >= (state.repathAt ?? 0)) {
+    state.pts = findPath(posX, posZ, goalX, goalZ, params);
+    state.idx = 0;
+    state.goalX = goalX;
+    state.goalZ = goalZ;
+    state.has = true;
+    state.repathAt = now + repathMs;
+  }
+  while (state.idx < state.pts.length - 1) {
+    const w = state.pts[state.idx]!;
+    if (Math.hypot(posX - w.x, posZ - w.z) <= ADVANCE_DIST) state.idx += 1;
+    else break;
+  }
+  return state.pts[state.idx] ?? { x: goalX, z: goalZ };
 }
 
 /** Breadth-first ring search for the nearest non-blocked cell to (cx,cz). */
