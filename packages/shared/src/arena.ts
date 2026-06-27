@@ -698,16 +698,24 @@ export function collideObstacles(
   obstacles: readonly ArenaObstacle[],
   playerRadius: number,
 ): { x: number; z: number } {
-  for (const o of obstacles) {
-    const dx = x - o.x;
-    const dz = z - o.z;
-    const min = o.radius + playerRadius;
-    const distSq = dx * dx + dz * dz;
-    if (distSq < min * min && distSq > 1e-6) {
-      const d = Math.sqrt(distSq);
-      x = o.x + (dx / d) * min;
-      z = o.z + (dz / d) * min;
+  // Iterate a few passes so a point wedged in the seam between two overlapping
+  // circles (trailers/buildings are a row of them) settles fully clear instead of
+  // sticking — the same convergence the locomotion step's resolveCircles does.
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = false;
+    for (const o of obstacles) {
+      const dx = x - o.x;
+      const dz = z - o.z;
+      const min = o.radius + playerRadius;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < min * min && distSq > 1e-6) {
+        const d = Math.sqrt(distSq);
+        x = o.x + (dx / d) * min;
+        z = o.z + (dz / d) * min;
+        moved = true;
+      }
     }
+    if (!moved) break;
   }
   return { x, z };
 }

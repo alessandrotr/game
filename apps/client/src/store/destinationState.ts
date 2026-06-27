@@ -6,12 +6,15 @@
  * The server is authoritative for movement; this mirror is for responsive local
  * prediction and visual feedback. Single move speed (no sprint flag).
  */
-const destination = { x: 0, z: 0, active: false };
+const destination = { x: 0, z: 0, active: false, routed: true };
 
-export function setDestination(x: number, z: number): void {
+/** `routed` (a discrete click) pathfinds around cover; non-routed (drag-to-steer)
+ *  walks straight so manual steering isn't fought by the router. Defaults routed. */
+export function setDestination(x: number, z: number, routed = true): void {
   destination.x = x;
   destination.z = z;
   destination.active = true;
+  destination.routed = routed;
 }
 
 export function clearDestination(): void {

@@ -557,7 +557,9 @@ function WardrobeTab({
       </span>
       <span
         className={`text-[10px] font-bold uppercase tracking-[0.16em] transition-colors duration-200 ${
-          active ? 'text-gold [text-shadow:0_0_10px_rgba(232,178,74,0.5)]' : 'text-muted group-hover:text-text'
+          active
+            ? 'text-gold [text-shadow:0_0_10px_rgba(232,178,74,0.5)]'
+            : 'text-muted group-hover:text-text'
         }`}
       >
         [{label}]

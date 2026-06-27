@@ -324,6 +324,10 @@ export class CoverSystem {
     this.ctx.state.structures.set(id, cs);
 
     const circles = structureFootprint(cs.assetId, cs.x, cs.z, cs.rotation, cs.radius, cs.height, cs.lengthScale);
+    // The chest is a small slide-past objective on the pond island — keep it solid
+    // for movement but tell the pathfinder to ignore it, so a click across the
+    // bridge doesn't detour all the way around the pond.
+    for (const c of circles) c.noRoute = true;
     this.circles.set(id, circles);
     for (const c of circles) this.collision.push(c);
 

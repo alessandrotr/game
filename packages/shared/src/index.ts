@@ -5,6 +5,7 @@ export * from './pickables.js';
 export * from './status.js';
 export * from './balance.js';
 export * from './locomotion.js';
+export * from './pathfind.js';
 export * from './assets.js';
 export * from './classes.js';
 export * from './types.js';

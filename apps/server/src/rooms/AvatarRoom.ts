@@ -29,7 +29,7 @@ import { clamp } from './util/locomotion.js';
  */
 export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
   /** Active move destination per session (cleared on arrival/death/cast). */
-  protected readonly destinations = new Map<string, { x: number; z: number }>();
+  protected readonly destinations = new Map<string, { x: number; z: number; routed: boolean }>();
   protected readonly verticalVelocity = new Map<string, number>();
   protected readonly grounded = new Map<string, boolean>();
   /** Transient one-shot animation (emote/cast/attack/hit) asserted per player. */
@@ -67,16 +67,21 @@ export abstract class AvatarRoom extends BaseGameRoom<ArenaState> {
   /** Register the six avatar message handlers. Each concrete room calls this
    *  from its `onCreate` (after `setState`). */
   protected registerAvatarHandlers(): void {
-    this.onMessage<{ x: number; z: number }>(ClientMessage.MoveTo, (client, message) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !this.canControl(player)) return;
-      const limit = this.halfLimit;
-      const limitZ = this.halfLimitZ ?? limit;
-      const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
-      const z = Number.isFinite(message?.z) ? clamp(message.z, -limitZ, limitZ) : player.z;
-      this.onMoveOrder(client.sessionId);
-      this.destinations.set(client.sessionId, { x, z });
-    });
+    this.onMessage<{ x: number; z: number; routed?: boolean }>(
+      ClientMessage.MoveTo,
+      (client, message) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !this.canControl(player)) return;
+        const limit = this.halfLimit;
+        const limitZ = this.halfLimitZ ?? limit;
+        const x = Number.isFinite(message?.x) ? clamp(message.x, -limit, limit) : player.x;
+        const z = Number.isFinite(message?.z) ? clamp(message.z, -limitZ, limitZ) : player.z;
+        // A discrete click (routed) pathfinds around cover; drag-to-steer (routed
+        // false) walks straight so manual steering isn't fought by the router.
+        this.onMoveOrder(client.sessionId);
+        this.destinations.set(client.sessionId, { x, z, routed: message?.routed !== false });
+      },
+    );
 
     this.onMessage(ClientMessage.StopMove, (client) => {
       this.destinations.delete(client.sessionId);

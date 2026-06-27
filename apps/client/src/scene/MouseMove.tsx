@@ -14,6 +14,9 @@ import { sendMoveTo, sendStopMove } from '../network/colyseus';
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 /** Throttle for network destination updates (~25/s); prediction still updates every frame. */
 const SEND_INTERVAL = 0.04;
+/** Cursor travel (px) past which a held click becomes a drag-to-steer (which walks
+ *  straight to the cursor) rather than a click (which pathfinds around cover). */
+const DRAG_THRESHOLD_PX = 6;
 
 /**
  * Mouse movement (right mouse button). A click sets a destination the
@@ -37,6 +40,10 @@ export function MouseMove() {
 
   const held = useRef(false);
   const screen = useRef({ x: 0, y: 0 });
+  // Where the press started + whether the cursor has moved enough to count as a
+  // drag-to-steer (vs a click). A click pathfinds; a drag walks straight.
+  const pressStart = useRef({ x: 0, y: 0 });
+  const dragging = useRef(false);
   const lastTarget = useRef<{ x: number; z: number } | null>(null);
   const sendAccum = useRef(0);
   const raycaster = useRef(new Raycaster());
@@ -69,6 +76,8 @@ export function MouseMove() {
       }
       held.current = true;
       screen.current = { x: e.clientX, y: e.clientY };
+      pressStart.current = { x: e.clientX, y: e.clientY };
+      dragging.current = false;
       sendAccum.current = SEND_INTERVAL; // send on the first frame
       useTargetStore.getState().setTarget(null); // a move order cancels auto-attack
     };
@@ -78,9 +87,9 @@ export function MouseMove() {
     const onUp = (e: MouseEvent) => {
       if (e.button !== 2 || !held.current) return;
       held.current = false;
-      // Keep the last destination: the character finishes walking to it and
-      // stops on arrival (point-to-move). Send a final authoritative target.
-      if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z);
+      // On release the final point is a committed destination → route around cover
+      // to reach it (a drag steers directly while held, but routes once let go).
+      if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z, true);
     };
 
     // Touch: a single finger steers exactly like a held right-click. Multi-touch
@@ -95,6 +104,8 @@ export function MouseMove() {
       }
       held.current = true;
       screen.current = { x: t.clientX, y: t.clientY };
+      pressStart.current = { x: t.clientX, y: t.clientY };
+      dragging.current = false;
       sendAccum.current = SEND_INTERVAL;
       useTargetStore.getState().setTarget(null);
     };
@@ -105,7 +116,8 @@ export function MouseMove() {
     const onTouchEnd = () => {
       if (!held.current) return;
       held.current = false;
-      if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z);
+      // Release commits to the final point → route around cover (see onUp).
+      if (lastTarget.current) sendMoveTo(lastTarget.current.x, lastTarget.current.z, true);
     };
 
     canvas.addEventListener('mousedown', onDown);
@@ -156,13 +168,24 @@ export function MouseMove() {
     raycaster.current.setFromCamera(ndc.current, camera);
     if (!raycaster.current.ray.intersectPlane(GROUND, point.current)) return;
 
+    // Once the cursor has travelled past the threshold, this is a drag-to-steer:
+    // walk straight to the cursor (no pathfinding) so manual steering isn't fought.
+    if (!dragging.current) {
+      const moved = Math.hypot(
+        screen.current.x - pressStart.current.x,
+        screen.current.y - pressStart.current.y,
+      );
+      if (moved > DRAG_THRESHOLD_PX) dragging.current = true;
+    }
+    const routed = !dragging.current;
+
     // Update local prediction every frame; throttle the authoritative update.
-    setDestination(point.current.x, point.current.z);
+    setDestination(point.current.x, point.current.z, routed);
     lastTarget.current = { x: point.current.x, z: point.current.z };
     sendAccum.current += delta;
     if (sendAccum.current >= SEND_INTERVAL) {
       sendAccum.current = 0;
-      sendMoveTo(point.current.x, point.current.z);
+      sendMoveTo(point.current.x, point.current.z, routed);
     }
   });
 

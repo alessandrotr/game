@@ -17,6 +17,9 @@ export interface Circle {
   x: number;
   z: number;
   radius: number;
+  /** Pathfinding ignores this circle (it's still solid for sliding). Set on small
+   *  slide-past objects like the chest, so the router doesn't detour around them. */
+  noRoute?: boolean;
 }
 
 export interface LocomotionState {
@@ -74,22 +77,36 @@ export function lerpAngle(a: number, b: number, t: number): number {
   return a + diff * t;
 }
 
+/** How many push-out passes to run before giving up. Multi-circle footprints
+ *  (trailers/buildings are a ROW of overlapping circles) and dense crowds need
+ *  several: pushing out of one circle can shove the point into its neighbour, so
+ *  a single pass leaves the point wedged in the seam. Iterating to a clear spot
+ *  is what stops the server "getting stuck" on cover while the client slips past. */
+const RESOLVE_PASSES = 6;
+
 /**
  * Resolve a point out of any overlapping circles by pushing it to the nearest
  * surface. Applied to the post-move position, this yields sliding: the inward
- * (normal) penetration is removed while tangential travel is preserved.
+ * (normal) penetration is removed while tangential travel is preserved. Iterated
+ * a few times so it settles cleanly outside overlapping clusters instead of
+ * wedging in the seam between two circles.
  */
 export function resolveCircles(x: number, z: number, circles: readonly Circle[]): { x: number; z: number } {
-  for (const o of circles) {
-    const dx = x - o.x;
-    const dz = z - o.z;
-    const min = o.radius + PLAYER_RADIUS;
-    const distSq = dx * dx + dz * dz;
-    if (distSq < min * min && distSq > 1e-9) {
-      const d = Math.sqrt(distSq);
-      x = o.x + (dx / d) * min;
-      z = o.z + (dz / d) * min;
+  for (let pass = 0; pass < RESOLVE_PASSES; pass++) {
+    let moved = false;
+    for (const o of circles) {
+      const dx = x - o.x;
+      const dz = z - o.z;
+      const min = o.radius + PLAYER_RADIUS;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < min * min && distSq > 1e-9) {
+        const d = Math.sqrt(distSq);
+        x = o.x + (dx / d) * min;
+        z = o.z + (dz / d) * min;
+        moved = true;
+      }
     }
+    if (!moved) break; // fully clear — no more pushes needed
   }
   return { x, z };
 }

@@ -232,6 +232,10 @@ export interface ArenaObstacle {
    *  for the central pond moat, which players must walk around but shots fly over.
    *  Defaults to true (a normal solid obstacle) when omitted. */
   blockProjectiles?: boolean;
+  /** Pathfinding ignores this obstacle (it's still solid for sliding). Set on
+   *  small slide-past objects like the chest so the router doesn't detour around
+   *  them (e.g. the chest plugging the pond island). */
+  noRoute?: boolean;
 }
 
 /** A spawn position on the arena floor. */

@@ -12,6 +12,10 @@ import {
   ClientMessage,
   ServerMessage,
   getClassDefinition,
+  nextWaypoint,
+  onFinalWaypoint,
+  emptyPathState,
+  type PathState,
   type CharacterClass,
 } from '@arena/shared';
 import { ArenaState, Player } from './schema.js';
@@ -54,6 +58,14 @@ export class TownRoom extends AvatarRoom {
   protected override readonly chat = new ChatLog({ channel: 'town' });
 
   protected override readonly halfLimit = TOWN_HALF_SIZE - PLAYER_RADIUS;
+
+  /** Click-to-move A* route state per session (routes around town buildings). */
+  private readonly paths = new Map<string, PathState>();
+
+  /** A new move order re-routes from scratch. */
+  protected override onMoveOrder(sessionId: string): void {
+    this.paths.delete(sessionId);
+  }
 
   /** Unregister this room from cross-room town announcements (set on create). */
   private unregisterTownChat?: () => void;
@@ -205,6 +217,7 @@ export class TownRoom extends AvatarRoom {
 
   protected override removeClient(client: Client): void {
     this.baseRemove(client.sessionId);
+    this.paths.delete(client.sessionId);
     this.unregisterSession(client);
   }
 
@@ -217,11 +230,30 @@ export class TownRoom extends AvatarRoom {
       const startX = player.x;
       const startZ = player.z;
 
-      // Point-and-click movement via the shared deterministic step, at the
-      // player's per-class move speed.
+      // Point-and-click movement. Route around buildings with the shared A*
+      // pathfinder (the client predictor runs the same one → no rubber-band), then
+      // step toward the current waypoint with the shared deterministic step.
+      const goal = this.destinations.get(sessionId);
+      let moveTarget = goal ? { x: goal.x, z: goal.z } : null;
+      let pathState: PathState | undefined;
+      if (goal && goal.routed) {
+        // Discrete click: route around buildings.
+        pathState = this.paths.get(sessionId);
+        if (!pathState) {
+          pathState = emptyPathState();
+          this.paths.set(sessionId, pathState);
+        }
+        moveTarget = nextWaypoint(player.x, player.z, goal.x, goal.z, pathState, {
+          obstacles: TOWN_OBSTACLES,
+          halfBounds: limit,
+        });
+      } else if (goal) {
+        // Drag-to-steer: walk straight; no routing.
+        this.paths.delete(sessionId);
+      }
       const arrived = stepMove(
         player,
-        this.destinations.get(sessionId) ?? null,
+        moveTarget,
         {
           speed: getClassDefinition(player.characterClass as CharacterClass).stats.moveSpeed,
           rotationSpeed: MOVEMENT.rotationSpeed,
@@ -231,7 +263,10 @@ export class TownRoom extends AvatarRoom {
         },
         dt,
       );
-      if (arrived) this.destinations.delete(sessionId);
+      if (arrived && (!pathState || onFinalWaypoint(pathState))) {
+        this.destinations.delete(sessionId);
+        this.paths.delete(sessionId);
+      }
 
       // Vertical movement (gravity + jump).
       const g = applyGravity(player, this.verticalVelocity.get(sessionId) ?? 0, dt);

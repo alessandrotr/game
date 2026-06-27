@@ -57,6 +57,10 @@ import {
   CHARACTER_CLASSES,
   CLASS_LOADOUTS,
   isCharacterClass,
+  nextWaypoint,
+  onFinalWaypoint,
+  emptyPathState,
+  type PathState,
   type AbilityDef,
   type AbilityKind,
   type BotDifficulty,
@@ -223,6 +227,8 @@ export class ArenaRoom extends AvatarRoom {
   >();
   /** Forced motion (dash / knockback) that overrides locomotion until `until`. */
   private readonly displacements = new Map<string, Displacement>();
+  /** Click-to-move A* route state per session (routes around static cover). */
+  private readonly paths = new Map<string, PathState>();
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
   /** AI-controlled bots in this room (practice bots, or zombies in zombie mode),
@@ -317,9 +323,10 @@ export class ArenaRoom extends AvatarRoom {
     return this.tuning.movement.jumpForce;
   }
 
-  /** A manual move order cancels any auto-attack. */
+  /** A manual move order cancels any auto-attack and re-routes from scratch. */
   protected override onMoveOrder(sessionId: string): void {
     this.attackTargets.delete(sessionId);
+    this.paths.delete(sessionId); // fresh A* route for the new destination
   }
 
   override onCreate(options?: ArenaRoomOptions): void {
@@ -850,6 +857,7 @@ export class ArenaRoom extends AvatarRoom {
     this.attackTargets.delete(client.sessionId);
     this.attackReadyAt.delete(client.sessionId);
     this.displacements.delete(client.sessionId);
+    this.paths.delete(client.sessionId);
     this.ninjaEStates.delete(client.sessionId);
     this.channels.stop(client.sessionId);
     this.perkSystem?.reset(client.sessionId);
@@ -1599,6 +1607,7 @@ export class ArenaRoom extends AvatarRoom {
         // Hard CC: no movement. A stun also drops the move order and auto-attack.
         // For zombies, we preserve the auto-attack target so they can still bite if prey is in range.
         this.destinations.delete(sessionId);
+        this.paths.delete(sessionId);
         const isZombie = this.zombieMode && this.bots.has(sessionId);
         if (isStunned(player) && !isZombie) {
           this.attackTargets.delete(sessionId);
@@ -1610,13 +1619,33 @@ export class ArenaRoom extends AvatarRoom {
         // Auto-attack: chase the target into range, then strike on a timer.
         this.updateAutoAttack(player, sessionId, dt);
       } else {
-        // Point-and-click movement: the shared deterministic step (also run by
-        // the client predictor) walks toward the destination and slides around
-        // obstacles, so client and server stay in lockstep. Slows/hastes scale
-        // the walk speed.
+        // Point-and-click movement. Route around STATIC cover with the shared A*
+        // pathfinder (the client predictor runs the same one → identical waypoints,
+        // no rubber-band), then walk toward the current waypoint with the shared
+        // deterministic step (which slides around the horde/props). Slows/hastes
+        // scale the walk speed.
+        const goal = this.destinations.get(sessionId);
+        let moveTarget = goal ? { x: goal.x, z: goal.z } : null;
+        let pathState: PathState | undefined;
+        if (goal && goal.routed) {
+          // Discrete click: route around static cover.
+          pathState = this.paths.get(sessionId);
+          if (!pathState) {
+            pathState = emptyPathState();
+            this.paths.set(sessionId, pathState);
+          }
+          moveTarget = nextWaypoint(player.x, player.z, goal.x, goal.z, pathState, {
+            obstacles: this.obstacles,
+            halfBounds: limit,
+            halfBoundsZ: limitZ,
+          });
+        } else if (goal) {
+          // Drag-to-steer: walk straight (the slide handles cover); no routing.
+          this.paths.delete(sessionId);
+        }
         const arrived = stepMove(
           player,
-          this.destinations.get(sessionId) ?? null,
+          moveTarget,
           {
             speed: (() => {
               const perk = getPerkMoveSpeedMult(this.perkSystem, player);
@@ -1633,7 +1662,12 @@ export class ArenaRoom extends AvatarRoom {
           },
           dt,
         );
-        if (arrived) this.destinations.delete(sessionId);
+        // Only finish the move when the FINAL waypoint (the click point) is reached;
+        // intermediate corners just advance the route.
+        if (arrived && (!pathState || onFinalWaypoint(pathState))) {
+          this.destinations.delete(sessionId);
+          this.paths.delete(sessionId);
+        }
       }
 
       // Resolve obstacle collisions for the non-move paths (auto-attack chase,

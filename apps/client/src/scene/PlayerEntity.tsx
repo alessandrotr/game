@@ -1,48 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Html, Text } from '@react-three/drei';
-import { MathUtils, Vector3, type Group, type Mesh } from 'three';
+import { Vector3, type Group, type Mesh } from 'three';
 import {
-  ARENA_HALF_SIZE,
-  ARENA_HALF_Z,
-  ZOMBIE_ROOM_HALF_SIZE,
-  AUTO_ATTACKS,
   PICKABLE_CARRY_Y,
-  TOWN_HALF_SIZE,
-  TOWN_OBSTACLES,
-  PLAYER_RADIUS,
-  clampToUnlockedArea,
-  collideObstacles,
-  computePerkModifiers,
-  effectiveMoveSpeed,
   getCosmeticOfType,
-  isLowHp,
-  isPerkId,
-  isRooted,
-  isStunned,
   isZombieSkin,
   ZOMBIE_MINIBOSS_SKIN_ID,
   TITAN_SKIN_ID,
   TITAN_SCALE,
-  stepLocomotion,
   type AnimationName,
-  type ArenaObstacle,
   type CharacterClass,
 } from '@arena/shared';
-import { useArenaLayout } from './useArenaLayout';
 import { TEAM_COLORS } from '../lib/teamColors';
 import { useGameStore } from '../store/useGameStore';
 import { useCombatFlagsStore } from '../store/useCombatFlagsStore';
 import { useDebugStore } from '../store/useDebugStore';
 import { clearLocalRenderTransform, setLocalRenderTransform } from '../store/localPlayer';
-import { clearDestination, getDestination } from '../store/destinationState';
-import { clearLocalDash, getLocalDash } from '../store/dashState';
+import { isNetDebug } from '../store/netDebug';
+import { clearDestination } from '../store/destinationState';
 import { useTargetStore } from '../store/targetState';
 import { usePaperdollStore } from '../store/usePaperdollStore';
 import { useSpeechStore } from '../store/useSpeechStore';
 import { sendAttack } from '../network/colyseus';
 import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
-import { getLocalMovement } from '../tuning';
 import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
 import { zombieBody } from '../assets/data/zombies';
 import { usePaintStore } from '../store/usePaintStore';
@@ -55,19 +36,11 @@ import { clearCastAim } from '../store/castAim';
 import { clearWeaponTip } from '../store/weaponTip';
 import { PickableVisual } from './PickableVisual';
 
-/** Smoothing for the local player's vertical (jump) toward the server's. */
-const REMOTE_SMOOTHING = 14;
-/** While idle, how fast the predicted position settles onto the server's. With
- *  the shared deterministic step they're already aligned, so this just absorbs
- *  any sub-unit residual seamlessly. */
-const SETTLE_RATE = 10;
-/**
- * After arriving at a destination, briefly hold the (deterministic) stop point
- * and let the authoritative server — a few frames behind — converge onto it,
- * rather than settling backward toward its still-in-transit position. That
- * backward settle was the small "bounce-back" felt on arrival.
- */
-const ARRIVE_HOLD_MS = 350;
+/** How far in the past (ms) the LOCAL player is rendered, so its motion can be
+ *  interpolated between the two bracketing server snapshots (true-speed, fluid).
+ *  Smaller = more responsive but more prone to a brief hold if a snapshot is late;
+ *  must exceed one snapshot interval (~50ms). Remotes use a larger delay. */
+const LOCAL_INTERP_DELAY_MS = 70;
 /**
  * Divergence (world units) that counts as a true reposition (respawn/knockback/
  * blink) and hard-snaps the local player. Above the lag-induced lead: the client
@@ -109,6 +82,8 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   const shieldFill = useRef<Mesh>(null);
   // The floating health bar (background + fill); hidden while dead.
   const hpBar = useRef<Group>(null);
+  // Net-debug: a red ghost drawn at the SERVER position of the local player (F10).
+  const serverGhost = useRef<Mesh>(null);
 
   // Class/skin/name are assigned at join and don't change — read once at mount.
   const player = useGameStore.getState().players.get(sessionId);
@@ -210,8 +185,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);
   const predictedRot = useRef(player?.rotation ?? 0);
-  // Timestamp (ms) of the last destination arrival, for the post-arrival hold.
-  const arrivedAt = useRef(0);
 
   // Animation: a state machine fed each frame, exposed to the model via a stable
   // getter so the character animates without per-frame React re-renders.
@@ -234,17 +207,6 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       if (isLocal) clearLocalRenderTransform();
     };
   }, [isLocal, sessionId]);
-
-  // This match's cover — the predictor collides against the same obstacles the
-  // server generated, so prediction matches authority by construction. Static
-  // cover comes from the layout; alive (un-crumbled) HP structures are merged in
-  // from replicated state and drop out the instant one is destroyed.
-  const layoutObstacles = useArenaLayout().obstacles;
-  const structureObstacles = useGameStore((s) => s.structureObstacles);
-  const arenaObstacles = useMemo(
-    () => [...layoutObstacles, ...structureObstacles],
-    [layoutObstacles, structureObstacles],
-  );
 
   useFrame((_, delta) => {
     const node = group.current;
@@ -273,178 +235,34 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     }
 
     if (isLocal) {
-      // Vertical (jump/fall) stays server-authoritative, smoothed.
-      node.position.y = MathUtils.lerp(node.position.y, latest.y, 1 - Math.exp(-REMOTE_SMOOTHING * delta));
-
-      if (!predicted.current) {
-        predicted.current = new Vector3(latest.x, 0, latest.z);
+      // OPTION 2 — no client-side prediction. Play back the AUTHORITATIVE server
+      // motion by interpolating between snapshots a short delay in the past: this
+      // renders at the server's TRUE speed (no easing/heaviness) and can never
+      // disagree with the server (no rubber-band, no jitter). Movement + ability
+      // input still go to the server. A big jump (respawn/teleport/blink) snaps.
+      if (!predicted.current) predicted.current = new Vector3(latest.x, latest.y, latest.z);
+      const rp = predicted.current;
+      const s = sampleTransform(sessionId, performance.now() - LOCAL_INTERP_DELAY_MS);
+      // If the latest authoritative pos is far from the interpolated sample, it's a
+      // real reposition (respawn/blink) — snap to it rather than sliding across.
+      if (!s || Math.hypot(latest.x - s.x, latest.z - s.z) > TELEPORT_SNAP) {
+        rp.set(latest.x, latest.y, latest.z);
         predictedRot.current = latest.rotation;
-      }
-      const pos = predicted.current;
-      const prevX = pos.x;
-      const prevZ = pos.z;
-      const mv = getLocalMovement(latest.characterClass as CharacterClass);
-      const isArena = useGameStore.getState().room === 'arena';
-      const isZombieRoom = isArena && useGameStore.getState().zombieMode;
-
-      // Effective predicted speed — folds perks, low-HP perks, and slow/haste
-      // status exactly like the server (shared `effectiveMoveSpeed`), so the
-      // prediction matches by construction and speed changes show immediately
-      // instead of drifting and snapping. `base` is net of the mode walk-speed
-      // penalty (FFA=1, zombie/town=0 — see arena `modes.ts`).
-      const speedMods = computePerkModifiers(
-        [latest.perk1, latest.perk2, latest.perk3].filter(isPerkId),
-      );
-      const lowHp = isLowHp(latest.hp, latest.maxHp, latest.alive);
-      const walkPenalty = isArena && !isZombieRoom ? 1 : 0;
-      const predSpeed = effectiveMoveSpeed(mv.speed - walkPenalty, speedMods, latest, lowHp);
-      const halfBounds = (isArena ? (isZombieRoom ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
-      // FFA arena is a rectangle (longer N/S); zombie + town stay square. Must
-      // match the server's per-axis clamp (ArenaRoom arenaLimitZ) for lockstep.
-      const halfBoundsZ = isArena && !isZombieRoom ? ARENA_HALF_Z - PLAYER_RADIUS : halfBounds;
-      const dest = getDestination();
-
-      // Zombie mode (arena): the living horde is solid. Collide against the same
-      // zombie bodies the server does (matched by skin), rebuilt each frame since
-      // they move, so the player is blocked by the horde instead of walking
-      // through. `height: 0` keeps them ArenaObstacle-shaped for collideObstacles.
-      let arenaMoveObstacles: readonly ArenaObstacle[] = arenaObstacles;
-      if (isArena && useGameStore.getState().zombieMode) {
-        const blockers: ArenaObstacle[] = [];
-        useGameStore.getState().players.forEach((p, id) => {
-          if (id !== sessionId && p.alive && isZombieSkin(p.skinId))
-            blockers.push({ x: p.x, z: p.z, radius: PLAYER_RADIUS, height: 0 });
-        });
-        if (blockers.length > 0) arenaMoveObstacles = [...arenaObstacles, ...blockers];
-      }
-      // Hard CC mirrors the server: stun/root halt movement; a stun also drops
-      // the chase target. Read through the shared status helpers (a present
-      // status is live — the server prunes expired ones each tick).
-      const rooted = isRooted(latest);
-      const stunned = isStunned(latest);
-
-      // Auto-attack chase intent (arena only). Drop it the moment the target dies
-      // so we stop chasing a corpse (the server clears its attack-target too).
-      const attackId = isArena ? useTargetStore.getState().targetId : null;
-      const target = attackId ? useGameStore.getState().players.get(attackId) : undefined;
-      if (target && !target.alive) {
-        useTargetStore.getState().setTarget(null);
-      }
-      const attacking = !rooted && !!target && target.alive;
-
-      // Predicted dash (charge / tumble): a constant-velocity slide that mirrors
-      // the server's displacement and overrides locomotion while active — so the
-      // dash is smooth even mid-run instead of snapping.
-      const dashState = getLocalDash();
-      const dashing = dashState.active && performance.now() < dashState.until;
-
-      if (dashing) {
-        pos.x = clamp(pos.x + dashState.vx * delta, -halfBounds, halfBounds);
-        pos.z = clamp(pos.z + dashState.vz * delta, -halfBoundsZ, halfBoundsZ);
-        // Dashes only happen in the arena (abilities are arena-only), so collide
-        // against the match's cover and active move blockers (zombies).
-        const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
-        pos.x = fixed.x;
-        pos.z = fixed.z;
-        predictedRot.current = Math.atan2(dashState.dirX, dashState.dirZ);
-      } else if (rooted) {
-        // Hard CC: the server halts the player and drops the move order (stun or
-        // root); a stun also drops the chase target (see ArenaRoom). Mirror it so
-        // the predictor stops walking toward the now-cancelled destination
-        // instead of running ahead and snapping back — the "elastic" lag. The
-        // body settles onto the frozen server position via the reconcile below.
-        if (dest.active) clearDestination();
-        if (stunned && attackId) useTargetStore.getState().setTarget(null);
-      } else if (attacking && target) {
-        // Mirror the server's auto-attack movement so prediction matches by
-        // construction: face the target, close to attack range, then HOLD and
-        // strike in place (no rubber-banding, stops dead like LoL).
-        const cfg = AUTO_ATTACKS[latest.characterClass as CharacterClass];
-        const dx = target.x - pos.x;
-        const dz = target.z - pos.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist > 1e-3) predictedRot.current = Math.atan2(dx / dist, dz / dist);
-        if (dist > cfg.range) {
-          const step = Math.min(predSpeed * delta, dist - cfg.range + 0.01);
-          pos.x = clamp(pos.x + (dx / dist) * step, -halfBounds, halfBounds);
-          pos.z = clamp(pos.z + (dz / dist) * step, -halfBoundsZ, halfBoundsZ);
-          // Same post-move obstacle push-out the server applies to the chase path.
-          const fixed = collideObstacles(pos.x, pos.z, arenaMoveObstacles, PLAYER_RADIUS);
-          pos.x = fixed.x;
-          pos.z = fixed.z;
-        }
       } else {
-        // The SAME deterministic step the server runs → prediction matches by
-        // construction (single speed, slides around obstacles, clamps to bounds).
-        const result = stepLocomotion(
-          { x: pos.x, z: pos.z, rotation: predictedRot.current },
-          dest.active ? { x: dest.x, z: dest.z } : null,
-          {
-            speed: predSpeed,
-            rotationSpeed: mv.rotationSpeed,
-            stoppingDistance: mv.stoppingDistance,
-            halfBounds,
-            halfBoundsZ,
-            obstacles: isArena ? arenaMoveObstacles : TOWN_OBSTACLES,
-          },
-          delta,
-        );
-        pos.x = result.x;
-        pos.z = result.z;
-        predictedRot.current = result.rotation;
-        if (result.arrived) {
-          clearDestination();
-          arrivedAt.current = performance.now();
-        }
+        rp.set(s.x, s.y, s.z);
+        predictedRot.current = s.rotation;
       }
-      if (dashState.active && !dashing) clearLocalDash();
-
-      // Room expansion system: enforce section boundaries on the client prediction
-      // so the player can't walk through walls into locked sections.
-      if (isZombieRoom) {
-        const store = useGameStore.getState();
-        const layout = window.__arenaRoomLayout;
-        if (layout) {
-          const clamped = clampToUnlockedArea(
-            pos.x,
-            pos.z,
-            layout,
-            store.unlockedSections,
-            PLAYER_RADIUS,
-            prevX,
-            prevZ,
-          );
-          pos.x = clamped.x;
-          pos.z = clamped.z;
-        }
-      }
-
-      // Reconcile: snap on a true reposition (respawn/knockback/blink); while
-      // actively moving (toward a destination OR chasing a target) trust the
-      // prediction — it matches the server by construction; only when idle settle
-      // gently onto the server.
-      const err = Math.hypot(pos.x - latest.x, pos.z - latest.z);
-      if (err > TELEPORT_SNAP) {
-        pos.set(latest.x, 0, latest.z);
-        arrivedAt.current = 0;
-      } else if (!dest.active && !attacking && !dashing) {
-        // Just arrived: hold our deterministic stop point and let the server land
-        // on it (avoids the backward settle / bounce). Ends as soon as the server
-        // converges, or after a short safety window if it genuinely diverged.
-        const holding =
-          arrivedAt.current > 0 && performance.now() - arrivedAt.current < ARRIVE_HOLD_MS && err > 0.05;
-        if (!holding) {
-          arrivedAt.current = 0;
-          const t = 1 - Math.exp(-SETTLE_RATE * delta);
-          pos.x = MathUtils.lerp(pos.x, latest.x, t);
-          pos.z = MathUtils.lerp(pos.z, latest.z, t);
-        }
-      }
-
-      node.position.x = pos.x;
-      node.position.z = pos.z;
+      node.position.set(rp.x, rp.y, rp.z);
       if (body.current) body.current.rotation.y = predictedRot.current;
-      setLocalRenderTransform(pos.x, pos.z, predictedRot.current);
+      setLocalRenderTransform(rp.x, rp.z, predictedRot.current);
+
+      // F10 debug ghost — shows the very latest server pos vs the interpolated body
+      // (a small constant lag while moving; they meet when you stop).
+      if (serverGhost.current) {
+        const dbg = isNetDebug();
+        serverGhost.current.visible = dbg;
+        if (dbg) serverGhost.current.position.set(latest.x - rp.x, 0.1, latest.z - rp.z);
+      }
     } else {
       // Remote: render ~INTERP_DELAY in the past, interpolating between the two
       // bracketing snapshots → constant-velocity, jitter-free motion.
@@ -549,6 +367,13 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
 
   return (
     <group ref={group}>
+      {/* Net-debug ghost (F10): red sphere at the server position, local player only. */}
+      {isLocal && (
+        <mesh ref={serverGhost} visible={false}>
+          <sphereGeometry args={[0.35, 12, 12]} />
+          <meshBasicMaterial color="#ff3030" transparent opacity={0.45} depthTest={false} />
+        </mesh>
+      )}
       {/* Only the body turns to face movement (see `body` ref) — the nameplate,
           HP bar, and ground rings below stay rotation-free so they don't wobble. */}
       <group ref={body}>

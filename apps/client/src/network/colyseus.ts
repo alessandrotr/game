@@ -1340,8 +1340,8 @@ export function requestLeaderboard(category: LeaderboardCategory = 'wins'): void
 }
 
 /** Update the world-space point to move toward (hold-to-move). */
-export function sendMoveTo(x: number, z: number): void {
-  room?.send(ClientMessage.MoveTo, { x, z });
+export function sendMoveTo(x: number, z: number, routed = true): void {
+  room?.send(ClientMessage.MoveTo, { x, z, routed });
 }
 
 /** Stop mouse-driven movement immediately (right mouse button released). */

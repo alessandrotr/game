@@ -217,7 +217,9 @@ export interface LeaderboardEntry {
 
 /** Payload map for {@link ClientMessage}. */
 export interface ClientMessagePayloads {
-  [ClientMessage.MoveTo]: { x: number; z: number };
+  /** `routed: true` (a discrete click) pathfinds around cover to the point;
+   *  `routed: false` (drag-to-steer) walks straight toward it. Defaults to routed. */
+  [ClientMessage.MoveTo]: { x: number; z: number; routed?: boolean };
   [ClientMessage.StopMove]: Record<string, never>;
   [ClientMessage.Jump]: Record<string, never>;
   [ClientMessage.Interact]: Record<string, never>;

@@ -16,6 +16,7 @@ import { useServerStatTuning } from './hooks/useServerStatTuning';
 import { useServerCombatFlags } from './hooks/useServerCombatFlags';
 import { useInteractionInput } from './hooks/useInteractionInput';
 import { useHudHotkey } from './hooks/useHudHotkey';
+import { toggleNetDebug } from './store/netDebug';
 import { GameScene } from './scene/GameScene';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { ConnectionLost } from './ui/ConnectionLost';
@@ -63,6 +64,17 @@ export default function App() {
   }, [authStatus]);
 
   const minLoading = useMinimumDuration(1200); // floor the intro splash
+
+  // F10 toggles the movement net-debug view (red ghost = server position).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'F10') return;
+      e.preventDefault();
+      console.log(`[net-debug] ${toggleNetDebug() ? 'ON' : 'off'} — red ghost = server position`);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Combat input + live tuning are arena-only (the town room has no such handlers,
   // and Colyseus disconnects a client that sends an unhandled message). Movement
