@@ -39,6 +39,7 @@ import {
   isBlinded,
   isStunned,
   pickWeightedPortal,
+  pondObstacles,
   trapForSection,
   zombieFatChanceForLevel,
   zombieFatHealthForLevel,
@@ -142,6 +143,19 @@ export class ZombieSurvival {
   ensureAltar(): void {
     if (this.altarSpawned) return;
     this.altarSpawned = true;
+
+    // Clear any cover structures, barrels, and destructibles in the Altar's path.
+    const clearRadius = 3.5;
+    // Destroy CoverStructures in range (deal massive damage so they crumble)
+    this.deps.cover.damageInRadius(ALTAR_POSITION.x, ALTAR_POSITION.z, clearRadius, 99999);
+    // Explode any barrels in range
+    this.deps.barrels.triggerInRadius(ALTAR_POSITION.x, ALTAR_POSITION.z, clearRadius, '');
+    // Destroy any destructible props in range (drums, tires)
+    this.deps.destructibles.pushInRadius(ALTAR_POSITION.x, ALTAR_POSITION.z, clearRadius, '', 99999);
+
+    // Spawn the Pond obstacles (collisions) on the server.
+    this.deps.cover.addObstacles(pondObstacles());
+
     this.deps.cover.addSection([
       {
         assetId: ALTAR_ASSET_ID,
@@ -185,7 +199,7 @@ export class ZombieSurvival {
     if (!player || !player.alive || player.superweapon) return false;
     // Gates: all 4 gems lit, a wave in progress (altar is silent between waves),
     // and standing inside the ritual ring.
-    if (this.deps.state.altarGemsLit < ALTAR_GEM_COUNT) return false;
+    if ((this.deps.state.altarGemsLit & 15) !== 15) return false;
     if (this.deps.state.zombiesRemaining <= 0) return false;
     if (!this.inRitualZone(player.x, player.z)) return false;
     // Regen is suppressed during the channel, so the full cost must be banked or
@@ -669,8 +683,6 @@ export class ZombieSurvival {
 
   /** True once the Titan has been spawned this run (it only ever spawns once). */
   private titanSpawned = false;
-  /** True once the Titan's 50%-HP Devourer Singularity has fired. */
-  private titanWellFired = false;
 
   /** Spawn the Necrotic Titan (wave 16). A colossal, CC-immune boss zombie whose
    *  HP scales with the human count. Returns whether it actually spawned (false if
@@ -698,32 +710,14 @@ export class ZombieSurvival {
     this.deps.grounded.set(id, true);
     this.deps.cooldowns.set(id, {});
     this.deps.bots.set(id, makeZombieProfile());
-    this.aiFor(id).speedOffset = -2.0; // ponderous
+    this.aiFor(id).speedOffset = -3.5; // ponderous (decreased by 1.5 from -2.0)
     return true;
   }
 
-  /** Drive the Necrotic Titan: a 50%-HP Devourer Singularity (a gravity well at
-   *  the room centre, once), then alternating Decimating Fissure (a forward fan
+  /** Drive the Necrotic Titan: alternating Decimating Fissure (a forward fan
    *  of shockwaves) and Corrosive Mortar (acid pools around the target). */
   updateTitanAI(bot: Player, id: string): void {
     if (this.deps.now() < (this.bossNextActionAt.get(id) ?? 0)) return;
-
-    // 50% phase: a single massive gravity well at the room centre.
-    if (!this.titanWellFired && bot.maxHp > 0 && bot.hp <= bot.maxHp * 0.5) {
-      this.titanWellFired = true;
-      this.deps.groundZones.spawn(
-        'singularity',
-        ALTAR_POSITION.x,
-        ALTAR_POSITION.z,
-        14,
-        0,
-        1000,
-        SINGULARITY_DURATION_MS,
-        '',
-      );
-      this.bossNextActionAt.set(id, this.deps.now() + 5000);
-      return;
-    }
 
     // Acquire the nearest living human.
     let target: Player | undefined;
@@ -743,7 +737,8 @@ export class ZombieSurvival {
       return;
     }
 
-    this.bossNextActionAt.set(id, this.deps.now() + (3000 + Math.random() * 2000));
+    // Cooldown/interval doubled: from (3-5s) to (6-10s)
+    this.bossNextActionAt.set(id, this.deps.now() + (6000 + Math.random() * 4000));
 
     if (Math.random() < 0.5) {
       // Decimating Fissure: three heavy shockwaves in a tight forward fan.

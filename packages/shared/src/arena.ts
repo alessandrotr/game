@@ -334,8 +334,8 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
       const z = (rng() * 2 - 1) * maxRZ;
       // Keep clear of the center so a piece can't overlap its own mirror.
       if (Math.hypot(x, z) < fr + GAP) continue;
-      // FFA: keep everything out of the central pond/island — only the chest lives there.
-      if (!zombieMode && Math.hypot(x - ARENA_POND.x, z - ARENA_POND.z) < ARENA_POND.pondR + GAP + fr)
+      // Keep clear of the central pond/island (where the chest/altar lives).
+      if (Math.hypot(x - ARENA_POND.x, z - ARENA_POND.z) < ARENA_POND.pondR + GAP + fr)
         continue;
       if (!farFromSpawns(x, z, fr) || !farFromPortal(x, z, fr)) continue;
       // Both the piece and its mirror must clear everything placed so far.
@@ -373,7 +373,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
 
           // Check first piece center
           if (Math.hypot(x1, z1) < r + GAP) continue;
-          if (!zombieMode && Math.hypot(x1 - ARENA_POND.x, z1 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
+          if (Math.hypot(x1 - ARENA_POND.x, z1 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
             continue;
           if (!farFromSpawns(x1, z1, r) || !farFromPortal(x1, z1, r)) continue;
           if (!farFromTaken(x1, z1, r) || !farFromTaken(-x1, -z1, r)) continue;
@@ -399,7 +399,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
 
           // Check second piece center
           if (Math.hypot(x2, z2) < r + GAP) continue;
-          if (!zombieMode && Math.hypot(x2 - ARENA_POND.x, z2 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
+          if (Math.hypot(x2 - ARENA_POND.x, z2 - ARENA_POND.z) < ARENA_POND.pondR + GAP + r)
             continue;
           if (!farFromSpawns(x2, z2, r) || !farFromPortal(x2, z2, r)) continue;
           if (!farFromTaken(x2, z2, r) || !farFromTaken(-x2, -z2, r)) continue;
@@ -638,7 +638,7 @@ export function generateArenaLayout(seed: number, zombieMode = false): Generated
 
 /** Collision circles that fill the pond's water ring (everything except the
  *  island and the N/S bridge lane), so the moat blocks movement. */
-function pondObstacles(): ArenaObstacle[] {
+export function pondObstacles(): ArenaObstacle[] {
   const P = ARENA_POND;
   const cr = 1.2; // circle radius
   const step = 1.5;

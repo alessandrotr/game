@@ -7,24 +7,33 @@ import {
   ALTAR_HEIGHT,
   ALTAR_POSITION,
   ALTAR_RITUAL_RADIUS,
+  DEFAULT_ARENA_SEED,
+  generateRoomLayout,
+  trapForSection,
 } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 
-/** Flavor colors per socket (heal / death / singularity / buff). Gems light in
- *  order by COUNT — kind doesn't matter — but the colors keep the doc's look. */
-const GEM_COLORS = ['#3ef07a', '#ff4d4d', '#b15bff', '#4da6ff'];
+/** Gem color mappings based on the trap type. */
+const TRAP_GEM_COLORS: Record<string, string> = {
+  heal: '#3ef07a',
+  death: '#ff4d4d',
+  singularity: '#b15bff',
+  buff: '#4da6ff',
+};
 /** How far the gem sockets orbit the obelisk base. */
 const GEM_ORBIT = 1.7;
 
 /**
  * Resonance of the Void — the Altar of Resonance at the room centre (zombie mode,
  * wave 13+). A dark obelisk ringed by four gem sockets that light as traps fire
- * (server tracks the count in `altarGemsLit`); a glowing ritual ring marks the
+ * (server tracks which traps fired in the bitmask `altarGemsLit`); a glowing ritual ring marks the
  * radius the channeller must stand in. The server owns the collision (an
  * indestructible CoverStructure); this is purely the visual. Renders only once
  * that structure exists, so it appears exactly when the altar rises.
  */
 export function AltarOfResonance() {
+  const seed = useGameStore((s) => s.arenaSeed) || DEFAULT_ARENA_SEED;
+
   // Re-render when the set of structures changes — that's when the altar spawns.
   const structureIds = useGameStore((s) => s.structureIds);
   const hasAltar = useMemo(() => {
@@ -36,7 +45,13 @@ export function AltarOfResonance() {
   }, [structureIds]);
 
   const lit = useGameStore((s) => s.altarGemsLit);
-  const complete = lit >= ALTAR_GEM_COUNT;
+  const complete = (lit & 15) === 15;
+
+  // Get the trap kinds for all 4 sections in order based on the layout seed.
+  const trapKinds = useMemo(() => {
+    const layout = generateRoomLayout(seed);
+    return layout.sections.map((section) => trapForSection(seed, section)?.kind ?? 'heal');
+  }, [seed]);
 
   // Slow idle spin on the gem ring so the altar reads as "active".
   const ring = useRef<Group>(null);
@@ -60,14 +75,15 @@ export function AltarOfResonance() {
         <meshBasicMaterial color={complete ? '#b15bff' : '#3a3550'} transparent opacity={0.7} />
       </mesh>
 
-      {/* Four gem sockets around the base; light in order as gems are earned. */}
+      {/* Four gem sockets around the base; color matches the corresponding section's trap. */}
       <group ref={ring}>
         {Array.from({ length: ALTAR_GEM_COUNT }).map((_, i) => {
           const angle = (i / ALTAR_GEM_COUNT) * Math.PI * 2;
           const gx = Math.sin(angle) * GEM_ORBIT;
           const gz = Math.cos(angle) * GEM_ORBIT;
-          const isLit = i < lit;
-          const color = GEM_COLORS[i % GEM_COLORS.length] ?? '#ffffff';
+          const isLit = (lit & (1 << i)) !== 0;
+          const trapKind = trapKinds[i] ?? 'heal';
+          const color = TRAP_GEM_COLORS[trapKind] ?? '#ffffff';
           return (
             <mesh key={i} position={[gx, 0.9, gz]}>
               <octahedronGeometry args={[0.28]} />
