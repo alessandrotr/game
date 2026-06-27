@@ -17,13 +17,18 @@ export interface StatTileProps extends VariantProps<typeof statTileVariants> {
   value: ReactNode;
   /** Value color (per-stat: kills green, deaths red, …). */
   color: string;
+  /** Optional plain-text explanation shown as a hover tooltip. */
+  hint?: string;
   className?: string;
 }
 
 /** Small stat block (Kills / Deaths / K/D) used by the player card & paperdoll. */
-export function StatTile({ label, value, color, variant, className }: StatTileProps) {
+export function StatTile({ label, value, color, hint, variant, className }: StatTileProps) {
   return (
-    <div className={cn(statTileVariants({ variant }), className)}>
+    <div
+      className={cn(statTileVariants({ variant }), hint && 'cursor-help', className)}
+      title={hint}
+    >
       <div className="text-[15px] font-bold tabular-nums" style={{ color }}>
         {value}
       </div>

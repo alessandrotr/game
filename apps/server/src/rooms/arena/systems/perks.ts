@@ -192,6 +192,7 @@ export class PerkSystem {
     // Apply HP/maxHP adjustments immediately when picking health perks.
     this.applyMaxHp(sessionId, player);
 
+    this.ctx.zombieStats?.recordPerkPick(sessionId);
     return true;
   }
 

@@ -244,6 +244,71 @@ export interface ClassProgressView {
   deaths: number;
   wins: number;
   losses: number;
+  /** Lifetime zombie-survival stats for this class (all zero if never played). */
+  zombie: ZombieClassStats;
+}
+
+/** A class's accumulated zombie-survival record (see db `recordZombieRun`). */
+export interface ZombieClassStats {
+  /** Runs played. */
+  runs: number;
+  /** Deepest wave ever reached (a high score, not a sum). */
+  bestWave: number;
+  /** Total seconds survived across all runs. */
+  timeSurvived: number;
+  killsNormal: number;
+  killsSprinter: number;
+  killsFat: number;
+  killsMiniboss: number;
+  killsTitan: number;
+  perksPicked: number;
+  altars: number;
+  doors: number;
+  traps: number;
+  damageDealt: number;
+  damageTaken: number;
+}
+
+/** A zero {@link ZombieClassStats} (a class never played in survival). */
+export const EMPTY_ZOMBIE_STATS: ZombieClassStats = {
+  runs: 0,
+  bestWave: 0,
+  timeSurvived: 0,
+  killsNormal: 0,
+  killsSprinter: 0,
+  killsFat: 0,
+  killsMiniboss: 0,
+  killsTitan: 0,
+  perksPicked: 0,
+  altars: 0,
+  doors: 0,
+  traps: 0,
+  damageDealt: 0,
+  damageTaken: 0,
+};
+
+/** The two kinds of run we keep a history for. */
+export type RunMode = 'arena' | 'zombie';
+
+/** One finished run/match in a player's history (newest first in the list). */
+export interface RunHistoryEntry {
+  id: number;
+  mode: RunMode;
+  characterClass: CharacterClass;
+  /** Epoch ms when the run ended. */
+  endedAt: number;
+  /** Seconds the match lasted (arena) or the player survived (zombie). */
+  durationSec: number;
+  /** Arena: 'win' | 'loss'. Null for zombie (and unranked arena, which isn't logged). */
+  outcome: 'win' | 'loss' | null;
+  /** Kills this run — enemy players (arena) or zombies (survival). */
+  kills: number;
+  /** Deaths this run (arena PvP only; always 0 for zombie). */
+  deaths: number;
+  /** Survival: deepest wave reached this run (0 for arena). */
+  wave: number;
+  /** XP earned this run. */
+  xp: number;
 }
 
 /** Authentication response: a session token plus the account's per-class progress. */

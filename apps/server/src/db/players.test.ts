@@ -11,8 +11,10 @@ import {
   findGuestId,
   getProgress,
   recordResult,
+  recordZombieRun,
   topPlayers,
   upgradeGuest,
+  type ZombieRunDelta,
 } from './players';
 
 /** Register a test account with a throwaway password hash. */
@@ -89,6 +91,60 @@ describe('player repository (pg-mem)', () => {
       losses: 0,
     });
     expect(prog).toMatchObject({ xp: 420, level: 3, wins: 1 });
+  });
+
+  it('recordZombieRun accumulates totals additively but keeps best_wave as a max', async () => {
+    const p = await account(db, 'survivor@example.com', 'Survivor');
+    const base: ZombieRunDelta = {
+      runs: 1,
+      bestWave: 0,
+      timeSurvived: 0,
+      killsNormal: 0,
+      killsSprinter: 0,
+      killsFat: 0,
+      killsMiniboss: 0,
+      killsTitan: 0,
+      perksPicked: 0,
+      altars: 0,
+      doors: 0,
+      traps: 0,
+      damageDealt: 0,
+      damageTaken: 0,
+    };
+    // A deep first run.
+    await recordZombieRun(db, p.id, 'warrior', {
+      ...base,
+      bestWave: 12,
+      timeSurvived: 300,
+      killsNormal: 50,
+      killsMiniboss: 2,
+      damageDealt: 9000,
+    });
+    // A shorter second run (lower wave) — totals add, best_wave must NOT drop.
+    await recordZombieRun(db, p.id, 'warrior', {
+      ...base,
+      bestWave: 7,
+      timeSurvived: 120,
+      killsNormal: 20,
+      killsTitan: 1,
+      damageDealt: 3000,
+    });
+
+    const row = (
+      await db.query(
+        `SELECT zombie_runs, zombie_best_wave, zombie_time_survived,
+                zombie_kills_normal, zombie_kills_miniboss, zombie_kills_titan, zombie_damage_dealt
+           FROM class_progress WHERE player_id = $1 AND character_class = $2`,
+        [p.id, 'warrior'],
+      )
+    ).rows[0]!;
+    expect(Number(row.zombie_runs)).toBe(2);
+    expect(Number(row.zombie_best_wave)).toBe(12); // max(12, 7), not 19
+    expect(Number(row.zombie_time_survived)).toBe(420);
+    expect(Number(row.zombie_kills_normal)).toBe(70);
+    expect(Number(row.zombie_kills_miniboss)).toBe(2);
+    expect(Number(row.zombie_kills_titan)).toBe(1);
+    expect(Number(row.zombie_damage_dealt)).toBe(12000);
   });
 
   it('tracks progression per class independently', async () => {

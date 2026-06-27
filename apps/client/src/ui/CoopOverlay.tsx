@@ -1,10 +1,40 @@
-import { useEffect, useState } from 'react';
-import { Eye, LogOut, Skull } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Clock, Crown, Eye, Flame, LogOut, Shield, Skull, Swords } from 'lucide-react';
+import type { ZombieRunResultLine, ZombieRunResults } from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { livingTeammates, useCoopStore } from '../store/useCoopStore';
 import { travelTo } from '../network/colyseus';
 import { Button, Card, Overlay } from './primitives';
 import { STAT_COLORS } from './theme';
+
+/** Total zombies a player felled (all variants, including bosses). */
+const totalKills = (p: ZombieRunResultLine): number =>
+  p.killsNormal + p.killsSprinter + p.killsFat + p.killsMiniboss + p.killsTitan;
+
+/** Whole-squad totals, derived from the per-player lines. */
+function teamTotals(players: ZombieRunResultLine[]) {
+  return players.reduce(
+    (acc, p) => ({
+      kills: acc.kills + totalKills(p),
+      bosses: acc.bosses + p.killsMiniboss + p.killsTitan,
+      damageDealt: acc.damageDealt + p.damageDealt,
+      damageTaken: acc.damageTaken + p.damageTaken,
+    }),
+    { kills: 0, bosses: 0, damageDealt: 0, damageTaken: 0 },
+  );
+}
+
+/** Seconds → `m:ss`. */
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** Compact number (1234 → 1.2k). */
+function fmtNum(n: number): string {
+  return n >= 10000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
 
 /** Seconds the defeat screen shows before auto-returning to town. */
 const AUTO_RETURN_SECONDS = 8;
@@ -138,9 +168,14 @@ function SpectateBanner({ sessionId }: { sessionId: string | null }) {
   );
 }
 
-/** The whole squad fell — defeat screen, auto-returns to town. */
+/** The whole squad fell — defeat screen with the end-of-run stat card,
+ *  auto-returns to town. */
 function DefeatScreen({ level }: { level: number }) {
   const [secondsLeft, setSecondsLeft] = useState(AUTO_RETURN_SECONDS);
+  const results = useCoopStore((s) => s.runResults);
+  const sessionId = useGameStore((s) => s.sessionId);
+  const myName = sessionId ? (useGameStore.getState().players.get(sessionId)?.name ?? null) : null;
+
   useEffect(() => {
     setSecondsLeft(AUTO_RETURN_SECONDS);
     const id = setInterval(() => {
@@ -158,7 +193,7 @@ function DefeatScreen({ level }: { level: number }) {
 
   return (
     <Overlay closeOnBackdrop={false}>
-      <Card variant="modal" className="w-[400px]">
+      <Card variant="modal" className={results ? 'w-[520px]' : 'w-[400px]'}>
         <div
           className="px-6 py-6 text-center"
           style={{
@@ -178,6 +213,9 @@ function DefeatScreen({ level }: { level: number }) {
             The squad was overrun · reached wave {Math.max(1, level)}
           </div>
         </div>
+
+        {results && <RunStats results={results} myName={myName} />}
+
         <div className="px-6 pb-5 pt-4">
           <Button
             variant="gold"
@@ -192,5 +230,101 @@ function DefeatScreen({ level }: { level: number }) {
         </div>
       </Card>
     </Overlay>
+  );
+}
+
+/** A single team-summary chip (icon + value + label). */
+function SummaryChip({
+  icon,
+  value,
+  label,
+}: {
+  icon: ReactNode;
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 rounded-lg bg-white/5 px-2 py-2">
+      <div className="flex items-center gap-1 text-text">
+        {icon}
+        <span className="font-display text-lg font-bold leading-none">{value}</span>
+      </div>
+      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
+    </div>
+  );
+}
+
+/** The end-of-run breakdown: team totals + a per-player table. */
+function RunStats({ results, myName }: { results: ZombieRunResults; myName: string | null }) {
+  const totals = teamTotals(results.players);
+  // Sort by total kills so the top fragger leads; stable for equal scores.
+  const rows = [...results.players].sort((a, b) => totalKills(b) - totalKills(a));
+
+  return (
+    <div className="border-y border-white/10 px-6 py-4">
+      <div className="mb-3 grid grid-cols-4 gap-2">
+        <SummaryChip
+          icon={<Swords size={14} className="text-negative" aria-hidden="true" />}
+          value={fmtNum(totals.kills)}
+          label="Kills"
+        />
+        <SummaryChip
+          icon={<Crown size={14} className="text-gold" aria-hidden="true" />}
+          value={String(totals.bosses)}
+          label="Bosses"
+        />
+        <SummaryChip
+          icon={<Flame size={14} className="text-negative" aria-hidden="true" />}
+          value={fmtNum(totals.damageDealt)}
+          label="Damage"
+        />
+        <SummaryChip
+          icon={<Clock size={14} className="text-muted" aria-hidden="true" />}
+          value={fmtTime(results.durationSec)}
+          label="Survived"
+        />
+      </div>
+
+      {/* Per-player table */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 gap-y-1 text-xs">
+        <div className="text-[10px] uppercase tracking-wide text-muted">Player</div>
+        <div className="text-right text-[10px] uppercase tracking-wide text-muted" title="Kills">
+          <Swords size={11} className="inline" aria-label="Kills" />
+        </div>
+        <div className="text-right text-[10px] uppercase tracking-wide text-muted" title="Bosses">
+          <Crown size={11} className="inline" aria-label="Bosses" />
+        </div>
+        <div className="text-right text-[10px] uppercase tracking-wide text-muted" title="Damage dealt">
+          <Flame size={11} className="inline" aria-label="Damage dealt" />
+        </div>
+        <div className="text-right text-[10px] uppercase tracking-wide text-muted" title="Damage taken">
+          <Shield size={11} className="inline" aria-label="Damage taken" />
+        </div>
+
+        {rows.map((p, i) => {
+          const isMe = myName !== null && p.name === myName;
+          return (
+            <RunStatsRow key={`${p.name}-${i}`} player={p} isMe={isMe} />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RunStatsRow({ player, isMe }: { player: ZombieRunResultLine; isMe: boolean }) {
+  return (
+    <>
+      <div className={`truncate ${isMe ? 'font-semibold text-gold' : 'text-text'}`}>
+        {player.name}
+        <span className="ml-1 text-[10px] capitalize text-muted">{player.characterClass}</span>
+      </div>
+      <div className="text-right tabular-nums text-text">{totalKills(player)}</div>
+      <div className="text-right tabular-nums text-text">
+        {player.killsMiniboss + player.killsTitan}
+      </div>
+      <div className="text-right tabular-nums text-text">{fmtNum(player.damageDealt)}</div>
+      <div className="text-right tabular-nums text-muted">{fmtNum(player.damageTaken)}</div>
+    </>
   );
 }

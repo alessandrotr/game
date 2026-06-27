@@ -53,8 +53,42 @@ export const SCHEMA: readonly string[] = [
      deaths INTEGER NOT NULL DEFAULT 0,
      wins INTEGER NOT NULL DEFAULT 0,
      losses INTEGER NOT NULL DEFAULT 0,
+     -- Zombie-survival lifetime stats (accumulated per run; see db/players.ts:recordZombieRun).
+     -- 'best_wave' is a running maximum (GREATEST), the rest are additive totals.
+     zombie_runs INTEGER NOT NULL DEFAULT 0,
+     zombie_best_wave INTEGER NOT NULL DEFAULT 0,
+     zombie_time_survived INTEGER NOT NULL DEFAULT 0,
+     zombie_kills_normal INTEGER NOT NULL DEFAULT 0,
+     zombie_kills_sprinter INTEGER NOT NULL DEFAULT 0,
+     zombie_kills_fat INTEGER NOT NULL DEFAULT 0,
+     zombie_kills_miniboss INTEGER NOT NULL DEFAULT 0,
+     zombie_kills_titan INTEGER NOT NULL DEFAULT 0,
+     zombie_perks_picked INTEGER NOT NULL DEFAULT 0,
+     zombie_altars INTEGER NOT NULL DEFAULT 0,
+     zombie_doors INTEGER NOT NULL DEFAULT 0,
+     zombie_traps INTEGER NOT NULL DEFAULT 0,
+     zombie_damage_dealt INTEGER NOT NULL DEFAULT 0,
+     zombie_damage_taken INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (player_id, character_class)
    )`,
+  // Per-run history: one row per finished ranked arena match or zombie co-op run,
+  // pruned to the most recent N per (player, class, mode). Backs the champion
+  // sheet's History tab. mode = 'arena' | 'zombie'; arena rows carry outcome +
+  // kills/deaths, zombie rows carry wave + zombie kills.
+  `CREATE TABLE IF NOT EXISTS run_history (
+     id SERIAL PRIMARY KEY,
+     player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+     character_class TEXT NOT NULL,
+     mode TEXT NOT NULL,
+     outcome TEXT,
+     duration_sec INTEGER NOT NULL DEFAULT 0,
+     kills INTEGER NOT NULL DEFAULT 0,
+     deaths INTEGER NOT NULL DEFAULT 0,
+     wave INTEGER NOT NULL DEFAULT 0,
+     xp INTEGER NOT NULL DEFAULT 0,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS run_history_player ON run_history(player_id, character_class, created_at DESC)`,
   // Persisted chat per channel (e.g. 'town'), so the log survives a room being
   // disposed when empty or a server restart. The last N are replayed on join.
   `CREATE TABLE IF NOT EXISTS chat_messages (
@@ -101,10 +135,32 @@ const LEGACY_MIGRATIONS: readonly string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS players_guest_id_key ON players(guest_id) WHERE guest_id IS NOT NULL`,
 ];
 
+/**
+ * Add the zombie-survival stat columns to an existing `class_progress` table.
+ * Idempotent (ADD COLUMN IF NOT EXISTS), so a no-op on a fresh DB where SCHEMA
+ * already created them. Defaults to 0 so existing rows stay valid.
+ */
+const STAT_MIGRATIONS: readonly string[] = [
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_runs INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_best_wave INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_time_survived INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_kills_normal INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_kills_sprinter INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_kills_fat INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_kills_miniboss INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_kills_titan INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_perks_picked INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_altars INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_doors INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_traps INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_damage_dealt INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE class_progress ADD COLUMN IF NOT EXISTS zombie_damage_taken INTEGER NOT NULL DEFAULT 0`,
+];
+
 /** Create the tables if they don't exist, then apply legacy fixups. */
 export async function migrate(q: Queryable): Promise<void> {
   for (const statement of SCHEMA) await q.query(statement);
-  for (const statement of LEGACY_MIGRATIONS) {
+  for (const statement of [...LEGACY_MIGRATIONS, ...STAT_MIGRATIONS]) {
     try {
       await q.query(statement);
     } catch {

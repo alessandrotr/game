@@ -126,6 +126,8 @@ export class TrapSystem {
   /** Fire a trap's effect and start its cooldown. */
   private activate(t: TrapRuntime, now: number): void {
     const { x, z, radius, kind } = t.obj;
+    // A trap firing is a shared objective — credit every human still in the run.
+    this.ctx.zombieStats?.recordTrapForAll();
     // Resonance of the Void: once the altar is up (wave 13+), any trap firing
     // lights the corresponding gem socket on the altar using a bitmask.
     if (

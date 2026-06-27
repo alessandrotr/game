@@ -678,6 +678,10 @@ function wireRoom(joined: Room): void {
     // 100-damage area blast — this is the explosion VFX).
     useEffectsStore.getState().spawn('vfx.car_explosion', [msg.x, 0, msg.z]);
   });
+  joined.onMessage(ServerMessage.ZombieRunResults, (msg) => {
+    // End-of-run stat card — arrives just before ZombieGameOver.
+    useCoopStore.getState().setRunResults(msg);
+  });
   joined.onMessage(ServerMessage.ZombieGameOver, (msg) => {
     // Co-op squad wiped — show the defeat screen (CoopOverlay returns to town).
     useCoopStore.getState().setGameOver(msg.level);
@@ -1162,6 +1166,9 @@ export async function travelTo(
     if (roomType === 'town') {
       void connectMatchmaking();
       void connectZombieMatchmaking();
+      // Back in town after a run — refresh persisted stats so the character
+      // sheet shows freshly-earned progress (arena + survival records).
+      void useAuthStore.getState().refreshProgress();
     }
     // Keep the loading cover up until the new character is actually in the store,
     // so the scene/HUD never flash the default model in the pre-first-sync gap.

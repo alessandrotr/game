@@ -43,6 +43,7 @@ import {
   ClientMessage,
   type ClientMessagePayloads,
   ServerMessage,
+  type ZombieRunResultLine,
   isAbilityKind,
   isRooted,
   isSilenced,
@@ -98,7 +99,14 @@ import { BotDirector, makeBotProfile, type BotProfile } from './arena/systems/bo
 import { ZombieDirector } from './arena/systems/zombies.js';
 import { ZombieSurvival } from './arena/systems/zombieSurvival.js';
 import { PerkSystem, IDENTITY_MODIFIERS, getPerkMoveSpeedMult } from './arena/systems/perks.js';
-import { fetchProfile, persistProfileDelta, type MatchProfile } from './arena/systems/profiles.js';
+import {
+  fetchProfile,
+  persistProfileDelta,
+  persistZombieRun,
+  type MatchProfile,
+} from './arena/systems/profiles.js';
+import { ZombieStats, type ZombieRunStats } from './arena/systems/zombieStats.js';
+import { recordRunHistory } from '../db/history.js';
 import type { ArenaContext, Displacement } from './arena/context.js';
 import { captureServerError, captureTickError, userFromClaims } from '../observability.js';
 import { verifyToken, type TokenClaims } from '../auth.js';
@@ -277,6 +285,9 @@ export class ArenaRoom extends AvatarRoom {
   private botDirector!: BotDirector;
   /** Zombie perk progression (ability-mode zombie only). */
   private perkSystem?: PerkSystem;
+  /** Per-player run-stat accumulator (zombie mode only) — feeds the end-of-run
+   *  card and the persisted per-class lifetime stats. */
+  private zombieStats?: ZombieStats;
 
   protected override jumpForce(): number {
     return this.tuning.movement.jumpForce;
@@ -319,6 +330,12 @@ export class ArenaRoom extends AvatarRoom {
     // A mutable copy: the cover system pushes alive structure circles in here and
     // splices them out when a structure crumbles (so it becomes uncollidable).
     this.obstacles = [...layout.obstacles];
+
+    // Run-stat accumulator (zombie mode only). Created before `buildSystems` so
+    // the combat / trap contexts capture it.
+    if (this.zombieMode) {
+      this.zombieStats = new ZombieStats(this.state, () => this.simTime);
+    }
 
     this.buildSystems();
     this.barrels.init(layout.barrels);
@@ -374,6 +391,7 @@ export class ArenaRoom extends AvatarRoom {
         traps: this.traps,
         groundZones: this.groundZones,
         broadcast: (type, message) => this.broadcast(type, message),
+        zombieStats: this.zombieStats,
       });
       this.cover.setRoomLayout(this.roomLayout);
       this.destructibles.setRoomLayout(this.roomLayout);
@@ -664,6 +682,7 @@ export class ArenaRoom extends AvatarRoom {
         }
         this.clients.getById(sessionId)?.send(ServerMessage.ResetCooldown, { ability: abilityId });
       },
+      zombieStats: this.zombieStats,
     };
   }
 
@@ -739,6 +758,8 @@ export class ArenaRoom extends AvatarRoom {
     this.cooldowns.set(client.sessionId, {});
     // Init perk tracking for this player (zombie ability mode only).
     this.perkSystem?.init(client.sessionId);
+    // Begin run-stat tracking (zombie mode only).
+    this.zombieStats?.start(client.sessionId);
 
     this.sendWelcome(client);
 
@@ -770,7 +791,7 @@ export class ArenaRoom extends AvatarRoom {
     }
     if (playerId === undefined) return;
     try {
-      const { profile, progress } = await fetchProfile(db, playerId, characterClass);
+      const { profile, progress } = await fetchProfile(db, playerId, characterClass, this.simTime);
       this.profiles.set(sessionId, profile);
       // Seed the replicated career totals so the HUD shows persisted progress.
       const player = this.state.players.get(sessionId);
@@ -809,14 +830,76 @@ export class ArenaRoom extends AvatarRoom {
     this.unregisterSession(client);
   }
 
-  /** Persist this session's progression delta (live totals − loaded base) on leave. */
+  /** Persist this session's progression delta (live totals − loaded base) on leave,
+   *  plus the zombie-survival run stats in zombie mode, and a run-history entry. */
   private flushProfile(sessionId: string): void {
     const profile = this.profiles.get(sessionId);
     this.profiles.delete(sessionId);
+    const runStats = this.zombieStats?.get(sessionId);
+    this.zombieStats?.forget(sessionId);
     const db = getPool();
     const player = this.state.players.get(sessionId);
     if (!db || !profile || !player) return;
-    persistProfileDelta(db, profile, player, this.match.outcomeFor(sessionId));
+    const outcome = this.match.outcomeFor(sessionId);
+    persistProfileDelta(db, profile, player, outcome);
+    if (runStats) {
+      const finalWave = this.zombieDirector?.currentLevel() ?? this.state.zombieLevel;
+      persistZombieRun(db, profile, runStats, finalWave, this.simTime);
+      this.logRunHistory(db, profile, player, runStats, finalWave);
+    } else if (this.match.ranked && outcome) {
+      // Ranked arena match (FFA / unranked sessions aren't discrete runs, so skip).
+      void recordRunHistory(db, {
+        playerId: profile.playerId,
+        characterClass: profile.characterClass,
+        mode: 'arena',
+        outcome,
+        durationSec: Math.max(0, Math.round((this.simTime - profile.joinedAt) / 1000)),
+        kills: Math.max(0, player.kills - profile.baseKills),
+        deaths: Math.max(0, player.deaths - profile.baseDeaths),
+        wave: 0,
+        xp: Math.max(0, player.xp - profile.baseXp),
+      }).catch((err) =>
+        captureServerError(err, {
+          message: '[arena] failed to log arena run history:',
+          tags: { where: 'arena.runHistory.arena' },
+          extra: { playerId: profile.playerId },
+        }),
+      );
+    }
+  }
+
+  /** Append a zombie run to the player's history (best-effort). */
+  private logRunHistory(
+    db: NonNullable<ReturnType<typeof getPool>>,
+    profile: MatchProfile,
+    player: Player,
+    runStats: ZombieRunStats,
+    finalWave: number,
+  ): void {
+    const zombieKills =
+      runStats.killsNormal +
+      runStats.killsSprinter +
+      runStats.killsFat +
+      runStats.killsMiniboss +
+      runStats.killsTitan;
+    const endedAt = runStats.diedAt ?? this.simTime;
+    void recordRunHistory(db, {
+      playerId: profile.playerId,
+      characterClass: profile.characterClass,
+      mode: 'zombie',
+      outcome: null,
+      durationSec: Math.max(0, Math.round((endedAt - runStats.startedAt) / 1000)),
+      kills: zombieKills,
+      deaths: 0,
+      wave: runStats.waveAtDeath ?? finalWave,
+      xp: Math.max(0, player.xp - profile.baseXp),
+    }).catch((err) =>
+      captureServerError(err, {
+        message: '[arena] failed to log zombie run history:',
+        tags: { where: 'arena.runHistory.zombie' },
+        extra: { playerId: profile.playerId },
+      }),
+    );
   }
 
   // --- Ability input -----------------------------------------------------
@@ -1602,10 +1685,47 @@ export class ArenaRoom extends AvatarRoom {
     });
     if (humans === 0 || aliveHumans > 0) return;
     this.coopOver = true;
-    this.broadcast(ServerMessage.ZombieGameOver, {
-      level: this.zombieDirector?.currentLevel() ?? this.state.zombieLevel,
-    });
+    const wave = this.zombieDirector?.currentLevel() ?? this.state.zombieLevel;
+    this.broadcastZombieResults(wave);
+    this.broadcast(ServerMessage.ZombieGameOver, { level: wave });
     this.clock.setTimeout(() => void this.disconnect(), MATCH_RESULT_LINGER_MS);
+  }
+
+  /** Build + broadcast the end-of-run stat card from each human's run tallies. */
+  private broadcastZombieResults(wave: number): void {
+    const stats = this.zombieStats;
+    if (!stats) return;
+    const now = this.simTime;
+    let earliestStart = now;
+    const players: ZombieRunResultLine[] = [];
+    this.state.players.forEach((player, id) => {
+      if (this.bots.has(id)) return; // zombies don't count
+      const s = stats.get(id);
+      if (!s) return;
+      earliestStart = Math.min(earliestStart, s.startedAt);
+      players.push({
+        name: player.name,
+        characterClass: player.characterClass,
+        killsNormal: s.killsNormal,
+        killsSprinter: s.killsSprinter,
+        killsFat: s.killsFat,
+        killsMiniboss: s.killsMiniboss,
+        killsTitan: s.killsTitan,
+        perksPicked: s.perksPicked,
+        altars: s.altars,
+        doors: s.doors,
+        traps: s.traps,
+        damageDealt: Math.round(s.damageDealt),
+        damageTaken: Math.round(s.damageTaken),
+        timeSurvived: Math.max(0, Math.round(((s.diedAt ?? now) - s.startedAt) / 1000)),
+      });
+    });
+    if (players.length === 0) return;
+    this.broadcast(ServerMessage.ZombieRunResults, {
+      wave,
+      durationSec: Math.max(0, Math.round((now - earliestStart) / 1000)),
+      players,
+    });
   }
   
   /** Find a safe spot and spawn a treasure chest, ensuring no overlap with cover, players, or spawn points. */

@@ -345,6 +345,17 @@ export class CombatSystem {
     const { applied, lethal } = applyDamage(target, incoming);
     if (applied <= 0) return;
 
+    // Zombie-survival run stats: a human's damage output (vs zombies) and intake.
+    // No-op outside zombie mode (zombieStats is undefined).
+    if (this.ctx.zombieStats) {
+      if (attacker && !isZombieSkin(attacker.skinId) && isZombieSkin(target.skinId)) {
+        this.ctx.zombieStats.recordDamageDealt(attacker.sessionId, applied);
+      }
+      if (!isZombieSkin(target.skinId)) {
+        this.ctx.zombieStats.recordDamageTaken(target.sessionId, applied);
+      }
+    }
+
     // Static / Chain Lightning perk on hit (prevent infinite recursion using ability restriction)
     if (
       !isInternal &&
@@ -468,6 +479,9 @@ export class CombatSystem {
         // career/scoreboard kills).
         const isZombieKill = isZombieSkin(target.skinId);
 
+        // Run-stats: bucket the zombie kill by variant for the killer.
+        if (isZombieKill) this.ctx.zombieStats?.recordKill(killer.sessionId, target.skinId);
+
         // AoE chain-explosion logic. In zombie mode it's a zombie-kill payoff; in
         // the FFA arena it triggers on any AoE kill so the perk is testable there.
         if ((isZombieKill || !this.ctx.state.zombieMode) && attackerPerks.chainExplosionChance > 0) {
@@ -513,7 +527,19 @@ export class CombatSystem {
           this.grantXp(killer, zombieKillXp(target.skinId));
         }
       }
-      target.deaths += 1;
+      // A human's death in zombie mode is part of the co-op run, not a PvP result —
+      // keep it out of the arena (career) death tally. Zombies (bots) still tick so
+      // horde bookkeeping is unaffected, and PvP/arena deaths count as before.
+      if (!(this.ctx.state.zombieMode && !isZombieSkin(target.skinId))) {
+        target.deaths += 1;
+      }
+
+      // Run-stats: latch a human player's death moment for survival time / best
+      // wave. Co-op only — in a respawn mode death isn't final, so the run keeps
+      // crediting the full duration / deepest wave instead.
+      if (this.ctx.state.coopZombie && !isZombieSkin(target.skinId)) {
+        this.ctx.zombieStats?.recordDeath(target.sessionId, this.ctx.state.zombieLevel);
+      }
 
       // Ranked match: the first team to the combined kill target wins.
       if (killer) this.match.recordKill(killer);

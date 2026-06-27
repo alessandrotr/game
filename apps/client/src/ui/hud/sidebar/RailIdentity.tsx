@@ -1,13 +1,6 @@
-import {
-  claimableCount,
-  classCosmeticsOf,
-  getClassDefinition,
-  getCosmeticOfType,
-  xpProgress,
-} from '@arena/shared';
+import { getClassDefinition, getCosmeticOfType, xpProgress } from '@arena/shared';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '../../../store/useGameStore';
-import { useCosmeticsStore } from '../../../store/useCosmeticsStore';
 import { ClassPreview } from '../../ClassPreview';
 import { AvatarFrame } from '../../AvatarFrame';
 import { rimColorOf } from '../../rim';
@@ -17,13 +10,12 @@ import { useSidebarStore } from './useSidebarStore';
  * The sidebar's crown: the player's live champion portrait + level, parked at the
  * top of the rail. Absorbs the old top-left PlayerCard — clicking it opens the
  * Champion hub (or the Store when there are items to claim). An auto-rotating
- * portrait in a glowing rim frame with a level gem, a claimable badge, and a
- * name/class/XP flyout on hover.
+ * portrait in a glowing rim frame with a level gem and a name/class/XP flyout on
+ * hover. (Claimable-cosmetic notifications live on the Store rail entry, not here.)
  */
 export function RailIdentity() {
   const sessionId = useGameStore((s) => s.sessionId);
   useGameStore((s) => s.tick); // re-render ~20×/s so level / XP track the server
-  const byClass = useCosmeticsStore((s) => s.byClass);
   const openSidebar = useSidebarStore((s) => s.open);
   const active = useSidebarStore((s) => s.active === 'champion');
 
@@ -34,11 +26,8 @@ export function RailIdentity() {
   const { span, into } = xpProgress(me.level, me.xp);
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title') : undefined;
   const rimColor = rimColorOf(me.rimId);
-  const owned = classCosmeticsOf(byClass, me.characterClass).owned;
-  const claimable = claimableCount(owned, me.characterClass, me.level);
 
-  // The portrait opens the player's own character sheet ("paperdoll"); the sheet
-  // surfaces a "Customize" jump into the wardrobe (and a claimable count when set).
+  // The portrait opens the player's own character sheet ("paperdoll").
   const open = () => openSidebar('champion');
 
   return (
@@ -47,7 +36,7 @@ export function RailIdentity() {
       onClick={open}
       aria-label={`Champion — ${me.name}, level ${me.level}`}
       aria-pressed={active}
-      title={claimable > 0 ? `${claimable} to unlock in the store` : 'Customize'}
+      title="Champion"
       className={cn(
         'group relative flex flex-col items-center rounded-xl p-1 outline-none transition-colors',
         'focus-visible:ring-2 focus-visible:ring-gold/80',
@@ -77,14 +66,6 @@ export function RailIdentity() {
             {me.level}
           </span>
         </div>
-        {claimable > 0 && (
-          <span
-            className="absolute -right-1 -top-1 z-10 flex size-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-black shadow-lg ring-1 ring-panel/50 brightness-125"
-            aria-label={`${claimable} items to unlock`}
-          >
-            {claimable}
-          </span>
-        )}
       </div>
 
       {/* Name / class / title + XP — a flyout to the left, on hover/focus. */}

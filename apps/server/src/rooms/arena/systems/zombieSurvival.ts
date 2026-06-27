@@ -58,6 +58,7 @@ import type { DestructibleSystem } from './destructibles.js';
 import type { GroundZoneSystem } from './groundZones.js';
 import type { ProjectileSystem } from './projectiles.js';
 import type { TrapSystem } from './traps.js';
+import type { ZombieStats } from './zombieStats.js';
 
 /** Per-zombie movement personality: a spawn-rolled speed offset (±jitter) and a
  *  lateral chase-wander bias that re-rolls on its own clock, plus stuck-detection
@@ -111,6 +112,8 @@ export interface ZombieSurvivalDeps {
   groundZones: GroundZoneSystem;
   /** Replicate a server event to all clients (Colyseus `room.broadcast`). */
   broadcast: (type: string | number, message?: unknown) => void;
+  /** Run-stat accumulator for the altar/door objectives (zombie mode only). */
+  zombieStats?: ZombieStats;
 }
 
 /**
@@ -292,6 +295,7 @@ export class ZombieSurvival {
       if (now - r.startAt >= RITUAL_CHANNEL_MS) {
         player.superweapon = SUPERWEAPON_ID;
         player.soulCharges = SUPERWEAPON_CHARGES;
+        this.deps.zombieStats?.recordAltar(id);
         this.stopRitual(id);
       }
     }
@@ -819,6 +823,8 @@ export class ZombieSurvival {
     // Increment the replicated counter (drives client rendering + minimap).
     this.deps.state.unlockedSections = nextIndex + 1;
     console.log(`[doors] unlockedSections now = ${this.deps.state.unlockedSections}`);
+    // A door is a shared objective — credit every human still in the run.
+    this.deps.zombieStats?.recordDoorForAll();
 
     // Broadcast a door-open event so clients play the crumble VFX.
     this.deps.broadcast(ServerMessage.StructureCrumbled, {

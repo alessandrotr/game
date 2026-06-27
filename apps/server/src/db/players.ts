@@ -43,6 +43,28 @@ export interface ResultDelta {
   losses: number;
 }
 
+/** One zombie-survival run's contribution to a class's lifetime stats. All fields
+ *  are additive totals except {@link bestWave}, which is kept as a running maximum. */
+export interface ZombieRunDelta {
+  /** Completed runs (normally 1 per flush). */
+  runs: number;
+  /** Deepest wave reached this run (folded with GREATEST, not summed). */
+  bestWave: number;
+  /** Seconds survived this run. */
+  timeSurvived: number;
+  killsNormal: number;
+  killsSprinter: number;
+  killsFat: number;
+  killsMiniboss: number;
+  killsTitan: number;
+  perksPicked: number;
+  altars: number;
+  doors: number;
+  traps: number;
+  damageDealt: number;
+  damageTaken: number;
+}
+
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
 
 /** An account row including its password hash (for login verification). */
@@ -221,6 +243,53 @@ export async function recordResult(
   };
 }
 
+/** Fold one zombie-survival run into a class's lifetime stats: additive for the
+ *  totals, GREATEST for the best-wave high score. No-op-safe (ensures the row). */
+export async function recordZombieRun(
+  q: Queryable,
+  playerId: number,
+  characterClass: string,
+  delta: ZombieRunDelta,
+): Promise<void> {
+  await getProgress(q, playerId, characterClass); // ensure the row exists
+  await q.query(
+    `UPDATE class_progress
+        SET zombie_runs = zombie_runs + $3,
+            zombie_best_wave = GREATEST(zombie_best_wave, $4),
+            zombie_time_survived = zombie_time_survived + $5,
+            zombie_kills_normal = zombie_kills_normal + $6,
+            zombie_kills_sprinter = zombie_kills_sprinter + $7,
+            zombie_kills_fat = zombie_kills_fat + $8,
+            zombie_kills_miniboss = zombie_kills_miniboss + $9,
+            zombie_kills_titan = zombie_kills_titan + $10,
+            zombie_perks_picked = zombie_perks_picked + $11,
+            zombie_altars = zombie_altars + $12,
+            zombie_doors = zombie_doors + $13,
+            zombie_traps = zombie_traps + $14,
+            zombie_damage_dealt = zombie_damage_dealt + $15,
+            zombie_damage_taken = zombie_damage_taken + $16
+      WHERE player_id = $1 AND character_class = $2`,
+    [
+      playerId,
+      characterClass,
+      delta.runs,
+      delta.bestWave,
+      delta.timeSurvived,
+      delta.killsNormal,
+      delta.killsSprinter,
+      delta.killsFat,
+      delta.killsMiniboss,
+      delta.killsTitan,
+      delta.perksPicked,
+      delta.altars,
+      delta.doors,
+      delta.traps,
+      delta.damageDealt,
+      delta.damageTaken,
+    ],
+  );
+}
+
 /**
  * The ORDER BY clause for each leaderboard category. The primary key is the
  * category's own metric; the rest are stable, sensible tiebreakers. These are
@@ -304,7 +373,12 @@ function loadoutFor(
  */
 export async function allProgress(q: Queryable, playerId: number): Promise<ClassProgressView[]> {
   const res = await q.query(
-    `SELECT character_class, level, xp, kills, deaths, wins, losses
+    `SELECT character_class, level, xp, kills, deaths, wins, losses,
+            zombie_runs, zombie_best_wave, zombie_time_survived,
+            zombie_kills_normal, zombie_kills_sprinter, zombie_kills_fat,
+            zombie_kills_miniboss, zombie_kills_titan,
+            zombie_perks_picked, zombie_altars, zombie_doors, zombie_traps,
+            zombie_damage_dealt, zombie_damage_taken
        FROM class_progress WHERE player_id = $1`,
     [playerId],
   );
@@ -316,5 +390,21 @@ export async function allProgress(q: Queryable, playerId: number): Promise<Class
     deaths: num(row.deaths),
     wins: num(row.wins),
     losses: num(row.losses),
+    zombie: {
+      runs: num(row.zombie_runs),
+      bestWave: num(row.zombie_best_wave),
+      timeSurvived: num(row.zombie_time_survived),
+      killsNormal: num(row.zombie_kills_normal),
+      killsSprinter: num(row.zombie_kills_sprinter),
+      killsFat: num(row.zombie_kills_fat),
+      killsMiniboss: num(row.zombie_kills_miniboss),
+      killsTitan: num(row.zombie_kills_titan),
+      perksPicked: num(row.zombie_perks_picked),
+      altars: num(row.zombie_altars),
+      doors: num(row.zombie_doors),
+      traps: num(row.zombie_traps),
+      damageDealt: num(row.zombie_damage_dealt),
+      damageTaken: num(row.zombie_damage_taken),
+    },
   }));
 }

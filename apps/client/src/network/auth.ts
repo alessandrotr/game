@@ -1,4 +1,4 @@
-import type { AuthResult } from '@arena/shared';
+import type { AuthResult, RunHistoryEntry } from '@arena/shared';
 
 /**
  * HTTP client for the account auth endpoints. The game server serves these over
@@ -79,6 +79,24 @@ export function upgradeAccount(
 /** Validate a stored token and refresh username + progress (session resume). */
 export function fetchMe(token: string): Promise<AuthResult> {
   return request('/auth/me', { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+}
+
+/** Recent run history (arena + zombie) for one class. Resolves to an empty list
+ *  if the server is unreachable or the account has no logged runs yet. */
+export async function fetchRunHistory(
+  token: string,
+  characterClass: string,
+): Promise<RunHistoryEntry[]> {
+  try {
+    const res = await fetch(`${HTTP_BASE}/history?class=${encodeURIComponent(characterClass)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { runs?: RunHistoryEntry[] };
+    return Array.isArray(data.runs) ? data.runs : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Read the (unverified) claims a session token carries — account id + name —

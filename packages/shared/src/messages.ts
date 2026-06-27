@@ -148,6 +148,9 @@ export enum ServerMessage {
   /** Co-op zombie run ended (every player fell). Carries the wave reached for the
    *  defeat screen; the client returns to town. */
   ZombieGameOver = 'zombie_game_over',
+  /** End-of-run stats for a co-op zombie run, broadcast alongside
+   *  {@link ZombieGameOver}: a per-player breakdown the defeat screen renders. */
+  ZombieRunResults = 'zombie_run_results',
   /** Zombie perk progression: offer 2 visible perks (+ the implicit jolly) after
    *  a wave clear. The client renders the picker; the player replies with
    *  {@link ClientMessage.PerkPick}. */
@@ -298,6 +301,37 @@ export interface ClientMessagePayloads {
   [ClientMessage.PerkPick]: { slot: number; upgradeTarget?: PerkId };
 }
 
+/** One player's stats for a finished co-op zombie run (end-of-run card). */
+export interface ZombieRunResultLine {
+  /** Display name. */
+  name: string;
+  /** Character class id (e.g. 'warrior'). */
+  characterClass: string;
+  killsNormal: number;
+  killsSprinter: number;
+  killsFat: number;
+  killsMiniboss: number;
+  killsTitan: number;
+  perksPicked: number;
+  altars: number;
+  doors: number;
+  traps: number;
+  damageDealt: number;
+  damageTaken: number;
+  /** Seconds this player survived (until they fell, or the full run). */
+  timeSurvived: number;
+}
+
+/** End-of-run summary for a co-op zombie run. */
+export interface ZombieRunResults {
+  /** The wave the squad reached. */
+  wave: number;
+  /** Total run duration in seconds. */
+  durationSec: number;
+  /** Per-player breakdown (team totals are derived client-side). */
+  players: ZombieRunResultLine[];
+}
+
 /** Payload map for {@link ServerMessage}. */
 export interface ServerMessagePayloads {
   [ServerMessage.Welcome]: { sessionId: string; worldSeed: number };
@@ -363,6 +397,9 @@ export interface ServerMessagePayloads {
   [ServerMessage.HealTrap]: { x: number; z: number; radius: number };
   /** Co-op zombie run ended — the wave the squad reached (for the defeat screen). */
   [ServerMessage.ZombieGameOver]: { level: number };
+  /** End-of-run stats for a co-op zombie run: the team's final wave + duration and
+   *  a per-player breakdown (the defeat screen derives team totals from it). */
+  [ServerMessage.ZombieRunResults]: ZombieRunResults;
   /** Zombie perk offer: the two visible options (the jolly is resolved server-side
    *  on pick). `isUpgrade` is true when the player should upgrade an existing perk
    *  rather than pick a new one; `fixedUpgrade` is the pre-rolled upgrade path

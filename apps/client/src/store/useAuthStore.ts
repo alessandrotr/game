@@ -68,6 +68,10 @@ interface AuthStore {
   /** Convert the current guest session into a full account, keeping progress.
    *  Resolves on success and rejects on failure (so the form can stay open). */
   upgradeAccount: (email: string, username: string, password: string) => Promise<void>;
+  /** Re-fetch the account's per-class progress (e.g. on returning to town after a
+   *  run) so the character sheet reflects freshly-earned stats. Best-effort: keeps
+   *  the existing progress on failure. */
+  refreshProgress: () => Promise<void>;
   signOut: () => void;
 }
 
@@ -186,6 +190,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     } catch (err) {
       set({ busy: false, error: err instanceof Error ? err.message : 'Could not create your account.' });
       throw err; // let the dialog keep itself open on failure
+    }
+  },
+
+  refreshProgress: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const me = await fetchMe(token);
+      set({ progress: me.progress });
+    } catch {
+      /* best-effort refresh — keep the existing progress on failure */
     }
   },
 

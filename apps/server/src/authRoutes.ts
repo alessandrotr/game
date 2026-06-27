@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express';
 import type { AuthResult, CharacterClass, CosmeticsState } from '@arena/shared';
 import { getPool } from './db/database.js';
 import { getCosmetics } from './db/cosmetics.js';
+import { getRunHistory } from './db/history.js';
 import { captureServerError } from './observability.js';
 import {
   allProgress,
@@ -38,6 +39,41 @@ export function registerAuthRoutes(app: Express): void {
   app.post('/auth/guest', (req, res) => guest(req, res));
   app.patch('/auth/upgrade', (req, res) => void upgrade(req, res));
   app.get('/auth/me', (req, res) => void me(req, res));
+  app.get('/history', (req, res) => void history(req, res));
+}
+
+/**
+ * Recent run history for the signed-in player + a class (`?class=warrior`), newest
+ * first, across both arena and zombie modes. Backs the champion sheet's History
+ * tab. Empty for guests with no row yet, or when persistence is disabled.
+ */
+async function history(req: Request, res: Response): Promise<void> {
+  const claims = verifyToken(bearer(req));
+  if (!claims) {
+    res.status(401).json({ error: 'Session expired — please sign in again.' });
+    return;
+  }
+  const characterClass = String(req.query.class ?? '');
+  if (!characterClass) {
+    res.status(400).json({ error: 'A class is required.' });
+    return;
+  }
+  const db = getPool();
+  if (!db) {
+    res.json({ runs: [] });
+    return;
+  }
+  // Resolve the player id (registered account, or a guest's existing row).
+  let pid = claims.pid;
+  if (pid === undefined && claims.guest && claims.gid) {
+    pid = (await findGuestId(db, claims.gid).catch(() => null)) ?? undefined;
+  }
+  if (pid === undefined) {
+    res.json({ runs: [] });
+    return;
+  }
+  const runs = await getRunHistory(db, pid, characterClass).catch(() => []);
+  res.json({ runs });
 }
 
 /**

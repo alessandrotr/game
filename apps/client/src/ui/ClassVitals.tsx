@@ -2,8 +2,8 @@ import { Heart, Droplet, type LucideIcon } from 'lucide-react';
 import type { ClassDefinition } from '@arena/shared';
 import { STAT_COLORS } from './theme';
 
-/** One big vital readout — a glowing colored numeral under an icon medallion,
- *  centred in its half. Scales down a step on small screens. */
+/** One big vital readout — a glowing colored numeral with its icon medallion
+ *  beside it, centred in its half. Scales down a step on small screens. */
 function Vital({
   icon: Icon,
   label,
@@ -17,18 +17,22 @@ function Vital({
 }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12"
-        style={{ background: `radial-gradient(circle at center, ${color}33, transparent 72%)` }}
-      >
-        <Icon aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" style={{ color }} />
-      </span>
       <span className="text-[10px] uppercase tracking-[0.25em] text-muted">{label}</span>
-      <span
-        className="font-display text-3xl leading-none tabular-nums sm:text-4xl"
-        style={{ color, textShadow: `0 0 20px ${color}66` }}
-      >
-        {value}
+      {/* The number is centred in its half; the icon is absolutely positioned to
+          its left so it never shifts the numeral off-centre. */}
+      <span className="relative flex items-center justify-center">
+        <span
+          className="absolute right-full mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10"
+          style={{ background: `radial-gradient(circle at center, ${color}33, transparent 72%)` }}
+        >
+          <Icon aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" style={{ color }} />
+        </span>
+        <span
+          className="font-display text-3xl leading-none tabular-nums sm:text-4xl"
+          style={{ color, textShadow: `0 0 20px ${color}66` }}
+        >
+          {value}
+        </span>
       </span>
     </div>
   );

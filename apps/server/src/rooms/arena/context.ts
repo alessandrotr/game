@@ -3,6 +3,7 @@ import type { ArenaState } from '../schema.js';
 import type { AnimOneShot } from '../../animation.js';
 import type { ArenaTuning } from './systems/tuning.js';
 import type { PerkModifiers } from './systems/perks.js';
+import type { ZombieStats } from './systems/zombieStats.js';
 
 /** Forced motion (dash / knockback) that overrides locomotion until `until` (ms). */
 export interface Displacement {
@@ -51,6 +52,8 @@ export interface ArenaContext {
   perkModifiers(sessionId: string): PerkModifiers;
   /** Record a kill for the player's active perks (e.g. Overclock). */
   recordKill(sessionId: string): void;
+  /** Zombie-survival run-stat accumulator (zombie mode only; undefined otherwise). */
+  readonly zombieStats?: ZombieStats;
   /** Reset cooldowns for a player (all, or a specific ability). */
   resetCooldowns(sessionId: string, abilityId?: string): void;
 }

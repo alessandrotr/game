@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { isZombieSkin, type PlayerView } from '@arena/shared';
+import { isZombieSkin, type PlayerView, type ZombieRunResults } from '@arena/shared';
 
 /**
  * Local-player state for a co-op zombie run where death is final. Drives the
@@ -21,6 +21,8 @@ interface CoopStore {
   spectateTargetId: string | null;
   /** Set when the whole squad has fallen — the wave reached (for the defeat text). */
   gameOver: { level: number } | null;
+  /** End-of-run stat card (per-player breakdown), if the server sent it. */
+  runResults: ZombieRunResults | null;
 
   /** Local player just died — prompt the choice. */
   startChoosing: () => void;
@@ -30,6 +32,8 @@ interface CoopStore {
   setSpectateTarget: (targetId: string | null) => void;
   /** The squad wiped — show the defeat screen. */
   setGameOver: (level: number) => void;
+  /** Store the end-of-run stat card. */
+  setRunResults: (results: ZombieRunResults) => void;
   /** Back to the clean state (fresh room / left / returned to town). */
   reset: () => void;
 }
@@ -38,12 +42,14 @@ export const useCoopStore = create<CoopStore>((set) => ({
   phase: 'playing',
   spectateTargetId: null,
   gameOver: null,
+  runResults: null,
 
   startChoosing: () => set({ phase: 'choosing' }),
   spectate: (spectateTargetId) => set({ phase: 'spectating', spectateTargetId }),
   setSpectateTarget: (spectateTargetId) => set({ spectateTargetId }),
   setGameOver: (level) => set({ gameOver: { level } }),
-  reset: () => set({ phase: 'playing', spectateTargetId: null, gameOver: null }),
+  setRunResults: (runResults) => set({ runResults }),
+  reset: () => set({ phase: 'playing', spectateTargetId: null, gameOver: null, runResults: null }),
 }));
 
 /** Living human teammates (other players, alive, not zombies) — the candidates a
