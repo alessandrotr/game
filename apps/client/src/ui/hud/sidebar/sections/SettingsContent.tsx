@@ -120,10 +120,6 @@ function CameraControlRow() {
  * sidebar; bound to the reactive stores so toggles update the live UI immediately.
  */
 export function SettingsContent() {
-  const hidden = useHudStore((s) => s.hidden);
-  const setHidden = useHudStore((s) => s.setHidden);
-  const chatCollapsed = useHudStore((s) => s.chatCollapsed);
-  const setChatCollapsed = useHudStore((s) => s.setChatCollapsed);
   const showPerf = useHudStore((s) => s.showPerf);
   const setShowPerf = useHudStore((s) => s.setShowPerf);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
@@ -144,13 +140,6 @@ export function SettingsContent() {
         hint="Fill the screen with the game"
         checked={isFullscreen}
         onChange={toggleFullscreen}
-      />
-      <ToggleRow label="Hide chat" checked={chatCollapsed} onChange={setChatCollapsed} />
-      <ToggleRow
-        label="Hide HUD"
-        hint="Press H in-game to toggle"
-        checked={hidden}
-        onChange={setHidden}
       />
       <ToggleRow
         label="Show performance stats"

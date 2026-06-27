@@ -16,7 +16,7 @@ import { useSidebarStore } from './useSidebarStore';
 export function RailIdentity() {
   const sessionId = useGameStore((s) => s.sessionId);
   useGameStore((s) => s.tick); // re-render ~20×/s so level / XP track the server
-  const openSidebar = useSidebarStore((s) => s.open);
+  const toggleSidebar = useSidebarStore((s) => s.toggle);
   const active = useSidebarStore((s) => s.active === 'champion');
 
   const me = sessionId ? useGameStore.getState().players.get(sessionId) : undefined;
@@ -27,8 +27,9 @@ export function RailIdentity() {
   const title = me.titleId ? getCosmeticOfType(me.titleId, 'title') : undefined;
   const rimColor = rimColorOf(me.rimId);
 
-  // The portrait opens the player's own character sheet ("paperdoll").
-  const open = () => openSidebar('champion');
+  // The portrait toggles the player's own character sheet — click to open, click
+  // again (while open) to close, like the other rail buttons.
+  const open = () => toggleSidebar('champion');
 
   return (
     <button
@@ -84,7 +85,14 @@ export function RailIdentity() {
         <span className="block truncate text-[11px] text-muted">
           {def.name} · {def.role}
         </span>
-        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-white/15">
+        {/* XP — labelled bar with the into/span text, mirroring the Store sheet. */}
+        <span className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
+          <span>XP</span>
+          <span className="tabular-nums text-text/80">
+            {Math.round(into)} / {span}
+          </span>
+        </span>
+        <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/15">
           <span
             className="block h-full rounded-full"
             style={{

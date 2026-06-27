@@ -1,14 +1,16 @@
 import {
   ChevronsUp,
-  Crosshair,
   EyeOff,
   MessageSquare,
   MousePointer2,
+  MoveVertical,
   RotateCw,
   Search,
   Smile,
   Sparkles,
+  Speech,
   Swords,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -60,25 +62,27 @@ export function ControlsContent() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
       <Section title="Move & Fight">
-        <Row icon={MousePointer2} keys={['Right-click']} label="Move" />
-        <Row icon={Swords} keys={['Left-click']} label="Attack / Inspect" />
-        <Row icon={ChevronsUp} keys={['Space']} label="Jump" />
+        <Row icon={MousePointer2} keys={['Right-click']} label="Move (hold to steer)" />
+        <Row icon={Swords} keys={['Left-click']} label="Attack target · inspect player" />
+        <Row icon={ChevronsUp} keys={['Space']} label="Jump · grab / throw in arena" />
       </Section>
 
       <Section title="Abilities">
-        <Row icon={Sparkles} keys={['Q', 'W', 'E', 'R']} label="Cast abilities" />
-        <Row icon={Smile} keys={['1', '2']} label="Emote / dance" />
+        <Row icon={Sparkles} keys={['Q', 'W', 'E', 'R']} label="Cast abilities (hold to aim)" />
+        <Row icon={Smile} keys={['1–9']} label="Emotes & dances" />
       </Section>
 
-      <Section title="Talk & Chat">
-        <Row icon={Crosshair} keys={['F']} label="Talk to nearby NPCs" />
-        <Row icon={MessageSquare} keys={['Enter']} label="Open chat" />
-      </Section>
-
-      <Section title="Camera & Interface">
+      <Section title="Camera">
         <Row icon={RotateCw} keys={['←', '→']} label="Rotate the view" />
+        <Row icon={MoveVertical} keys={['↑', '↓']} label="Tilt the view" />
         <Row icon={Search} keys={['Scroll']} label="Zoom in / out" />
+      </Section>
+
+      <Section title="Talk & Interface">
+        <Row icon={Speech} keys={['F']} label="Talk to nearby NPCs" />
+        <Row icon={MessageSquare} keys={['Enter']} label="Open chat" />
         <Row icon={EyeOff} keys={['H']} label="Hide the HUD" />
+        <Row icon={X} keys={['Esc']} label="Close menus · cancel aim" />
       </Section>
     </div>
   );
