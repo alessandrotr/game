@@ -1,16 +1,14 @@
-import { UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CharacterSheet } from '../../CharacterSheet';
 import { useSidebarStore } from './useSidebarStore';
-import { PANEL_SURFACE, SidebarHeader } from './panelChrome';
 
 /**
  * Host for the player's own character sheet ("paperdoll") — opened from the
- * champion portrait at the top of the rail (`champion` section). A read-only
- * overview of the current champion with a jump into the wardrobe; unlike the
- * wardrobe hub it carries a single portrait canvas, so plain mount/unmount on
- * open/close is fine (like the town inspect paperdoll). Shares the sidebar's
- * frosted surface + crest header.
+ * champion portrait at the top of the rail (`champion` section). Mirrors the store
+ * hub: a borderless positioning container + a dim/blur backdrop, with the
+ * free-standing champion on the left and the single info panel on the right (the
+ * sheet itself owns that surface). Mount/unmount on open/close is fine — it carries
+ * one portrait canvas, like the town inspect paperdoll.
  */
 export function ChampionSheetPanel() {
   const open = useSidebarStore((s) => s.active === 'champion');
@@ -21,24 +19,15 @@ export function ChampionSheetPanel() {
   return (
     <>
       {/* Backdrop — dims + blurs the town so the sheet reads as a focused surface. */}
-      <div
-        aria-hidden
-        onClick={close}
-        className="fixed inset-0 bg-black/45 backdrop-blur-md"
-      />
+      <div aria-hidden onClick={close} className="fixed inset-0 bg-black/45 backdrop-blur-md" />
       <div
         role="dialog"
         aria-label="Champion"
-        style={{ containerType: 'inline-size' }}
         className={cn(
-          PANEL_SURFACE,
-          'pointer-events-auto absolute right-24 top-1/2 h-[80vh] w-[min(58rem,calc(100vw-10rem))] -translate-y-1/2',
+          'pointer-events-auto absolute right-24 top-1/2 flex -translate-y-1/2 items-end gap-8',
         )}
       >
-        <SidebarHeader icon={UserRound} title="Champion" onClose={close} />
-        <div className="flex min-h-0 flex-1 flex-col pt-2">
-          <CharacterSheet />
-        </div>
+        <CharacterSheet onClose={close} />
       </div>
     </>
   );

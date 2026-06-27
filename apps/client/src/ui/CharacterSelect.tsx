@@ -1,14 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  Heart,
-  Droplet,
-  Swords,
-  Sparkles,
-  Crosshair,
-  Cross,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
+import { Swords, Sparkles, Crosshair, Cross, Zap, type LucideIcon } from 'lucide-react';
 import {
   ABILITY_SLOTS,
   CLASS_LIST,
@@ -42,50 +33,12 @@ import { AvatarFrame } from './AvatarFrame';
 import { Card, LevelBadge } from './primitives';
 import { rimColorOf } from './rim';
 import { AbilityBadge } from './AbilityBadge';
-import { STAT_COLORS } from './theme';
-
-/** One big vital readout — a glowing colored numeral under an icon medallion,
- *  centred in its half. Scales down a step on small screens. */
-function Vital({
-  icon: Icon,
-  label,
-  value,
-  color,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12"
-        style={{ background: `radial-gradient(circle at center, ${color}33, transparent 72%)` }}
-      >
-        <Icon aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" style={{ color }} />
-      </span>
-      <span className="text-[10px] uppercase tracking-[0.25em] text-muted">{label}</span>
-      <span
-        className="font-display text-3xl leading-none tabular-nums sm:text-4xl"
-        style={{ color, textShadow: `0 0 20px ${color}66` }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
+import { ClassVitals } from './ClassVitals';
 
 function ClassInfo({ def }: { def: ClassDefinition }) {
   return (
     <Card variant="inset" className="flex flex-col gap-4">
-      {/* The two numbers that define the class, big and side-by-side — health on
-          the left, mana on the right. Clearer than two tiny bars for two values. */}
-      <div className="relative grid grid-cols-2 items-start gap-2 py-1 sm:gap-3">
-        <span className="pointer-events-none absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-transparent via-white/15 to-transparent" />
-        <Vital icon={Heart} label="Health" value={def.stats.health} color={STAT_COLORS.positive} />
-        <Vital icon={Droplet} label="Mana" value={def.stats.mana} color={STAT_COLORS.mana} />
-      </div>
+      <ClassVitals def={def} />
 
       <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5">
         {ABILITY_SLOTS.map((slot) => {

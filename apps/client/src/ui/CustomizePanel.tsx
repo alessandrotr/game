@@ -836,7 +836,7 @@ function DefaultEnchantTile({
 // Left showcase — the free-standing champion (over the world) + identity card.
 // ---------------------------------------------------------------------------
 
-function Showcase({ characterClass }: { characterClass: CharacterClass }) {
+export function Showcase({ characterClass }: { characterClass: CharacterClass }) {
   const username = useAuthStore((s) => s.username);
   const progress = useAuthStore((s) => s.progress);
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
