@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
-import { isRooted } from '@arena/shared';
+import {
+  isRooted,
+  ARENA_HALF_SIZE,
+  ARENA_HALF_Z,
+  ZOMBIE_ROOM_HALF_SIZE,
+  TOWN_HALF_SIZE,
+  PLAYER_RADIUS,
+} from '@arena/shared';
 import { isTouchDevice } from '../hooks/useIsTouch';
 import { setDestination, clearDestination } from '../store/destinationState';
 import { useGameStore } from '../store/useGameStore';
@@ -179,13 +186,24 @@ export function MouseMove() {
     }
     const routed = !dragging.current;
 
+    // Clamp the target to the play area so a click off the map (the walls / dark
+    // border) targets the nearest in-bounds spot instead of routing out there.
+    // Mirrors the server's per-mode bound clamp (FFA arena is longer north/south).
+    const gs = useGameStore.getState();
+    const isArena = gs.room === 'arena';
+    const isZombie = isArena && gs.zombieMode;
+    const hx = (isArena ? (isZombie ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
+    const hz = isArena && !isZombie ? ARENA_HALF_Z - PLAYER_RADIUS : hx;
+    const tx = Math.max(-hx, Math.min(hx, point.current.x));
+    const tz = Math.max(-hz, Math.min(hz, point.current.z));
+
     // Update local prediction every frame; throttle the authoritative update.
-    setDestination(point.current.x, point.current.z, routed);
-    lastTarget.current = { x: point.current.x, z: point.current.z };
+    setDestination(tx, tz, routed);
+    lastTarget.current = { x: tx, z: tz };
     sendAccum.current += delta;
     if (sendAccum.current >= SEND_INTERVAL) {
       sendAccum.current = 0;
-      sendMoveTo(point.current.x, point.current.z, routed);
+      sendMoveTo(tx, tz, routed);
     }
   });
 
