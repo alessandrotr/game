@@ -10,12 +10,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import {
-  ABILITIES,
+  ABILITY_SLOTS,
   CLASS_LIST,
+  CLASS_LOADOUTS,
   classCosmeticsOf,
   getClassDefinition,
   type CharacterClass,
-  type AbilityKind,
   type ClassDefinition,
 } from '@arena/shared';
 
@@ -41,8 +41,7 @@ import { AssetLoadingBar } from './AssetLoadingBar';
 import { AvatarFrame } from './AvatarFrame';
 import { Card, LevelBadge } from './primitives';
 import { rimColorOf } from './rim';
-import { ABILITY_ICON } from './abilityIcons';
-import { AbilityHover } from './AbilityTooltipCard';
+import { AbilityBadge } from './AbilityBadge';
 import { STAT_COLORS } from './theme';
 
 /** One big vital readout — a glowing colored numeral under an icon medallion,
@@ -89,31 +88,12 @@ function ClassInfo({ def }: { def: ClassDefinition }) {
       </div>
 
       <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5">
-        {def.abilities.map((ability) => (
-          <AbilityBadge key={ability} ability={ability} />
-        ))}
+        {ABILITY_SLOTS.map((slot) => {
+          const ability = CLASS_LOADOUTS[def.id][slot];
+          return ability ? <AbilityBadge key={slot} ability={ability} slot={slot} /> : null;
+        })}
       </div>
     </Card>
-  );
-}
-
-/** An ability medallion — a gold icon tile with its name — that lifts and glows
- *  on hover and reveals the full tooltip (effects + values). */
-function AbilityBadge({ ability }: { ability: AbilityKind }) {
-  const Icon = ABILITY_ICON[ability];
-  return (
-    <AbilityHover
-      ability={ability}
-      tapToShow
-      className="group flex w-18 cursor-pointer select-none flex-col items-center gap-1.5"
-    >
-      <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-gold/40 bg-linear-to-b from-gold/20 to-gold/6 text-gold shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-gold group-hover:from-gold/30 group-hover:shadow-[0_0_18px_rgba(200,162,74,0.4)]">
-        <Icon size={20} aria-hidden="true" />
-      </span>
-      <span className="w-full truncate text-center text-[9px] font-medium uppercase tracking-wider text-muted transition-colors group-hover:text-gold/90">
-        {ABILITIES[ability].name}
-      </span>
-    </AbilityHover>
   );
 }
 

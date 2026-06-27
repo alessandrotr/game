@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
-  ChevronRight,
   Footprints,
   Frame,
-  ListFilter,
   Lock,
   Smile,
   Sparkles,
@@ -36,6 +34,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCharacterStore } from '../store/useCharacterStore';
 import { useCosmeticsStore, equipSkin } from '../store/useCosmeticsStore';
 import { useCustomizeStore } from '../store/useCustomizeStore';
+import { useUnlockToastStore } from '../store/useUnlockToastStore';
 import { ClassPreview } from './ClassPreview';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
@@ -56,7 +55,7 @@ import {
   setEmoteThumbHover,
   type EmoteThumbHandle,
 } from '../render/emoteThumbnails';
-import { Button, LevelBadge, Meter } from './primitives';
+import { LevelBadge, Meter } from './primitives';
 import { STAT_COLORS } from './theme';
 import { cn } from '@/lib/utils';
 import { PANEL_SURFACE } from './hud/sidebar/panelChrome';
@@ -391,10 +390,14 @@ function TitleThumb({ c }: { c: Cosmetic & { type: 'title' } }) {
 // ---------------------------------------------------------------------------
 
 /**
- * A store item tile — thumbnail + name only. Hovering previews the item on the
- * avatar and frames the tile teal; clicking equips it (gold frame + check, or the
- * key number for a bound emote). Locked (level-gated) items dim out with a level
- * badge and aren't selectable until unlocked.
+ * A store item tile — thumbnail + name only. Every item (even locked ones) previews
+ * on the avatar while hovered, so you can always see what you're working toward.
+ * The corner badge + frame spell out the item's state and what a click does:
+ *  - **owned + equipped** → gold frame + check (click again to remove).
+ *  - **owned**            → quiet frame; click to equip (teal preview while hovered).
+ *  - **unlockable**       → gold-dashed frame + a bright "Unlock" tag; one click
+ *                           unlocks *and* equips it.
+ *  - **locked**           → dimmed + a "Lv N" lock tag; preview only (can't equip yet).
  */
 function StoreCard({
   c,
@@ -411,19 +414,30 @@ function StoreCard({
   const loadout = useCosmeticsStore((s) => classCosmeticsOf(s.byClass, characterClass).loadout);
   const previewing = useCustomizeStore((s) => s.previewId === c.id);
   const equipped = isEquipped(c, loadout);
-  const locked = !owned && !isUnlocked(c, level);
+  const unlockable = !owned && isUnlocked(c, level); // level met, not yet claimed
+  const locked = !owned && !unlockable; // level too low
   const [hovered, setHovered] = useState(false);
   const emoteSlot = c.type === 'emote' && equipped ? loadout.emotes.indexOf(c.id) + 1 : 0;
 
-  // Click equips (auto-unlocking a level-eligible item first). Hover previews on
-  // the avatar without committing the loadout.
+  // Hovering always previews on the avatar (even locked items — try before you
+  // grind for it). Clicking unlocks-then-equips an unlockable, equips/toggles an
+  // owned one, and does nothing for a locked one (it just stays previewed).
   const select = () => {
     if (locked) return;
-    if (!owned) useCosmeticsStore.getState().unlock(characterClass, c.id);
+    if (unlockable) {
+      useCosmeticsStore.getState().unlock(characterClass, c.id);
+      useUnlockToastStore.getState().push(c.name, c.rarity);
+    }
     equipCosmetic(characterClass, c);
   };
 
-  const accent = equipped ? 'gold' : !locked && (hovered || previewing) ? 'teal' : 'none';
+  const accent = equipped
+    ? 'gold'
+    : hovered || previewing
+      ? 'teal'
+      : unlockable
+        ? 'unlock'
+        : 'none';
 
   return (
     <div
@@ -432,7 +446,7 @@ function StoreCard({
       onClick={select}
       onPointerEnter={() => {
         setHovered(true);
-        if (!locked) useCustomizeStore.getState().setPreview(c.id);
+        useCustomizeStore.getState().setPreview(c.id);
       }}
       onPointerLeave={() => {
         setHovered(false);
@@ -445,50 +459,59 @@ function StoreCard({
         }
       }}
       aria-pressed={equipped}
-      title={locked ? `${c.name} · unlocks at level ${requiredLevelFor(c)}` : c.name}
+      title={
+        locked
+          ? `${c.name} · unlocks at level ${requiredLevelFor(c)}`
+          : unlockable
+            ? `${c.name} · click to unlock & equip`
+            : c.name
+      }
       className={`group relative flex aspect-5/6 cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-black/25 transition ${
         accent === 'gold'
           ? 'border-gold shadow-[0_0_18px_rgba(232,178,74,0.45)]'
           : accent === 'teal'
             ? 'border-[#67d6cf] shadow-[0_0_18px_rgba(103,214,207,0.4)]'
-            : 'border-white/10 hover:border-white/25'
+            : accent === 'unlock'
+              ? 'border-dashed border-gold/55 hover:border-gold'
+              : 'border-white/10 hover:border-white/25'
       }`}
     >
       <div
         className={`relative grid flex-1 place-items-center ${locked ? 'opacity-40 grayscale' : ''}`}
       >
         {c.type === 'pedestal' ? (
-          <PedestalThumb c={c} hovered={hovered && !locked} />
+          <PedestalThumb c={c} hovered={hovered} />
         ) : c.type === 'weapon' ? (
-          <WeaponThumb c={c} hovered={hovered && !locked} />
+          <WeaponThumb c={c} hovered={hovered} />
         ) : c.type === 'enchant' ? (
-          <EnchantThumb c={c} characterClass={characterClass} hovered={hovered && !locked} />
+          <EnchantThumb c={c} characterClass={characterClass} hovered={hovered} />
         ) : c.type === 'title' ? (
           <TitleThumb c={c} />
         ) : c.type === 'emote' ? (
-          <EmoteThumb anim={c.anim} hovered={hovered && !locked} />
+          <EmoteThumb anim={c.anim} hovered={hovered} />
         ) : (
           <Swatch c={c} size={56} />
         )}
       </div>
 
-      {/* Equipped check (gold) / bound-emote key, top-right. */}
-      {equipped && c.type !== 'emote' && (
+      {/* State badge, top-right — equipped check / emote key / Unlock tag / Lv lock. */}
+      {equipped && c.type !== 'emote' ? (
         <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-gold text-black shadow">
           <Check size={12} />
         </span>
-      )}
-      {c.type === 'emote' && equipped && (
+      ) : equipped && c.type === 'emote' ? (
         <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-md bg-gold text-[11px] font-bold leading-none text-black shadow">
           {emoteSlot}
         </span>
-      )}
-      {/* Locked → level badge, top-right. */}
-      {locked && (
+      ) : unlockable ? (
+        <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black shadow transition group-hover:brightness-110">
+          <Sparkles size={10} /> Unlock
+        </span>
+      ) : locked ? (
         <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur-sm">
           <Lock size={10} /> Lv {requiredLevelFor(c)}
         </span>
-      )}
+      ) : null}
 
       {/* Name — bottom-left, over a soft scrim. */}
       <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6">
@@ -620,6 +643,23 @@ function WardrobeContent({
   const filled = (showDefaultPedestal ? 1 : 0) + (showDefaultEnchant ? 1 : 0) + items.length;
   const emptyCount = Math.max(8, Math.ceil(filled / 4) * 4) - filled;
 
+  // Everything this class can claim right now (level met, not yet owned), across
+  // every category — so "Unlock all" grabs the lot in one click.
+  const claimable = CATEGORIES.flatMap((cat) => itemsFor(cat.type, characterClass)).filter(
+    (c) => !owned.includes(c.id) && isUnlocked(c, level),
+  );
+  const unlockAll = () => {
+    if (claimable.length === 0) return;
+    const store = useCosmeticsStore.getState();
+    for (const c of claimable) store.unlock(characterClass, c.id);
+    useUnlockToastStore
+      .getState()
+      .push(
+        claimable.length === 1 ? claimable[0]!.name : `${claimable.length} cosmetics`,
+        claimable.some((c) => c.rarity === 'legendary') ? 'legendary' : claimable[0]!.rarity,
+      );
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Category tabs + close — the tabs are the panel's header, stretched to
@@ -674,19 +714,22 @@ function WardrobeContent({
         </div>
       </div>
 
-      {/* Bottom bar — Store pill (browse all) + the Owned filter switch. */}
-      <div className="flex items-center justify-between border-t border-white/10 px-5 py-3">
-        <button
-          type="button"
-          onClick={() => setOwnedOnly(false)}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-            ownedOnly
-              ? 'border-white/10 bg-black/30 text-muted hover:text-text'
-              : 'border-gold/40 bg-gold/10 text-gold'
-          }`}
-        >
-          <ListFilter size={14} aria-hidden /> Store <ChevronRight size={14} aria-hidden />
-        </button>
+      {/* Bottom bar — "Unlock all" (when anything's claimable) or an interaction
+          hint, plus the Owned filter switch. */}
+      <div className="flex items-center justify-between gap-3 border-t border-white/10 px-5 py-3">
+        {claimable.length > 0 ? (
+          <button
+            type="button"
+            onClick={unlockAll}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gold/50 bg-gold/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gold transition hover:bg-gold/25"
+          >
+            <Sparkles size={14} aria-hidden /> Unlock all · {claimable.length}
+          </button>
+        ) : (
+          <span className="hidden text-[11px] text-muted sm:block">
+            Hover to preview · click to {ownedOnly ? 'equip' : 'unlock & equip'}
+          </span>
+        )}
         <OwnedToggle on={ownedOnly} onChange={setOwnedOnly} />
       </div>
     </div>
@@ -697,8 +740,9 @@ function WardrobeContent({
 // Default ("un-equipped") tiles — the base look for slots that can be cleared.
 // ---------------------------------------------------------------------------
 
-/** A storefront-shaped card for a slot's "default" (un-equipped) state — the same
- *  frame as {@link StoreCard} so it sits flush in the wardrobe grid. */
+/** The "Default" (un-equipped) tile for a clearable slot — identical in shape to
+ *  {@link StoreCard} (thumbnail + name + corner check) so it sits flush in the grid.
+ *  Selecting it clears the slot back to its base look. */
 function DefaultCard({
   active,
   onSelect,
@@ -726,42 +770,25 @@ function DefaultCard({
       }}
       aria-pressed={active}
       title={label}
-      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-panel/40 text-left transition hover:-translate-y-0.5 ${
-        active ? 'border-white/40' : 'border-white/10 hover:border-white/20'
+      className={`group relative flex aspect-5/6 cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-black/25 transition ${
+        active
+          ? 'border-gold shadow-[0_0_18px_rgba(232,178,74,0.45)]'
+          : 'border-white/10 hover:border-white/25'
       }`}
     >
-      <div className="relative grid h-24 place-items-center bg-black/20">
-        {renderThumb(hovered)}
-        {active && (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
-            <Check size={10} /> Equipped
-          </span>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <span className="truncate text-sm font-semibold text-text">{label}</span>
-        <p className="mb-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-muted">
-          The default look — no extra flourish.
-        </p>
-        <Button
-          variant={active ? 'goldOutline' : 'panel'}
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-          disabled={active}
-          className="mt-auto w-full gap-1.5"
+      <div className="relative grid flex-1 place-items-center">{renderThumb(hovered)}</div>
+      {active && (
+        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-gold text-black shadow">
+          <Check size={12} />
+        </span>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6">
+        <span
+          className={`block truncate text-left text-[12px] font-semibold ${active ? 'text-gold' : 'text-white'}`}
         >
-          {active ? (
-            <>
-              <Check size={13} /> Equipped
-            </>
-          ) : (
-            'Equip'
-          )}
-        </Button>
-      </div>
+          {label}
+        </span>
+      </span>
     </div>
   );
 }

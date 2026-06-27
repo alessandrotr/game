@@ -19,19 +19,27 @@ export function ChampionSheetPanel() {
   if (!open) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-label="Champion"
-      style={{ containerType: 'inline-size' }}
-      className={cn(
-        PANEL_SURFACE,
-        'pointer-events-auto absolute right-24 top-1/2 max-h-[88vh] w-[min(58rem,calc(100vw-10rem))] -translate-y-1/2',
-      )}
-    >
-      <SidebarHeader icon={UserRound} title="Champion" onClose={close} />
-      <div className="flex min-h-0 flex-1 flex-col pt-2">
-        <CharacterSheet />
+    <>
+      {/* Backdrop — dims + blurs the town so the sheet reads as a focused surface. */}
+      <div
+        aria-hidden
+        onClick={close}
+        className="fixed inset-0 bg-black/45 backdrop-blur-md"
+      />
+      <div
+        role="dialog"
+        aria-label="Champion"
+        style={{ containerType: 'inline-size' }}
+        className={cn(
+          PANEL_SURFACE,
+          'pointer-events-auto absolute right-24 top-1/2 h-[80vh] w-[min(58rem,calc(100vw-10rem))] -translate-y-1/2',
+        )}
+      >
+        <SidebarHeader icon={UserRound} title="Champion" onClose={close} />
+        <div className="flex min-h-0 flex-1 flex-col pt-2">
+          <CharacterSheet />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

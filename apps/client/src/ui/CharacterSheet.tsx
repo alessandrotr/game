@@ -1,16 +1,13 @@
 import { type ReactNode } from 'react';
 import {
-  ABILITIES,
   ABILITY_SLOTS,
   CLASS_DEFINITIONS,
   CLASS_LOADOUTS,
   claimableCount,
   classCosmeticsOf,
-  describeAbility,
   getClassDefinition,
   getCosmeticOfType,
   xpProgress,
-  type AbilityKind,
   type CharacterClass,
 } from '@arena/shared';
 import { Heart, Droplet, Wind, Swords, Sparkles, ShoppingBag } from 'lucide-react';
@@ -19,8 +16,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCosmeticsStore } from '../store/useCosmeticsStore';
 import { useSidebarStore } from './hud/sidebar/useSidebarStore';
 import { ClassPreview } from './ClassPreview';
-import { AvatarFrame } from './AvatarFrame';
-import { abilityIcon } from './abilityIcons';
+import { AbilityBadge } from './AbilityBadge';
 import { rimColorOf } from './rim';
 import { Button, LevelBadge, Meter, StatTile } from './primitives';
 import { STAT_COLORS } from './theme';
@@ -81,58 +77,58 @@ export function CharacterSheet() {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-px md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      {/* Left — 3D portrait, identity + XP, framed by the equipped rim. */}
-      <div className="p-3">
-        <AvatarFrame rimId={me.rimId} shape="panel" size="md" className="min-h-[320px]">
-          <ClassPreview
-            characterClass={characterClass}
-            skinId={me.skinId}
-            dyeId={me.dyeId}
-            pedestalId={me.pedestalId}
-            weaponId={me.weaponId}
-            enchantId={me.enchantId}
-            spin={false}
-          />
-          <div className="pointer-events-none absolute right-3 top-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
-            drag to rotate
-          </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/40 to-transparent p-4">
-            <div className="flex items-center gap-3">
-              <LevelBadge level={me.level} size="md" color={rimColor} className="shrink-0" />
-              <div className="min-w-0">
-                {title && (
-                  <div
-                    className="truncate text-[11px] font-semibold uppercase tracking-[0.18em]"
-                    style={{ color: title.color, textShadow: `0 0 8px ${title.color}66` }}
-                  >
-                    {title.text}
-                  </div>
-                )}
-                <div className="truncate text-xl font-semibold tracking-wide text-white">
-                  {username ?? me.name}
+      {/* Left — full-height free-standing portrait (transparent, no frame) over the
+          panel's frosted surface; identity + XP burnt over its foot. */}
+      <div className="relative min-h-88 overflow-hidden">
+        <ClassPreview
+          characterClass={characterClass}
+          skinId={me.skinId}
+          dyeId={me.dyeId}
+          pedestalId={me.pedestalId}
+          weaponId={me.weaponId}
+          enchantId={me.enchantId}
+          spin={false}
+          transparent
+        />
+        <div className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-white/30">
+          drag to rotate
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/35 to-transparent p-4">
+          <div className="flex items-center gap-3">
+            <LevelBadge level={me.level} size="md" color={rimColor} className="shrink-0" />
+            <div className="min-w-0">
+              {title && (
+                <div
+                  className="truncate text-[11px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ color: title.color, textShadow: `0 0 8px ${title.color}66` }}
+                >
+                  {title.text}
                 </div>
-                <div className="truncate text-xs text-muted">
-                  {def.name} · {def.role}
-                </div>
+              )}
+              <div className="truncate text-xl font-semibold tracking-wide text-white">
+                {username ?? me.name}
+              </div>
+              <div className="truncate text-xs text-muted">
+                {def.name} · {def.role}
               </div>
             </div>
-            <div className="mt-3">
-              <Meter
-                layout="stacked"
-                size="md"
-                value={into}
-                max={span}
-                fill={`linear-gradient(90deg, var(--color-gold-dark), ${STAT_COLORS.xpTip})`}
-                label="XP"
-                valueText={`${Math.round(into)} / ${span}`}
-                labelClassName="text-[10px] uppercase tracking-wide text-white/70"
-                valueClassName="text-[10px] text-white/60"
-                trackClassName="bg-white/15 ring-1 ring-inset ring-white/10"
-                className="flex flex-col gap-1"
-              />
-            </div>
           </div>
-        </AvatarFrame>
+          <div className="mt-3">
+            <Meter
+              layout="stacked"
+              size="md"
+              value={into}
+              max={span}
+              fill={`linear-gradient(90deg, var(--color-gold-dark), ${STAT_COLORS.xpTip})`}
+              label="XP"
+              valueText={`${Math.round(into)} / ${span}`}
+              labelClassName="text-[10px] uppercase tracking-wide text-white/70"
+              valueClassName="text-[10px] text-white/60"
+              trackClassName="bg-white/15 ring-1 ring-inset ring-white/10"
+              className="flex flex-col gap-1"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Right — stat profile, ability kit, record, wardrobe CTA. */}
@@ -172,14 +168,14 @@ export function CharacterSheet() {
           </div>
         </section>
 
-        {/* Ability kit */}
+        {/* Ability kit — same medallions + rich tooltips as the fighter select,
+            tagged with their QWER key. */}
         <section>
           <SheetLabel>Abilities</SheetLabel>
-          <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="mt-3 flex flex-wrap justify-between gap-2">
             {ABILITY_SLOTS.map((slot) => {
               const kind = CLASS_LOADOUTS[characterClass][slot];
-              if (!kind) return null;
-              return <AbilityCell key={slot} slot={slot} kind={kind} />;
+              return kind ? <AbilityBadge key={slot} ability={kind} slot={slot} /> : null;
             })}
           </div>
         </section>
@@ -234,27 +230,3 @@ function SheetLabel({ children }: { children: ReactNode }) {
   );
 }
 
-/** One QWER ability: slot key + glyph + name, with a stats tooltip on hover. */
-function AbilityCell({ slot, kind }: { slot: string; kind: AbilityKind }) {
-  const def = ABILITIES[kind];
-  const Icon = abilityIcon(kind);
-  const tip = describeAbility(def);
-  const cd = (def.cooldownMs / 1000).toFixed(1).replace(/\.0$/, '');
-  const title = `${tip.name} — ${tip.aimLabel}\nCooldown ${cd}s · ${def.manaCost} mana${
-    def.range ? ` · range ${def.range}` : ''
-  }\n\n${tip.lines.join('\n')}`;
-  return (
-    <div
-      title={title}
-      className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-panel/40 p-2 text-center transition hover:border-white/20"
-    >
-      <div className="relative grid h-11 w-11 place-items-center rounded-lg bg-black/30 text-gold">
-        <Icon size={20} aria-hidden />
-        <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded bg-gold text-[10px] font-bold leading-none text-black">
-          {slot}
-        </span>
-      </div>
-      <span className="w-full truncate text-[11px] font-medium text-text">{def.name}</span>
-    </div>
-  );
-}
