@@ -194,7 +194,7 @@ Basic Attack (Auto-Attack):
 Abilities:
   - [Q] Smite
     Aim:           Point
-    Cooldown:      1800 ms
+    Cooldown:      2000 ms
     Mana Cost:     20 MP
     Range:         16 units
     Damage:        26
@@ -204,12 +204,12 @@ Abilities:
   - [W] Sanctuary
     Aim:           Self
     Cooldown:      10000 ms
-    Mana Cost:     50 MP
+    Mana Cost:     60 MP
     Range:         8 units
     Damage:        6 per tick
     Radius:        8 units (AoE)
     Effects:       Creates a field status around the caster for 3000 ms that ticks 6
-                   damage to enemies in the radius every 500 ms.
+                   damage and applies a 25% slow for 1500 ms to enemies in the radius every 500 ms.
 
   - [E] Blessing
     Aim:           Self

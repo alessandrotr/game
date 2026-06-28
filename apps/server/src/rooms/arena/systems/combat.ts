@@ -773,7 +773,7 @@ export class CombatSystem {
           this.forEachEnemyInRadius(player.x, player.z, s.magnitude, player.sessionId, (enemy) => {
             this.dealDamage(enemy, s.tickAmount, player.sessionId, s.ability || undefined);
             if (s.ability === 'heal') {
-              this.applyStatus(enemy, { kind: 'slow', durationMs: 1000, magnitude: 0.80 }, player.sessionId);
+              this.applyStatus(enemy, { kind: 'slow', durationMs: 1500, magnitude: 0.75 }, player.sessionId);
             }
           });
         }

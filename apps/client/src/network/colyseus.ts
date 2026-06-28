@@ -422,6 +422,7 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
   }
 
   const scale = baseRadius > 0 ? (baseRadius + aoeSizeBonus) / baseRadius : 1.0;
+  const absoluteRadius = baseRadius > 0 ? baseRadius + aoeSizeBonus : 1.0;
 
   const burst = ABILITY_CAST_VFX[msg.ability];
   if (burst) {
@@ -453,14 +454,15 @@ function onAbilityCast(msg: ServerMessagePayloads[ServerMessage.AbilityCast]): v
         z += msg.dirZ * burst.forward;
       }
     }
-    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset, scale, tint);
+    const finalScale = burst.id === 'vfx.arcane_blast' ? absoluteRadius : scale;
+    spawn(burst.id, [x, burst.y, z], burst.oriented ? dir : [0, 0, 1], followId, offset, finalScale, tint);
     return;
   }
 
   // Default (projectiles / single-target casts): a quick rune flash at the
   // caster's feet — the projectile itself carries the rest of the visual.
   if (def?.effects[0]?.type === 'aoe' || msg.tx !== undefined) {
-    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1], undefined, undefined, scale, tint);
+    spawn('vfx.arcane_blast', [msg.tx ?? msg.x, 0.05, msg.tz ?? msg.z], [0, 0, 1], undefined, undefined, absoluteRadius, tint);
   } else {
     spawn('vfx.cast', [msg.x, 0.05, msg.z], dir, undefined, undefined, undefined, tint);
   }
@@ -655,9 +657,11 @@ function wireRoom(joined: Room): void {
   // Matchmaking lives on a separate connection (see wireMatchmaking); the town
   // gameplay room only carries world state + combat/chat events.
   joined.onMessage(ServerMessage.MatchOver, (msg) => useMatchResultStore.getState().set(msg));
-  joined.onMessage(ServerMessage.ProjectileImpact, (msg) =>
-    useEffectsStore.getState().spawn(IMPACT_VFX[msg.ability] ?? 'vfx.cast', [msg.x, IMPACT_Y, msg.z]),
-  );
+  joined.onMessage(ServerMessage.ProjectileImpact, (msg) => {
+    const vfxId = IMPACT_VFX[msg.ability] ?? 'vfx.cast';
+    const finalScale = vfxId === 'vfx.arcane_blast' ? 1.5 : undefined;
+    useEffectsStore.getState().spawn(vfxId, [msg.x, IMPACT_Y, msg.z], undefined, undefined, undefined, finalScale);
+  });
   joined.onMessage(ServerMessage.BarrelExplosion, (msg) => {
     // The same fireball as a car detonation, scaled down for the smaller barrel.
     useEffectsStore.getState().spawn('vfx.barrel_explosion', [msg.x, 0, msg.z]);

@@ -68,7 +68,8 @@ describe('CombatSystem CC Chain Protection', () => {
     // 1st CC: Should have 100% duration (expires at 3000)
     combat.applyStatus(player, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(player.statuses.length).toBe(1);
-    expect(player.statuses[0].expiresAt).toBe(currentTime + 2000);
+    expect(player.statuses[0]).toBeDefined();
+    expect(player.statuses[0]!.expiresAt).toBe(currentTime + 2000);
 
     // 2nd CC: within 8s (at t = 4000) should have 50% duration (expires at 5000)
     currentTime = 4000;
@@ -77,7 +78,8 @@ describe('CombatSystem CC Chain Protection', () => {
 
     combat.applyStatus(player, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(player.statuses.length).toBe(1);
-    expect(player.statuses[0].expiresAt).toBe(currentTime + 1000); // 2000 * 0.5 = 1000
+    expect(player.statuses[0]).toBeDefined();
+    expect(player.statuses[0]!.expiresAt).toBe(currentTime + 1000); // 2000 * 0.5 = 1000
 
     // 3rd CC: within 8s (at t = 7000) should be immune
     currentTime = 7000;
@@ -100,7 +102,8 @@ describe('CombatSystem CC Chain Protection', () => {
     combat.updateStatuses(player);
     combat.applyStatus(player, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(player.statuses.length).toBe(1);
-    expect(player.statuses[0].expiresAt).toBe(currentTime + 2000);
+    expect(player.statuses[0]).toBeDefined();
+    expect(player.statuses[0]!.expiresAt).toBe(currentTime + 2000);
   });
 
   it('does not apply CC chain protection to zombies', () => {
@@ -113,24 +116,27 @@ describe('CombatSystem CC Chain Protection', () => {
     // 1st CC
     combat.applyStatus(enemy, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(enemy.statuses.length).toBe(1);
-    expect(enemy.statuses[0].expiresAt).toBe(currentTime + 2000);
+    expect(enemy.statuses[0]).toBeDefined();
+    expect(enemy.statuses[0]!.expiresAt).toBe(currentTime + 2000);
 
     // 2nd CC within 8s
     currentTime = 4000;
     combat.updateStatuses(enemy);
     combat.applyStatus(enemy, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(enemy.statuses.length).toBe(1);
-    expect(enemy.statuses[0].expiresAt).toBe(currentTime + 2000); // Still 100%
+    expect(enemy.statuses[0]).toBeDefined();
+    expect(enemy.statuses[0]!.expiresAt).toBe(currentTime + 2000); // Still 100%
 
     // 3rd CC within 8s
     currentTime = 7000;
     combat.updateStatuses(enemy);
     combat.applyStatus(enemy, { kind: 'stun', durationMs: 2000 }, 'attacker');
     expect(enemy.statuses.length).toBe(1);
-    expect(enemy.statuses[0].expiresAt).toBe(currentTime + 2000); // Still 100%
+    expect(enemy.statuses[0]).toBeDefined();
+    expect(enemy.statuses[0]!.expiresAt).toBe(currentTime + 2000); // Still 100%
   });
 
-  it('applies a 20% slow to enemies hit by the priest Sanctuary (heal) field', () => {
+  it('applies a 25% slow to enemies hit by the priest Sanctuary (heal) field', () => {
     let currentTime = 1000;
     const ctx = makeCtx(() => currentTime);
     const combat = new CombatSystem(ctx, { recordKill: () => {} } as any);
@@ -143,14 +149,14 @@ describe('CombatSystem CC Chain Protection', () => {
     // Apply the field status to the priest
     combat.applyStatus(priest, { kind: 'field', durationMs: 3000, tickMs: 500, tickAmount: 6, magnitude: 8, ability: 'heal' }, 'priest1');
     
-    // Ticking the status should deal damage and apply a 20% slow (magnitude 0.8) to the enemy
+    // Ticking the status should deal damage and apply a 25% slow (magnitude 0.75) for 1500 ms to the enemy
     currentTime = 1500;
     combat.updateStatuses(priest);
 
     // Verify enemy is slowed
     const slowStatus = enemy.statuses.find(s => s.kind === 'slow');
     expect(slowStatus).toBeDefined();
-    expect(slowStatus?.magnitude).toBeCloseTo(0.80);
-    expect(slowStatus?.expiresAt).toBe(currentTime + 1000);
+    expect(slowStatus?.magnitude).toBeCloseTo(0.75);
+    expect(slowStatus?.expiresAt).toBe(currentTime + 1500);
   });
 });

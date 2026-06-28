@@ -121,14 +121,22 @@ const arcaneBlastFrag = /* glsl */ `
   void main(){
     vec2 p = vUv - 0.5;
     float r = length(p) * 2.0;
+
+    // Hard radial mask to restrict rendering exactly to the damage circle
+    if (r > 1.0) discard;
+
     float ang = atan(p.y, p.x);
     float edge = uProgress * 0.95;
     float ring = smoothstep(0.08, 0.0, abs(r - edge));
     // Rotating runic spokes; a hot central flash early in the cast.
     float glyph = pow(max(0.0, sin(ang * 6.0 + uTime * 4.0)), 6.0) * smoothstep(edge, 0.0, r);
     float flash = smoothstep(0.5, 0.0, r) * (1.0 - smoothstep(0.0, 0.35, uProgress));
-    float v = ring + glyph * 0.5 + flash;
-    vec3 col = mix(vec3(0.55, 0.28, 1.0), vec3(0.93, 0.85, 1.0), ring + flash);
+    
+    // Sharp outer boundary ring marking the exact damage edge (r = 0.985)
+    float border = smoothstep(0.015, 0.0, abs(r - 0.985)) * (1.0 - uProgress * 0.5);
+
+    float v = ring + glyph * 0.5 + flash + border * 1.2;
+    vec3 col = mix(vec3(0.55, 0.28, 1.0), vec3(0.93, 0.85, 1.0), ring + flash + border);
     gl_FragColor = vec4(col * v * 2.0, v * (1.0 - uProgress * 0.9));
   }
 `;
@@ -142,7 +150,7 @@ export const ArcaneBlastEffect = ({ durationMs, onComplete, tint }: BurstShaderP
   );
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
-      <planeGeometry args={[9, 9]} />
+      <planeGeometry args={[2, 2]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={UV_VERTEX}
