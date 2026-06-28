@@ -96,6 +96,12 @@ export class PaintSurface {
     this.recomposite();
   }
 
+  /** Free the GPU texture this surface owns. Call when evicting the surface; the
+   *  2D canvases are plain DOM/JS and get garbage-collected once unreferenced. */
+  dispose(): void {
+    this.texture.dispose();
+  }
+
   /**
    * Build the UV→position map from the painted mesh's geometry (one-time). Each
    * texel records the local-space surface point that maps to it, by rasterizing
@@ -425,10 +431,26 @@ export function paintTexturesFor(owner: string): PaintTextures {
   };
 }
 
-/** Drop every cached surface. Called on sign-out / account switch so one account's
- *  paint can't bleed into the next — fresh surfaces are created on next access. */
+/** Drop + free every cached surface. Called on sign-out / account switch so one
+ *  account's paint can't bleed into the next — fresh surfaces created on next access. */
 export function resetPaintSurfaces(): void {
+  for (const surface of registry.values()) surface.dispose();
   registry.clear();
+}
+
+/** Free + remove a peer owner's surfaces (both parts) when they're no longer shown
+ *  — a remote player leaving, a paperdoll closing, a podium champion changing — so
+ *  their GPU textures don't accumulate over a session. NEVER pass a local class id
+ *  (those surfaces are the player's live, edited paint). */
+export function evictPaintOwner(owner: string): void {
+  for (const part of PAINT_PARTS) {
+    const key = `${owner}:${part}`;
+    const surface = registry.get(key);
+    if (surface) {
+      surface.dispose();
+      registry.delete(key);
+    }
+  }
 }
 
 /** Paint a fetched {@link ClassPaint} onto an owner's surfaces (skin + overlay),

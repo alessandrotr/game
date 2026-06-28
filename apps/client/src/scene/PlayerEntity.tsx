@@ -27,7 +27,7 @@ import { sampleTransform, INTERP_DELAY_MS } from '../store/snapshotBuffer';
 import { resolveCharacter, resolveEnchant } from '../assets/CharacterFactory';
 import { zombieBody } from '../assets/data/zombies';
 import { usePaintStore } from '../store/usePaintStore';
-import { paintTexturesFor, applyClassPaint } from '../paint/paintSurface';
+import { paintTexturesFor, applyClassPaint, evictPaintOwner } from '../paint/paintSurface';
 import { fetchPublicPaint } from '../network/paint';
 import { CharacterModel } from '../render/CharacterModel';
 import { createCharacterFSM } from '../render/animation/animationStateMachine';
@@ -181,6 +181,14 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
     : remoteReady
       ? paintTexturesFor(sessionId)
       : undefined;
+
+  // Free a remote peer's paint textures when they leave (their entity unmounts),
+  // so a session doesn't accumulate one GPU texture per player ever seen. The
+  // local player's surfaces are keyed by class id and kept (live, editable).
+  useEffect(() => {
+    if (isLocal) return;
+    return () => evictPaintOwner(sessionId);
+  }, [isLocal, sessionId]);
 
   // Predicted local-player state (lazily initialized from the first snapshot).
   const predicted = useRef<Vector3 | null>(null);

@@ -8,7 +8,7 @@ import { useFocusStore } from '../store/useFocusStore';
 import { requestLeaderboard } from '../network/colyseus';
 import { resolveCharacter } from '../assets/CharacterFactory';
 import { CharacterModel } from '../render/CharacterModel';
-import { applyClassPaint, paintTexturesFor } from '../paint/paintSurface';
+import { applyClassPaint, evictPaintOwner, paintTexturesFor } from '../paint/paintSurface';
 import { fetchPublicPaint } from '../network/paint';
 import { FadeGroup } from './FadeGroup';
 
@@ -74,6 +74,9 @@ function PodiumChampion({ entry, tierHeight }: { entry: LeaderboardEntry; tierHe
       .catch(() => {});
     return () => {
       cancelled = true;
+      // Free this podium champion's paint textures when the leaderboard changes /
+      // unmounts, so refreshing the board doesn't accumulate GPU textures.
+      evictPaintOwner(owner);
     };
   }, [pid, cls, owner]);
 

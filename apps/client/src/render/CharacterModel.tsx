@@ -453,6 +453,23 @@ function GltfCharacter({
     return clone;
   }, [scene, lightweight]);
 
+  // Free the per-instance CLONED materials when this clone is replaced or the
+  // entity despawns. Geometries + textures are shared from the cached GLTF (and
+  // the paint registry), so we dispose ONLY the materials we cloned above —
+  // otherwise every spawned zombie/player would leak a material on the GPU.
+  useEffect(() => {
+    const cloned = instance;
+    return () => {
+      cloned.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        const m = mesh.material;
+        if (Array.isArray(m)) m.forEach((x) => x?.dispose());
+        else m?.dispose();
+      });
+    };
+  }, [instance]);
+
   // Dynamically apply body tint overlay and emissive glow in-place without
   // recreating the cloned instance (which resets animation mixers).
   useEffect(() => {

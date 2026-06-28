@@ -13,7 +13,12 @@ import { useGameStore } from '../store/useGameStore';
 import { isTownSessionQueued, myQueueMode, useQueueStore } from '../store/useQueueStore';
 import { sendInviteToMatch } from '../network/colyseus';
 import { fetchPublicPaint } from '../network/paint';
-import { applyClassPaint, paintTexturesFor, type PaintTextures } from '../paint/paintSurface';
+import {
+  applyClassPaint,
+  evictPaintOwner,
+  paintTexturesFor,
+  type PaintTextures,
+} from '../paint/paintSurface';
 import { ClassPreview } from './ClassPreview';
 import { AvatarFrame } from './AvatarFrame';
 import { rimColorOf } from './rim';
@@ -84,6 +89,9 @@ function PaperdollCard({
       .catch(() => {});
     return () => {
       cancelled = true;
+      // Free this inspected player's paint textures when the paperdoll closes /
+      // switches target, so opening many paperdolls doesn't pile up GPU textures.
+      evictPaintOwner(owner);
     };
   }, [data.pid, data.characterClass]);
 
