@@ -36,11 +36,6 @@ import { clearCastAim } from '../store/castAim';
 import { clearWeaponTip } from '../store/weaponTip';
 import { PickableVisual } from './PickableVisual';
 
-/** How far in the past (ms) the LOCAL player is rendered, so its motion can be
- *  interpolated between the two bracketing server snapshots (true-speed, fluid).
- *  Smaller = more responsive but more prone to a brief hold if a snapshot is late;
- *  must exceed one snapshot interval (~50ms). Remotes use a larger delay. */
-const LOCAL_INTERP_DELAY_MS = 70;
 /**
  * Divergence (world units) that counts as a true reposition (respawn/knockback/
  * blink) and hard-snaps the local player. Above the lag-induced lead: the client
@@ -250,7 +245,7 @@ export function PlayerEntity({ sessionId }: PlayerEntityProps) {
       // input still go to the server. A big jump (respawn/teleport/blink) snaps.
       if (!predicted.current) predicted.current = new Vector3(latest.x, latest.y, latest.z);
       const rp = predicted.current;
-      const s = sampleTransform(sessionId, performance.now() - LOCAL_INTERP_DELAY_MS);
+      const s = sampleTransform(sessionId, performance.now() - INTERP_DELAY_MS);
       // If the latest authoritative pos is far from the interpolated sample, it's a
       // real reposition (respawn/blink) — snap to it rather than sliding across.
       if (!s || Math.hypot(latest.x - s.x, latest.z - s.z) > TELEPORT_SNAP) {

@@ -18,11 +18,13 @@ import type { Circle } from './locomotion.js';
  *  (min cover spacing is ~2u, agent ~1u wide), coarse enough to stay cheap. */
 const CELL = 1;
 /** Search window padding (cells) around the start↔goal box, so a detour has room
- *  to bow out around cover without searching the whole (possibly huge) arena. */
-const MARGIN = 12;
+ *  to bow out around cover without searching the whole (possibly huge) arena.
+ *  Kept tight so a single search stays cheap with a big horde re-pathing. */
+const MARGIN = 8;
 /** A* expansion cap — if a route needs more than this, fall back to a straight
- *  line (the slide handles it). Bounds worst-case cost on the big zombie map. */
-const MAX_EXPANSIONS = 8000;
+ *  line (the slide handles it). Bounds worst-case cost per search; with the AI
+ *  per-tick budget this keeps the server tick affordable even with 200+ zombies. */
+const MAX_EXPANSIONS = 2500;
 
 const SQRT2 = Math.SQRT2;
 
@@ -350,14 +352,19 @@ export function onFinalWaypoint(state: PathState): boolean {
   return state.idx >= state.pts.length - 1;
 }
 
-/**
- * Chase variant of {@link nextWaypoint} for AI (zombies/bots) following a MOVING
- * target through cover. Recomputes the route at most every `repathMs` (the target
- * moves continuously, so a per-frame repath would be far too costly with a big
- * horde), advancing along the cached route in between. Use only when the straight
- * line to the target is blocked — open-field chasing should steer directly.
- */
-export function nextWaypointThrottled(
+// --- AI chase pathfinding (budgeted) ---------------------------------------
+// A moving target means a per-frame repath, which is far too costly with a big
+// horde. The caller splits it: check needsRepath, and only actually repath (run
+// A*) if it still has tick budget left; either way it follows the cached route.
+
+/** True when the chase route is stale (none yet, or the throttle window lapsed). */
+export function needsRepath(state: PathState, now: number): boolean {
+  return !state.has || now >= (state.repathAt ?? 0);
+}
+
+/** Recompute the chase route (runs A*). Call only when {@link needsRepath} AND the
+ *  caller has tick budget — this is the expensive step to ration across a horde. */
+export function repath(
   posX: number,
   posZ: number,
   goalX: number,
@@ -366,21 +373,29 @@ export function nextWaypointThrottled(
   params: PathfindParams,
   now: number,
   repathMs: number,
-): { x: number; z: number } {
-  if (!state.has || now >= (state.repathAt ?? 0)) {
-    state.pts = findPath(posX, posZ, goalX, goalZ, params);
-    state.idx = 0;
-    state.goalX = goalX;
-    state.goalZ = goalZ;
-    state.has = true;
-    state.repathAt = now + repathMs;
-  }
+): void {
+  state.pts = findPath(posX, posZ, goalX, goalZ, params);
+  state.idx = 0;
+  state.goalX = goalX;
+  state.goalZ = goalZ;
+  state.has = true;
+  state.repathAt = now + repathMs;
+}
+
+/** Advance along the cached route and return the current waypoint (cheap, no A*).
+ *  Null when there's no route yet — the caller should chase straight that tick. */
+export function followWaypoint(
+  posX: number,
+  posZ: number,
+  state: PathState,
+): { x: number; z: number } | null {
+  if (!state.has || state.pts.length === 0) return null;
   while (state.idx < state.pts.length - 1) {
     const w = state.pts[state.idx]!;
     if (Math.hypot(posX - w.x, posZ - w.z) <= ADVANCE_DIST) state.idx += 1;
     else break;
   }
-  return state.pts[state.idx] ?? { x: goalX, z: goalZ };
+  return state.pts[state.idx] ?? null;
 }
 
 /** Breadth-first ring search for the nearest non-blocked cell to (cx,cz). */
