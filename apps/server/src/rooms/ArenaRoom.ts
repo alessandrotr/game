@@ -690,8 +690,9 @@ export class ArenaRoom extends AvatarRoom {
       if (took > SLOW_TICK_WARN_MS && this.simTime - this.lastSlowTickLog > SLOW_TICK_LOG_GAP_MS) {
         this.lastSlowTickLog = this.simTime;
         const bots = this.bots.size;
+        const other = Math.max(0, took - this.tickSimMs - this.tickSystemsMs);
         console.warn(
-          `[tick] slow ${took.toFixed(1)}ms (budget ${TICK_MS}ms) — players=${this.state.players.size - bots} bots/zombies=${bots} room=${this.roomId}`,
+          `[tick] slow ${took.toFixed(1)}ms (budget ${TICK_MS}ms) — sim=${this.tickSimMs.toFixed(1)} physics=${this.tickPhysicsMs.toFixed(1)} systems=${this.tickSystemsMs.toFixed(1)} gc/other=${other.toFixed(1)} | players=${this.state.players.size - bots} bots/zombies=${bots} room=${this.roomId}`,
         );
       }
     }, TICK_MS);
@@ -699,6 +700,11 @@ export class ArenaRoom extends AvatarRoom {
 
   /** Sim time of the last slow-tick warning (throttles the log to ~1/sec). */
   private lastSlowTickLog = 0;
+  /** Per-tick phase timings (ms), filled by update(), logged on a slow tick:
+   *  sim = directors/AI/movement/collision, physics = Rapier step, systems = rest. */
+  private tickSimMs = 0;
+  private tickPhysicsMs = 0;
+  private tickSystemsMs = 0;
 
   /** Build the {@link ArenaContext} seam — the shared world view (live maps by
    *  reference + broadcast/clock closures) every arena system reads through. */
@@ -1424,6 +1430,7 @@ export class ArenaRoom extends AvatarRoom {
     const dt = deltaMs / 1000;
     // Replenish the per-tick AI pathfinding ration (rations A* across the horde).
     this.aiRepathBudget = AI_REPATH_BUDGET_PER_TICK;
+    const tickStart = performance.now();
 
     // Prune expired Ninja E recast states and apply standard cooldown
     this.ninjaEStates.forEach((state, sessionId) => {
@@ -1757,6 +1764,10 @@ export class ArenaRoom extends AvatarRoom {
     if (this.zombieMode) this.zombie!.resolveZombieCollisions();
     if (this.zombieMode) this.zombie!.updateRituals(dt);
 
+    // --- end of sim phase (directors/AI/movement/collision); systems below ---
+    const tickSysStart = performance.now();
+    this.tickSimMs = tickSysStart - tickStart;
+
     this.channels.update();
     this.combat.processDashImpacts();
     // Projectiles/abilities apply their impulses, THEN we step the shared world
@@ -1765,7 +1776,9 @@ export class ArenaRoom extends AvatarRoom {
     // Roll any shot cars forward (moves their collider) BEFORE the physics step,
     // so drums/barrels collide against the car's new position this tick.
     this.cover.update(dt);
+    const tickPhysStart = performance.now();
     this.physics.step();
+    this.tickPhysicsMs = performance.now() - tickPhysStart;
     this.barrels.update();
     this.destructibles.update();
     // Pickables (despawn loose ones) + lingering ground zones (the molotov puddle's
@@ -1777,6 +1790,7 @@ export class ArenaRoom extends AvatarRoom {
     this.traps.update();
     // Co-op run: once every member has fallen, end the run (defeat → town).
     if (this.coopZombie) this.checkCoopGameOver();
+    this.tickSystemsMs = performance.now() - tickSysStart;
     this.state.tick++;
   }
 
