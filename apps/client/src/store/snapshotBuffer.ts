@@ -12,8 +12,12 @@
  * `useFrame`. Times use `performance.now()` on both ends for a consistent clock.
  */
 
-/** How far in the past to render remote players (≈ 2 server ticks of headroom). */
-export const INTERP_DELAY_MS = 100;
+/** How far in the past to render players, in ms — the interpolation cushion. The
+ *  server streams at ~20Hz (50ms); on a real (jittery) connection updates bunch up
+ *  and gap, so the cushion must comfortably exceed one interval or playback "runs
+ *  dry" and stutters. ~130ms ≈ 2.6 updates of headroom — smooth over typical
+ *  internet jitter at the cost of a little display delay. Tunable. */
+export const INTERP_DELAY_MS = 130;
 
 interface Sample {
   t: number;

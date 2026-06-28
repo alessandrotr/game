@@ -54,7 +54,9 @@ import {
   CLASS_LOADOUTS,
   isCharacterClass,
   nextWaypoint,
-  nextWaypointThrottled,
+  needsRepath,
+  repath,
+  followWaypoint,
   lineOfSightClear,
   onFinalWaypoint,
   emptyPathState,
@@ -173,8 +175,12 @@ interface PendingCast {
  * server-owned.
  */
 /** How often (ms) an AI re-plans its route around cover while chasing a moving
- *  target. Cheap enough for a full horde; the route around a wall changes slowly. */
-const AI_REPATH_MS = 400;
+ *  target. The route around a wall changes slowly, so this can be coarse. */
+const AI_REPATH_MS = 500;
+/** Max A* route computations allowed PER TICK across all AI. The expensive step is
+ *  rationed so a 200-zombie horde can't blow the server tick budget — enemies that
+ *  don't get a slot this tick follow their cached route (or chase straight). */
+const AI_REPATH_BUDGET_PER_TICK = 6;
 
 /** The options an ArenaRoom is created with (by matchmaking, or by a rematch). */
 interface ArenaRoomOptions {
@@ -235,6 +241,9 @@ export class ArenaRoom extends AvatarRoom {
    *  straight line to the target, so the horde routes around walls instead of
    *  wedging. Recomputed at most every {@link AI_REPATH_MS}. */
   private readonly aiPaths = new Map<string, PathState>();
+  /** Remaining A* route computations this tick (reset each update). Rations the
+   *  expensive pathfind across the horde so the server tick stays affordable. */
+  private aiRepathBudget = 0;
   /** Persisted-profile accumulators per session (kills/deaths/xp this match). */
   private readonly profiles = new Map<string, MatchProfile>();
   /** AI-controlled bots in this room (practice bots, or zombies in zombie mode),
@@ -1257,13 +1266,23 @@ export class ArenaRoom extends AvatarRoom {
           ps = emptyPathState();
           this.aiPaths.set(sessionId, ps);
         }
-        const wp = nextWaypointThrottled(attacker.x, attacker.z, tx, tz, ps, pfParams, this.simTime, AI_REPATH_MS);
-        const wdx = wp.x - attacker.x;
-        const wdz = wp.z - attacker.z;
-        const wl = Math.hypot(wdx, wdz) || 1;
-        cdx = wdx / wl;
-        cdz = wdz / wl;
-        attacker.rotation = Math.atan2(cdx, cdz);
+        // Re-plan (run A*) only if this AI's route is stale AND we still have a
+        // pathfinding slot this tick — otherwise reuse the cached route. This caps
+        // total A* per tick so a big horde can't stall the server.
+        if (needsRepath(ps, this.simTime) && this.aiRepathBudget > 0) {
+          repath(attacker.x, attacker.z, tx, tz, ps, pfParams, this.simTime, AI_REPATH_MS);
+          this.aiRepathBudget -= 1;
+        }
+        const wp = followWaypoint(attacker.x, attacker.z, ps);
+        if (wp) {
+          const wdx = wp.x - attacker.x;
+          const wdz = wp.z - attacker.z;
+          const wl = Math.hypot(wdx, wdz) || 1;
+          cdx = wdx / wl;
+          cdz = wdz / wl;
+          attacker.rotation = Math.atan2(cdx, cdz);
+        }
+        // (no cached route yet — fall through and chase straight this tick)
         if (isZombie) this.zombie!.aiFor(sessionId).stuckTicks = 0;
       } else if (isZombie) {
         this.aiPaths.delete(sessionId);
@@ -1382,6 +1401,8 @@ export class ArenaRoom extends AvatarRoom {
     // under the results overlay until they leave (or the room auto-disposes).
     if (this.match.matchOver) return;
     const dt = deltaMs / 1000;
+    // Replenish the per-tick AI pathfinding ration (rations A* across the horde).
+    this.aiRepathBudget = AI_REPATH_BUDGET_PER_TICK;
 
     // Prune expired Ninja E recast states and apply standard cooldown
     this.ninjaEStates.forEach((state, sessionId) => {
