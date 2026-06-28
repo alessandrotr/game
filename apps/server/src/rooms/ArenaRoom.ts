@@ -182,6 +182,12 @@ const AI_REPATH_MS = 500;
  *  don't get a slot this tick follow their cached route (or chase straight). */
 const AI_REPATH_BUDGET_PER_TICK = 6;
 
+/** Warn when a server tick takes longer than this (ms) — it's eating into the
+ *  ~50ms budget, which makes every client in the room lag in lockstep. */
+const SLOW_TICK_WARN_MS = 30;
+/** Min gap (sim ms) between slow-tick warnings, so a sustained spike logs ~1/sec. */
+const SLOW_TICK_LOG_GAP_MS = 1000;
+
 /** The options an ArenaRoom is created with (by matchmaking, or by a rematch). */
 interface ArenaRoomOptions {
   mode?: LobbyMode | typeof ZOMBIE_MODE;
@@ -671,13 +677,28 @@ export class ArenaRoom extends AvatarRoom {
     // Swallow + capture a thrown tick instead of letting it bubble to
     // `uncaughtException` (which restarts the process and disconnects everyone).
     this.setSimulationInterval((deltaMs) => {
+      const t0 = performance.now();
       try {
         this.update(deltaMs);
       } catch (err) {
         captureTickError(this.roomId, err, { where: 'arena.tick', roomId: this.roomId });
       }
+      // A tick must finish well inside TICK_MS (50ms) or updates back up and every
+      // client in the room lags in lockstep. Log overruns (throttled) so a slow
+      // server tick shows up in the deployed logs with the entity counts to blame.
+      const took = performance.now() - t0;
+      if (took > SLOW_TICK_WARN_MS && this.simTime - this.lastSlowTickLog > SLOW_TICK_LOG_GAP_MS) {
+        this.lastSlowTickLog = this.simTime;
+        const bots = this.bots.size;
+        console.warn(
+          `[tick] slow ${took.toFixed(1)}ms (budget ${TICK_MS}ms) — players=${this.state.players.size - bots} bots/zombies=${bots} room=${this.roomId}`,
+        );
+      }
     }, TICK_MS);
   }
+
+  /** Sim time of the last slow-tick warning (throttles the log to ~1/sec). */
+  private lastSlowTickLog = 0;
 
   /** Build the {@link ArenaContext} seam — the shared world view (live maps by
    *  reference + broadcast/clock closures) every arena system reads through. */
