@@ -188,6 +188,22 @@ const SLOW_TICK_WARN_MS = 30;
 /** Min gap (sim ms) between slow-tick warnings, so a sustained spike logs ~1/sec. */
 const SLOW_TICK_LOG_GAP_MS = 1000;
 
+/**
+ * A FIXED chunk of pure math, timed to expose CPU throttling. The work never
+ * changes, so its wall-time is a direct readout of how much CPU we're actually
+ * getting: ~1ms on a healthy dedicated core, but tens of ms when the host is
+ * throttling us (e.g. a shared/free tier). Run on a slow tick to prove whether
+ * the stall is the host starving us of CPU vs. our own code doing more work.
+ */
+function cpuProbeMs(): number {
+  const t = performance.now();
+  let acc = 0;
+  for (let i = 0; i < 2_000_000; i++) acc += Math.sqrt(i * 1.000001);
+  // Touch acc so the loop can't be optimized away.
+  if (acc < 0) console.log(acc);
+  return performance.now() - t;
+}
+
 /** The options an ArenaRoom is created with (by matchmaking, or by a rematch). */
 interface ArenaRoomOptions {
   mode?: LobbyMode | typeof ZOMBIE_MODE;
@@ -691,8 +707,10 @@ export class ArenaRoom extends AvatarRoom {
         this.lastSlowTickLog = this.simTime;
         const bots = this.bots.size;
         const other = Math.max(0, took - this.tickSimMs - this.tickSystemsMs);
+        // Fixed-work CPU probe: ~1ms on a healthy core; tens of ms ⇒ host throttling.
+        const probe = cpuProbeMs();
         console.warn(
-          `[tick] slow ${took.toFixed(1)}ms (budget ${TICK_MS}ms) — sim=${this.tickSimMs.toFixed(1)} physics=${this.tickPhysicsMs.toFixed(1)} systems=${this.tickSystemsMs.toFixed(1)} gc/other=${other.toFixed(1)} | players=${this.state.players.size - bots} bots/zombies=${bots} room=${this.roomId}`,
+          `[tick] slow ${took.toFixed(1)}ms (budget ${TICK_MS}ms) — sim=${this.tickSimMs.toFixed(1)} physics=${this.tickPhysicsMs.toFixed(1)} systems=${this.tickSystemsMs.toFixed(1)} gc/other=${other.toFixed(1)} cpuProbe=${probe.toFixed(1)}ms(≈1 healthy) | players=${this.state.players.size - bots} bots/zombies=${bots} room=${this.roomId}`,
         );
       }
     }, TICK_MS);
