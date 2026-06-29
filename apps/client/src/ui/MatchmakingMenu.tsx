@@ -1,4 +1,4 @@
-import { Swords, X } from 'lucide-react';
+import { Swords } from 'lucide-react';
 import { LOBBY_MODES, teamSizeForMode, type LobbyMode } from '@arena/shared';
 import {
   capacityForMode,
@@ -9,16 +9,18 @@ import {
 import { findMyZombieLobby, useZombieLobbyStore } from '../store/useZombieLobbyStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { sendJoinQueue, sendLeaveQueue } from '../network/colyseus';
-import { Card, Overlay } from './primitives';
+import { Overlay } from './primitives';
 
-/** Per-format role label shown under the size on each tile. */
+/** Per-format role word shown beside the size on each blade. */
 const FORMAT_ROLE: Record<number, string> = { 1: 'Solo', 2: 'Duo', 3: 'Trio', 4: 'Squad', 5: 'Team' };
 
 /**
- * The matchmaking panel, reworked to a one-click QUEUE: pick a FORMAT tile and you
- * join that format's queue immediately (the badge tracks fill + the match starts
- * the moment it's ready). Clicking your active format leaves the queue. Docks right
- * during the shrine's cinematic focus (see scene/TownDuelAltar.tsx).
+ * The matchmaking panel: a stack of EPIC one-click format blades. Pick a format
+ * and you join that queue immediately (the blade lights gold + tracks fill; the
+ * match starts the moment it's ready). Clicking your active format leaves the
+ * queue. The format blades are the whole UI — no chrome, no title — so the choice
+ * is the only thing on screen. Docks right during the shrine's cinematic focus
+ * (see scene/TownDuelAltar.tsx).
  */
 export function MatchmakingMenu() {
   const members = useQueueStore((s) => s.members);
@@ -42,58 +44,47 @@ export function MatchmakingMenu() {
   };
 
   return (
-    <Overlay onClose={() => setMenuOpen(false)} closeOnEscape dock={docked ? 'right' : 'center'} transparent={docked}>
-      <Card
-        variant="modal"
-        style={{ containerType: 'inline-size' }}
-        className={`flex flex-col overflow-hidden border-white/10 bg-panel/55 backdrop-blur-2xl ${docked ? 'w-[clamp(28rem,32vw,40rem)]' : 'w-[min(460px,94vw)]'}`}
-      >
-        <div className="flex items-center justify-between gap-3 px-5 pt-4">
-          <h2 className="flex items-center gap-2 font-display text-[clamp(0.95rem,2.8cqi,1.3rem)] font-semibold tracking-wide text-text">
-            <Swords size={16} className="text-gold" aria-hidden="true" />
-            Trial of Blades
-          </h2>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(false)}
-            className="rounded-lg p-1 text-muted transition hover:bg-white/10 hover:text-text"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3 px-5 pb-5 pt-3">
-          <SectionLabel>{inCoop ? 'Busy in a co-op squad' : myMode ? 'In queue — pick again to leave' : 'Choose a format to queue'}</SectionLabel>
-          <div className="grid grid-cols-1 gap-2 @[24rem]:grid-cols-2">
-            {LOBBY_MODES.map((m) => (
-              <ModeTile
-                key={m}
-                mode={m}
-                queued={myMode === m}
-                count={countForMode(members, m)}
-                capacity={capacityForMode(m)}
-                disabled={inCoop}
-                onClick={() => pick(m)}
-              />
-            ))}
-          </div>
-          {inCoop && <p className="text-xs text-muted">Leave your co-op squad to queue for a duel.</p>}
-          {error && (
-            <div className="rounded-lg border border-negative/30 bg-negative/10 px-3 py-2 text-sm text-negative">
-              {error}
-            </div>
-          )}
-        </div>
-      </Card>
+    <Overlay
+      onClose={() => setMenuOpen(false)}
+      closeOnEscape
+      dock={docked ? 'right' : 'center'}
+      transparent={docked}
+    >
+      <div className={`flex flex-col gap-2.5 ${docked ? 'w-[clamp(24rem,30vw,32rem)] pr-2' : 'w-[min(420px,92vw)]'}`}>
+        {LOBBY_MODES.map((m, i) => (
+          <ModeBlade
+            key={m}
+            mode={m}
+            index={i}
+            queued={myMode === m}
+            count={countForMode(members, m)}
+            capacity={capacityForMode(m)}
+            disabled={inCoop}
+            onClick={() => pick(m)}
+          />
+        ))}
+        {inCoop && (
+          <p className="blade-rise px-1 pt-1 text-center text-[11px] font-medium text-muted" style={{ animationDelay: '0.3s' }}>
+            Leave your co-op squad to enter a trial.
+          </p>
+        )}
+        {error && (
+          <p className="blade-rise px-1 text-center text-[11px] font-semibold text-negative">{error}</p>
+        )}
+      </div>
     </Overlay>
   );
 }
 
-/** A format tile: the size big, a role label + live queue fill under it. Lights
- *  gold while you're queued for it (click again to leave). */
-function ModeTile({
+/**
+ * A single format blade. The size reads huge; a cluster of sword pips makes the
+ * team scale instantly legible; the right edge carries the live state (open /
+ * waiting / queued). Hover sweeps a sheen + lifts; queued lights a breathing gold
+ * frame. Rises in with a per-row stagger when the panel opens.
+ */
+function ModeBlade({
   mode,
+  index,
   queued,
   count,
   capacity,
@@ -101,45 +92,92 @@ function ModeTile({
   onClick,
 }: {
   mode: LobbyMode;
+  index: number;
   queued: boolean;
   count: number;
   capacity: number;
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const teamSize = teamSizeForMode(mode);
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-pressed={queued}
+      style={{ animationDelay: `${index * 0.06}s` }}
       className={
-        'flex flex-col items-center gap-0.5 rounded-xl border py-3 transition disabled:cursor-not-allowed disabled:opacity-40 ' +
+        'blade-rise group relative isolate flex h-[4.25rem] items-center gap-4 overflow-hidden rounded-2xl border px-5 text-left backdrop-blur-xl transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ' +
         (queued
-          ? 'border-gold bg-gold/15 text-gold shadow-[inset_0_0_18px_rgba(200,162,74,0.18)]'
-          : 'border-white/10 bg-black/20 text-text enabled:hover:border-white/30 enabled:hover:bg-black/30')
+          ? 'blade-glow border-gold/80 bg-gradient-to-r from-gold/25 via-gold/12 to-transparent'
+          : 'border-white/12 bg-gradient-to-r from-white/[0.07] to-white/[0.02] shadow-[0_8px_28px_rgba(0,0,0,0.4)] enabled:hover:-translate-y-0.5 enabled:hover:border-gold/55 enabled:hover:shadow-[0_14px_36px_rgba(0,0,0,0.55)]')
       }
     >
-      <span className="font-display text-xl font-black leading-none tracking-wide">{mode}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50">
-        {FORMAT_ROLE[teamSizeForMode(mode)]}
-      </span>
-      {queued ? (
-        <span className="mt-1 text-[11px] font-semibold tabular-nums text-gold/90">
-          Queued · {count}/{capacity}
-        </span>
-      ) : count > 0 ? (
-        <span className="mt-1 text-[11px] tabular-nums text-muted">{count} waiting</span>
-      ) : null}
-    </button>
-  );
-}
+      {/* Sheen band — sweeps across once on hover-in. */}
+      <span className="blade-sheen-el pointer-events-none absolute inset-y-0 left-0 -z-10 w-2/5 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0" />
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-gold/80">
-      <span className="h-px w-5 bg-linear-to-r from-gold/70 to-transparent" />
-      {children}
-    </span>
+      {/* Left accent edge — brightens with state. */}
+      <span
+        className={
+          'absolute inset-y-2.5 left-0 w-[3px] rounded-full transition ' +
+          (queued ? 'bg-gold shadow-[0_0_12px_rgba(200,162,74,0.9)]' : 'bg-white/15 group-enabled:group-hover:bg-gold/70')
+        }
+      />
+
+      {/* Pip cluster — one sword per team-side member; scale at a glance. */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {Array.from({ length: teamSize }).map((_, p) => (
+          <Swords
+            key={p}
+            size={13}
+            aria-hidden="true"
+            className={queued ? 'text-gold' : 'text-muted/60 transition group-enabled:group-hover:text-gold/80'}
+          />
+        ))}
+      </div>
+
+      {/* Size + role. */}
+      <div className="flex min-w-0 flex-col">
+        <span
+          className={
+            'font-display text-[1.85rem] font-black leading-none tracking-wide ' +
+            (queued ? 'text-gold' : 'text-text transition group-enabled:group-hover:text-white')
+          }
+        >
+          {mode}
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted/70">
+          {FORMAT_ROLE[teamSize]}
+        </span>
+      </div>
+
+      {/* Live state, hard-right. */}
+      <div className="ml-auto flex shrink-0 flex-col items-end">
+        {queued ? (
+          <>
+            <span className="flex items-center gap-1.5 font-display text-sm font-bold uppercase tracking-wider text-gold">
+              Queued
+              <span className="flex gap-0.5">
+                <span className="blade-dot h-1 w-1 rounded-full bg-gold" style={{ animationDelay: '0s' }} />
+                <span className="blade-dot h-1 w-1 rounded-full bg-gold" style={{ animationDelay: '0.2s' }} />
+                <span className="blade-dot h-1 w-1 rounded-full bg-gold" style={{ animationDelay: '0.4s' }} />
+              </span>
+            </span>
+            <span className="text-[11px] font-semibold tabular-nums text-gold/80">{count}/{capacity} ready</span>
+          </>
+        ) : count > 0 ? (
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold tabular-nums text-muted">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-positive" />
+            {count} waiting
+          </span>
+        ) : (
+          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted/60 transition group-enabled:group-hover:border-gold/40 group-enabled:group-hover:text-gold/80">
+            Enter
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
