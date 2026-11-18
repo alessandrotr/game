@@ -20,6 +20,50 @@ import {
   type ArenaObstacle,
 } from './constants.js';
 import type { MapProp, PropAssetId } from './assets.js';
+import { COLOSSEUM_FLOOR_RADIUS, COLOSSEUM_OBSTACLES, COLOSSEUM_SPAWN_POINTS } from './colosseum.js';
+
+
+/**
+ * The colosseum's invisible containment: a ring of overlapping circles just outside
+ * the sand floor, so the parapet is solid for movement, pathfinding, bots and shots
+ * with no special-case bounds code (everything already collides against the obstacle
+ * list). Inner edge of the ring = the floor radius.
+ */
+const WALL_RING_R = 3;
+const WALL_RING_COUNT = 104;
+function colosseumWallRing(): ArenaObstacle[] {
+  const centreR = COLOSSEUM_FLOOR_RADIUS + WALL_RING_R;
+  const ring: ArenaObstacle[] = [];
+  for (let i = 0; i < WALL_RING_COUNT; i++) {
+    const a = (i / WALL_RING_COUNT) * Math.PI * 2;
+    ring.push({
+      x: Math.round(Math.cos(a) * centreR * 100) / 100,
+      z: Math.round(Math.sin(a) * centreR * 100) / 100,
+      radius: WALL_RING_R,
+      height: 3,
+    });
+  }
+  return ring;
+}
+
+/** Colosseum spawn anchors for a team (blue on the +Z half, red on −Z), so ranked
+ *  teams start on opposite sides; FFA just picks any of them. */
+export function colosseumSpawnsForTeam(team: 'red' | 'blue'): readonly { x: number; z: number }[] {
+  return COLOSSEUM_SPAWN_POINTS.filter((p) => (team === 'red' ? p.z < 0 : p.z >= 0));
+}
+
+/** The fixed FFA / ranked arena (the Colosseum — see `tools/colosseum`). Static and
+ *  seed-independent: every match plays on the same hand-authored layout. */
+function colosseumLayout(): GeneratedArenaLayout {
+  return {
+    obstacles: [...COLOSSEUM_OBSTACLES.map((o) => ({ ...o })), ...colosseumWallRing()],
+    props: [],
+    barrels: [],
+    drums: [],
+    tireStacks: [],
+    structures: [],
+  };
+}
 
 /** Fallback seed for the brief moment before the server's seed has synced. */
 export const DEFAULT_ARENA_SEED = 1;
@@ -300,6 +344,11 @@ let cache: { seed: number; zombieMode: boolean; layout: GeneratedArenaLayout } |
 export function generateArenaLayout(seed: number, zombieMode = false): GeneratedArenaLayout {
   const s = seed >>> 0 || DEFAULT_ARENA_SEED;
   if (cache && cache.seed === s && cache.zombieMode === zombieMode) return cache.layout;
+  if (!zombieMode) {
+    const fixed = colosseumLayout();
+    cache = { seed: s, zombieMode, layout: fixed };
+    return fixed;
+  }
 
   const rng = mulberry32(s);
   const obstacles: ArenaObstacle[] = [];

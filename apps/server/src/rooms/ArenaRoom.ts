@@ -5,9 +5,9 @@ import {
   ZOMBIE_ROOM,
   REMATCH_WINDOW_MS,
   ARENA_HALF_SIZE,
-  ARENA_HALF_Z,
   ARENA_POND,
   arenaSpawnsForTeam,
+  colosseumSpawnsForTeam,
   generateArenaLayout,
   generateRoomLayout,
   clampToUnlockedArea,
@@ -1971,8 +1971,8 @@ export class ArenaRoom extends AvatarRoom {
     });
     if (aliveChestsCount >= 1) return;
 
-    // The chest always spawns on the central island (the one fixed feature) —
-    // only reachable across the N/S bridges, so it's a contested objective.
+    // The chest always spawns at the arena centre — the colosseum's raised dais in
+    // FFA/ranked (the central island in zombie mode): a contested objective.
     this.cover.spawnChest(ARENA_POND.x, ARENA_POND.z, 0);
   }
 
@@ -1998,15 +1998,13 @@ export class ArenaRoom extends AvatarRoom {
     const limit = this.arenaLimit - PLAYER_RADIUS;
     const limitZ = this.arenaLimitZ - PLAYER_RADIUS;
     // Spawn on this player's side of the arena (blue at +Z, red at −Z).
-    const spawns = arenaSpawnsForTeam(player.team === 'red' ? 'red' : 'blue');
+    const team = player.team === 'red' ? 'red' : 'blue';
+    const spawns = this.zombieMode ? arenaSpawnsForTeam(team) : colosseumSpawnsForTeam(team);
     const spawn = spawns[Math.floor(Math.random() * spawns.length)];
     const jitter = () => (Math.random() * 2 - 1) * 1.5;
-    // FFA arena is longer N/S — push the team spawns out toward the ends (the Z
-    // spawn coords are authored for the square arena). Zombie keeps them as-is.
-    const zScale = this.zombieMode ? 1 : ARENA_HALF_Z / ARENA_HALF_SIZE;
     if (spawn) {
       player.x = clamp(spawn.x + jitter(), -limit, limit);
-      player.z = clamp(spawn.z * zScale + jitter(), -limitZ, limitZ);
+      player.z = clamp(spawn.z + jitter(), -limitZ, limitZ);
     } else {
       const range = this.arenaLimit - PLAYER_RADIUS * 2;
       player.x = (Math.random() * 2 - 1) * range;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Color, MeshStandardMaterial, type Matrix4 } from 'three';
 import {
   ARENA_HALF_SIZE,
@@ -16,6 +16,7 @@ import { mergePlaced, trsMatrix } from '../render/mergeGeometry';
 import { MergedGroupMesh } from '../render/MergedGroupMesh';
 import { AssetInstance } from '../render/AssetInstance';
 import { WaterSurface } from './WaterSurface';
+import { ColosseumArena } from './ColosseumArena';
 import { useGameStore } from '../store/useGameStore';
 import { useDebugStore } from '../store/useDebugStore';
 import { useEnvStore } from '../tuning/useEnvStore';
@@ -433,6 +434,19 @@ function Pond() {
  *  The ramparts are merged into a few meshes (was ~60 separate draw calls).
  *  Cover (stone ruins, wagons, crates, rubble) is placed as map props, not here. */
 export function Arena() {
+  const zombieMode = useGameStore((s) => s.zombieMode);
+  // FFA / ranked play in the circular Colosseum model; only zombie survival keeps the
+  // rectangular, room-expanding courtyard below.
+  return zombieMode ? (
+    <ZombieArena />
+  ) : (
+    <Suspense fallback={null}>
+      <ColosseumArena />
+    </Suspense>
+  );
+}
+
+function ZombieArena() {
   const zombieMode = useGameStore((s) => s.zombieMode);
   const unlockedSections = useGameStore((s) => s.unlockedSections);
   const arenaSeed = useGameStore((s) => s.arenaSeed);

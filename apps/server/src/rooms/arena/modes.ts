@@ -1,6 +1,5 @@
 import {
-  ARENA_HALF_SIZE,
-  ARENA_HALF_Z,
+  COLOSSEUM_FLOOR_RADIUS,
   ZOMBIE_MANA_REGEN_MULT,
   ZOMBIE_MODE,
   ZOMBIE_ROOM_HALF_SIZE,
@@ -51,7 +50,9 @@ export function deathPolicy(mode: GameMode, isBot: boolean): DeathPolicy {
   return 'respawn';
 }
 
-const RECT = { halfX: ARENA_HALF_SIZE, halfZ: ARENA_HALF_Z } as const;
+/** FFA / ranked play on the circular Colosseum; its square bounding box is the clamp
+ *  (the circular wall itself is a ring of obstacles — see `colosseumWallRing`). */
+const RECT = { halfX: COLOSSEUM_FLOOR_RADIUS, halfZ: COLOSSEUM_FLOOR_RADIUS } as const;
 const SQUARE = { halfX: ZOMBIE_ROOM_HALF_SIZE, halfZ: ZOMBIE_ROOM_HALF_SIZE } as const;
 
 /** Public free-for-all PvP (the portal arena). */

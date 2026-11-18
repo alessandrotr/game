@@ -3,8 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import {
   isRooted,
-  ARENA_HALF_SIZE,
-  ARENA_HALF_Z,
+  COLOSSEUM_FLOOR_RADIUS,
   ZOMBIE_ROOM_HALF_SIZE,
   TOWN_HALF_SIZE,
   PLAYER_RADIUS,
@@ -192,10 +191,20 @@ export function MouseMove() {
     const gs = useGameStore.getState();
     const isArena = gs.room === 'arena';
     const isZombie = isArena && gs.zombieMode;
-    const hx = (isArena ? (isZombie ? ZOMBIE_ROOM_HALF_SIZE : ARENA_HALF_SIZE) : TOWN_HALF_SIZE) - PLAYER_RADIUS;
-    const hz = isArena && !isZombie ? ARENA_HALF_Z - PLAYER_RADIUS : hx;
-    const tx = Math.max(-hx, Math.min(hx, point.current.x));
-    const tz = Math.max(-hz, Math.min(hz, point.current.z));
+    const hx =
+      (isArena ? (isZombie ? ZOMBIE_ROOM_HALF_SIZE : COLOSSEUM_FLOOR_RADIUS) : TOWN_HALF_SIZE) -
+      PLAYER_RADIUS;
+    const hz = hx;
+    let tx = Math.max(-hx, Math.min(hx, point.current.x));
+    let tz = Math.max(-hz, Math.min(hz, point.current.z));
+    if (isArena && !isZombie) {
+      // The colosseum floor is a circle — pull off-map clicks onto its edge.
+      const d = Math.hypot(tx, tz);
+      if (d > hx) {
+        tx = (tx / d) * hx;
+        tz = (tz / d) * hx;
+      }
+    }
 
     // Update local prediction every frame; throttle the authoritative update.
     setDestination(tx, tz, routed);

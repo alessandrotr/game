@@ -1,4 +1,5 @@
 export * from './constants.js';
+export * from './colosseum.js';
 export * from './arena.js';
 export * from './destructibles.js';
 export * from './pickables.js';

@@ -1,5 +1,5 @@
 import { useMemo, type MouseEvent } from 'react';
-import { ARENA_HALF_SIZE, ARENA_HALF_Z, ZOMBIE_ROOM_HALF_SIZE } from '@arena/shared';
+import { ARENA_HALF_SIZE, COLOSSEUM_FLOOR_RADIUS, ZOMBIE_ROOM_HALF_SIZE } from '@arena/shared';
 import { useGameStore } from '../../store/useGameStore';
 import { useArenaLayout } from '../../scene/useArenaLayout';
 import { sendMoveTo } from '../../network/colyseus';
@@ -41,14 +41,13 @@ export function Minimap() {
   const unlockedSections = useGameStore((s) => s.unlockedSections);
   const { obstacles } = useArenaLayout();
 
-  // Use expanded bounds when sections are unlocked. FFA is a rectangle (longer
-  // N/S) — use the larger (Z) half-extent for the square viewBox so the arena
-  // sits correctly proportioned with side margins.
+  // Use expanded bounds when sections are unlocked. FFA is the circular colosseum:
+  // the viewBox spans its floor diameter.
   const H = zombieMode
     ? unlockedSections > 0
       ? ZOMBIE_ROOM_HALF_SIZE
       : ARENA_HALF_SIZE
-    : ARENA_HALF_Z;
+    : COLOSSEUM_FLOOR_RADIUS;
 
   const blips = useMemo<Blip[]>(() => {
     // Read the non-reactive snapshot imperatively (see useGameStore); `tick` in
@@ -108,8 +107,22 @@ export function Minimap() {
             />
           )}
 
-          {/* Cover obstacles — faint, just for orientation. */}
-          {obstacles.map((o, i) => (
+          {/* The colosseum floor edge (FFA / ranked). */}
+          {!zombieMode && (
+            <circle
+              r={COLOSSEUM_FLOOR_RADIUS - 0.4}
+              fill="rgba(214,170,96,0.10)"
+              stroke="rgba(232,179,58,0.45)"
+              strokeWidth={0.6}
+            />
+          )}
+
+          {/* Cover obstacles — faint, just for orientation. The colosseum's invisible
+              wall-ring circles sit outside the floor and are skipped. */}
+          {(zombieMode
+            ? obstacles
+            : obstacles.filter((o) => Math.hypot(o.x, o.z) < COLOSSEUM_FLOOR_RADIUS)
+          ).map((o, i) => (
             <circle key={i} cx={o.x} cy={o.z} r={o.radius} fill="rgba(255,255,255,0.14)" />
           ))}
 
