@@ -1,46 +1,59 @@
 import { useMemo } from 'react';
-import type { Vec3 } from '@arena/shared';
-import { assets } from '../assets/registry';
-
-/** Warm lantern glow. Height matches the lamp prop's lantern (~2.55u). */
-const LAMP_COLOR = '#ffcf87';
-const LAMP_HEIGHT = 2.55;
+import { useQualityStore, type QualityTier } from '../store/useQualityStore';
+import { useEnvStore } from '../tuning/useEnvStore';
+import { LOBBY_LIGHTS, type LobbyLight } from './lobbyLayout';
 
 /**
- * Real lights for the town's lamps (and the arena gate). The lamp/arch props
- * only carry emissive *material* (which looks lit but illuminates nothing); this
- * adds an actual warm point light at each lantern so they cast pools of light on
- * the ground and nearby walls.
+ * Real point lights for the lobby's lit features (fountain crystal, braziers, forge,
+ * tavern lanterns, door lamps). The model's lamps / windows only carry emissive
+ * *material* — it looks lit but illuminates nothing — so these add the actual pools
+ * of warm light on the ground and walls.
  *
- * Performance: these are **shadowless** point lights with a bounded `distance`,
- * so they're cheap — point-light shadows (6 cube maps each) are the expensive
- * part and we deliberately skip them.
+ * The forward renderer pays for every point light on every lit fragment, so the set
+ * is capped per quality tier and ordered by how much each light sells the scene:
+ * hero lights first (fountain, castle gate, tavern, forge), accents last.
+ *
+ * Performance: all are **shadowless** with a bounded `distance` — point-light shadows
+ * (6 cube maps each) are the expensive part and are deliberately skipped.
  */
+const PRIORITY = [
+  'fountain',
+  'castle_brazier',
+  'tavern_front',
+  'forge',
+  'keep_door',
+  'chapel_door',
+  'guildhall_door',
+  'PortalGate_Arena_brazier',
+  'PortalGate_Zombie_brazier',
+  'tavern_door',
+];
+
+const MAX_LIGHTS: Record<QualityTier, number> = { low: 5, medium: 9, high: 13 };
+
 export function TownLights() {
-  const lamps = useMemo<Vec3[]>(() => {
-    const map = assets.getMap('map.town');
-    return (map?.props ?? [])
-      .filter((p) => p.assetId === 'prop.lamp')
-      .map((p) => p.position);
-  }, []);
+  const tier = useQualityStore((s) => s.tier);
+  const gain = useEnvStore((s) => s.town.lightGain);
+  const lights = useMemo<LobbyLight[]>(() => {
+    const ordered: LobbyLight[] = [];
+    for (const name of PRIORITY) ordered.push(...LOBBY_LIGHTS.filter((l) => l.name === name));
+    // everything else (house door lanterns, ...) fills any remaining budget
+    for (const l of LOBBY_LIGHTS) if (!ordered.includes(l)) ordered.push(l);
+    return ordered.slice(0, MAX_LIGHTS[tier]);
+  }, [tier]);
 
   return (
     <group>
-      {lamps.map((pos, i) => (
+      {lights.map((l, i) => (
         <pointLight
-          key={i}
-          position={[pos[0], LAMP_HEIGHT, pos[2]]}
-          color={LAMP_COLOR}
-          intensity={9}
-          distance={11}
+          key={`${l.name}:${i}`}
+          position={l.pos}
+          color={l.color}
+          intensity={l.intensity * gain}
+          distance={l.distance}
           decay={2}
         />
       ))}
-      {/* Forge glow at the blacksmith. */}
-      <pointLight position={[12, 3.6, 4.4]} color="#ff7a3a" intensity={10} distance={8} decay={2} />
-      {/* Braziers flanking the castle gatehouse, so the keep reads at dusk. */}
-      <pointLight position={[2.6, 3, -22]} color={LAMP_COLOR} intensity={14} distance={13} decay={2} />
-      <pointLight position={[-2.6, 3, -22]} color={LAMP_COLOR} intensity={14} distance={13} decay={2} />
     </group>
   );
 }

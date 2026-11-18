@@ -49,15 +49,15 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
   // GameScene re-render (e.g. a player joining town) can't snap them back to base
   // mid-transition — only the per-frame lerp drives them.
   useLayoutEffect(() => {
-    if (ambient.current) ambient.current.intensity = env.ambient;
+    if (ambient.current) ambient.current.intensity = env.ambient * env.lightGain;
     if (hemi.current) {
       hemi.current.color.set(env.hemiSky);
       hemi.current.groundColor.set(env.hemiGround);
-      hemi.current.intensity = env.hemiIntensity;
+      hemi.current.intensity = env.hemiIntensity * env.lightGain;
     }
     if (sun.current) {
       sun.current.color.set(env.sunColor);
-      sun.current.intensity = env.sunIntensity;
+      sun.current.intensity = env.sunIntensity * env.lightGain;
       sun.current.position.set(...env.sunPosition);
     }
   }, [env]);
@@ -73,15 +73,28 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
       fog.current.near = MathUtils.lerp(fog.current.near, env.fogNear * atm.fogNearMul, k);
       fog.current.far = MathUtils.lerp(fog.current.far, env.fogFar * atm.fogFarMul, k);
     }
-    if (ambient.current) ambient.current.intensity = MathUtils.lerp(ambient.current.intensity, atm.ambient, k);
+    if (ambient.current)
+      ambient.current.intensity = MathUtils.lerp(
+        ambient.current.intensity,
+        atm.ambient * env.lightGain,
+        k,
+      );
     if (hemi.current) {
       hemi.current.color.lerp(tmp.set(atm.hemiSky), k);
       hemi.current.groundColor.lerp(tmp.set(atm.hemiGround), k);
-      hemi.current.intensity = MathUtils.lerp(hemi.current.intensity, atm.hemiIntensity, k);
+      hemi.current.intensity = MathUtils.lerp(
+        hemi.current.intensity,
+        atm.hemiIntensity * env.lightGain,
+        k,
+      );
     }
     if (sun.current) {
       sun.current.color.lerp(tmp.set(atm.sunColor), k);
-      sun.current.intensity = MathUtils.lerp(sun.current.intensity, atm.sunIntensity, k);
+      sun.current.intensity = MathUtils.lerp(
+        sun.current.intensity,
+        atm.sunIntensity * env.lightGain,
+        k,
+      );
       // The sun travels on a SNAPPIER rate than the color/fog fade, so it visibly
       // sweeps down into place with the camera rather than drifting in slowly.
       sun.current.position.lerp(tmpPos.set(...atm.sunPosition), 1 - Math.exp(-6 * dt));
@@ -115,8 +128,16 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
       />
       {quality.fillLights && (
         <>
-          <directionalLight position={env.fillPosition} intensity={env.fillIntensity} color={env.fillColor} />
-          <directionalLight position={env.rimPosition} intensity={env.rimIntensity} color={env.rimColor} />
+          <directionalLight
+            position={env.fillPosition}
+            intensity={env.fillIntensity * env.lightGain}
+            color={env.fillColor}
+          />
+          <directionalLight
+            position={env.rimPosition}
+            intensity={env.rimIntensity * env.lightGain}
+            color={env.rimColor}
+          />
         </>
       )}
 
@@ -124,11 +145,32 @@ export function TownAtmosphere({ env, quality }: { env: EnvConfig; quality: Qual
         key={`${env.hemiSky}${env.sunColor}${env.hemiGround}`}
         frames={1}
         resolution={64}
-        environmentIntensity={env.envIntensity}
+        environmentIntensity={env.envIntensity * env.lightGain}
       >
-        <Lightformer form="rect" intensity={1.2} color={env.hemiSky} scale={[50, 50, 1]} position={[0, 14, 0]} rotation={[Math.PI / 2, 0, 0]} />
-        <Lightformer form="rect" intensity={2.2} color={env.sunColor} scale={[16, 16, 1]} position={[14, 9, 8]} rotation={[0, -Math.PI / 3, 0]} />
-        <Lightformer form="rect" intensity={0.5} color={env.hemiGround} scale={[50, 50, 1]} position={[0, -10, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        <Lightformer
+          form="rect"
+          intensity={1.2}
+          color={env.hemiSky}
+          scale={[50, 50, 1]}
+          position={[0, 14, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+        />
+        <Lightformer
+          form="rect"
+          intensity={2.2}
+          color={env.sunColor}
+          scale={[16, 16, 1]}
+          position={[14, 9, 8]}
+          rotation={[0, -Math.PI / 3, 0]}
+        />
+        <Lightformer
+          form="rect"
+          intensity={0.5}
+          color={env.hemiGround}
+          scale={[50, 50, 1]}
+          position={[0, -10, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        />
       </Environment>
 
       <WeatherSun sunRef={sun} discRef={sunDisc} />

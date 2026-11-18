@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import {
   ACESFilmicToneMapping,
@@ -8,7 +8,12 @@ import {
   type Mesh,
   type ToneMapping,
 } from 'three';
-import { type MapAssetId, isZombieSkin, ZOMBIE_MINIBOSS_SKIN_ID, TITAN_SKIN_ID } from '@arena/shared';
+import {
+  type MapAssetId,
+  isZombieSkin,
+  ZOMBIE_MINIBOSS_SKIN_ID,
+  TITAN_SKIN_ID,
+} from '@arena/shared';
 import { useGameStore } from '../store/useGameStore';
 import { useFocusStore } from '../store/useFocusStore';
 import { TownAtmosphere } from './TownAtmosphere';
@@ -18,9 +23,10 @@ import { useDebugStore } from '../store/useDebugStore';
 import { useEnvStore, type ToneMappingMode } from '../tuning/useEnvStore';
 import { Arena } from './Arena';
 import { ShadowFollow } from './ShadowFollow';
-import { TownGround } from './TownGround';
+import { LobbyWorld } from './LobbyWorld';
+import { LobbyAmbience } from './LobbyAmbience';
+import { FountainWater } from './FountainWater';
 import { TownLights } from './TownLights';
-import { Fountain } from './Fountain';
 import { TownLeaderboardTablet } from './TownLeaderboardTablet';
 import { TownPodiums } from './TownPodiums';
 import { TownDuelAltar } from './TownDuelAltar';
@@ -53,7 +59,6 @@ import { MapView } from '../render/MapView';
 import { ModelWarmup } from '../render/ModelWarmup';
 import { VfxWarmup } from '../render/VfxWarmup';
 import { gltfSkinUrls } from '../assets/CharacterFactory';
-import { Castle } from './Castle';
 import { useArenaLayout } from './useArenaLayout';
 import { MapZones } from '../render/MapZones';
 import { VfxLayer } from '../render/VfxLayer';
@@ -87,10 +92,7 @@ export function GameScene() {
   // Fixed barrel roster (b0…bN-1) for the match — drives a stable fire-light pool
   // so detonations don't change the scene's light count (which would recompile
   // every material and hitch the frame).
-  const barrelRoster = useMemo(
-    () => arenaLayout.barrels.map((_, i) => `b${i}`),
-    [arenaLayout],
-  );
+  const barrelRoster = useMemo(() => arenaLayout.barrels.map((_, i) => `b${i}`), [arenaLayout]);
   // The rigged zombie skin GLBs to GPU-warm in zombie mode (computed once).
   const zombieSkinUrls = useMemo(() => gltfSkinUrls(), []);
   // Lighting / shadows / fog / tone, live-tunable per world via the dev tools
@@ -162,9 +164,12 @@ export function GameScene() {
         </>
       ) : (
         <>
-          <TownGround />
+          <Suspense fallback={null}>
+            <LobbyWorld />
+          </Suspense>
+          <FountainWater />
+          <LobbyAmbience />
           <TownLights />
-          <Fountain position={[0, 0, -2]} />
           <TownLeaderboardTablet />
           <TownPodiums />
           <TownDuelAltar />
@@ -172,14 +177,7 @@ export function GameScene() {
         </>
       )}
 
-      <MapView
-        mapId={mapId}
-        props={isArena ? arenaLayout.props : undefined}
-        exclude={isArena ? undefined : ['prop.castle']}
-      />
-      {/* The castle is rendered apart so it can open up (hide near walls/roofs)
-          when the player walks inside the courtyard. */}
-      {!isArena && <Castle />}
+      <MapView mapId={mapId} props={isArena ? arenaLayout.props : undefined} />
       {/* GPU-warm the horde models so the first wave's spawn doesn't hitch. */}
       {zombieMode && <ModelWarmup urls={zombieSkinUrls} />}
       {/* GPU-warm the combat burst shaders (explosions/novas/slashes) at arena
@@ -197,21 +195,19 @@ export function GameScene() {
       {isArena && <GroundTargeter />}
       <DestinationMarker />
 
-      {!focused &&
-        entityIds.map((id) => (
-          <PlayerEntity key={id} sessionId={id} />
-        ))}
+      {!focused && entityIds.map((id) => <PlayerEntity key={id} sessionId={id} />)}
       {isArena && zombieMode && instancedHorde && <ZombieHorde />}
 
-      {isArena && !hideBarrels &&
-        barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
+      {isArena && !hideBarrels && barrelIds.map((id) => <BarrelEntity key={id} barrelId={id} />)}
 
       {isArena && !hideDestructibles && <InstancedDrums />}
-      {isArena && !hideDestructibles &&
+      {isArena &&
+        !hideDestructibles &&
         destructibleIds.map((id) => <DestructibleEntity key={id} destructibleId={id} />)}
 
       {isArena && !hideStructures && <InstancedCovers />}
-      {isArena && !hideStructures &&
+      {isArena &&
+        !hideStructures &&
         structureIds.map((id) => <CoverStructureEntity key={id} structureId={id} />)}
 
       {isArena && !hidePickables && <Pickables />}

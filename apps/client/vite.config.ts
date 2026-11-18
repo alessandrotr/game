@@ -43,6 +43,8 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: 4173,
       host: true,
+      // Allow tunnel hostnames (trycloudflare.com etc.) when sharing from a local machine.
+      allowedHosts: true,
     },
     build: {
       target: 'es2022',

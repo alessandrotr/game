@@ -42,6 +42,11 @@ export interface EnvConfig {
   shadowNormalBias: number;
   shadowExtent: number;
   exposure: number;
+  /** Global multiplier on EVERY light in the atmosphere (ambient, hemi, sun, fill, rim, IBL, point lights).
+   *  three.js lights are physical (no legacy ×π), so a scene full of mid-tone textured assets needs
+   *  roughly 3× the intensities that flat placeholder props were tuned with. One knob keeps all the
+   *  focus-weather moods in proportion. 1 = the original tuning. */
+  lightGain: number;
 }
 
 const TOWN: EnvConfig = {
@@ -52,8 +57,8 @@ const TOWN: EnvConfig = {
   grassLight: '#84a85e',
   background: '#4f4a66',
   fogColor: '#4f4a66',
-  fogNear: TOWN_HALF_SIZE * 0.65,
-  fogFar: TOWN_HALF_SIZE * 1.9,
+  fogNear: TOWN_HALF_SIZE * 0.8,
+  fogFar: TOWN_HALF_SIZE * 2.8,
   ambient: 0.16,
   hemiSky: '#6d72a4',
   hemiGround: '#40382a',
@@ -72,6 +77,7 @@ const TOWN: EnvConfig = {
   shadowNormalBias: 0.04,
   shadowExtent: 30,
   exposure: 1.1,
+  lightGain: 4,
 };
 
 const ARENA: EnvConfig = {
@@ -105,6 +111,7 @@ const ARENA: EnvConfig = {
   shadowNormalBias: 0.04,
   shadowExtent: ARENA_HALF_SIZE,
   exposure: 1.1,
+  lightGain: 1,
 };
 
 export const ENV_DEFAULTS: Record<'town' | 'arena', EnvConfig> = { town: TOWN, arena: ARENA };

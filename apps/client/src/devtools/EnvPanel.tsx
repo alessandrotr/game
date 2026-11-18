@@ -10,7 +10,11 @@ import { useLevaSection } from './levaControls';
  */
 function buildSchema(cfg: EnvConfig): Record<string, unknown> {
   return {
-    toneMapping: { value: cfg.toneMapping, options: ['aces', 'agx', 'neutral'], label: 'Tone mapping' },
+    toneMapping: {
+      value: cfg.toneMapping,
+      options: ['aces', 'agx', 'neutral'],
+      label: 'Tone mapping',
+    },
     envIntensity: { value: cfg.envIntensity, min: 0, max: 2, step: 0.05, label: 'IBL intensity' },
     grassWind: { value: cfg.grassWind, min: 0, max: 3, step: 0.05, label: 'Grass wind' },
     grassDark: { value: cfg.grassDark, label: 'Grass dark' },
@@ -22,18 +26,36 @@ function buildSchema(cfg: EnvConfig): Record<string, unknown> {
     ambient: { value: cfg.ambient, min: 0, max: 2, step: 0.01, label: 'Ambient' },
     hemiSky: { value: cfg.hemiSky, label: 'Hemi sky' },
     hemiGround: { value: cfg.hemiGround, label: 'Hemi ground' },
-    hemiIntensity: { value: cfg.hemiIntensity, min: 0, max: 2, step: 0.01, label: 'Hemi intensity' },
+    hemiIntensity: {
+      value: cfg.hemiIntensity,
+      min: 0,
+      max: 2,
+      step: 0.01,
+      label: 'Hemi intensity',
+    },
     sunPosition: { value: cfg.sunPosition, step: 1, label: 'Sun position' },
     sunIntensity: { value: cfg.sunIntensity, min: 0, max: 4, step: 0.01, label: 'Sun intensity' },
     sunColor: { value: cfg.sunColor, label: 'Sun color' },
     fillPosition: { value: cfg.fillPosition, step: 1, label: 'Fill position' },
-    fillIntensity: { value: cfg.fillIntensity, min: 0, max: 2, step: 0.01, label: 'Fill intensity' },
+    fillIntensity: {
+      value: cfg.fillIntensity,
+      min: 0,
+      max: 2,
+      step: 0.01,
+      label: 'Fill intensity',
+    },
     fillColor: { value: cfg.fillColor, label: 'Fill color' },
     rimPosition: { value: cfg.rimPosition, step: 1, label: 'Rim position' },
     rimIntensity: { value: cfg.rimIntensity, min: 0, max: 2, step: 0.01, label: 'Rim intensity' },
     rimColor: { value: cfg.rimColor, label: 'Rim color' },
     shadowMapSize: { value: cfg.shadowMapSize, options: [1024, 2048, 4096], label: 'Shadow map' },
-    shadowBias: { value: cfg.shadowBias, min: -0.005, max: 0.005, step: 0.0001, label: 'Shadow bias' },
+    shadowBias: {
+      value: cfg.shadowBias,
+      min: -0.005,
+      max: 0.005,
+      step: 0.0001,
+      label: 'Shadow bias',
+    },
     shadowNormalBias: {
       value: cfg.shadowNormalBias,
       min: 0,
@@ -43,6 +65,13 @@ function buildSchema(cfg: EnvConfig): Record<string, unknown> {
     },
     shadowExtent: { value: cfg.shadowExtent, min: 5, max: 60, step: 1, label: 'Shadow extent' },
     exposure: { value: cfg.exposure, min: 0.1, max: 3, step: 0.01, label: 'Exposure' },
+    lightGain: {
+      value: cfg.lightGain,
+      min: 0.2,
+      max: 8,
+      step: 0.05,
+      label: 'Light gain (all lights)',
+    },
   };
 }
 

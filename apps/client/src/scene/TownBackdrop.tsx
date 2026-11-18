@@ -1,12 +1,13 @@
-import { memo } from 'react';
+import { memo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import { useEnvStore } from '../tuning/useEnvStore';
 import { useQualityStore } from '../store/useQualityStore';
 import { MapView } from '../render/MapView';
-import { TownGround } from './TownGround';
+import { LobbyWorld } from './LobbyWorld';
+import { LobbyAmbience } from './LobbyAmbience';
+import { FountainWater } from './FountainWater';
 import { TownLights } from './TownLights';
-import { Fountain } from './Fountain';
 
 /**
  * A decorative, slowly-orbiting view of the town hub — no players, NPCs, camera
@@ -21,8 +22,10 @@ function OrbitCamera() {
   const camera = useThree((s) => s.camera);
   useFrame((state) => {
     const t = state.clock.elapsedTime * 0.04;
-    camera.position.set(Math.sin(t) * 16, 8.5, Math.cos(t) * 16 - 2);
-    camera.lookAt(0, 1.5, -2);
+    // Wide enough to orbit outside the ring of houses and look in at the plaza,
+    // with the castle rising behind the fountain.
+    camera.position.set(Math.sin(t) * 44, 22, Math.cos(t) * 44 - 2);
+    camera.lookAt(0, 3.5, -12);
   });
   return null;
 }
@@ -44,16 +47,16 @@ function TownBackdropImpl() {
         <color attach="background" args={[env.background]} />
         <fog attach="fog" args={[env.fogColor, env.fogNear, env.fogFar]} />
 
-        <ambientLight intensity={env.ambient} />
+        <ambientLight intensity={env.ambient * env.lightGain} />
         <hemisphereLight
           color={env.hemiSky}
           groundColor={env.hemiGround}
-          intensity={env.hemiIntensity}
+          intensity={env.hemiIntensity * env.lightGain}
         />
         <directionalLight
           key={quality.shadowMapSize}
           position={env.sunPosition}
-          intensity={env.sunIntensity}
+          intensity={env.sunIntensity * env.lightGain}
           color={env.sunColor}
           castShadow={quality.shadows}
           shadow-mapSize={[quality.shadowMapSize, quality.shadowMapSize]}
@@ -70,12 +73,12 @@ function TownBackdropImpl() {
           <>
             <directionalLight
               position={env.fillPosition}
-              intensity={env.fillIntensity}
+              intensity={env.fillIntensity * env.lightGain}
               color={env.fillColor}
             />
             <directionalLight
               position={env.rimPosition}
-              intensity={env.rimIntensity}
+              intensity={env.rimIntensity * env.lightGain}
               color={env.rimColor}
             />
           </>
@@ -86,7 +89,7 @@ function TownBackdropImpl() {
           key={`${env.hemiSky}${env.sunColor}${env.hemiGround}`}
           frames={1}
           resolution={64}
-          environmentIntensity={env.envIntensity}
+          environmentIntensity={env.envIntensity * env.lightGain}
         >
           <Lightformer
             form="rect"
@@ -114,9 +117,12 @@ function TownBackdropImpl() {
           />
         </Environment>
 
-        <TownGround />
+        <Suspense fallback={null}>
+          <LobbyWorld />
+        </Suspense>
+        <FountainWater />
+        <LobbyAmbience />
         <TownLights />
-        <Fountain position={[0, 0, -2]} />
         <MapView mapId="map.town" />
 
         <OrbitCamera />

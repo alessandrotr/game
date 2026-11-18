@@ -390,36 +390,32 @@ function pushOutOfCircles(
 }
 
 /**
- * Lord British's castle — a large WALKABLE walled fortress spanning the back of
- * town (where the old city wall ran). Defined once here so the model (client
- * props.ts) and the collision ring below stay in sync. Centre is world-space;
- * tower/gate offsets are LOCAL to it. The front wall faces +z (toward town) with
- * a central gate gap you walk through into the bailey.
+ * The castle — a large WALKABLE walled fortress at the back of town. Defined once
+ * here so the model (`tools/lobby_world.blend` → `lobby_world.glb`) and the
+ * collision ring below stay in sync. Centre is world-space; tower/gate offsets are
+ * LOCAL to it. The front wall faces +z (toward town) with a central gate gap you
+ * walk through into the bailey; the keep fills the back.
  */
 export const CASTLE = {
   x: 0,
-  z: -27,
-  halfX: 21, // half width — reaches the old back-wall ends (±21.5)
-  halfZ: 7, // half depth
-  wallH: 6,
-  wallT: 0.9,
-  gateW: 5,
-  gateH: 4.4,
+  z: -33.75,
+  halfX: 18, // wall circles step in 3s from -halfX, so the gate gap stays symmetric
+  halfZ: 6.75, // half depth (front wall at z=-27, back wall at z=-40.5)
+  wallH: 8,
+  wallT: 1.8,
+  gateW: 4.2,
+  gateH: 4.6,
 } as const;
 
-/** Tower placements local to the castle centre: four corners, mid-wall towers
- *  on the long walls, and two flanking the gate. r = base radius, h = shaft. */
+/** Tower placements local to the castle centre (z is toward the town): four corner
+ *  towers and the two flanking the gatehouse. r = base radius, h = shaft. */
 export const CASTLE_TOWERS: readonly { x: number; z: number; r: number; h: number }[] = [
-  { x: -21, z: 7, r: 1.7, h: 7 },
-  { x: 21, z: 7, r: 1.7, h: 7 },
-  { x: -21, z: -7, r: 1.7, h: 7 },
-  { x: 21, z: -7, r: 1.7, h: 7 },
-  { x: -10.5, z: 7, r: 1.4, h: 6.4 },
-  { x: 10.5, z: 7, r: 1.4, h: 6.4 },
-  { x: -10.5, z: -7, r: 1.4, h: 6.4 },
-  { x: 10.5, z: -7, r: 1.4, h: 6.4 },
-  { x: -3.3, z: 7, r: 1.3, h: 7.6 },
-  { x: 3.3, z: 7, r: 1.3, h: 7.6 },
+  { x: -17.5, z: 6.75, r: 2.8, h: 15 },
+  { x: 17.5, z: 6.75, r: 2.8, h: 15 },
+  { x: -17.5, z: -6.75, r: 2.8, h: 15 },
+  { x: 17.5, z: -6.75, r: 2.8, h: 15 },
+  { x: -4.5, z: 7.05, r: 2.2, h: 17 },
+  { x: 4.5, z: 7.05, r: 2.2, h: 17 },
 ];
 
 /** The castle's collision circles — curtain walls (with a gate gap), towers and
@@ -439,7 +435,8 @@ function castleColliders(): { x: number; z: number; radius: number }[] {
     out.push({ x: c.x + c.halfX, z: c.z + z, radius: WR }); // right
   }
   for (const t of CASTLE_TOWERS) out.push({ x: c.x + t.x, z: c.z + t.z, radius: t.r });
-  out.push({ x: c.x, z: c.z - c.halfZ + 3, radius: 3 }); // keep
+  // keep: a 14x12 block (local y -2.5..9.5) covered by a 3x3 grid of circles
+  for (const kx of [-4.5, 0, 4.5]) for (const ky of [-0.5, 3.5, 7.5]) out.push({ x: c.x + kx, z: c.z - ky, radius: 3.2 });
   return out;
 }
 
@@ -447,94 +444,127 @@ function castleColliders(): { x: number; z: number; radius: number }[] {
  * Town collision circles, one per **solid, visible** prop (buildings, walls,
  * well, stalls, trees, rocks, the arch pillars). Radii are inscribed to the
  * footprint so you can walk right up to a wall but never through it — and there
- * are no colliders where there's nothing to see (no "ghost" obstacles). Keep in
- * sync with the town layout in `apps/client/src/assets/data/maps.ts`.
+ * are no colliders where there's nothing to see (no "ghost" obstacles).
+ *
+ * Generated from `tools/lobby_world.blend` (the `apps/client/public/models/
+ * lobby_world.glb` scene) — building/stall/well/tree/rock entries are the model's
+ * footprints in game coordinates. Re-export the model → regenerate these.
  */
 export const TOWN_OBSTACLES: readonly { x: number; z: number; radius: number }[] = [
   // Castle (a big walkable fortress) — curtain walls with a gate gap, towers and
-  // keep, generated to match the model. It now spans the whole back of town, so
-  // the old separate city-wall colliders are gone.
+  // keep, generated from CASTLE below so they always match the model.
   ...castleColliders(),
-  // Buildings.
-  { x: -13, z: 5.5, radius: 2.4 }, // inn
-  { x: 13, z: 6, radius: 1.7 }, // smithy
-  { x: -20, z: -16, radius: 1.5 }, // tower
-  { x: 20, z: -16, radius: 1.5 }, // tower
-  { x: 13, z: -9, radius: 1.6 },
-  { x: -13, z: -10, radius: 1.5 },
-  { x: -16, z: 15, radius: 1.6 },
-  { x: 16, z: 16, radius: 1.5 },
-  { x: 19, z: -2, radius: 1.6 },
-  { x: -19, z: -3, radius: 1.5 },
-  { x: -10, z: 23, radius: 1.6 },
-  { x: 10, z: 24, radius: 1.5 },
-  // Town centre & furniture.
-  { x: 0, z: -2, radius: 3.1 }, // fountain (basin footprint)
-  { x: 5, z: 5, radius: 1.3 }, // stall
-  { x: -5, z: 6, radius: 1.3 }, // stall
-  { x: 7, z: 2, radius: 0.9 }, // cart
-  { x: -8.5, z: 4, radius: 0.5 }, // barrel
-  { x: 10, z: 7.5, radius: 0.5 }, // barrel
-  { x: 6, z: 6.5, radius: 0.5 }, // crate
-  { x: -6, z: 7.5, radius: 0.5 }, // crate
-  // Trees & rocks (trunk/boulder footprint only).
-  { x: -24, z: 10, radius: 0.5 },
-  { x: 24, z: 12, radius: 0.45 },
-  { x: 0, z: 27, radius: 0.5 },
-  { x: -9, z: 30, radius: 0.45 },
-  { x: -25, z: -8, radius: 0.45 },
-  { x: 25, z: -10, radius: 0.45 },
-  { x: -22, z: 22, radius: 0.45 },
-  { x: 22, z: 24, radius: 0.45 },
-  { x: 11, z: 30, radius: 0.45 },
-  { x: -26, z: 2, radius: 0.85 },
-  { x: 26, z: 4, radius: 1 },
-  { x: 16, z: -18, radius: 0.85 },
-  { x: -16, z: -19, radius: 1 },
-  // Extra greenery covering the grassy square — trees, pines, boulders (keep in sync with maps.ts).
-  { x: -36.5, z: -35, radius: 0.5 },
-  { x: -34.4, z: -14.4, radius: 0.5 },
-  { x: -35.8, z: 32.7, radius: 0.95 },
-  { x: -27.5, z: -29.3, radius: 0.5 },
-  { x: -30.4, z: -16.9, radius: 0.5 },
-  { x: -32.7, z: -4.2, radius: 0.5 },
-  { x: -27.9, z: 5.6, radius: 0.85 },
-  { x: -34.1, z: 15.9, radius: 0.95 },
-  { x: -33, z: 29.3, radius: 0.5 },
-  { x: -22, z: -34.8, radius: 0.5 },
-  { x: -20.2, z: -18.5, radius: 0.85 },
-  { x: -20.3, z: -12.2, radius: 0.5 },
-  { x: -21.1, z: -0.8, radius: 0.5 },
-  { x: -20.8, z: 17.6, radius: 0.85 },
-  { x: -22.2, z: 33.8, radius: 0.85 },
-  { x: -15, z: -7.8, radius: 0.5 },
-  { x: -13.9, z: 29, radius: 0.5 },
-  { x: -6.3, z: -16.4, radius: 0.5 },
-  { x: -12.1, z: -13, radius: 0.5 },
-  { x: -16.5, z: 5.5, radius: 0.5 },
-  { x: -5.3, z: -21.7, radius: 0.95 },
-  { x: -5.5, z: 15.1, radius: 0.85 },
-  { x: 7.5, z: -19.8, radius: 0.5 },
-  { x: 1.8, z: 19.8, radius: 0.95 },
-  { x: 13.6, z: -35, radius: 0.95 },
-  { x: 13.2, z: -24.4, radius: 0.5 },
-  { x: 20.2, z: -36.9, radius: 0.5 },
-  { x: 17.2, z: -12.1, radius: 0.5 },
-  { x: 18.6, z: 5.7, radius: 0.5 },
-  { x: 21, z: 16.2, radius: 0.5 },
-  { x: 19.7, z: 30.6, radius: 0.85 },
-  { x: 29, z: -29.3, radius: 0.5 },
-  { x: 28.8, z: -18.6, radius: 0.95 },
-  { x: 26.9, z: -2.7, radius: 0.5 },
-  { x: 28.4, z: 21.9, radius: 0.7 },
-  { x: 28.3, z: 35.2, radius: 0.7 },
-  { x: 32.4, z: -31.6, radius: 0.5 },
-  { x: 35.2, z: -21.6, radius: 0.95 },
-  { x: 32.7, z: -16.9, radius: 0.85 },
-  { x: 34.7, z: -8.4, radius: 0.5 },
-  { x: 35.6, z: -1.9, radius: 0.5 },
-  { x: 33.8, z: 6.2, radius: 0.5 },
-  { x: 30.6, z: 9.2, radius: 0.85 },
+  // Town-centre fountain.
+  { x: 0.0, z: -2.0, radius: 5.0 },
+  // Portal gate pillars.
+  { x: -2.35, z: -14.0, radius: 0.62 },
+  { x: 2.35, z: -14.0, radius: 0.62 },
+  { x: 5.65, z: -14.0, radius: 0.62 },
+  { x: 10.35, z: -14.0, radius: 0.62 },
+  // Buildings, stalls & props.
+  { x: 15.84, z: -20.5, radius: 4.09 },
+  { x: 19.16, z: -20.5, radius: 4.09 },
+  { x: -19.56, z: -20.5, radius: 4.19 },
+  { x: -15.44, z: -20.5, radius: 4.19 },
+  { x: -23.8, z: -24.3, radius: 1.9 },
+  { x: -23.6, z: -24.3, radius: 1.9 },
+  { x: 22.0, z: -0.06, radius: 2.94 },
+  { x: 22.0, z: 1.06, radius: 2.94 },
+  { x: -21.88, z: 4.0, radius: 3.68 },
+  { x: -26.12, z: 4.0, radius: 3.68 },
+  { x: -30.7, z: 4.12, radius: 2.18 },
+  { x: -30.7, z: 3.88, radius: 2.18 },
+  { x: 21.96, z: -10.46, radius: 2.99 },
+  { x: 22.04, z: -8.54, radius: 2.99 },
+  { x: 21.97, z: 10.73, radius: 3.08 },
+  { x: 22.03, z: 12.27, radius: 3.08 },
+  { x: 22.53, z: 22.26, radius: 2.81 },
+  { x: 22.47, z: 23.74, radius: 2.81 },
+  { x: -21.53, z: -9.74, radius: 2.99 },
+  { x: -21.47, z: -11.26, radius: 2.99 },
+  { x: -21.48, z: 15.74, radius: 2.71 },
+  { x: -21.52, z: 14.26, radius: 2.71 },
+  { x: -21.99, z: 25.74, radius: 2.81 },
+  { x: -22.01, z: 24.26, radius: 2.81 },
+  { x: 13.46, z: 19.99, radius: 2.99 },
+  { x: 11.54, z: 20.01, radius: 2.99 },
+  { x: -11.14, z: 20.51, radius: 2.99 },
+  { x: -12.86, z: 20.49, radius: 2.99 },
+  { x: 12.74, z: 30.99, radius: 2.81 },
+  { x: 11.26, z: 31.01, radius: 2.81 },
+  { x: -11.15, z: 31.99, radius: 2.9 },
+  { x: -12.85, z: 32.01, radius: 2.9 },
+  { x: -8.88, z: 6.6, radius: 0.98 },
+  { x: -9.6, z: 6.6, radius: 0.98 },
+  { x: -10.32, z: 6.6, radius: 0.98 },
+  { x: 10.52, z: 8.0, radius: 0.98 },
+  { x: 9.8, z: 8.0, radius: 0.98 },
+  { x: 9.08, z: 8.0, radius: 0.98 },
+  { x: -9.2, z: 22.72, radius: 0.98 },
+  { x: -9.2, z: 22.0, radius: 0.98 },
+  { x: -9.2, z: 21.28, radius: 0.98 },
+  { x: -5.6, z: 16.5, radius: 1.35 },
+  { x: 4.2, z: 14.0, radius: 0.2 },
+  { x: -4.2, z: 10.5, radius: 1.3 },
+  // Trees & rocks (trunk / boulder footprint).
+  { x: 38.9, z: -18.62, radius: 0.53 },
+  { x: 44.49, z: -30.36, radius: 0.45 },
+  { x: 35.98, z: -39.4, radius: 0.57 },
+  { x: -33.13, z: 15.29, radius: 0.47 },
+  { x: 32.09, z: -10.39, radius: 0.55 },
+  { x: 39.35, z: 39.17, radius: 0.57 },
+  { x: 32.82, z: 41.51, radius: 0.43 },
+  { x: -45.69, z: 41.11, radius: 0.51 },
+  { x: -30.07, z: -10.32, radius: 0.59 },
+  { x: -23.06, z: 34.05, radius: 0.59 },
+  { x: 44.79, z: 28.64, radius: 0.43 },
+  { x: 33.92, z: -17.68, radius: 0.46 },
+  { x: -34.71, z: -44.49, radius: 0.46 },
+  { x: 31.63, z: -31.74, radius: 0.58 },
+  { x: 21.21, z: 44.67, radius: 0.45 },
+  { x: -40.79, z: 42.93, radius: 0.43 },
+  { x: 13.01, z: 43.35, radius: 0.47 },
+  { x: 45.93, z: 33.72, radius: 0.57 },
+  { x: -6.04, z: -20.1, radius: 0.47 },
+  { x: -45.78, z: -35.91, radius: 0.44 },
+  { x: -46.1, z: 35.75, radius: 0.58 },
+  { x: 43.15, z: 42.7, radius: 0.57 },
+  { x: 32.87, z: -46.68, radius: 0.51 },
+  { x: 5.42, z: -23.93, radius: 0.43 },
+  { x: 29.14, z: 44.6, radius: 0.52 },
+  { x: -42.43, z: -23.12, radius: 0.54 },
+  { x: -32.05, z: 43.88, radius: 0.44 },
+  { x: 25.97, z: -42.42, radius: 0.54 },
+  { x: 30.07, z: 24.78, radius: 0.48 },
+  { x: -30.57, z: -43.21, radius: 0.45 },
+  { x: -16.63, z: 46.87, radius: 0.52 },
+  { x: 30.4, z: -43.29, radius: 0.47 },
+  { x: -22.85, z: -34.32, radius: 0.58 },
+  { x: 27.0, z: -30.25, radius: 0.47 },
+  { x: 41.69, z: 13.94, radius: 0.57 },
+  { x: -28.77, z: 38.63, radius: 0.56 },
+  { x: -37.26, z: 37.15, radius: 0.54 },
+  { x: 44.93, z: -9.68, radius: 0.55 },
+  { x: 24.6, z: 34.29, radius: 0.43 },
+  { x: 33.32, z: 5.19, radius: 0.54 },
+  { x: 41.53, z: -36.49, radius: 0.48 },
+  { x: 21.42, z: 40.38, radius: 0.48 },
+  { x: -27.7, z: -28.56, radius: 1.2 },
+  { x: -29.56, z: 25.48, radius: 2.22 },
+  { x: -39.13, z: -34.54, radius: 2.08 },
+  { x: -42.21, z: -14.81, radius: 2.08 },
+  { x: -42.5, z: -43.92, radius: 1.43 },
+  { x: -38.21, z: 11.29, radius: 1.17 },
+  { x: 5.85, z: 15.98, radius: 0.61 },
+  { x: -39.12, z: 40.48, radius: 2.03 },
+  { x: 22.99, z: 30.6, radius: 1.92 },
+  { x: -33.0, z: -33.25, radius: 2.04 },
+  { x: 32.5, z: -40.79, radius: 1.4 },
+  { x: 37.5, z: -8.78, radius: 2.15 },
+  { x: -15.7, z: 11.71, radius: 0.85 },
+  { x: 36.89, z: 43.6, radius: 1.28 },
+  { x: 42.42, z: 32.13, radius: 2.07 },
+  { x: -40.39, z: 23.98, radius: 0.82 },
 ];
 
 /** Push a player center out of any town prop they overlap. Mirrors the arena. */
